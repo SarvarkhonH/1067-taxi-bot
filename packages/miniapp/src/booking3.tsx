@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { foldName, formatNumber, fuzzyFilter, haversineKm, placeIcon, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
+import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
@@ -211,6 +211,20 @@ function speechCtor(): (new () => SpeechRec) | null {
 }
 
 type Screen = "map" | "pinpick" | "confirm" | "searching" | "finished" | "failed" | "schedule" | "family";
+
+// Joy TURI → glif (24×24 viewBox). Rangni CSS beradi (`k-<kind>`/`t-<kind>`), shakl shu yerda.
+const KIND_GLYPH: Record<ReturnType<typeof placeKind>, string> = {
+  school: "M12 2L1 8l11 6 9-4.9V17h2V8L12 2zM5 12.4V17c0 1.7 3.1 3 7 3s7-1.3 7-3v-4.6l-7 3.8-7-3.8z",
+  bazaar: "M6 6h15l-1.6 8.4a2 2 0 0 1-2 1.6H9.3a2 2 0 0 1-2-1.6L5.4 4H2V2h5l.8 4zM9.5 18.2a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6zm8 0a1.8 1.8 0 1 0 0 3.6 1.8 1.8 0 0 0 0-3.6z",
+  park: "M12.5 2l5 7h-3l4 6h-3.6l2.6 4H13v3h-2v-3H5.9l2.6-4H5.5l4-6h-3l5-7z",
+  mahalla: "M12 3L2 11h3v9h5.5v-5.5h3V20H19v-9h3L12 3z",
+  gov: "M12 2L2 8v2h20V8L12 2zM4 12v7H2v2h20v-2h-2v-7h-3v7h-3v-7h-2v7H7v-7H4z",
+  mosque: "M12 2c1.6 1.7 2.6 3.2 2.6 4.6 0 1.2-.7 2.1-1.6 2.8h4a3 3 0 0 1 3 3V21H4v-8.6a3 3 0 0 1 3-3h4c-.9-.7-1.6-1.6-1.6-2.8C9.4 5.2 10.4 3.7 12 2z",
+  transit: "M6 2h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2v2h-2v-2H8v2H6v-2a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm0 4v5h12V6H6zm2 8.5a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6zm8 0a1.3 1.3 0 1 0 0-2.6 1.3 1.3 0 0 0 0 2.6z",
+  health: "M10 2h4v6h6v4h-6v6h-4v-6H4V8h6V2z",
+  food: "M8.1 2v7.2a2.4 2.4 0 0 1-1.5 2.2V22H4.4V11.4A2.4 2.4 0 0 1 2.9 9.2V2h1.6v6.4h1.2V2h1.6v6.4h1.2V2h1.6zM17 2c2.2 0 3.4 2.2 3.4 5.6 0 2.6-.8 4.4-2.2 5.1V22h-2.3V2H17z",
+  other: "M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z",
+};
 // mirror of server RATING_TAGS (bookingPlus) — kept in sync manually (shared has no DTO for it)
 const RIDE_TAGS = ["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"];
 
@@ -451,6 +465,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // ── pickup2: the rebuilt pickup sheet. OFF → every branch below falls back to today's UI. ──
   const pickup2 = !!me.flags?.pickup2;
   const layoutB = !!me.flags?.pickup2b; // B = list-first; A (default) = answer-first
+  // ☀️ Yorug' varaq (ega maketidagi oq dunyo). Ega ikkala ko'rinishni real telefonda solishtiradi;
+  // tanlangani qoladi, ikkinchisining klassi o'sha commit'da o'chiriladi (ikki yo'l qoldirilmaydi).
+  const lite = me.flags?.pickup2lt ? " b3-p2-lt" : "";
   const [allPlaces, setAllPlaces] = useState<SavedAddressView[] | null>(null);
   const [showAll, setShowAll] = useState(false); // "Barchasi" — the alphabetical full catalog
   const [p2min, setP2min] = useState(false); // "Xaritadan ko'rsatish" → shrink the sheet, free the map
@@ -1325,17 +1342,30 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const sortedAll = useMemo(() => (allPlaces ?? []).slice().sort((a, b) => a.name.localeCompare(b.name)), [allPlaces]);
   const letters = useMemo(() => [...new Set(sortedAll.map((a) => a.name.charAt(0).toUpperCase()))], [sortedAll]);
 
+  // Ega maketida har joyning o'z rangli belgisi bor edi, LEKIN rang tasodifiy tanlangandi —
+  // «Eski bozor» ko'k, «Markaziy bozor» to'q sariq, ikkalasi ham bozor. Bu yerda rang joyning
+  // TURIDAN kelib chiqadi (`placeKind`, shared), ya'ni bir marta o'rgangan odam keyingi safar
+  // o'qimasdan taniydi. Emoji EMAS: oq glif + to'liq bo'yalgan doira maketdagi ko'rinish.
+  const kindIcon = (name: string) => {
+    const k = placeKind(name);
+    return (
+      <span className={`b3-p2-kico k-${k}`} aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="currentColor">
+          <path d={KIND_GLYPH[k]} />
+        </svg>
+      </span>
+    );
+  };
   const placeRow = (a: SavedAddressView, tag?: string) => (
     <button key={`${a.id}-${a.name}`} className="b3-p2-row" onClick={() => choose(a)}>
-      <span className="b3-p2-ico">{placeIcon(a.name)}</span>
+      {kindIcon(a.name)}
       <span className="b3-p2-rname">{a.name}</span>
       {tag && <span className="b3-p2-tag">{tag}</span>}
     </button>
   );
   const placeTile = (a: SavedAddressView) => (
-    <button key={`${a.id}-${a.name}`} className="b3-p2-tile" onClick={() => choose(a)}>
-      <span className="b3-p2-tico">{placeIcon(a.name)}</span>
-      <span>{a.name}</span>
+    <button key={`${a.id}-${a.name}`} className={`b3-p2-ktile t-${placeKind(a.name)}`} onClick={() => choose(a)}>
+      {a.name}
     </button>
   );
   const searchField = (
@@ -1439,7 +1469,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
       {/* ── E1/E2: pickup selection sheet ── */}
       {screen === "map" && pickup2 && (
-        <div className="b3-sheet b3-p2-sheet">
+        <div className={`b3-sheet b3-p2-sheet${lite}`}>
           <div className="b3-grip" />
           <div className="b3-sheet-head">
             <button className="b3-sheet-back" onClick={() => { haptic(); setQ(""); setResults([]); setShowAll(false); setScreen("pinpick"); }}>Orqaga</button>
@@ -1557,7 +1587,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       {/* ── pickup2: the rebuilt pickup sheet. A = answer first, B = list first. Same data and same
              actions in both — only the order changes, so the owner can compare them on a real phone. ── */}
       {screen === "pinpick" && pickup2 && !p2min && (
-        <div className={`b3-p2bar${walking ? " dragging" : ""}`}>
+        <div className={`b3-p2bar${walking ? " dragging" : ""}${lite}`}>
           <div className="b3-grip" />
           {layoutB ? (
             <button className="b3-p2-answer-row" disabled={!pinPt || pinBusy} onClick={confirmPin}>
@@ -1567,14 +1597,53 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             </button>
           ) : (
             <>
-              <div className="b3-p2-lbl">Sizni shu yerdan olamiz</div>
-              {pinBusy || !pinNear ? <Skeleton h={26} w="62%" className="b3-p2-nameskel" /> : <div className="b3-p2-name">{pinNear}</div>}
-              <Button className={pinPt && !pinBusy ? "b3-confirm-pulse" : undefined} disabled={!pinPt || pinBusy} onClick={confirmPin}>🚕 Taxi chaqirish</Button>
+              {/* Javob kartasi — ega maketining bosh ekrani: yashil «siz shu yerdasiz», katta toza
+                  nom (masofasiz — haydovchi ham aynan shu nomni ko'radi), shahar, tasdiq belgisi. */}
+              <div className="b3-p2-ans">
+                <div className="b3-p2-eyebrow">
+                  <svg width="13" height="16" viewBox="0 0 12 15" fill="currentColor" aria-hidden="true">
+                    <path d="M6 0C2.7 0 0 2.7 0 6c0 4.5 6 9 6 9s6-4.5 6-9c0-3.3-2.7-6-6-6zm0 8.2A2.2 2.2 0 1 1 6 3.8a2.2 2.2 0 0 1 0 4.4z" />
+                  </svg>
+                  Siz shu yerdasiz
+                </div>
+                {pinBusy || !pinNear
+                  ? <Skeleton h={33} w="70%" className="b3-p2-nameskel" />
+                  : <div className="b3-p2-place">{pinNear}</div>}
+                <div className="b3-p2-city">Koson</div>
+                <div className="b3-p2-ok">
+                  <span className="b3-p2-tick">
+                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 4l2.6 2.6L9 1.2" /></svg>
+                  </span>
+                  {pinBusy || !pinNear ? "Joylashuv aniqlanmoqda…" : "Joylashuv aniqlandi"}
+                </div>
+              </div>
+              <button className="b3-p2-cta" disabled={!pinPt || pinBusy} onClick={confirmPin}>
+                Shu yerdan taxi chaqirish
+              </button>
+              {/* Uchta ZAXIRA yo'l — targ'ib qilinmaydi, lekin har biri to'liq ishlaydi.
+                  98% odam yuqoridagi yashil tugma bilan tugatadi (taxi-pickup-reality). */}
+              <div className="b3-p2-hint">Boshqa joydan chaqirmoqchimisiz?</div>
+              <div className="b3-p2-alts">
+                <button className="b3-p2-alt" onClick={() => { haptic(); setScreen("map"); }}>
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--p2-blue)" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" /></svg>
+                  <span className="lb">Joy qidirish</span>
+                </button>
+                <button className="b3-p2-alt" onClick={() => { haptic(); setP2min(true); }}>
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--p2-purple)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 3L3 5.5v15L9 18l6 3 6-2.5v-15L15 6 9 3z" /><path d="M9 3v15M15 6v15" /></svg>
+                  <span className="lb">Xaritadan</span>
+                </button>
+                <button className="b3-p2-alt" onClick={() => { haptic(); setScreen("map"); }}>
+                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--p2-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z" /><path d="M14.5 6.5l3 3" /></svg>
+                  <span className="lb">Izoh yozish</span>
+                </button>
+              </div>
             </>
           )}
-          <button className="b3-p2-field" onClick={() => { haptic(); setScreen("map"); }}>
-            <span>🔍</span><span>{layoutB ? "Nom yozing" : "Boshqa joy — nom yozing"}</span>
-          </button>
+          {layoutB && (
+            <button className="b3-p2-field" onClick={() => { haptic(); setScreen("map"); }}>
+              <span>🔍</span><span>Nom yozing</span>
+            </button>
+          )}
           {layoutB ? (
             nearPlaces.length > 0 ? (
               <>
@@ -1582,7 +1651,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 <div className="b3-p2-grid">{nearPlaces.slice(0, 4).map(placeTile)}</div>
               </>
             ) : (
-              <div className="b3-p2-grid">{[0, 1, 2, 3].map((i) => <Skeleton key={i} h={58} className="b3-p2-tileskel" />)}</div>
+              <div className="b3-p2-grid">{[0, 1, 2, 3].map((i) => <Skeleton key={i} h={76} className="b3-p2-tileskel" />)}</div>
             )
           ) : (
             (info.quickPickup || recents.length > 0) && (
@@ -1592,7 +1661,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               </div>
             )
           )}
-          <button className="b3-p2-ghost" onClick={() => { haptic(); setP2min(true); }}>Xaritadan ko'rsatish</button>
+          {/* A tartibida bu yo'l yuqoridagi «Xaritadan» kattakchasida bor — ikkinchi marta
+              takrorlanmaydi (bitta narsadan bitta dona, minimalizm qarori 2026-07-26). */}
+          {layoutB && (
+            <button className="b3-p2-ghost" onClick={() => { haptic(); setP2min(true); }}>Xaritadan ko'rsatish</button>
+          )}
         </div>
       )}
 

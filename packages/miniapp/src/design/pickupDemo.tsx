@@ -42,13 +42,13 @@ const INFO: BookingInfoResponse = {
 };
 
 type Mode = "a" | "b" | "off";
-const ME = (mode: Mode): MeResponse =>
+const ME = (mode: Mode, lt: boolean): MeResponse =>
   ({
     linked: true,
     type: "client",
     coins: 4820,
     streak: { current: 3 },
-    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", taxistory: true },
+    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true },
   }) as unknown as MeResponse;
 const LABEL: Record<Mode, string> = { a: "A — javob birinchi", b: "B — ro'yxat birinchi", off: "Eski ko'rinish (flag OFF)" };
 const NEXT: Record<Mode, Mode> = { a: "b", b: "off", off: "a" };
@@ -83,15 +83,24 @@ export function PickupDemoPage() {
   // Ega uni takror-takror ko'rib chiqishi kerak — shuning uchun "ko'rilgan" belgisi tozalanadi.
   useState(() => { try { localStorage.removeItem(STORY_SEEN_KEY); } catch { /* private mode */ } });
   const [mode, setMode] = useState<Mode>("a");
+  const [lt, setLt] = useState(true); // ega maketi YORUG' — demo shundan boshlanadi
   return (
     <div style={{ position: "fixed", inset: 0 }}>
-      <Booking3View key={mode} me={ME(mode)} onClose={() => undefined} />
+      <Booking3View key={`${mode}-${lt}`} me={ME(mode, lt)} onClose={() => undefined} />
       <button
         className="d-chip"
         style={{ position: "fixed", top: "calc(6px + var(--safe-top))", right: 10, zIndex: 99 }}
         onClick={() => setMode(NEXT[mode])}
       >
         {LABEL[mode]}
+      </button>
+      {/* ☀️/🌙 — ega ikkala ko'rinishni yonma-yon solishtiradi (u shunday so'ragan edi) */}
+      <button
+        className="d-chip"
+        style={{ position: "fixed", top: "calc(48px + var(--safe-top))", right: 10, zIndex: 99 }}
+        onClick={() => setLt(!lt)}
+      >
+        {lt ? "☀️ Yorug'" : "🌙 Qorong'i"}
       </button>
     </div>
   );

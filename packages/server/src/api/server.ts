@@ -367,7 +367,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, taxistoryOn] = await Promise.all([
+    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("intercity"),
@@ -388,6 +388,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("oyin"),
       featureOn("pickup2"),
       featureOn("pickup2b"),
+      featureOn("pickup2lt"),
       featureOn("taxistory"),
     ]);
     // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
@@ -432,7 +433,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // (owner-preview-masks-dark-flags): bu FAQAT ega ko'rishini beradi — "ega ko'rdi" ≠ "mijoz
     // ko'radi", real mijoz-akkauntida `oyinOn` (preview'siz) tekshirilmaguncha "READY" deyilmaydi.
     const oyinPreview = oyinOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On, pickup2b: pickup2bOn, taxistory: taxistoryOn, oyin: oyinPreview } });
+    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn, taxistory: taxistoryOn, oyin: oyinPreview } });
   });
 
   /**
