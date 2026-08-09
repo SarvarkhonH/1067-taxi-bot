@@ -1,5 +1,75 @@
 # PROGRESS
 
+## 🟡 2026-08-09 — TAXI: 5 ekran ega maketiga o'tkazildi — READY FOR VERIFICATION
+
+Ega yuborgan dizayn-maket (`ChatGPT Image Aug 8, 2026, 08_08_46 PM.png`) asosida taksi joy-tanlash
+oqimining beshta ekrani qayta ishlandi. **Ranglar taxmin qilinmadi** — PNG'dan piksel namunasi
+olib o'lchandi; o'lchamlar ekran kengligiga nisbatlandi (maketda telefon 222px, haqiqiyda 375px,
+koeffitsiyent ×1.69). Prototip avval tasdiqlatildi, keyin ekranma-ekran qurildi.
+
+**Palitra (o'lchangan, taxmin emas):** yashil `#01A95E` · ko'k `#0A76FA` · binafsha `#7241EA` ·
+to'q sariq `#FE7E00` · amber `#FBB307` · pushti `#F2496B` · qizil `#FB2750` · siyoh `#0B0C10` ·
+kulrang matn `#7E8190` · maydon foni `#F4F6F9` · chiziq `#ECEEF3`.
+
+**O'lchamlar:** asosiy tugma 343×56 r14 KATTA HARF · belgi doirasi 38×38 · kattak 165×76 r16 ·
+joy nomi 29px/800 · qidiruv maydoni 343×50 r14 · ro'yxat qatori 65px, nom 16.5px/700.
+
+| Ekran | Commit | Nima qilindi |
+|---|---|---|
+| 1 · Asosiy | `8fdce547` | Yashil «Siz shu yerdasiz» + katta toza nom + «Koson» + ✓ + KATTA HARFLI tugma + 3 zaxira yo'l |
+| 2 · Joyni tanlang | `4fb9dd6f` | Markazlashgan sarlavha + «‹» + qidiruv (lupa+mikrofon) + bir qatorli ro'yxat + «Barcha joylar · N» |
+| 3 · Kattaklar (B) | `ae69440b` | «Atrofdagi \| Barchasi» tab'lari + 2 ustunli rangli kattaklar + «Joy topilmadimi?/Xaritadan» |
+| 4 · Barcha joylar | `8b5012c8` | Ko'rinadigan sticky harf sarlavhalari + o'ng chetdagi vertikal harf-relsi |
+| 5 · Xaritadan | `4de45074` | Binafsha «Tanlangan joy» + nom + yashil tugma + masshtab +/− |
+
+**RANG ENDI MA'NO TASHIYDI (maketdan ongli farq):** maketda «Eski bozor» ko'k, «Markaziy bozor»
+to'q sariq edi — ikkalasi ham bozor, ya'ni rang tasodifiy edi. Endi rang joyning TURIDAN kelib
+chiqadi (`placeKind`, shared): bozor ko'k · maktab pushti · bog' yashil · mahalla amber · idora
+binafsha · shifoxona qizil · masjid teal · bekat kulrang · kafe to'q sariq. Emoji o'rniga oq glif +
+to'liq bo'yalgan doira. Boshqa ongli farqlar: xarita ekranida ham YASHIL tugma (bitta oqim — bitta
+asosiy rang; maketda binafsha edi) · tepadagi ☰/🎁 qurilmadi · masofalar YO'Q (ega qarori) ·
+«Qayerga borasiz?» qadami YO'Q (tizimda borar-manzil yo'q).
+
+**Yorug'/qorong'i:** butun varaq bitta o'zgaruvchilar blokidan boqiladi, `.b3-p2-lt` klassi uni
+maketdagi oq dunyoga o'tkazadi (flag `pickup2lt`). Ega ikkalasini `#pickupdemo` da ☀️/🌙 chip bilan
+solishtiradi; yutqazganining kodi o'sha commit'da o'chiriladi.
+
+**🔴 YO'L-YO'LAKAY TOPILGAN VA YOPILGAN 4 HAQIQIY NUQSON:**
+1. **Xato yozuv hech narsa topmasdi** (`4fb9dd6f`) — reja DoD'ida «"bazo" → 3 ta bozor» sharti bor
+   edi, amalda 0 natija. Mijozlarning 98% yozib qidiradi, ya'ni ASOSIY yo'ldagi nuqson. Fix: ikki
+   bosqichli qidiruv — qat'iy folded-substring, u BO'SH qaytsagina unli-ko'r bosqich. To'g'ri
+   yozilgan so'rov hech qachon ifloslanmaydi. +4 test.
+2. **«Barchasi» ochiq bo'lganda qidiruv e'tiborga olinmasdi** (`ae69440b`) — `showAll` render
+   tartibida `q` dan oldin edi. A va B da ham bor edi. Endi yozilgan so'rov DOIM ustun.
+3. **Harf sarlavhalari ko'rinmasdi** (`8b5012c8`) — faqat ko'rinmas langar bor edi; indeks esa
+   tepada yotib ro'yxatni pastga surardi. Endi sticky sarlavha + o'ngda vertikal rels.
+4. **Pin kartasining yashil tugmasi SHAFFOF edi** (`4de45074`) — `--p2-*` o'zgaruvchilari faqat
+   ikkita selektorda e'lon qilingan, `.b3-pinbar` ularni meros olmasdi. Sabab kodda izohlandi.
+
+Bir nechta takror ham olib tashlandi: «Xaritadan ko'rsatish» A da ikki marta turardi · B da qator
+va kattak bir ekranda aralashardi · B da «Atrofingizdagi joylar» sarlavhasi tab bilan takrorlanardi.
+Skeleton balandliklari real qatorga tenglashtirildi (44→64, 58→76) — yuklanganda sahifa sakramaydi.
+
+**ISBOT (har commit'da):** `pnpm -r typecheck` **0 xato** (4 paket) · `vitest` **111/111** ·
+`pnpm --filter @t1067/miniapp build` ✓ · har ekran uchun **375px viewport'da render-isbot**
+(o'lchamlar/ranglar o'lchandi, har ekranda **0 element chetga chiqmadi**), jonli xatti-harakat
+sinovlari (qidiruv natijalari, tab almashish, harf-relsi sakrashi, masshtab plitka z 14→15→14).
+
+**⚠️ O'LCHOV MUHITI HAQIDA (o'z xatomni tuzatib):** brauzer-paneli kadr chizmasa CSS animatsiyalari
+ILGARILAMAYDI. Shu sabab bir marta «`zoomIn()` ishlamayapti» deb noto'g'ri xulosa chiqarib,
+`{animate:false}` ga o'tkazgandim — keyin sabab aniqlanib, standart `zoomIn()` qaytarildi. Xuddi
+shu sabab pin kartasi «40px chetga chiqqan» bo'lib ko'ringandi (`d-up` animatsiyasi 40px da
+qotgan). Kelgusi o'lchovlarda: transform/animationName ni birinchi tekshirish kerak.
+
+**QOLDI:** `pickup2` · `pickup2b` · `pickup2lt` · `taxistory` — hammasi **DARK** (`DEFAULT_OFF`),
+jonli mijoz uchun bugungi ekran AYNAN o'zgarishsiz. Ega `#pickupdemo` da real telefonda ko'rib
+(a) A yoki B, (b) yorug' yoki qorong'i tanlaydi → yutqazganlarining kodi o'chiriladi → mustaqil
+tekshiruv (R4) → QABUL → `EXPECTED_ON`. Ko'rish uchun VPS'ga deploy kerak (repo'da deploy
+workflow'i YO'Q — `.github/workflows/` da faqat `ci.yml` va `health.yml`; deploy qo'lda:
+`ssh` → `bash /opt/app/deploy/deploy.sh`).
+
+---
+
 ## 🟡 2026-08-09 — TAXI: o'rgatuvchi STORY (6 karta) — READY FOR VERIFICATION
 
 Ega talabi: «o'rgatiladigan story ko'rinishida joy bo'lishi kerak, 6-7 ta harakatli hintlar»; keyin
