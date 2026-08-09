@@ -603,6 +603,44 @@
 .t-transit{background:linear-gradient(135deg,#64748B,#8A97AB)}
 .t-other{background:linear-gradient(135deg,#94A3B8,#AEB9C9)}
 
+/* ── 2-ekran «Joyni tanlang»: sarlavha · qidiruv · ro'yxat · «Barcha joylar» ──────────────────
+   Maketda sarlavha O'RTADA, chapda ingichka «‹» — orqaga qaytish universal belgisi (matn emas).  */
+.b3-p2-head2 { display:flex; align-items:center; gap:8px; padding:2px 0 12px; }
+.b3-p2-back2 { width:36px; height:36px; flex:none; border:0; background:transparent; color:var(--p2-ink);
+  display:grid; place-items:center; cursor:pointer; }
+.b3-p2-back2:active { opacity:.6; }
+.b3-p2-title2 { flex:1; text-align:center; font-size:17.5px; font-weight:800; letter-spacing:-.015em;
+  color:var(--p2-ink); margin-right:36px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+/* qidiruv maydoni — maketdagi 343×50 r14, ichida lupa + (qo'llab-quvvatlansa) mikrofon */
+.b3-p2-search { display:flex; align-items:center; gap:10px; height:50px; padding:0 13px;
+  border:1px solid var(--p2-line); border-radius:14px; background:var(--p2-field); }
+.b3-p2-search svg { flex:none; }
+.b3-p2-search input { flex:1; min-width:0; border:0; background:transparent; outline:none;
+  font:inherit; font-size:15px; color:var(--p2-ink); }
+.b3-p2-search input::placeholder { color:var(--p2-ink-3); }
+.b3-p2-mic2 { flex:none; width:32px; height:32px; border:0; border-radius:9px; background:transparent;
+  color:var(--p2-blue); display:grid; place-items:center; cursor:pointer; }
+.b3-p2-mic2.on { background:var(--p2-g-soft); color:var(--p2-g-ink); }
+
+.b3-p2-seclabel { font-size:14px; font-weight:700; color:var(--p2-ink-2); padding:18px 0 4px; }
+
+/* ro'yxat qatori — 38px doira + 16.5px qalin nom, BIR QATOR (masofa yo'q, ega qarori) */
+.b3-p2-row { gap:13px; padding:13px 0; border-top:0; border-bottom:1px solid var(--p2-line);
+  color:var(--p2-ink); font-size:16.5px; font-weight:700; letter-spacing:-.01em; }
+.b3-p2-row:last-child { border-bottom:0; }
+.b3-p2-tag { font-size:11.5px; font-weight:600; color:var(--p2-ink-3); }
+
+/* «Barcha joylar · N» — ramkali qator, chapda pin, o'ngda «›» */
+.b3-p2-allrow { display:flex; align-items:center; gap:11px; width:100%; height:54px; margin-top:14px;
+  padding:0 14px; border:1px solid var(--p2-line); border-radius:14px; background:var(--p2-card);
+  color:var(--p2-ink); font:inherit; font-size:15.5px; font-weight:700; text-align:left; cursor:pointer; }
+.b3-p2-allrow:active { opacity:.7; }
+.b3-p2-allrow .lb { flex:1; }
+.b3-p2-allrow .ch { color:var(--p2-ink-3); display:grid; place-items:center; }
+.b3-p2-allrow .pin { width:32px; height:32px; flex:none; border-radius:50%; background:var(--p2-field);
+  color:var(--p2-ink-2); display:grid; place-items:center; }
+
 /* «?» — o'rgatuvchi story'ni QAYTA ochish tugmasi. Story birinchi ochilishda avtomatik chiqadi,
    keyin faqat shu tugma orqali. Ikkisi birga = bo'limga kamida ikki yo'l (DIZAYN_QOIDALARI #4).
    `taxistory` flag OFF bo'lsa bu tugma umuman chizilmaydi — jim tugma qoldirilmaydi (qoida #14). */

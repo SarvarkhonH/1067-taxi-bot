@@ -78,3 +78,30 @@ describe("placeIcon", () => {
     expect(placeIcon("QANDAYDIR JOY")).toBe("📍");
   });
 });
+
+// Reja DoD'ining aynan shu satri: «"bazo" yozilsa 3 ta bozor». Unli xatosi — mijoz eng ko'p
+// qiladigan xato; undosh skeleti esa deyarli har doim to'g'ri qoladi.
+describe("fuzzyFilter — unli xatosiga chidamlilik (zaxira bosqich)", () => {
+  it("mistyped vowels still find every bozor", () => {
+    const hits = fuzzyFilter("bazo", CATALOG).map((a) => a.name);
+    expect(hits).toHaveLength(3);
+    expect(hits).toContain("ESKI BOZOR");
+    expect(hits).toContain("BOZOR KO'CHASI");
+    expect(hits).toContain("MARKAZIY BOZOR");
+  });
+  it("more mistyped vowels: markez → markaziy, mektab → maktab", () => {
+    expect(fuzzyFilter("markez", CATALOG).map((a) => a.name)).toContain("MARKAZIY BOZOR");
+    expect(fuzzyFilter("mektab", CATALOG).map((a) => a.name)).toContain("5-MAKTAB");
+  });
+  it("a correctly typed query is NEVER polluted by the loose pass", () => {
+    // "bozor" qat'iy bosqichda topiladi → zaxira bosqich umuman ishlamaydi
+    expect(fuzzyFilter("bozor", CATALOG).map((a) => a.name)).toEqual([
+      "BOZOR KO'CHASI", "ESKI BOZOR", "MARKAZIY BOZOR",
+    ]);
+    // "hokim" faqat bittasini beradi, unli-ko'r bosqich uni kengaytirmaydi
+    expect(fuzzyFilter("hokim", CATALOG).map((a) => a.name)).toEqual(["HOKIMLIK"]);
+  });
+  it("undoshlari boshqa so'z baribir topilmaydi", () => {
+    expect(fuzzyFilter("zzzz", CATALOG)).toEqual([]);
+  });
+});
