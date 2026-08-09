@@ -1408,7 +1408,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     <div className={`b3-screen${lite}`}>
       {/* top status bar — tanga · streak */}
       <div className="b3-top">
-        <button className="b3-x" onClick={onClose}>←</button>
+        {/* Maketda orqaga — ingichka «‹» belgisi, matn yoki qalin strelka emas. */}
+        <button className="b3-x" onClick={onClose} aria-label="Orqaga">
+          {pickup2
+            ? <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+            : "←"}
+        </button>
         <div className="b3-stats">
           <span>🪙 {formatNumber(me.coins)}</span>
           {me.streak?.current ? <span>🔥 {me.streak.current}</span> : null}
@@ -1430,10 +1435,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
       {screen === "pinpick" && (
         <>
-          {/* top search pill — tap to TYPE an address (opens the search sheet). Hidden under pickup2:
-              the sheet carries its own search field, and two search entries on one screen is the
-              duplicated-chrome the minimalism pass removed everywhere else. */}
-          {(!pickup2 || p2min) && (
+          {/* top search pill — tap to TYPE an address (opens the search sheet). Under pickup2 u
+              UMUMAN chizilmaydi (ega, 2026-08-09): xarita-tanlash rejimida ham maketda qidiruv
+              pilli yo'q — pastdagi karta o'zi javob beradi, tepada esa faqat orqaga tugmasi. */}
+          {!pickup2 && (
             <button className={`b3-pin-search${walking ? " hide" : ""}`} onClick={() => { haptic(); setScreen("map"); }}>
               <span className="b3-pin-search-ico">🔍</span>
               <span>Qayerdan?</span>
@@ -1457,7 +1462,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               </g>
             </svg>
           </div>
-          <div className={`b3-pin-callout${walking ? " hide" : ""}`} aria-hidden="true">📍 Mashina shu yerga keladi</div>
+          {/* pickup2 da chizilmaydi: pastdagi karta allaqachon «Siz shu yerdasiz — 5-Maktab» deb
+              turibdi, xarita rejimida esa «Tanlangan joy» deydi. Ikkovi bir xil narsani aytadi. */}
+          {!pickup2 && <div className={`b3-pin-callout${walking ? " hide" : ""}`} aria-hidden="true">📍 Mashina shu yerga keladi</div>}
           <button className={`b3-myloc${locating ? " locating" : ""}`} onClick={() => void locateMe()} aria-label="Joylashuvni yuborish" title="Joylashuvim">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
               <circle cx="12" cy="12" r="6.5" />
@@ -1468,7 +1475,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <line x1="19.4" y1="12" x2="22.2" y2="12" />
             </svg>
           </button>
-          {!walking && <div className="b3-myloc-lb" aria-hidden="true">Joylashuvim</div>}
+          {/* «Joylashuvim» yozuvi pickup2 da chizilmaydi: maketda nishonning yonida matn yo'q,
+              belgi o'zi tushunarli. `aria-label` tugmada qolgani uchun ekran-o'quvchi baribir aytadi. */}
+          {!walking && !pickup2 && <div className="b3-myloc-lb" aria-hidden="true">Joylashuvim</div>}
           {/* Masshtab — FAQAT xarita-tanlash rejimida (p2min). Odatdagi ekranda kerak emas:
               u yerda javob allaqachon tayyor, xarita esa fon. Surilayotganda yashirinadi. */}
           {pickup2 && p2min && (
@@ -2026,7 +2035,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         <div className="b3-sheet b3-sched-sheet">
           <div className="b3-grip" />
           <div className="b3-sheet-head">
-            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("confirm"); }}>Orqaga</button>
+            <button className={pickup2 ? "b3-p2-back2" : "b3-sheet-back"} aria-label="Orqaga" onClick={() => { haptic(); setScreen("confirm"); }}>{pickup2 ? <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg> : "Orqaga"}</button>
             <div className="b3-sheet-title">⏰ Rejali safar</div>
           </div>
           <div className="b3-sched-addr">📍 <b>{pickup.name}</b></div>
@@ -2076,7 +2085,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         <div className="b3-sheet b3-fam-sheet">
           <div className="b3-grip" />
           <div className="b3-sheet-head">
-            <button className="b3-sheet-back" onClick={() => { haptic(); setScreen("confirm"); }}>Orqaga</button>
+            <button className={pickup2 ? "b3-p2-back2" : "b3-sheet-back"} aria-label="Orqaga" onClick={() => { haptic(); setScreen("confirm"); }}>{pickup2 ? <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg> : "Orqaga"}</button>
             <div className="b3-sheet-title">👨‍👩‍👧 Oila uchun</div>
           </div>
           {pickup && <div className="b3-sched-addr">📍 <b>{pickup.name}</b></div>}
