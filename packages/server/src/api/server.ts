@@ -433,7 +433,13 @@ export function createApiServer(opts: ApiOptions = {}) {
     // (owner-preview-masks-dark-flags): bu FAQAT ega ko'rishini beradi — "ega ko'rdi" ≠ "mijoz
     // ko'radi", real mijoz-akkauntida `oyinOn` (preview'siz) tekshirilmaguncha "READY" deyilmaydi.
     const oyinPreview = oyinOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn, taxistory: taxistoryOn, oyin: oyinPreview } });
+    // 🚕 Taksi redizayni — EGA-PREVIEW (ega talabi 2026-08-09: «botda ko'rishim kerak»).
+    // Ega bot ichida yangi ekranlarni ko'radi, MIJOZ esa bugungi ekranda qoladi.
+    // ⚠️ owner-preview-masks-dark-flags saboqi: «ega ko'rdi» ≠ «mijoz ko'radi». Bu bayroqlar
+    // HALI DARK — jonli mijozga chiqarish uchun `setFeature` bilan ALOHIDA yoqilishi shart.
+    // `pickup2b` ATAYLAB preview'ga kirmadi: A tartifi tavsiya qilingan, B faqat solishtirish uchun.
+    const taxiPreview = isAdmin(res.locals.telegramId as string);
+    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On || taxiPreview, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn || taxiPreview, taxistory: taxistoryOn || taxiPreview, oyin: oyinPreview } });
   });
 
   /**
