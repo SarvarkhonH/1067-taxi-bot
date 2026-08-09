@@ -3,6 +3,7 @@ import { Fragment, Suspense, lazy, useEffect, useRef, useState } from "react";
 const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanadi
 const ShopDemo = lazy(() => import("./design/shopDemo").then((m) => ({ default: m.ShopDemoPage }))); // #shopdemo dagina — shopv2 vizual-QA (mock-fetch, real Telegram auth kerak emas)
 const RstDemo = lazy(() => import("./design/rstDemo").then((m) => ({ default: m.RstDemoPage }))); // #rstdemo dagina — restoran dizayn-QA (B0…B5 yonma-yon solishtirish uchun)
+const PickupDemo = lazy(() => import("./design/pickupDemo").then((m) => ({ default: m.PickupDemoPage }))); // #pickupdemo dagina — olib ketish varag'ining A/B dizayn-QA'si (flag `pickup2` jonlida OFF)
 const OyinDemo = lazy(() => import("./design/oyinDemo").then((m) => ({ default: m.OyinDemoPage }))); // #oyindemo dagina — Koson O'yini dizayn-QA (qorong'i qurilish, flag `oyin` hali yo'q)
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
 import { api, getInitData, waitForInitData } from "./api";
@@ -187,6 +188,13 @@ export function App() {
     return (
       <Suspense fallback={<div className="boot"><div className="boot-logo">🎮</div></div>}>
         <OyinDemo />
+      </Suspense>
+    );
+  }
+  if (window.location.hash === "#pickupdemo") {
+    return (
+      <Suspense fallback={<div className="boot"><div className="boot-logo">🚕</div></div>}>
+        <PickupDemo />
       </Suspense>
     );
   }

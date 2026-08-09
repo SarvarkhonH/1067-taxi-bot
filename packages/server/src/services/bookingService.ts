@@ -155,6 +155,14 @@ export async function searchBookingAddress(q: string): Promise<SavedAddressView[
   return res.map((a) => ({ id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge }));
 }
 
+/** The whole company catalog (~150 named Koson places) for the rider-side picker. kas caches it for
+ *  6h, so browsing/filtering costs no extra upstream call — the client filters and sorts locally
+ *  instead of round-tripping every keystroke through the narrower byName search. */
+export async function listCatalogPlaces(): Promise<SavedAddressView[]> {
+  const cat = await getDataSource().getAllAddresses().catch(() => [] as SavedAddressView[]);
+  return cat.map((a) => ({ id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge }));
+}
+
 /** M7 center-pin: nearest kas catalog address to an arbitrary map point — the official rider
  *  app's getAddressByLocation (Haversine over the full company catalog from checkClient). READ-ONLY:
  *  the returned address is then booked through the unchanged createBooking-by-addressId path, so

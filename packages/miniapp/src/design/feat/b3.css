@@ -468,3 +468,62 @@
 @media (prefers-reduced-motion: reduce) {
 .b3-coach-arrow, .b3-confirm-pulse { animation:none; }
 }
+
+/* ── pickup2: rebuilt pickup sheet (A = answer-first, B = list-first) ───────────────────────── */
+.b3-p2bar { position:absolute; left:0; right:0; bottom:0; z-index:3; border-radius:20px 20px 0 0;
+  padding:8px 16px calc(14px + var(--safe-bottom)); max-height:76dvh; overflow-y:auto;
+  background:var(--glass-bg); -webkit-backdrop-filter:var(--glass-blur); backdrop-filter:var(--glass-blur);
+  border:1px solid var(--glass-rim); border-bottom:0; box-shadow:var(--glass-inset), var(--glass-shadow-up);
+  animation:d-up var(--dur-card) var(--ease-out); transition:transform .3s var(--ease-out); }
+.b3-p2bar.dragging { transform:translateY(calc(100% - 34px)); box-shadow:var(--glass-inset), 0 -6px 20px rgba(0,0,0,.4); }
+.b3-p2-lbl { font-size:12px; color:var(--muted); margin:2px 0 3px; }
+.b3-p2-name { font-size:23px; font-weight:800; line-height:1.2; margin-bottom:12px; }
+.b3-p2-nameskel { margin-bottom:12px; }
+.b3-p2-field { display:flex; align-items:center; gap:9px; width:100%; margin-top:10px; padding:11px 14px;
+  border:1px solid var(--line); border-radius:14px; background:var(--surface); color:var(--muted);
+  font-size:14px; text-align:left; cursor:pointer; }
+.b3-p2-field:active { opacity:.75; }
+.b3-p2-fieldwrap { position:relative; }
+.b3-p2-fieldwrap .bk-input { padding-right:46px; }
+.b3-p2-mic { position:absolute; right:6px; top:50%; transform:translateY(-50%); width:34px; height:34px;
+  border:0; border-radius:10px; background:transparent; font-size:17px; cursor:pointer; }
+.b3-p2-mic.on { background:rgba(255,179,0,.16); }
+.b3-p2-list { display:flex; flex-direction:column; margin-top:8px; }
+.b3-p2-all { max-height:46dvh; overflow-y:auto; }
+.b3-p2-row, .b3-p2-answer-row { display:flex; align-items:center; gap:10px; width:100%; padding:11px 4px;
+  background:transparent; border:0; border-top:1px solid var(--line); color:var(--text);
+  font-size:14px; text-align:left; cursor:pointer; }
+.b3-p2-row:first-child { border-top:0; }
+.b3-p2-answer-row { border-top:0; border-bottom:1px solid var(--line); padding:12px 4px; font-size:16px; }
+.b3-p2-answer-row:disabled { opacity:.55; }
+.b3-p2-row:active, .b3-p2-answer-row:active { opacity:.7; }
+.b3-p2-ico { font-size:17px; flex:none; }
+.b3-p2-rname { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.b3-p2-tag { flex:none; font-size:11px; color:var(--muted); }
+.b3-p2-hd { font-size:12px; color:var(--muted); margin:14px 0 6px; }
+.b3-p2-grid { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:8px; }
+.b3-p2-tile { display:flex; flex-direction:column; align-items:center; gap:4px; padding:11px 6px;
+  border:1px solid var(--line); border-radius:14px; background:var(--surface); color:var(--text);
+  font-size:12.5px; line-height:1.3; text-align:center; cursor:pointer; min-height:58px;
+  overflow:hidden; -webkit-line-clamp:2; }
+.b3-p2-tile:active { opacity:.7; }
+.b3-p2-tico { font-size:18px; }
+.b3-p2-tileskel, .b3-p2-rowskel { border-radius:14px; }
+.b3-p2-foot { display:flex; gap:8px; margin-top:12px; padding-top:10px; border-top:1px solid var(--line); }
+.b3-p2-foot .b3-p2-ghost { flex:1; margin-top:0; }
+.b3-p2-ghost { display:block; width:100%; margin-top:12px; padding:10px; border:0; background:transparent;
+  color:var(--muted); font-size:13px; cursor:pointer; }
+.b3-p2-ghost:active { opacity:.6; }
+.b3-p2-sheet { max-height:92dvh; overflow-y:auto; }
+.b3-p2-idx { display:flex; flex-wrap:wrap; gap:5px; margin:8px 0 4px; }
+.b3-p2-ic { min-width:28px; padding:4px 7px; border:1px solid var(--line); border-radius:8px;
+  background:var(--surface); color:var(--muted); font-size:12px; cursor:pointer; }
+.b3-p2-ic:active { border-color:var(--brand); color:var(--brand); }
+
+/* «?» — o'rgatuvchi story'ni QAYTA ochish tugmasi. Story birinchi ochilishda avtomatik chiqadi,
+   keyin faqat shu tugma orqali. Ikkisi birga = bo'limga kamida ikki yo'l (DIZAYN_QOIDALARI #4).
+   `taxistory` flag OFF bo'lsa bu tugma umuman chizilmaydi — jim tugma qoldirilmaydi (qoida #14). */
+.b3-help { margin-left:auto; flex:none; width:38px; height:38px; border-radius:12px;
+  border:1px solid var(--line); background:var(--surface-2); color:var(--text); font:inherit;
+  font-size:17px; font-weight:800; display:grid; place-items:center; cursor:pointer; }
+.b3-help:active { transform:scale(.94); }

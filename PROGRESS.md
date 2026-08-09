@@ -1,5 +1,175 @@
 # PROGRESS
 
+## 🟡 2026-08-09 — TAXI: o'rgatuvchi STORY (6 karta) — READY FOR VERIFICATION
+
+Ega talabi: «o'rgatiladigan story ko'rinishida joy bo'lishi kerak, 6-7 ta harakatli hintlar»; keyin
+«o'zi nimalarni o'rgatish kerak fikrla». Mavzular **taxmin bilan emas, dalil bilan** tanlandi —
+`packages/server/src/services/ai/intent.ts:28-45` dagi FAQ jadvali (odamlar shu savollarni shunchalik
+ko'p berganki, javoblari kodga yozib qo'yilgan) + `booking3.tsx:413` coach-mark saboqi + ega kuzatuvi.
+
+**6 karta va ularning dalili:**
+| # | Karta | Dalil |
+|---|---|---|
+| 1 | Qayerdaligingizni o'zimiz topamiz | ega: «avtomatik deb o'ylashadi, ba'zan yozishadi» |
+| 2 | Qayerga borishni yozmaysiz | tizimda borar-manzil YO'Q — hech qayerda aytilmagan edi |
+| 3 | Narx taksometr bo'yicha | `intent.ts:29` — FAQ ro'yxatining BIRINCHISI |
+| 4 | Haydovchi topiladi va yo'lga chiqadi | `intent.ts:39` «mashina qayerda / qachon keladi» |
+| 5 | Fikringiz o'zgarsa — bekor qilasiz | `intent.ts:36` |
+| 6 | Har safardan tanga qaytadi | `intent.ts:30,31` |
+
+**Ega mockup'idagi 7 qadamdan 3 tasi ATAYLAB QURILMADI:** «tayyor joylardan tanlang» + «xaritadan
+tanlang» + «izoh yozing» — uchtasi BITTA ishning uch yo'li (odam faqat bittasini ishlatadi), uchta
+karta qilib ko'rsatilsa ishning osonligini emas murakkabligini o'rgatgan bo'lardik → 1-kartaga bitta
+jumla bo'lib kirdi. «Yashil tugmani bosing» ham chiqdi — tugma o'zi ko'rinib turibdi.
+
+**Fayllar:** `packages/miniapp/src/taxiStory.tsx` (yangi) · `design/feat/story.css` (yangi) ·
+`booking3.tsx` (ulash + «?» tugmasi) · `design/feat/b3.css` (`.b3-help`) · `featureFlags.ts` +
+`api/server.ts` + `shared/types.ts` (flag `taxistory`, `DEFAULT_OFF`) · `design/pickupDemo.tsx` (QA).
+
+**Qarorlar:** GIF EMAS, CSS — 6 ta GIF ~2-4 MB bo'lardi, CSS varianti bundle'ni 0 KB oshirdi
+(booking3 chunk 61.98 KB / gzip 19.70 KB). Animatsiya faqat `transform`/`opacity` (+SVG
+`stroke-dashoffset`, qoida #16 istisnosi). Story ATAYLAB YORUG' — ilova qorong'i (qoida #13 naqshi).
+Yulduzcha (sevimli joylar) va Poppins shrifti — ega RAD ETDI.
+
+**ISBOT (har biri buyruq+natija):**
+- `pnpm -r typecheck` → **0 xato** (4 paket).
+- `pnpm --filter @t1067/miniapp build` → ✓ 2.77s; prod bundle-grep: story matnlari
+  `booking3-DQbZsPIQ.js` da (2 ta mos), CSS `booking3-CO_KzU3j.css` da (`st-mroll`/`st-carmv`/
+  `st-coin`/`prefers-reduced-motion`).
+- **Render-isbot** (`#pickupdemo`, haqiqiy `Booking3View` daraxti, jonli dev-server):
+  birinchi ochilishda **avtomatik ochildi** · 6 chiziq · 6 kartaning har biri o'z animatsiyasi bilan
+  (`stPulse`+`stRise`+`stBlink` · `stFade`+`stStrike` · `stRoll` · `stDraw`+`stDrive`+`stPulse` ·
+  `stPress`+`stTap` · `stDrop`) · **har kartada 0 element ramkadan chiqmadi** · CTA FAQAT oxirgi
+  kartada · «O'tkazib yuborish» oxirgi kartada «Yopish»ga o'zgardi · oxirgi kartada «keyingisi»
+  HECH NARSA qilmaydi (qayta boshlanmaydi) · birinchida «orqaga» to'xtaydi · yopilganda
+  `b3story1=1` + `b3coach1=1` qo'yildi va coach-mark chiqmadi.
+- **Jonli ma'lumot isboti:** 1-karta joy nomini `info.quickPickup` dan oldi (`RAVOT MAHALLA`,
+  qattiq yozilmagan); 3-karta hisoblagichi jonli tarifdan hisoblandi (5 000 → 6 500 → 8 300 →
+  9 800 → 11 600; qatorlar 5 000 / 2 200 / 400).
+- **🔴 Qoida #9 (eng muhimi) isbotlandi:** `/api/booking/info` javobida `cashbackPerRide=0` qilinganda
+  story **5 kartaga tushdi**, tanga kartasi BUTUNLAY chizilmadi, CTA yangi oxirgi kartaga ko'chdi.
+  Ya'ni bo'lmagan pul hech qachon va'da qilinmaydi.
+- Jarayonda topilgan va tuzatilgan 2 nuqson: (1) coach-mark story ostida qolib ketardi (effektlar
+  tartibi) → endi so'ndiriladi; (2) `go()` eski `i`ni o'qib, tez ketma-ket ikki tapni bittaga
+  aylantirardi → funksional yangilanishga o'tkazildi (isbot: 2 tap = 2 qadam).
+
+**QOLDI:** flag `taxistory` **DARK** (`DEFAULT_OFF`) — ega real telefonda QABUL bermaguncha
+yoqilmaydi (CLAUDE.md R6), `EXPECTED_ON`ga QABUL'dan KEYIN qo'shiladi. Mustaqil tekshiruv (R4) ham
+QABUL'dan oldin. Joy tanlash ekranlarining yangi dizayni (maketga sodiq, o'lchangan palitra) —
+KEYINGI qadam, hali qurilmagan.
+
+---
+
+## 🟡 2026-08-08 — TAXI: olib ketish joyi varag'i qayta qurildi (A/B) — READY FOR VERIFICATION
+
+Ega tasdiqlagan reja: `.claude/plans/virtual-wibbling-blossom.md`. Sabab (ega): «hozirgi ekran eski,
+odamlar qanday ishlatishni bilmaydi». Jonli haqiqat: ~98% nom yozib/tanlab topadi, avtomatik GPS
+kamroq lekin odamlar avtomatik bo'lishini KUTADI, xaritadan pin surish amalda ishlatilmaydi.
+Ega mockup'idagi «Qayerga borasiz?» qadami QURILMADI — kas taksometr bilan ishlaydi, boradigan
+manzil tushunchasi tizimda umuman yo'q (DIZAYN_QOIDALARI #7: ma'lumotsiz element chiqmaydi).
+
+**Ikki tartib, bitta kod, flag orqasida:** `pickup2` (yangi varaq) + `pickup2b` (B tartibi).
+Ikkalasi ham `DEFAULT_OFF` — ega real telefonda solishtirib bittasini tanlaydi, keyin yutqazganining
+kodi O'CHIRILADI (ikki yo'l qoldirilmaydi). `EXPECTED_ON`ga faqat QABUL'dan keyin.
+- **A — javob birinchi:** `Sizni shu yerdan olamiz` + katta toza nom + `🚕 Taxi chaqirish` + qidiruv
+  maydoni + odatdagi joylar.
+- **B — ro'yxat birinchi:** ingichka javob-qatori + qidiruv + `Atrofingizdagi joylar` kattaklari.
+- Ochilgan varaq (ikkalasida): jonli mahalliy filtr · 🎤 mikrofon (FAQAT `SpeechRecognition` bor
+  qurilmada chiziladi — iPhone'da tugma umuman yo'q, jim tugma qoldirilmaydi) · `Barchasi — N joy`
+  alifbo ro'yxati + harf-indeks · `Xaritadan ko'rsatish` (pin surish ZAXIRA bo'lib qoladi).
+
+**Yo'l-yo'lakay topilgan va tuzatilgan 3 ta REAL nuqson** (render-proof paytida):
+1. **Ekran o'lik qolardi:** pin FAQAT xarita harakatlanganda aniqlanardi → GPS rad etilgan mijozda
+   sarlavha abadiy skeletonda, tugma o'chiq. Endi kirishda bir marta majburiy `snap()`.
+2. **Bitta joy ikki marta:** `quickPickup` odatda `savedAddresses`ning tepasi ham — ekranda
+   «RAVOT MAHALLA · odatdagi» va «RAVOT MAHALLA · oxirgi» yonma-yon chiqardi. Endi dedup.
+3. **Ikkita qidiruv:** suzuvchi «Qayerdan?» tugmasi + varaqdagi maydon. `pickup2`da tugma yashiriladi.
+Yana: `… yaqini` qo'shimchasi olib tashlandi (ega) — haydovchi baribir katalog nomiga yuboriladi,
+mijozga ikkilangan nom ko'rsatishning ma'nosi yo'q edi.
+
+**Qidiruv chegarasi (ONGLI):** filtr faqat apostrof/digraf farqlarini yutadi (`kocasi`→`KO'CHASI`),
+so'z TAXMIN QILMAYDI. «banisa»→«OBRON BALNITSA» kabi almashtirishlar `addressAlias.ts:7` qoidasiga
+ko'ra faqat ega tasdiqlagan ro'yxatdan keladi — noto'g'ri taxmin REAL taksini noto'g'ri manzilga
+yuboradi. Test shu chegarani aniq qulflaydi.
+
+**Kod:** server `listCatalogPlaces()` + `GET /api/booking/places` (kas 6 soat keshini o'qiydi —
+yangi upstream yuk YO'Q) · shared `pickup.ts` (`placeIcon`/`foldName`/`fuzzyFilter` — pure, shuning
+uchun test qilinadi) · miniapp `booking3.tsx` yangi varaq + `b3.css` + `#pickupdemo` QA sahifasi
+(A → B → «Eski ko'rinish» aylanma tugmasi bilan).
+
+**ISBOT:** `pnpm -r typecheck` 0 xato (4/4) · shared vitest **106/106 yashil** (yangi
+`pickup.test.ts` 11 ta) · miniapp build yashil · prod bundle-grep (`Sizni shu yerdan olamiz` 1,
+`Atrofingizdagi joylar` 2, `b3-p2bar` 3) · **jonli render-proof** (mobil 375×812, qorong'i,
+`#pickupdemo`): A — «Sizni shu yerdan olamiz / 5-MAKTAB / 🚕 Taxi chaqirish», dublikat yo'q,
+`yaqini` yo'q · qidiruv `bozo` → 3 bozor (so'z-boshi birinchi), `kocasi` → 2 ko'cha, `zzzz` →
+halol bo'sh holat · `Barchasi — 22 joy` alifbo + 16 harf-indeks, `S` bosilsa sakraydi · joy tanlash
+→ tasdiq ekrani O'ZGARMAGAN · B — javob-qatori + 4 kattak · `Xaritadan ko'rsatish` → eski ixcham
+panel qaytadi · **flag OFF → ekran AYNAN bugungidek** (eski panel, eski «Qayerdan?», `5-MAKTAB yaqini`,
+eski dublikat chiplar).
+
+**RULE-4 MUSTAQIL TEKSHIRUV O'TDI** (kod yozmagan agent, 10 da'vo). 7 tasi darhol tasdiqlandi
+(flag konvensiyasi · mehmon-shoxi to'g'ri chetda · owner-preview YO'Q · endpoint faqat-o'qish ·
+pul/dispetcherlik tegilmagan · typecheck · demo fetch-patch faqat `#pickupdemo`da, sizib chiqmaydi).
+**4 ta REAL nuqson topildi va tuzatildi:**
+- **Flag OFF drift:** kirishdagi `snap()` HAMMA foydalanuvchida ishlardi → endi `pickup2` orqasida.
+- **Eskirgan javob poygasi:** ikki pin-so'rovi bir vaqtda uchsa, SEKINROQ eskisi g'olib chiqib,
+  mijoz turmagan joy nomini chizardi — va o'sha nom haydovchiga ketardi. `snapSeq` qo'riqchisi
+  qo'shildi (bu ILGARIDAN bor edi, ikkala flag holatida ham tuzaldi).
+- **Har harfda serverga so'rov:** katalog xotirada bo'lsa ham `bookingSearch` chaqirilardi, natijasi
+  esa tashlab yuborilardi. O'lchov: 4 harf → **0 server so'rovi** (avval 4 ta), filtr baribir ishlaydi.
+- **O'lik kod:** `.b3-p2-b` klassi CSS'siz edi (olib tashlandi) · `foldName`dagi Cyrillic shoxlari
+  amalda hech qachon ishlamasdi (katalog lotin alifbosida) — olib tashlandi, o'rniga real qoplama test.
+Yana: test izohi «alias jadvali buni hal qiladi» degan edi — aslida u jadval FAQAT botga ulangan
+(`bot/booking.ts:13`), miniapp qidiruvida yo'q. Izoh haqiqatga tuzatildi.
+
+**⚠️ JONLI TIZIMDA TOPILGAN ALOHIDA NUQSON (bu tiketga kirmaydi, chip ochildi):** flag OFF holatida
+pin umuman aniqlanmasligi mumkin — o'lchov: **0 ta `/api/booking/nearest` so'rovi**, panel «Xaritani
+suring» deb turadi va «✅ Shu yerdan» tugmasi ABADIY o'chiq qoladi; mijozning yagona yo'li — xaritani
+qo'lda surish. Sabab: pin faqat `setZoom(16)` → `moveend` orqali aniqlanadi, xarita konteyneri hali
+o'lchamsiz bo'lsa Leaflet `moveend` chiqarmaydi. Bu BUGUNGI jonli xatti-harakat, men keltirgan
+regressiya EMAS — tuzatish `pickup2` orqasida turibdi, ungate qilish ega qaroriga qoldirildi.
+
+**ISBOT (tuzatishlardan keyin qayta):** typecheck 0 (4/4) · shared vitest **107/107** ·
+flag OFF render AYNAN bugungidek · A tartibi: `5-MAKTAB` + tugma faol.
+
+**QOLDI:** **ega QABUL real telefonda** — A va B ni `#pickupdemo` orqali ko'rib bittasini tanlaydi
+(tugma A → B → «Eski ko'rinish» aylanadi). QABUL'gacha flag DARK, global ON QILINMAYDI (R6).
+QABUL'dan keyin: yutgan tartib `EXPECTED_ON`ga, yutqazganining kodi o'sha commit'da o'chiriladi.
+
+## 🟡 2026-08-08 — RAQAMLI EGIZAK (sim) P0-P1: substrat qurildi, determinizm isbotlandi — IN PROGRESS
+
+Ega tasdiqlagan master-reja (`.claude/plans/eager-crafting-dusk.md`): Koson Digital Twin —
+minglab agent REAL BirJoy-kodini alohida lokal Docker-Postgres ustida yashab-testlaydi;
+kalibratsiya-darvoza, ko'p-seed taqsimotlar, backtest-halqa. Qat'iy chegara (ega, 2026-08-08):
+BUTUNLAY lokal (VPS'ga qurilmaydi), pullik LLM-API YO'Q (rollarni Claude Code sub-agentlari
+o'ynaydi), mijoz-tangasiga tegilmaydi.
+
+**P0 — DONE**: jonli bazadan bir-martalik faqat-o'qish (ega ruxsati) → `packages/server/src/sim/BASELINE.md`:
+10 kalibratsiya-nishon (N1 642 safar/oy · N3 link 72.5% · N4 ulangan→1-safar 19.4% · N5 1→2 58.4% ·
+N6 D7 54.4% · N7 D30 76.5% ...). Kutilmagan yaxshi yangilik: link-rate 72.5% (eski 1% davri tugagan).
+
+**P1 — substrat READY, kalibratsiya YUGURMOQDA**: `packages/server/src/sim/` (~20 fayl, 8 parallel
+agent + integratsiya): `_simDb` (app-DB strukturaviy imkonsiz) · SimClock Date-shim + Math.random
+seeded-shim + timestamp-fixup (`@default(now())` DB-tomonda — sentinel-ASSERT har tik) · 13-trait
+aholi + mahalla/do'stlik-graf · P(harakat|kontekst) + prospect/present-bias/Fogg/social-proof ·
+realBridge (rollRideCashback/buyTicket/getOyinState/referral — REAL kod) · ega-agent (freeze→
+drawList→adminRecordWinner rituali) · ownerBooks+solvency · metrics JSONL · dashboard :5555 (brauzerda
+tekshirildi) · calibrate.ts (L2-halqa, 10-nishon scorecard, jurnal).
+Isbotlar: typecheck yashil · 30-kun run yiqilmaydi · **determinizm: bir seed 2× = bit-aynan bir hash
+(657be73f...)** · fixup-sentinel 0 · Docker-provision avtomatik. Topilgan-tuzatilgan integratsiya
+xatolar: run.ts ikkinchi reset seed-konfigni o'chirardi (chipta abadiy 0 sababi); real-koddagi
+Math.random determinizmni sindirardi; sub-faza soat-tartibi 2 marta orqaga surilardi.
+**P1 — READY FOR VERIFICATION (12/12 DoD, `packages/server/src/sim/P1_DOD.md`)**:
+kalibratsiya-darvoza O'TDI (8/10 nishon, `calibrated-params.json`) · 100-olam taqsimot: growth×
+median 0.93 (p5 0.81/p95 1.09), oylik safar median 596 (real 642), rider 139 (real 127),
+solvency 100/100 Growing, bankrotlik 0 — real plato bilan mos · mexanika-isbot: 18 real chipta +
+2 g'olib to'liq tiraj-ritual + 3164 RideReward Docker-bazada · determinizm-hash barqaror · 3 salbiy
+xavfsizlik-sinovi o'tdi. ⭐ Topilma: o'yin YOQILGANDA growth 4.80× lekin solvency "Fragile" (sovrin
+kassani siqadi) — egizakning bosh tension'i.
+P2/P3 poydevor ham TAYYOR (typecheck-toza): A-H arm-matritsasi (pre-registered), fraud (default-OFF,
+red-team pass), tirik-raqiblar+Black Swan, multi-DB flot, muhrlangan-bashorat, sub-agent ko'prigi.
+Sim-kod hali commit qilinmagan (ega tasdig'idan keyin).
+
 ## 🟡 2026-08-05 (kech) — GASHTAK: "⚙️ Boshqarish" segmentlandi + 🧪🧪 bug tuzatildi — READY FOR VERIFICATION
 
 Ega ikki narsa so'radi: (1) "gashtak bo'limi qulayroq interfeys" — "⚙️ Boshqarish" varag'i

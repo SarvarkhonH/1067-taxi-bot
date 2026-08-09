@@ -406,6 +406,8 @@ export const api = {
   bookingCreate: (body: BookingCreateBody) => request<BookingCreateResponse>("POST", "/api/booking/create", body, 1),
   bookingNow: (body: { lat?: number; lng?: number; addressId?: number } = {}) => request<BookingNowResponse>("POST", "/api/booking/now", body, 1),
   recentPickups: () => request<SavedAddressView[]>("GET", "/api/booking/recent"),
+  // pickup2: the whole named-place catalog, fetched once so the picker filters locally
+  bookingPlaces: () => request<SavedAddressView[]>("GET", "/api/booking/places"),
   bookingCancel: () => request<BookingCancelResponse>("POST", "/api/booking/cancel", undefined, 1),
   bookingEstimate: (pickup: GeoPt, dest: GeoPt, surcharge: number) => request<FareQuote>("POST", "/api/booking/estimate", { pickup, dest, surcharge }),
   bookingHistory: () =>

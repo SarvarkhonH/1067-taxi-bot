@@ -34,7 +34,7 @@ import {
 import { findDriverByCar, getDriverEarnings, lookupDriverForPay, lookupRecipient, transfer } from "../services/transferService";
 import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
-import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, getRecentPickups, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
+import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, getRecentPickups, listCatalogPlaces, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
 import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
 import { validateContactResponse, validateInitData } from "./telegramAuth";
 import { isTgBanned } from "../services/banService";
@@ -367,7 +367,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn] = await Promise.all([
+    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, taxistoryOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("intercity"),
@@ -386,6 +386,9 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("storyshare"),
       featureOn("autoloc"),
       featureOn("oyin"),
+      featureOn("pickup2"),
+      featureOn("pickup2b"),
+      featureOn("taxistory"),
     ]);
     // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
     // katalogni ko'radi, raqam faqat harakat paytida so'raladi. `guest` = Telegram identifikatori
@@ -429,7 +432,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // (owner-preview-masks-dark-flags): bu FAQAT ega ko'rishini beradi — "ega ko'rdi" ≠ "mijoz
     // ko'radi", real mijoz-akkauntida `oyinOn` (preview'siz) tekshirilmaguncha "READY" deyilmaydi.
     const oyinPreview = oyinOn || isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, oyin: oyinPreview } });
+    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On, pickup2b: pickup2bOn, taxistory: taxistoryOn, oyin: oyinPreview } });
   });
 
   /**
@@ -1904,6 +1907,8 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await resolveTrack(String(req.params.token)));
   });
   app.post("/api/booking/search", requireUser, withMember((_id, req) => searchBookingAddress(String((req.body as { q?: string })?.q ?? ""))));
+  // pickup2 picker: the whole named-place catalog, so the client can filter/sort locally (kas 6h cache)
+  app.get("/api/booking/places", requireUser, withMember(() => listCatalogPlaces()));
   // M7 center-pin: nearest catalog address to a dragged map point (read-only; booking still by addressId)
   app.post("/api/booking/nearest", requireUser, withMember((id, req) => {
     const b = (req.body ?? {}) as { lat?: number; lng?: number };
