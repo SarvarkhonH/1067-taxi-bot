@@ -350,10 +350,13 @@ export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => v
     };
   }, []);
 
+  // Yorug' skinni ekran YUKLANMASDAN OLDIN ham bilamiz: u `me.flags` da, `info` da emas.
+  const skelLite = me.flags?.pickup2 && me.flags?.pickup2lt ? " b3-p2-lt" : "";
+
   // feature flag OFF → classic Leaflet flow (no regression)
   if (flagOff) {
     return (
-      <Suspense fallback={<MapSkeleton />}>
+      <Suspense fallback={<MapSkeleton lite={skelLite} />}>
         <BookingViewOld onClose={onClose} />
       </Suspense>
     );
@@ -366,11 +369,13 @@ export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => v
       </div>
     );
   }
-  if (!info) return <MapSkeleton />;
+  if (!info) return <MapSkeleton lite={skelLite} />;
   return <Booking3Inner me={me} info={info} onClose={onClose} />;
 }
 
-function MapSkeleton() {
+// `lite` — yuklanish ekrani ham ega maketidagi OQ dunyoda bo'lsin. Ega e'tirozi: «yuklanish
+// ham qora rangda». Bayroq OFF bo'lsa AYNAN eski qorong'i skeleton qoladi.
+function MapSkeleton({ lite = "" }: { lite?: string }) {
   // ⚡ Yuklanish paytida ham HAQIQIY xarita (ega, 2026-08-01: «xaritaga kirayotganda 4-5 soniya
   // yuklanmay turadi»). Ilgari bu yerda kulrang quti turardi va xarita FAQAT info kelgach
   // ulanardi — ya'ni sekinlik xaritadan emas, unga boshlashga ruxsat berilmaganidan edi.
@@ -397,7 +402,7 @@ function MapSkeleton() {
     return () => { try { m?.remove(); } catch { /* ignore */ } };
   }, []);
   return (
-    <div className="b3-screen">
+    <div className={`b3-screen${lite}`}>
       <div className="b3-map" ref={skelMap} style={{ background: "var(--surface)" }}>
         <div className="b3-radar-dim" />
       </div>
@@ -1400,7 +1405,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   );
 
   return (
-    <div className="b3-screen">
+    <div className={`b3-screen${lite}`}>
       {/* top status bar — tanga · streak */}
       <div className="b3-top">
         <button className="b3-x" onClick={onClose}>←</button>
