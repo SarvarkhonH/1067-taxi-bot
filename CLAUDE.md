@@ -41,6 +41,20 @@ Sen 1067 loyihasining bosh muhandisi VA mahsulot dizaynerisan. Har qaror ikkala 
   o'lchovi Neon'dan olingan edi). Lokal `.env`dagi Neon URL'lari izohga olingan, `migrateToNeon.ts`
   o'chirilgan. Lokaldan `pnpm db:push` / seed / diagnostika skriptlari **ISHLAMAYDI va ishlamasligi
   KERAK** (localhost:5433 → P1001) — hammasi VPS'da yuriladi.
+- **🌿 BITTA SHOXOBCHA — `main`. YANGI SHOXOBCHA OCHILMAYDI (ega qarori 2026-08-09).**
+  Sabab: hamma sessiya BITTA ish-papkani baham ko'radi. Kimdir yangi shoxobchaga o'tsa —
+  BARCHA sessiyalar o'sha shoxobchada bo'lib qoladi, ega esa ilova ro'yxatida notanish nom
+  ko'radi va chalkashadi. Bundan tashqari yangi shoxobcha ega odatlangan bir-bosishli
+  «push → jonli» yo'lini buzadi: PR ochish, CI kutish, merge bosish — uchta qo'shimcha qadam.
+  Ish TO'G'RIDAN-TO'G'RI `main`da qilinadi, commit qilinadi, push qilinadi. Xavfsizlik CI
+  qalqoni bilan ta'minlanadi (typecheck + testlar + iqtisod-sim yiqilsa deploy TO'XTAYDI),
+  shoxobcha bilan emas. Xavfli ish bo'lsa — flag ortida DARK chiqariladi, alohida shoxobchada emas.
+  Istisno: ega ANIQ so'rasa. Worktree'lar ham qoldirilmaydi — ish tugagach `git worktree remove`.
+- **Deploy TO'LIQ AVTOMATIK — `ci.yml` ichida (alohida `deploy.yml` YO'Q, uni qidirmang).**
+  `main`ga push → `shield` ishi (typecheck + vitest + simEconomy/simLoyalty/simGuards) →
+  yashil bo'lsa `deploy` ishi SSH bilan VPS'ga kirib `bash /opt/app/deploy/deploy.sh` ni
+  yurgizadi. Qo'lda deploy SHART EMAS. (2026-08-09 da bir agent `deploy*.yml` faylini topa
+  olmay «avtomatika yo'q» degan xato xulosa chiqargan — ish `ci.yml:66-82` da.)
 - **Deploy (2026-07-25 Contabo cutover'dan keyin — Render/Vercel ENDI YO'Q):** jonli tizim bitta
   VPS'da: `169.58.55.249` (birjoy.online) · bot `systemd bot1067` · frontendlar `/var/www/{miniapp,
   admin}` · **baza VPS ichida `localhost:5432/birjoy`** (tashqaridan yopiq). Deploy = `main`ga push
