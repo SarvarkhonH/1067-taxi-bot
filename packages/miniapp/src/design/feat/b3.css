@@ -663,6 +663,20 @@
 .b3-p2-maprow .a { display:block; font-size:15.5px; font-weight:700; letter-spacing:-.01em; }
 .b3-p2-maprow .ch { flex:none; color:var(--p2-ink-3); display:grid; place-items:center; }
 
+/* ── 4-ekran «Barcha joylar»: alifbo guruhlari + o'ng chetda vertikal harf-relsi ──────────────
+   Maketda indeks o'ngda, ro'yxat yonida — bosh barmoq bilan yetadigan joy. Ilgari u tepada
+   yotgan chiplar qatori edi: ekranning eng qimmat joyini egallab, ro'yxatni pastga surardi.    */
+.b3-p2-idxwrap { position:relative; }
+.b3-p2-idxwrap .b3-p2-all { padding-right:26px; }
+.b3-p2-letter { position:sticky; top:0; z-index:2; padding:12px 0 4px; font-size:12px; font-weight:800;
+  letter-spacing:.1em; color:var(--p2-ink-3); background:var(--p2-card); }
+.b3-p2-lt .b3-p2-letter { background:#FFFFFF; }
+.b3-p2-rail { position:absolute; right:0; top:4px; bottom:4px; width:22px; display:flex;
+  flex-direction:column; justify-content:space-around; align-items:center; z-index:3; }
+.b3-p2-rail button { border:0; background:transparent; padding:0; width:22px; line-height:1.15;
+  font:inherit; font-size:10.5px; font-weight:800; color:var(--p2-ink-3); cursor:pointer; }
+.b3-p2-rail button:active { color:var(--p2-g); }
+
 /* «?» — o'rgatuvchi story'ni QAYTA ochish tugmasi. Story birinchi ochilishda avtomatik chiqadi,
    keyin faqat shu tugma orqali. Ikkisi birga = bo'limga kamida ikki yo'l (DIZAYN_QOIDALARI #4).
    `taxistory` flag OFF bo'lsa bu tugma umuman chizilmaydi — jim tugma qoldirilmaydi (qoida #14). */
