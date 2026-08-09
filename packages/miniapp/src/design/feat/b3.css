@@ -529,7 +529,10 @@
    Ranglar bitta joyda o'zgaruvchi sifatida — `.b3-p2-lt` klassi butun varaqni YORUG' dunyoga
    o'tkazadi (ega ikkala ko'rinishni real telefonda solishtiradi, keyin yutqazgani o'chiriladi).
    ══════════════════════════════════════════════════════════════════════════════════════════════ */
-.b3-p2bar, .b3-p2-sheet {
+/* `.b3-p2-pincard` — xarita-tanlash rejimidagi pastki karta. U `.b3-pinbar` ustiga qo'yiladi,
+   ya'ni o'zgaruvchilarni MEROS QILIB OLMAYDI: shu sabab u ham ro'yxatda turishi SHART (aks holda
+   `var(--p2-g)` bo'sh qolib, yashil tugma shaffof chiqadi — aynan shu xato bir marta sodir bo'ldi). */
+.b3-p2bar, .b3-p2-sheet, .b3-p2-pincard {
   --p2-g:#01A95E; --p2-g-press:#018B4D; --p2-g-soft:rgba(1,169,94,.16); --p2-g-ink:#3FD08C;
   --p2-blue:#0A76FA; --p2-purple:#7241EA; --p2-orange:#FE7E00; --p2-rose:#F2496B;
   --p2-amber:#FBB307; --p2-teal:#0E9F8E; --p2-slate:#64748B; --p2-grey:#94A3B8; --p2-red:#EF4444;
@@ -676,6 +679,30 @@
 .b3-p2-rail button { border:0; background:transparent; padding:0; width:22px; line-height:1.15;
   font:inherit; font-size:10.5px; font-weight:800; color:var(--p2-ink-3); cursor:pointer; }
 .b3-p2-rail button:active { color:var(--p2-g); }
+
+/* ── 5-ekran «Xaritadan tanlash»: pin kartasi + masshtab tugmalari ────────────────────────────
+   Bu ZAXIRA yo'l (98% odam nomidan topadi) — lekin to'liq ishlaydi va maketdagidek ko'rinadi.
+   Binafsha = xarita rejimining belgisi; asosiy harakat esa boshqa ekranlar bilan BIR XIL yashil
+   tugma (bitta oqimda bitta asosiy rang).                                                       */
+.b3-p2-pincard { padding-bottom:calc(16px + var(--safe-bottom)); }
+.b3-p2-pinlbl { font-size:12.5px; font-weight:700; color:var(--p2-purple); }
+.b3-p2-pinname { font-size:20px; font-weight:800; letter-spacing:-.02em; line-height:1.2;
+  margin-top:2px; color:var(--p2-ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.b3-p2-pincity { font-size:14px; color:var(--p2-ink-3); margin-top:1px; }
+.b3-p2-pinskel { margin:2px 0 1px; }
+
+/* masshtab — xaritaning o'ng chetida, pin kartasi ustida (maketdagi joy) */
+.b3-p2-zoom { position:absolute; right:14px; top:38%; z-index:4; width:44px; border-radius:12px;
+  overflow:hidden; background:var(--surface-2); box-shadow:0 4px 16px rgba(0,0,0,.35);
+  transition:opacity .2s; }
+.b3-p2-lt-zoom { background:#fff; box-shadow:0 4px 16px rgba(11,12,16,.16); }
+.b3-p2-zoom button { display:block; width:44px; height:42px; border:0; background:transparent;
+  color:var(--text); font:inherit; font-size:20px; font-weight:700; cursor:pointer; }
+.b3-p2-lt-zoom button { color:#464F5F; }
+.b3-p2-zoom button + button { border-top:1px solid var(--line); }
+.b3-p2-lt-zoom button + button { border-top:1px solid #ECEEF3; }
+.b3-p2-zoom button:active { opacity:.55; }
+.b3-p2-zoom.hide { opacity:0; pointer-events:none; }
 
 /* «?» — o'rgatuvchi story'ni QAYTA ochish tugmasi. Story birinchi ochilishda avtomatik chiqadi,
    keyin faqat shu tugma orqali. Ikkisi birga = bo'limga kamida ikki yo'l (DIZAYN_QOIDALARI #4).
