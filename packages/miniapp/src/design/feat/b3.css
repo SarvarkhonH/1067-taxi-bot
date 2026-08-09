@@ -594,15 +594,40 @@
 /* Chip'lar ham yorug' dunyoda o'qiladigan bo'lsin (jadval kunlari, oila ro'yxati). */
 .b3-screen.b3-p2-lt .d-chip { background: #F4F6F9; border-color: #ECEEF3; color: #464F5F; }
 .b3-screen.b3-p2-lt .d-chip.on { background: #EAF7EF; border-color: rgba(1,169,94,.35); color: #067A45; }
-/* Varaq xarita markazini yopadigan rejimda markaziy odamcha chizilmaydi. */
-.b3-centerpin.b3-hidden { display: none; }
+/* 🫧 Liquid — varaqning ORQASI shishasimon (ega talabi). Ostidagi xarita xira ko'rinib turadi,
+   varaq esa "suzayotgan" his beradi. DIQQAT: `perf(ravella)` saboqi — blur ILOVANI SEKINLASHTIRGAN,
+   shuning uchun u FAQAT shu ikki elementga qo'yiladi (varaq + pin kartasi), butun ekranga EMAS,
+   va `will-change` bilan alohida qatlamga chiqariladi. */
+.b3-screen.b3-p2-lt .b3-p2bar,
+.b3-screen.b3-p2-lt .b3-p2-pincard {
+  background: rgba(255,255,255,.72);
+  -webkit-backdrop-filter: blur(22px) saturate(180%);
+  backdrop-filter: blur(22px) saturate(180%);
+  border-top: 1px solid rgba(255,255,255,.9);
+  box-shadow: 0 -1px 0 rgba(11,12,16,.05), 0 -10px 40px rgba(11,12,16,.14);
+  will-change: transform;
+}
+/* Ichidagi kartalar to'liq oq qoladi — aks holda matn xira fonda o'qilmaydi. */
+.b3-screen.b3-p2-lt .b3-p2-ans,
+.b3-screen.b3-p2-lt .b3-p2-alt { background: #FFFFFF; }
+/* Blur qo'llab-quvvatlanmasa (eski WebView) — oddiy oq fon, hech narsa buzilmaydi. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .b3-screen.b3-p2-lt .b3-p2bar,
+  .b3-screen.b3-p2-lt .b3-p2-pincard { background: #FFFFFF; }
+}
+
+/* Odamcha varaq ochiq bo'lganda xaritaning KO'RINADIGAN qismiga ko'tariladi (varaq pastki
+   ~55% ni yopadi, ya'ni ochiq maydonning o'rtasi ~26%). Xarita rejimida markazda qoladi. */
+.b3-centerpin.b3-centerpin-up { top: 26%; }
 /* GPS tugmasi: A tartibida varaq baland, shuning uchun u YUQORIROQQA ko'chadi —
    aks holda «Izoh yozish» kattakchasi ustiga tushardi (ega skrinshotida ko'rindi). */
 /* Varaq balandligi o'zgaruvchan (A/B, safar holatlari) — shuning uchun tugma PASTGA emas,
    TEPAGA bog'lanadi: u har doim xarita maydonida qoladi va varaq ustiga tushmaydi. */
-.b3-screen.b3-p2-lt .b3-myloc { bottom: auto; top: calc(var(--safe-top, 0px) + 100px); background: #FFFFFF;
-  border: 1px solid #E7EAF0; box-shadow: 0 4px 16px rgba(11,12,16,.14); }
-.b3-screen.b3-p2-lt .b3-myloc svg { color: #0A76FA; }
+.b3-screen.b3-p2-lt .b3-myloc { bottom: auto; top: calc(var(--safe-top, 0px) + 100px);
+  width: 46px; height: 46px; border-radius: 50%; background: #FFFFFF; border: 0;
+  box-shadow: 0 3px 14px rgba(11,12,16,.18); display: grid; place-items: center; }
+.b3-screen.b3-p2-lt .b3-myloc svg { width: 22px; height: 22px; color: #0A76FA; }
+.b3-screen.b3-p2-lt .b3-myloc:active { transform: scale(.93); }
 /* Zaxira yo'l yozuvlari kesilmasin: uzun nom ikki qatorga o'tadi (qoida #12). */
 .b3-p2-alt .lb { text-align: center; line-height: 1.25; white-space: normal;
   overflow-wrap: anywhere; }
@@ -619,7 +644,6 @@
 .b3-screen.b3-p2-lt .b3-map-fallback { background: #FFFFFF; color: #0B0C10; }
 .b3-screen.b3-p2-lt .b3-msg { background: #FFFFFF; border-color: #E7EAF0; box-shadow: 0 4px 20px rgba(11,12,16,.12); }
 .b3-screen.b3-p2-lt .b3-pin-callout { background: rgba(255,255,255,.94); color: #0B0C10; }
-.b3-screen.b3-p2-lt .b3-myloc { background: #FFFFFF; color: #0A76FA; box-shadow: 0 2px 10px rgba(11,12,16,.14); }
 .b3-screen.b3-p2-lt .b3-myloc-lb { color: #464F5F; }
 .b3-screen.b3-p2-lt .b3-coach { background: rgba(255,255,255,.96); color: #0B0C10;
   box-shadow: 0 8px 28px rgba(11,12,16,.16); }

@@ -1144,6 +1144,17 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // xato 50 metrmi yoki 800 metrmi, bila olmasdik. Endi ekranning o'zi diagnostika beradi.
     const apply = (lat: number, lng: number, accuracy: number) => {
       setGpsOk(true); // haqiqiy fix keldi — endi «Siz shu yerdasiz» deyishga haqimiz bor
+      // 📍 Joy nomini GPS nuqtasining O'ZIDAN so'raymiz, xaritaning `moveend` ini KUTMASDAN.
+      // Sabab (ega: «gps aniqlashi juda xato», 2026-08-09): nom ilgari faqat xarita ko'chib
+      // bo'lgach, `map.getCenter()` dan hisoblanardi. `setView` ANIMATSIYALI — agar animatsiya
+      // uzilib qolsa (WebView fonga o'tsa, kадr chizilmasa) `moveend` ESKI markaz bilan keladi
+      // va odam boshqa joyning nomini ko'radi. GPS nuqtasi — haqiqat, xarita faqat ko'rinish.
+      const seq = ++snapSeq.current;
+      setPinPt({ lat, lng });
+      setPinBusy(true);
+      api.bookingNearestAddr(lat, lng)
+        .then((a) => { if (seq === snapSeq.current) { setPinAddr(a); setPinBusy(false); } })
+        .catch(() => { if (seq === snapSeq.current) setPinBusy(false); });
       map.current?.setView([lat, lng], 17, { animate: true });
       flashMsg(accuracy <= 35 ? null : `📍 Aniqlik ~${Math.round(accuracy)} m — pinni biroz suring`, 6000);
     };
@@ -1324,12 +1335,41 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // The server re-resolves this name authoritatively at booking, so the driver always gets a real place.
   // pickup2 (ega, 2026-08-08): the "… yaqini" suffix is dropped — the driver is dispatched to the
   // catalog place either way, so the rider seeing a hedged name only made the answer look unsure.
-  const pinNear =
+  // 📏 Pin bilan topilgan katalog-joy ORASIDAGI masofa. Katalogda ~150 joy bor, lekin ular
+  // shaharga TEKIS taqsimlanmagan — chekka mahallada eng yaqin nom 800-900 m narida bo'lishi
+  // mumkin. Ega jonli sinovda «gps aniqlashi juda xato» dedi (2026-08-09) va u haq edi:
+  // `pickup2` yoqilganda shart `pickup2 || masofa<=150m` ko'rinishida edi, ya'ni HAR DOIM rost —
+  // 900 m naridagi nom ham «siz shu yerdasiz» bo'lib chiqardi. Masofa YOZUVINI ega olib
+  // tashlashni so'ragan, lekin TEKSHIRUVNI emas: uzoq bo'lsa da'vo halol bo'lishi kerak.
+  const pinDistKm =
     pinPt && pinAddr && typeof pinAddr.lat === "number" && typeof pinAddr.lng === "number"
-      ? pickup2 || haversineKm(pinPt, { lat: pinAddr.lat, lng: pinAddr.lng }) <= 0.15
-        ? pinAddr.name
-        : `${pinAddr.name} yaqini`
+      ? haversineKm(pinPt, { lat: pinAddr.lat, lng: pinAddr.lng })
       : null;
+  const pinExact = pinDistKm !== null && pinDistKm <= 0.2; // 200 m — «shu yerdasiz» deyish chegarasi
+  const pinNear = pinAddr && pinDistKm !== null ? (pinExact ? pinAddr.name : `${pinAddr.name} yaqinida`) : null;
+  // Ishonchli holat FAQAT ikkalasi ham to'g'ri bo'lganda: haqiqiy GPS fix + yaqin katalog joyi.
+  const locSure = gpsOk && pinExact;
+  // 👆 Tortgich (grip) — barmoq bilan pastga tortsa yig'iladi, tepaga tortsa ochiladi.
+  // Ega e'tirozi (2026-08-09): «barmoq bilan mini barni tushurib ko'tarishni to'g'irlab qo'y» —
+  // ilgari faqat BOSISH ishlardi, tortish umuman yo'q edi. 40px — tasodifiy siljishdan ajratuvchi
+  // chegara; undan kichigi oddiy bosish deb qabul qilinadi (ikkala usul ham ishlaydi).
+  const gripDrag = (onDown: (() => void) | null, onUp: (() => void) | null) => {
+    let startY: number | null = null;
+    const DIST = 40;
+    return {
+      onPointerDown: (e: React.PointerEvent) => { startY = e.clientY; (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); },
+      onPointerUp: (e: React.PointerEvent) => {
+        if (startY === null) return;
+        const dy = e.clientY - startY;
+        startY = null;
+        if (dy > DIST) { haptic(); onDown?.(); return; }
+        if (dy < -DIST) { haptic(); onUp?.(); return; }
+        haptic(); (onDown ?? onUp)?.(); // qisqa harakat = oddiy bosish
+      },
+      onPointerCancel: () => { startY = null; },
+    };
+  };
+
   const confirmPin = () => {
     if (!pinPt || pinBusy) return;
     haptic();
@@ -1454,10 +1494,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <span>Qayerdan?</span>
             </button>
           )}
-          {/* Yuruvchi odamcha — FAQAT xaritadan tanlash rejimida (p2min). A tartibida varaq
-              xaritaning markazini yopib turadi va odamcha «5-MAKTAB» yozuvi USTIGA chiqib
-              qolardi (ega skrinshotida ko'rindi). Maketning bosh ekranida ham u yo'q. */}
-          <div className={`b3-centerpin${walking ? " b3-walking" : ""}${pickup2 && !p2min ? " b3-hidden" : ""}`} aria-hidden="true">
+          {/* 🙋 Yo'l to'sayotgan odamcha — mahsulotning ASOSIY belgisi (ega: «eng asosiy
+              odamchani mashinalarga to'lqin yuborish funksiyasi»). Men uni bir marta YASHIRIB
+              qo'ygandim, chunki A tartibida varaq xarita markazini yopib, odamcha «5-MAKTAB»
+              yozuvi ustiga chiqib qolgandi — bu NOTO'G'RI yechim edi: belgini o'chirish o'rniga
+              uni KO'RINADIGAN joyga ko'chirish kerak edi. Endi varaq ochiq bo'lganda odamcha
+              xaritaning ochiq qismiga (yuqoriroqqa) chiqadi, xarita rejimida esa markazda qoladi. */}
+          <div className={`b3-centerpin${walking ? " b3-walking" : ""}${pickup2 && !p2min ? " b3-centerpin-up" : ""}`} aria-hidden="true">
             <svg viewBox="0 0 44 60" width="44" height="60">
               <ellipse className="b3-hail-shadow" cx="22" cy="56" rx="10" ry="2.6" />
               <g className="b3-hail-fig">
@@ -1696,7 +1739,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
              returns when you stop. Detected place + quick chips + the single confirm CTA. ── */}
       {screen === "pinpick" && (!pickup2 || p2min) && (
         <div className={`b3-pinbar${walking ? " dragging" : ""}${pickup2 ? ` b3-p2-pincard${lite}` : ""}`}>
-          <div className="b3-grip" onClick={pickup2 ? () => { haptic(); setP2min(false); } : undefined} />
+          <div className="b3-grip b3-grip-tap" {...(pickup2 ? gripDrag(null, () => setP2min(false)) : {})} />
           {pickup2 ? (
             /* Maketdagi pin kartasi: binafsha «Tanlangan joy» → katta nom → shahar → yashil tugma.
                Nom pin surilganda jonli yangilanadi (eng yaqin katalog joyi, server uni buyurtmada
@@ -1732,7 +1775,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
              actions in both — only the order changes, so the owner can compare them on a real phone. ── */}
       {screen === "pinpick" && pickup2 && !p2min && (
         <div className={`b3-p2bar${walking ? " dragging" : ""}${lite}`}>
-          <div className="b3-grip" />
+          <div className="b3-grip b3-grip-tap" {...gripDrag(() => setP2min(true), null)} />
           {layoutB ? (
             <button className="b3-p2-answer-row" disabled={!pinPt || pinBusy} onClick={confirmPin}>
               <span className="b3-p2-ico">📍</span>
@@ -1747,11 +1790,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 {/* GPS aniqlanmagan bo'lsa «Siz shu yerdasiz» DEYILMAYDI — pin shunchaki xarita
                     turgan joyda va uning nomi TAXMIN. Halol sarlavha qo'yamiz, tugma esa baribir
                     ishlaydi (odam nomni o'qiydi va noto'g'ri bo'lsa o'zgartiradi). */}
-                <div className={`b3-p2-eyebrow${gpsOk ? "" : " b3-p2-eyebrow-guess"}`}>
+                <div className={`b3-p2-eyebrow${locSure ? "" : " b3-p2-eyebrow-guess"}`}>
                   <svg width="13" height="16" viewBox="0 0 12 15" fill="currentColor" aria-hidden="true">
                     <path d="M6 0C2.7 0 0 2.7 0 6c0 4.5 6 9 6 9s6-4.5 6-9c0-3.3-2.7-6-6-6zm0 8.2A2.2 2.2 0 1 1 6 3.8a2.2 2.2 0 0 1 0 4.4z" />
                   </svg>
-                  {gpsOk ? "Siz shu yerdasiz" : "Shu yerdanmi?"}
+                  {locSure ? "Siz shu yerdasiz" : "Shu yerdanmi?"}
                 </div>
                 {pinBusy || !pinNear
                   ? <Skeleton h={33} w="70%" className="b3-p2-nameskel" />
@@ -1759,7 +1802,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 <div className="b3-p2-city">Koson</div>
                 {/* ✓ belgisi FAQAT haqiqiy GPS bo'lganda. Aks holda halol ogohlantirish +
                     tuzatish yo'li (qoida #14: yozuv harakat aytsa — bosadigan joy bo'lsin). */}
-                {gpsOk ? (
+                {locSure ? (
                   <div className="b3-p2-ok">
                     <span className="b3-p2-tick">
                       <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 4l2.6 2.6L9 1.2" /></svg>
@@ -1767,10 +1810,23 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                     {pinBusy || !pinNear ? "Joylashuv aniqlanmoqda…" : "Joylashuv aniqlandi"}
                   </div>
                 ) : (
+                  /* Ikki xil sabab — ikki xil xabar va ikki xil yechim tugmasi.
+                     (a) GPS yo'q → joyni aniqlash kerak.
+                     (b) GPS bor, lekin eng yaqin katalog nomi uzoqda → nom taxminiy, aniqroq
+                         qilish uchun xaritadan belgilash kerak. Ilgari ikkalasi ham «aniqlanmadi»
+                         derdi — GPS ishlab turganda ham xato xabar chiqardi. */
                   <div className="b3-p2-ok b3-p2-ok-guess">
                     <span className="b3-p2-tick b3-p2-tick-guess">?</span>
-                    {pinBusy ? "Joylashuv aniqlanmoqda…" : "Joylashuvingiz aniqlanmadi — tekshiring"}
-                    <button className="b3-p2-fixloc" onClick={() => { haptic(); void locateMe(); }}>Aniqlash</button>
+                    {pinBusy
+                      ? "Joylashuv aniqlanmoqda…"
+                      : !gpsOk
+                        ? "Joylashuvingiz aniqlanmadi — tekshiring"
+                        : "Eng yaqin nom shu — aniqroq bo'lsa xaritadan belgilang"}
+                    {!pinBusy && (
+                      !gpsOk
+                        ? <button className="b3-p2-fixloc" onClick={() => { haptic(); void locateMe(); }}>Aniqlash</button>
+                        : <button className="b3-p2-fixloc" onClick={() => { haptic(); setP2min(true); }}>Xaritadan</button>
+                    )}
                   </div>
                 )}
               </div>
@@ -1901,11 +1957,16 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         <div className={`b3-sheet${pickup2 ? ` b3-p2-ride${lite}` : ""}${!active?.driver ? " b3-search-sheet" : ""}${(!active?.driver && searchMin) || (active?.driver && rideMin) ? " b3-minisheet" : ""}`}>
           {/* grip = collapse toggle. While searching → searchMin; after a driver accepts → rideMin
               (map stays visible, fare shows big). */}
+          {/* Safar varag'i: pastga tortish = yig'ish (xarita ochiladi), tepaga = to'liq ochish.
+              Qisqa bosish ham ishlaydi — ikkala odat ham qo'llab-quvvatlanadi. */}
           <div
             className="b3-grip b3-grip-tap"
             role="button"
             aria-label={(active?.driver ? rideMin : searchMin) ? "Panelni ochish" : "Panelni yig'ish"}
-            onClick={() => { haptic(); if (active?.driver) setRideMin((v) => !v); else setSearchMin((v) => !v); }}
+            {...gripDrag(
+              () => { if (active?.driver) setRideMin(true); else setSearchMin(true); },
+              () => { if (active?.driver) setRideMin(false); else setSearchMin(false); },
+            )}
           />
           {!active?.driver && searchMin ? (
             // mini bar: map stays visible; status + live bonus + cancel in ONE line

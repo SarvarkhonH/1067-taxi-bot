@@ -29,7 +29,7 @@
 .st-bar i { display: block; height: 100%; background: var(--st-ink); border-radius: 99px;
   transform: scaleX(0); transform-origin: left; }
 .st-bar.done i { transform: scaleX(1); }
-.st-bar.now i { animation: stFill 5.4s linear forwards; }
+.st-bar.now i { animation: stFill 9.5s linear forwards; } /* JS animationDuration bilan aniq qiymatga almashtiriladi */
 @keyframes stFill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
 
 .st-skip { position: absolute; top: calc(var(--safe-top, 0px) + 28px); right: 14px; z-index: 22;

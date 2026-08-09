@@ -32,8 +32,12 @@ import { formatNumber, type BookingInfoResponse } from "@t1067/shared";
 import { haptic } from "./telegram";
 import "./design/feat/story.css"; // story ochilgandagina yuklanadi (kritik yo'lda emas)
 
-const STORY_MS = 5400; // bitta kartaning avtomatik vaqti
-const STORY_MS_REDUCED = 7600; // reduced-motion: harakat yo'q → o'qishga ko'proq vaqt
+// Ega jonli sinovda (2026-08-09): «storylar o'qishga ulgurmay tez o'tib ketopti». 5.4s Instagram
+// FOTOSURATLARI uchun me'yor — bizda esa sarlavha + 20-25 so'zli matn bor, o'zbek tilida o'qish
+// ~9-10 soniya oladi. Vaqt uzaytirildi VA barmoq bosib turilganda TO'XTAYDI (pastdagi hold-pause):
+// shoshilmay o'qigan odam kartani ushlab turadi, tez o'qigan o'ngga bosib o'tib ketaveradi.
+const STORY_MS = 9500;
+const STORY_MS_REDUCED = 13000; // reduced-motion: harakat yo'q, faqat matn → yana ko'proq vaqt
 
 export const STORY_SEEN_KEY = "b3story1";
 
@@ -96,13 +100,18 @@ export function TaxiStory({ info, onClose }: Props) {
     [n],
   );
 
+  // ⏸ Barmoq bosib turilsa — TO'XTAYDI. Ega e'tirozidan keyingi asosiy yechim: o'qishga
+  // ulgurmagan odam ekranni ushlab turadi, qo'yib yuborsa davom etadi. Instagram/WhatsApp
+  // odati — o'rgatishga hojat yo'q, odamlar buni allaqachon biladi.
+  const [held, setHeld] = useState(false);
+
   // avtomatik o'tish — oxirgi kartada TO'XTAYDI (odam o'zi yopadi yoki chaqirishga o'tadi)
   useEffect(() => {
     window.clearTimeout(timer.current);
-    if (i >= n - 1) return;
+    if (i >= n - 1 || held) return; // ushlab turilgan bo'lsa taymer umuman qo'yilmaydi
     timer.current = window.setTimeout(() => setI((v) => (v < n - 1 ? v + 1 : v)), reduced ? STORY_MS_REDUCED : STORY_MS);
     return () => window.clearTimeout(timer.current);
-  }, [i, n, reduced]);
+  }, [i, n, reduced, held]);
 
   // har karta almashganda animatsiyalar qaytadan boshlansin
   useEffect(() => setRun((r) => r + 1), [i]);
@@ -126,7 +135,8 @@ export function TaxiStory({ info, onClose }: Props) {
       <div className="st-bars">
         {cards.map((c, k) => (
           <span key={c} className={`st-bar${k < i ? " done" : k === i ? " now" : ""}`}>
-            <i style={k === i ? { animationDuration: `${(reduced ? STORY_MS_REDUCED : STORY_MS) / 1000}s` } : undefined} />
+            <i style={k === i ? { animationDuration: `${(reduced ? STORY_MS_REDUCED : STORY_MS) / 1000}s`,
+                                  animationPlayState: held ? "paused" : "running" } : undefined} />
           </span>
         ))}
       </div>
@@ -135,9 +145,21 @@ export function TaxiStory({ info, onClose }: Props) {
         {i >= n - 1 ? "Yopish" : "O'tkazib yuborish"}
       </button>
 
-      {/* bosish zonalari — chap 38% orqaga, o'ng 62% oldinga (story odati) */}
-      <button className="st-zone prev" onClick={() => go(-1)} aria-label="Orqaga" />
-      <button className="st-zone next" onClick={() => go(1)} aria-label="Keyingisi" />
+      {/* Bosish zonalari — chap 38% orqaga, o'ng 62% oldinga (story odati).
+          `pointerdown` da ushlab-turish boshlanadi, `pointerup`/`pointercancel`/`pointerleave`
+          da tugaydi. Bosib-qo'yib yuborish (oddiy tap) ham ishlaydi: `onClick` alohida keladi. */}
+      {(["prev", "next"] as const).map((side) => (
+        <button
+          key={side}
+          className={`st-zone ${side}`}
+          aria-label={side === "prev" ? "Orqaga" : "Keyingisi"}
+          onPointerDown={() => setHeld(true)}
+          onPointerUp={() => setHeld(false)}
+          onPointerCancel={() => setHeld(false)}
+          onPointerLeave={() => setHeld(false)}
+          onClick={() => go(side === "prev" ? -1 : 1)}
+        />
+      ))}
 
       <div className="st-card on" key={`${id}-${run}`}>
         <div className="st-stage">{stage(id, info)}</div>
