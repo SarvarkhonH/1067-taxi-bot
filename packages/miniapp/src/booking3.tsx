@@ -536,6 +536,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       : active.etaMin && etaMaxRef.current > 0
         ? Math.min(96, Math.max(10, Math.round((1 - active.etaMin / etaMaxRef.current) * 100)))
         : 10;
+  const [finishFare, setFinishFare] = useState(0); // safar tugaganda ushlab qolingan taksometr qiymati
   const [stars, setStars] = useState(0);
   const [rateTags, setRateTags] = useState<string[]>([]);
   const [rated, setRated] = useState(false);
@@ -990,6 +991,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       if (!a && activeRef.current) {
         if (activeRef.current.driver) {
           setFinishedBid(activeRef.current.id);
+          // Yakuniy narxni SHU LAHZADA ushlab qolamiz: `active` null bo'lgach taksometrning
+          // oxirgi qiymati yo'qoladi va yakun ekrani narxsiz qolardi. Qiymat yo'q bo'lsa
+          // 0 qoladi va karta narx blokini UMUMAN chizmaydi (DIZAYN_QOIDALARI #7).
+          setFinishFare(activeRef.current.driver.meterPayment ?? 0);
           setScreen("finished");
           confetti();
           haptic();
@@ -1804,7 +1809,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
       {/* ── E4: real-status (searching → accepted → arrived) ── */}
       {screen === "searching" && (
-        <div className={`b3-sheet${!active?.driver ? " b3-search-sheet" : ""}${(!active?.driver && searchMin) || (active?.driver && rideMin) ? " b3-minisheet" : ""}`}>
+        <div className={`b3-sheet${pickup2 ? ` b3-p2-ride${lite}` : ""}${!active?.driver ? " b3-search-sheet" : ""}${(!active?.driver && searchMin) || (active?.driver && rideMin) ? " b3-minisheet" : ""}`}>
           {/* grip = collapse toggle. While searching → searchMin; after a driver accepts → rideMin
               (map stays visible, fare shows big). */}
           <div
@@ -1850,28 +1855,75 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 <RideProgress pct={approachPct} full={active.status === "arrived"} className="mt8" />
               )}
               <RideTimeline status={active.status} />
-              <div className="b3-driver b3-driver-tap" role="button" tabIndex={0} onClick={() => { haptic(); setPlateZoom(true); }} title="Bosib to'liq ko'rish">
-                <div className="b3-driver-av">🧑‍✈️</div>
-                <div className="b3-driver-meta">
-                  <div className="b3-driver-name">
-                    {active.driver.fullName || "Haydovchi"}
-                    {active.driver.rating ? <span className="b3-driver-rate"> ⭐{active.driver.rating.toFixed(1)}</span> : null}
+              {pickup2 ? (
+                /* Ega maketining safar kartasi: avatar · KATTA ism · mashina + raqam-chipi +
+                   reyting · ikki ustunli o'lchov (Tezlik/Masofa yoki jonli hisoblagich) ·
+                   yashil-yumshoq «Qo'ng'iroq» + ko'k-yumshoq «Ulashish». Barcha raqamlar
+                   JONLI (kas taksometri/GPS) — qattiq yozilgan qiymat yo'q. */
+                <>
+                  <div className="b3-p2-drv b3-driver-tap" role="button" tabIndex={0} onClick={() => { haptic(); setPlateZoom(true); }} title="Bosib to'liq ko'rish">
+                    <div className="b3-p2-drv-av">🧑‍✈️</div>
+                    <div className="b3-p2-drv-meta">
+                      <div className="b3-p2-drv-name">{active.driver.fullName || "Haydovchi"}</div>
+                      <div className="b3-p2-drv-sub">
+                        {active.driver.carModel ? <span>{active.driver.carModel}</span> : null}
+                        {active.driver.carNumber ? <span className="b3-p2-plate">{active.driver.carNumber}</span> : null}
+                        {active.driver.rating ? <span className="b3-p2-star">★ {active.driver.rating.toFixed(1)}</span> : null}
+                      </div>
+                    </div>
                   </div>
-                  <div className="dim fs13">🚘 {active.driver.carModel} · <span className="b3-driver-plate">{active.driver.carNumber}</span></div>
-                </div>
-                {active.etaMin ? <div className="b3-eta"><b>{active.etaMin}</b><span>daq</span></div> : null}
-              </div>
-              {active.driver.meterPayment ? (
-                <div className="b3-fare-row b3-fare-big mt8"><span>🧮 Hisoblagich (jonli)</span><b><CountUp value={active.driver.meterPayment} /> so'm</b></div>
-              ) : null}
-              {active.status === "started" && speedKmh > 0 ? (
-                <div className="b3-fare-row"><span>🚗 Tezlik</span><b>~{speedKmh} km/soat</b></div>
-              ) : null}
-              {active.status === "started" ? <InTripExtras rideStartedAt={active.rideStartedAt ?? null} /> : null}
-              <div className="b3-acts">
-                {active.driver.phone ? <a className="b3-act b3-act-call" href={`tel:${active.driver.phone}`}>📞 Qo'ng'iroq</a> : null}
-                <button className="b3-act" onClick={() => { if (active.driver) void shareTrip(active.driver); }}>🛡 Ulashish</button>
-              </div>
+                  {active.driver.meterPayment ? (
+                    <div className="b3-p2-meter">
+                      <div className="k">Hisoblagich (jonli)</div>
+                      <div className="v"><CountUp value={active.driver.meterPayment} /><span>so'm</span></div>
+                    </div>
+                  ) : null}
+                  {(speedKmh > 0 || active.etaMin) && (
+                    <div className="b3-p2-stats">
+                      {speedKmh > 0 && <div className="b3-p2-stat"><div className="k">Tezlik</div><div className="v">~{speedKmh} km/soat</div></div>}
+                      {active.etaMin ? <div className="b3-p2-stat"><div className="k">Yetib keladi</div><div className="v">~{active.etaMin} daqiqa</div></div> : null}
+                    </div>
+                  )}
+                  {active.status === "started" ? <InTripExtras rideStartedAt={active.rideStartedAt ?? null} /> : null}
+                  <div className="b3-p2-acts">
+                    {active.driver.phone ? (
+                      <a className="b3-p2-act b3-p2-act-call" href={`tel:${active.driver.phone}`}>
+                        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24c1.1.37 2.3.57 3.6.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.3.2 2.5.57 3.6a1 1 0 0 1-.25 1l-2.2 2.2z" /></svg>
+                        Qo'ng'iroq
+                      </a>
+                    ) : null}
+                    <button className="b3-p2-act b3-p2-act-share" onClick={() => { if (active.driver) void shareTrip(active.driver); }}>
+                      <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-1.2 14.6l-4.2-4.2 1.7-1.7 2.5 2.5 5.6-5.6 1.7 1.7-7.3 7.3z" /></svg>
+                      Ulashish
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="b3-driver b3-driver-tap" role="button" tabIndex={0} onClick={() => { haptic(); setPlateZoom(true); }} title="Bosib to'liq ko'rish">
+                    <div className="b3-driver-av">🧑‍✈️</div>
+                    <div className="b3-driver-meta">
+                      <div className="b3-driver-name">
+                        {active.driver.fullName || "Haydovchi"}
+                        {active.driver.rating ? <span className="b3-driver-rate"> ⭐{active.driver.rating.toFixed(1)}</span> : null}
+                      </div>
+                      <div className="dim fs13">🚘 {active.driver.carModel} · <span className="b3-driver-plate">{active.driver.carNumber}</span></div>
+                    </div>
+                    {active.etaMin ? <div className="b3-eta"><b>{active.etaMin}</b><span>daq</span></div> : null}
+                  </div>
+                  {active.driver.meterPayment ? (
+                    <div className="b3-fare-row b3-fare-big mt8"><span>🧮 Hisoblagich (jonli)</span><b><CountUp value={active.driver.meterPayment} /> so'm</b></div>
+                  ) : null}
+                  {active.status === "started" && speedKmh > 0 ? (
+                    <div className="b3-fare-row"><span>🚗 Tezlik</span><b>~{speedKmh} km/soat</b></div>
+                  ) : null}
+                  {active.status === "started" ? <InTripExtras rideStartedAt={active.rideStartedAt ?? null} /> : null}
+                  <div className="b3-acts">
+                    {active.driver.phone ? <a className="b3-act b3-act-call" href={`tel:${active.driver.phone}`}>📞 Qo'ng'iroq</a> : null}
+                    <button className="b3-act" onClick={() => { if (active.driver) void shareTrip(active.driver); }}>🛡 Ulashish</button>
+                  </div>
+                </>
+              )}
             </>
           ) : (
             // 🔍 Jonli qidiruv — the OLD compact look (radar + one honest line; owner preferred it)
@@ -1890,26 +1942,42 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             </>
           )}
           {!(searchMin && !active?.driver) && !(rideMin && active?.driver) && (
-            <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>
+            pickup2
+              ? <button className="b3-p2-cancel" disabled={busy} onClick={cancel}>Bekor qilish</button>
+              : <Button variant="danger" disabled={busy} onClick={cancel}>✖ Bekor qilish</Button>
           )}
         </div>
       )}
 
       {/* ── E7: peak-end finish card (DISPLAY-ONLY; rewards were granted by the bot sweep) ── */}
       {screen === "finished" && (
-        <div className="b3-sheet b3-finish">
+        <div className={`b3-sheet b3-finish${pickup2 ? ` b3-p2-ride${lite}` : ""}`}>
           <div className="b3-grip" />
           <div className="b3-finish-emoji">🏁</div>
-          <div className="b3-sheet-title tac">Safaringiz yakunlandi — rahmat!</div>
+          <div className="b3-sheet-title tac">Safar tugadi</div>
+          {/* Maketdagi yakun bloklari: KATTA narx → tanga mukofoti → baho. Har biri faqat REAL
+              ma'lumot bo'lsa chiziladi (narx 0 bo'lsa blok yo'q, cashback 0 bo'lsa blok yo'q). */}
+          {pickup2 && finishFare > 0 && (
+            <div className="b3-p2-fin-fare">
+              <div className="v">{formatNumber(finishFare)}<span>so'm</span></div>
+            </div>
+          )}
+          {pickup2 && info.cashbackPerRide > 0 && (
+            <div className="b3-p2-fin-coin">
+              <div className="k">Tanga mukofotingiz</div>
+              <div className="v">⭐ +{formatNumber(info.cashbackPerRide)} 🪙</div>
+            </div>
+          )}
           {me.streak?.current ? <div className="b3-finish-streak">🔥 {me.streak.current} kun streak — davom eting!</div> : null}
-          <div className="dim tac fs13 mt6">🎁 Tanga mukofotingiz Hamyon va botda hisoblandi.</div>
+          {!pickup2 && <div className="dim tac fs13 mt6">🎁 Tanga mukofotingiz Hamyon va botda hisoblandi.</div>}
           {rated ? (
             <div className="b3-finish-thanks">🙏 Bahoyingiz uchun rahmat!</div>
           ) : (
             <>
-              <div className="b3-stars">
+              {pickup2 && <div className="b3-p2-fin-rate"><div className="k">Haydovchini baholang</div></div>}
+              <div className={pickup2 ? "b3-p2-fin-stars" : "b3-stars"}>
                 {[1, 2, 3, 4, 5].map((n) => (
-                  <button key={n} className={"b3-star" + (n <= stars ? " on" : "")} onClick={() => { haptic(); setStars(n); }}>★</button>
+                  <button key={n} className={(pickup2 ? "" : "b3-star") + (n <= stars ? " on" : "")} onClick={() => { haptic(); setStars(n); }}>★</button>
                 ))}
               </div>
               {stars > 0 && (
@@ -1926,7 +1994,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               )}
             </>
           )}
-          <Button variant="ghost" onClick={rebook}>🔁 Yana 1067</Button>
+          {pickup2
+            ? <button className="b3-p2-home" onClick={rebook}>Bosh sahifaga</button>
+            : <Button variant="ghost" onClick={rebook}>🔁 Yana 1067</Button>}
         </div>
       )}
 

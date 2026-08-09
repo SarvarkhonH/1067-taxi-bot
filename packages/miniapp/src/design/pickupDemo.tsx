@@ -41,6 +41,29 @@ const INFO: BookingInfoResponse = {
   waitComp: null,
 };
 
+// 🚕 Safar holatlari — bu ekranlarni boshqacha yo'l bilan faqat HAQIQIY safar paytida ko'rish
+// mumkin edi. Demo ularni buyurtmasiz ko'rsatadi (mock kas javobi), ya'ni ega haydovchi kartasini,
+// jonli hisoblagichni va yakun ekranini istalgan vaqtda tekshira oladi.
+type Ride = "none" | "accepted" | "started";
+const DRIVER = {
+  fullName: "ZAFARBEK", carModel: "Cobalt", carNumber: "70Z878ZZ", rating: 4.9,
+  phone: "+998901234567", lat: 39.0472, lng: 65.5836, bearing: 120,
+};
+const ACTIVE = (r: Ride) =>
+  r === "none"
+    ? null
+    : {
+        id: 90001,
+        status: r === "started" ? "started" : "accepted",
+        notifiedCount: 3,
+        etaMin: r === "started" ? null : 2,
+        rideStartedAt: r === "started" ? new Date(Date.now() - 6 * 60_000).toISOString() : null,
+        driver: { ...DRIVER, meterPayment: r === "started" ? 5021 : 0, meterDistance: r === "started" ? 3.4 : 0.4 },
+      };
+let RIDE: Ride = "none"; // patchFetch shundan o'qiydi (modul darajasida, remount'da saqlanadi)
+const RIDE_LABEL: Record<Ride, string> = { none: "🚕 Safar: yo'q", accepted: "🚕 Haydovchi yo'lda", started: "🚕 Safarda" };
+const RIDE_NEXT: Record<Ride, Ride> = { none: "accepted", accepted: "started", started: "none" };
+
 type Mode = "a" | "b" | "off";
 const ME = (mode: Mode, lt: boolean): MeResponse =>
   ({
@@ -61,10 +84,10 @@ function patchFetch(): void {
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
-    if (url.includes("/api/booking/info")) return json(INFO);
+    if (url.includes("/api/booking/info")) return json({ ...INFO, active: ACTIVE(RIDE) });
     if (url.includes("/api/booking/places")) return json(PLACES);
     if (url.includes("/api/booking/nearby")) return json({ pins: [], freeDrivers: 4 });
-    if (url.includes("/api/booking/active")) return json(null);
+    if (url.includes("/api/booking/active")) return json(ACTIVE(RIDE));
     if (url.includes("/api/booking/scheduled")) return json([]);
     if (url.includes("/api/booking/nearest")) return json(at(0));
     if (url.includes("/api/booking/search")) {
@@ -84,9 +107,10 @@ export function PickupDemoPage() {
   useState(() => { try { localStorage.removeItem(STORY_SEEN_KEY); } catch { /* private mode */ } });
   const [mode, setMode] = useState<Mode>("a");
   const [lt, setLt] = useState(true); // ega maketi YORUG' — demo shundan boshlanadi
+  const [ride, setRide] = useState<Ride>(RIDE);
   return (
     <div style={{ position: "fixed", inset: 0 }}>
-      <Booking3View key={`${mode}-${lt}`} me={ME(mode, lt)} onClose={() => undefined} />
+      <Booking3View key={`${mode}-${lt}-${ride}`} me={ME(mode, lt)} onClose={() => undefined} />
       <button
         className="d-chip"
         style={{ position: "fixed", top: "calc(6px + var(--safe-top))", right: 10, zIndex: 99 }}
@@ -101,6 +125,14 @@ export function PickupDemoPage() {
         onClick={() => setLt(!lt)}
       >
         {lt ? "☀️ Yorug'" : "🌙 Qorong'i"}
+      </button>
+      {/* Safar holatlari: yo'q → haydovchi yo'lda → safarda → (yopilganda yakun ekrani) */}
+      <button
+        className="d-chip"
+        style={{ position: "fixed", top: "calc(90px + var(--safe-top))", right: 10, zIndex: 99 }}
+        onClick={() => { RIDE = RIDE_NEXT[ride]; setRide(RIDE); }}
+      >
+        {RIDE_LABEL[ride]}
       </button>
     </div>
   );

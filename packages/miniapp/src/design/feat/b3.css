@@ -532,7 +532,7 @@
 /* `.b3-p2-pincard` — xarita-tanlash rejimidagi pastki karta. U `.b3-pinbar` ustiga qo'yiladi,
    ya'ni o'zgaruvchilarni MEROS QILIB OLMAYDI: shu sabab u ham ro'yxatda turishi SHART (aks holda
    `var(--p2-g)` bo'sh qolib, yashil tugma shaffof chiqadi — aynan shu xato bir marta sodir bo'ldi). */
-.b3-p2bar, .b3-p2-sheet, .b3-p2-pincard {
+.b3-p2bar, .b3-p2-sheet, .b3-p2-pincard, .b3-p2-ride {
   --p2-g:#01A95E; --p2-g-press:#018B4D; --p2-g-soft:rgba(1,169,94,.16); --p2-g-ink:#3FD08C;
   --p2-blue:#0A76FA; --p2-purple:#7241EA; --p2-orange:#FE7E00; --p2-rose:#F2496B;
   --p2-amber:#FBB307; --p2-teal:#0E9F8E; --p2-slate:#64748B; --p2-grey:#94A3B8; --p2-red:#EF4444;
@@ -703,6 +703,78 @@
 .b3-p2-lt-zoom button + button { border-top:1px solid #ECEEF3; }
 .b3-p2-zoom button:active { opacity:.55; }
 .b3-p2-zoom.hide { opacity:0; pointer-events:none; }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   SAFAR EKRANI (haydovchi topilgandan safar tugagunicha) — ega maketining pastki qatori.
+   `.b3-p2-ride` varaqqa qo'yiladi va `--p2-*` o'zgaruvchilarini olib keladi (pin kartasidagi
+   xato takrorlanmasin — quyidagi ro'yxatga qo'shilgan).
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+.b3-p2-ride { }
+
+/* haydovchi kartasi: avatar · KATTA ism · mashina + raqam-chipi + reyting */
+.b3-p2-drv { display:flex; align-items:center; gap:13px; background:var(--p2-card);
+  border:1px solid var(--p2-line); border-radius:18px; padding:14px 15px; }
+.b3-p2-drv-av { width:52px; height:52px; flex:none; border-radius:50%; background:var(--p2-field);
+  display:grid; place-items:center; font-size:29px; }
+.b3-p2-drv-meta { flex:1; min-width:0; }
+.b3-p2-drv-name { font-size:19px; font-weight:800; letter-spacing:-.01em; color:var(--p2-ink);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.b3-p2-drv-sub { display:flex; align-items:center; gap:8px; margin-top:5px; font-size:13.5px;
+  color:var(--p2-ink-3); flex-wrap:wrap; }
+.b3-p2-plate { font-family:ui-monospace,"Courier New",monospace; font-size:13px; font-weight:800;
+  letter-spacing:.6px; color:var(--p2-ink); background:var(--p2-field); border-radius:7px;
+  padding:3px 8px; }
+.b3-p2-star { color:var(--p2-amber); font-weight:800; }
+
+/* ikki ustunli o'lchov bloki: «Tezlik / Masofa», «Hisoblagich» */
+.b3-p2-stats { display:flex; gap:26px; margin-top:14px; }
+.b3-p2-stat { flex:1; min-width:0; }
+.b3-p2-stat .k { font-size:12.5px; color:var(--p2-ink-3); font-weight:600; }
+.b3-p2-stat .v { font-size:19px; font-weight:800; letter-spacing:-.02em; color:var(--p2-ink);
+  margin-top:2px; font-variant-numeric:tabular-nums; }
+.b3-p2-meter { margin-top:14px; }
+.b3-p2-meter .k { font-size:12.5px; color:var(--p2-ink-3); font-weight:600; }
+.b3-p2-meter .v { font-size:30px; font-weight:800; letter-spacing:-.03em; color:var(--p2-ink);
+  font-variant-numeric:tabular-nums; margin-top:1px; }
+.b3-p2-meter .v span { font-size:19px; font-weight:700; color:var(--p2-ink-3); margin-left:4px; }
+
+/* harakat tugmalari: yashil-yumshoq «Qo'ng'iroq» · ko'k-yumshoq «Ulashish» · qizil «Bekor» */
+.b3-p2-acts { display:flex; gap:10px; margin-top:14px; }
+.b3-p2-act { flex:1; display:flex; align-items:center; justify-content:center; gap:8px; height:50px;
+  border:0; border-radius:14px; font:inherit; font-size:15px; font-weight:700; cursor:pointer;
+  text-decoration:none; }
+.b3-p2-act-call { background:var(--p2-g-soft); color:var(--p2-g-ink); }
+.b3-p2-act-share { background:rgba(10,118,250,.14); color:var(--p2-blue); }
+.b3-p2-lt .b3-p2-act-share, .b3-p2-ride.b3-p2-lt .b3-p2-act-share { background:#EEF3FB; color:#0A76FA; }
+.b3-p2-act:active { opacity:.75; }
+.b3-p2-cancel { width:100%; height:56px; margin-top:10px; border:0; border-radius:14px;
+  background:var(--p2-red-btn,#FB2750); color:#fff; font:inherit; font-size:15.5px; font-weight:800;
+  cursor:pointer; }
+.b3-p2-cancel:active { opacity:.85; }
+.b3-p2-cancel:disabled { opacity:.5; }
+
+/* tanga mukofoti chipi (safar ichida) */
+.b3-p2-coin { display:flex; align-items:center; justify-content:center; gap:7px; margin-top:12px;
+  height:46px; border:1.5px solid var(--p2-amber); border-radius:14px; background:rgba(251,179,7,.10);
+  color:var(--p2-ink); font-size:15px; font-weight:800; }
+
+/* yakun: katta narx · tanga · baho */
+.b3-p2-fin-fare { text-align:center; padding:14px 0 16px; border-bottom:1px solid var(--p2-line); }
+.b3-p2-fin-fare .v { font-size:34px; font-weight:800; letter-spacing:-.03em; color:var(--p2-ink);
+  font-variant-numeric:tabular-nums; }
+.b3-p2-fin-fare .v span { font-size:20px; font-weight:700; color:var(--p2-ink-3); margin-left:5px; }
+.b3-p2-fin-coin { text-align:center; padding:14px 0 16px; border-bottom:1px solid var(--p2-line); }
+.b3-p2-fin-coin .k { font-size:13.5px; color:var(--p2-ink-3); font-weight:600; }
+.b3-p2-fin-coin .v { font-size:22px; font-weight:800; color:var(--p2-ink); margin-top:5px; }
+.b3-p2-fin-rate { text-align:center; padding:14px 0 4px; }
+.b3-p2-fin-rate .k { font-size:13.5px; color:var(--p2-ink-3); font-weight:600; margin-bottom:9px; }
+.b3-p2-fin-stars { display:flex; gap:12px; justify-content:center; }
+.b3-p2-fin-stars button { border:0; background:transparent; padding:0; font-size:31px; line-height:1;
+  color:#D6DBE4; cursor:pointer; }
+.b3-p2-fin-stars button.on { color:var(--p2-g); }
+.b3-p2-home { width:100%; height:52px; margin-top:16px; border:0; border-radius:14px;
+  background:var(--p2-field); color:var(--p2-ink); font:inherit; font-size:15.5px; font-weight:700;
+  cursor:pointer; }
 
 /* «?» — o'rgatuvchi story'ni QAYTA ochish tugmasi. Story birinchi ochilishda avtomatik chiqadi,
    keyin faqat shu tugma orqali. Ikkisi birga = bo'limga kamida ikki yo'l (DIZAYN_QOIDALARI #4).
