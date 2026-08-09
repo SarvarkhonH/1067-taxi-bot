@@ -51,19 +51,40 @@ export function foldName(s: string): string {
 }
 
 /**
+ * Vowels are where riders actually slip ("bazo" for "bozor", "markez" for "markaziy") — the
+ * consonant skeleton almost always survives. Collapsing every vowel to one marker turns those
+ * near-misses into exact matches. Used ONLY as the fallback pass below: on its own it would let
+ * genuinely different places collide, so the strict pass always gets first refusal.
+ */
+function devowel(folded: string): string {
+  return folded.replace(/[aeiou]/g, "@");
+}
+
+/**
  * Local catalog filter — the whole ~150-place list is already in memory client-side, so every
  * keystroke filters instantly instead of round-tripping through kas's narrower byName search.
  * Word-start matches rank above mid-word ones, so "bozor" leads with "Bozor ko'chasi".
+ *
+ * Two passes, in order — the second only runs when the first found NOTHING, so a correctly typed
+ * query can never be polluted by loose matches:
+ *   1. strict: folded substring (apostrophes, sh/ch, q/k, x/h, v/w already normalised)
+ *   2. vowel-blind: same substring test on the consonant skeleton — this is what makes a
+ *      mistyped "bazo" still find all three bozors (the bot's resolver is equally forgiving,
+ *      server/bot/booking.ts:139-158; the Mini App was the stricter of the two until now).
  */
 export function fuzzyFilter(q: string, list: SavedAddressView[]): SavedAddressView[] {
   const f = foldName(q);
   if (!f) return [];
-  const scored: { a: SavedAddressView; s: number }[] = [];
-  for (const a of list) {
-    const i = foldName(a.name).indexOf(f);
-    if (i < 0) continue;
-    scored.push({ a, s: i === 0 ? 0 : 1 });
-  }
-  scored.sort((x, y) => x.s - y.s || x.a.name.localeCompare(y.a.name));
-  return scored.map((x) => x.a);
+  const pass = (needle: string, key: (s: string) => string): SavedAddressView[] => {
+    const scored: { a: SavedAddressView; s: number }[] = [];
+    for (const a of list) {
+      const i = key(foldName(a.name)).indexOf(needle);
+      if (i < 0) continue;
+      scored.push({ a, s: i === 0 ? 0 : 1 });
+    }
+    scored.sort((x, y) => x.s - y.s || x.a.name.localeCompare(y.a.name));
+    return scored.map((x) => x.a);
+  };
+  const strict = pass(f, (s) => s);
+  return strict.length > 0 ? strict : pass(devowel(f), devowel);
 }

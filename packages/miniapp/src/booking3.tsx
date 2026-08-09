@@ -1368,11 +1368,22 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       {a.name}
     </button>
   );
+  // Maketdagi qidiruv maydoni: 343×50, ichida lupa; mikrofon FAQAT qurilma qo'llab-quvvatlasa
+  // chiziladi (iPhone'da SpeechRecognition yo'q → tugma umuman yo'q, jim tugma qoldirilmaydi).
   const searchField = (
-    <div className="b3-p2-fieldwrap">
-      <input className="bk-input" placeholder="Joy nomini yozing" autoFocus value={q} onChange={(e) => void search(e.target.value)} />
+    <div className="b3-p2-search">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" opacity=".55" aria-hidden="true">
+        <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
+      </svg>
+      <input placeholder="Joy nomini yozing" aria-label="Joy qidirish" autoFocus value={q} onChange={(e) => void search(e.target.value)} />
       {micOk && (
-        <button className={`b3-p2-mic${listening ? " on" : ""}`} onClick={listenOnce} aria-label="Aytib qidirish" title="Aytib qidirish">🎤</button>
+        <button className={`b3-p2-mic2${listening ? " on" : ""}`} onClick={listenOnce} aria-label="Aytib qidirish" title="Aytib qidirish">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M12 15a3.5 3.5 0 0 0 3.5-3.5v-6a3.5 3.5 0 1 0-7 0v6A3.5 3.5 0 0 0 12 15z" />
+            <path d="M18.5 11.5a6.5 6.5 0 0 1-13 0" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            <path d="M12 18v3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+          </svg>
+        </button>
       )}
     </div>
   );
@@ -1471,9 +1482,15 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       {screen === "map" && pickup2 && (
         <div className={`b3-sheet b3-p2-sheet${lite}`}>
           <div className="b3-grip" />
-          <div className="b3-sheet-head">
-            <button className="b3-sheet-back" onClick={() => { haptic(); setQ(""); setResults([]); setShowAll(false); setScreen("pinpick"); }}>Orqaga</button>
-            <div className="b3-sheet-title">{showAll ? `Barchasi — ${sortedAll.length} joy` : "Qayerdan olib ketamiz?"}</div>
+          <div className="b3-p2-head2">
+            <button
+              className="b3-p2-back2"
+              aria-label="Orqaga"
+              onClick={() => { haptic(); if (showAll) { setShowAll(false); return; } setQ(""); setResults([]); setScreen("pinpick"); }}
+            >
+              <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+            </button>
+            <div className="b3-p2-title2">{showAll ? "Barcha joylar" : "Joyni tanlang"}</div>
           </div>
           {!showAll && searchField}
           {!showAll && listening && <div className="dim fs13 mt6">🎤 Eshityapman — joy nomini ayting…</div>}
@@ -1514,20 +1531,34 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                   {recents.map((a) => placeRow(a, "oxirgi"))}
                 </div>
               )}
-              <div className="b3-p2-hd">Atrofingizdagi joylar</div>
+              <div className="b3-p2-seclabel">Atrofingizdagi joylar</div>
+              {/* A = ro'yxat qatorlari, B = rangli kattaklar. Bitta ekranda IKKALASI ham
+                  chizilmaydi — bir xil ma'lumot ikki ko'rinishda = takror (minimalizm qarori). */}
               {nearPlaces.length > 0 ? (
-                <div className="b3-p2-grid">{nearPlaces.map(placeTile)}</div>
+                layoutB
+                  ? <div className="b3-p2-grid">{nearPlaces.map(placeTile)}</div>
+                  : <div className="b3-p2-list">{nearPlaces.map((a) => placeRow(a))}</div>
+              ) : layoutB ? (
+                <div className="b3-p2-grid">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={76} className="b3-p2-tileskel" />)}</div>
               ) : (
-                <div className="b3-p2-grid">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={58} className="b3-p2-tileskel" />)}</div>
+                <div className="b3-p2-list">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={64} className="b3-p2-rowskel" />)}</div>
               )}
             </>
           )}
-          <div className="b3-p2-foot">
-            <button className="b3-p2-ghost" onClick={() => { haptic(); setShowAll(!showAll); }}>
-              {showAll ? "← Qaytish" : `Barchasi — ${sortedAll.length || 150} joy`}
+          {/* «Barcha joylar · N» — maketdagi ramkali qator. Ochilganda shu tugma ekranni
+              alifbo ro'yxatiga aylantiradi; «‹» esa undan qaytaradi (yuqoridagi back). */}
+          {!showAll && (
+            <button className="b3-p2-allrow" onClick={() => { haptic(); setShowAll(true); }}>
+              <span className="pin">
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" /></svg>
+              </span>
+              <span className="lb">Barcha joylar{sortedAll.length ? ` · ${sortedAll.length}` : ""}</span>
+              <span className="ch"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg></span>
             </button>
-            <button className="b3-p2-ghost" onClick={() => { haptic(); setQ(""); setResults([]); setShowAll(false); setP2min(true); setScreen("pinpick"); }}>Xaritadan ko'rsatish</button>
-          </div>
+          )}
+          {!showAll && (
+            <button className="b3-p2-ghost" onClick={() => { haptic(); setQ(""); setResults([]); setP2min(true); setScreen("pinpick"); }}>Xaritadan ko'rsatish</button>
+          )}
         </div>
       )}
 
