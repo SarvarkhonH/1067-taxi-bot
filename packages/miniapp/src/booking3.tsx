@@ -1459,6 +1459,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             </svg>
           </button>
           {!walking && <div className="b3-myloc-lb" aria-hidden="true">Joylashuvim</div>}
+          {/* Masshtab — FAQAT xarita-tanlash rejimida (p2min). Odatdagi ekranda kerak emas:
+              u yerda javob allaqachon tayyor, xarita esa fon. Surilayotganda yashirinadi. */}
+          {pickup2 && p2min && (
+            <div className={`b3-p2-zoom${lite ? " b3-p2-lt-zoom" : ""}${walking ? " hide" : ""}`}>
+              <button aria-label="Kattalashtirish" onClick={() => { haptic(); map.current?.zoomIn(); }}>+</button>
+              <button aria-label="Kichraytirish" onClick={() => { haptic(); map.current?.zoomOut(); }}>−</button>
+            </div>
+          )}
           {coach && (
             <div className="b3-coach" aria-hidden="true">
               <div className="b3-coach-arrow">👇</div>
@@ -1649,20 +1657,36 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       {/* ── Map-is-picker: compact bar — slides DOWN while dragging (map open, character walks),
              returns when you stop. Detected place + quick chips + the single confirm CTA. ── */}
       {screen === "pinpick" && (!pickup2 || p2min) && (
-        <div className={`b3-pinbar${walking ? " dragging" : ""}`}>
+        <div className={`b3-pinbar${walking ? " dragging" : ""}${pickup2 ? ` b3-p2-pincard${lite}` : ""}`}>
           <div className="b3-grip" onClick={pickup2 ? () => { haptic(); setP2min(false); } : undefined} />
-          <div className="b3-pin-label">
-            {pinBusy ? "⏳ Manzil aniqlanmoqda…" : pinNear ? <>📍 <b>{pinNear}</b></> : "📍 Xaritani suring — joyni belgilang"}
-          </div>
-          {!pickup2 && (info.quickPickup || recents.length > 0) && (
-            <div className="b3-chips b3-pin-chips">
-              {info.quickPickup && <button className="d-chip" onClick={() => choose(info.quickPickup!)}>🏠 {info.quickPickup.name}</button>}
-              {recents.slice(0, 2).map((a) => (
-                <button key={a.id} className="d-chip" onClick={() => choose(a)}>🕐 {a.name}</button>
-              ))}
-            </div>
+          {pickup2 ? (
+            /* Maketdagi pin kartasi: binafsha «Tanlangan joy» → katta nom → shahar → yashil tugma.
+               Nom pin surilganda jonli yangilanadi (eng yaqin katalog joyi, server uni buyurtmada
+               qayta aniqlaydi — haydovchi doim REAL joy nomini oladi). */
+            <>
+              <div className="b3-p2-pinlbl">Tanlangan joy</div>
+              {pinBusy || !pinNear
+                ? <Skeleton h={24} w="66%" className="b3-p2-pinskel" />
+                : <div className="b3-p2-pinname">{pinNear}</div>}
+              <div className="b3-p2-pincity">Koson</div>
+              <button className="b3-p2-cta" disabled={!pinPt || pinBusy} onClick={confirmPin}>Shu joyni tanlash</button>
+            </>
+          ) : (
+            <>
+              <div className="b3-pin-label">
+                {pinBusy ? "⏳ Manzil aniqlanmoqda…" : pinNear ? <>📍 <b>{pinNear}</b></> : "📍 Xaritani suring — joyni belgilang"}
+              </div>
+              {(info.quickPickup || recents.length > 0) && (
+                <div className="b3-chips b3-pin-chips">
+                  {info.quickPickup && <button className="d-chip" onClick={() => choose(info.quickPickup!)}>🏠 {info.quickPickup.name}</button>}
+                  {recents.slice(0, 2).map((a) => (
+                    <button key={a.id} className="d-chip" onClick={() => choose(a)}>🕐 {a.name}</button>
+                  ))}
+                </div>
+              )}
+              <Button className={pinPt && !pinBusy ? "b3-confirm-pulse" : undefined} disabled={!pinPt || pinBusy} onClick={confirmPin}>✅ Shu yerdan</Button>
+            </>
           )}
-          <Button className={pinPt && !pinBusy ? "b3-confirm-pulse" : undefined} disabled={!pinPt || pinBusy} onClick={confirmPin}>✅ Shu yerdan</Button>
         </div>
       )}
 
