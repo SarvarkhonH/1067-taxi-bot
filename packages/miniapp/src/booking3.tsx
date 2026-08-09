@@ -1375,7 +1375,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" opacity=".55" aria-hidden="true">
         <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
       </svg>
-      <input placeholder="Joy nomini yozing" aria-label="Joy qidirish" autoFocus value={q} onChange={(e) => void search(e.target.value)} />
+      <input
+        placeholder={showAll && sortedAll.length ? `${sortedAll.length} joy ichidan qidiring` : "Joy nomini yozing"}
+        aria-label="Joy qidirish"
+        autoFocus
+        value={q}
+        onChange={(e) => void search(e.target.value)}
+      />
       {micOk && (
         <button className={`b3-p2-mic2${listening ? " on" : ""}`} onClick={listenOnce} aria-label="Aytib qidirish" title="Aytib qidirish">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -1521,24 +1527,33 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               ? <div className="b3-p2-grid b3-p2-all">{sortedAll.map(placeTile)}</div>
               : <div className="b3-p2-grid">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={76} className="b3-p2-tileskel" />)}</div>
           ) : showAll ? (
-            <>
-              {letters.length > 1 && (
-                <div className="b3-p2-idx">
-                  {letters.map((L) => (
-                    <button key={L} className="b3-p2-ic" onClick={() => { haptic(); document.getElementById(`b3L${L}`)?.scrollIntoView({ block: "start" }); }}>{L}</button>
-                  ))}
-                </div>
-              )}
+            /* Alifbo guruhlari + o'ng chetdagi vertikal harf-relsi. Harf sarlavhasi endi
+               KO'RINADI (ilgari faqat ko'rinmas langar edi — odam qayerdaligini bilmasdi) va
+               `position:sticky` bilan tepada turadi, ya'ni surilganda ham "qaysi harfdaman"
+               savoliga javob bor. */
+            <div className="b3-p2-idxwrap">
               <div className="b3-p2-list b3-p2-all">
                 {sortedAll.length === 0
-                  ? [0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={44} className="b3-p2-rowskel" />)
+                  ? [0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={64} className="b3-p2-rowskel" />)
                   : sortedAll.map((a, i) => {
                       const L = a.name.charAt(0).toUpperCase();
                       const first = sortedAll[i - 1]?.name.charAt(0).toUpperCase() !== L;
-                      return first ? <div key={`g${L}`} id={`b3L${L}`}>{placeRow(a)}</div> : placeRow(a);
+                      return first ? (
+                        <div key={`g${L}`} id={`b3L${L}`}>
+                          <div className="b3-p2-letter">{L}</div>
+                          {placeRow(a)}
+                        </div>
+                      ) : placeRow(a);
                     })}
               </div>
-            </>
+              {letters.length > 1 && (
+                <div className="b3-p2-rail" aria-label="Harf bo'yicha o'tish">
+                  {letters.map((L) => (
+                    <button key={L} onClick={() => { haptic(); document.getElementById(`b3L${L}`)?.scrollIntoView({ block: "start" }); }}>{L}</button>
+                  ))}
+                </div>
+              )}
+            </div>
           ) : (
             <>
               {/* Odatdagi/oxirgi joylar — B da ular ham KATTAK bo'lib chiziladi. Ilgari bu yerda
