@@ -1490,11 +1490,37 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             >
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
             </button>
-            <div className="b3-p2-title2">{showAll ? "Barcha joylar" : "Joyni tanlang"}</div>
+            <div className="b3-p2-title2">{showAll ? "Barcha joylar" : layoutB ? "Kosondagi joylar" : "Joyni tanlang"}</div>
           </div>
-          {!showAll && searchField}
-          {!showAll && listening && <div className="dim fs13 mt6">🎤 Eshityapman — joy nomini ayting…</div>}
-          {showAll ? (
+          {searchField}
+          {listening && <div className="dim fs13 mt6">🎤 Eshityapman — joy nomini ayting…</div>}
+          {/* B tartibi: «Atrofdagi | Barchasi» tab'lari — A da bu ish pastdagi «Barcha joylar»
+              ramkali qatori bilan bajariladi (bitta ekranda ikkala usul chizilmaydi). */}
+          {layoutB && q.trim().length === 0 && (
+            <div className="b3-p2-tabs" role="tablist">
+              <button className="b3-p2-tab" role="tab" aria-selected={!showAll} onClick={() => { haptic(); setShowAll(false); }}>Atrofdagi</button>
+              <button className="b3-p2-tab" role="tab" aria-selected={showAll} onClick={() => { haptic(); setShowAll(true); }}>Barchasi</button>
+            </div>
+          )}
+          {/* TARTIB MUHIM: yozilgan so'rov HAR DOIM ustun. Ilgari `showAll` birinchi tekshirilardi —
+              «Barchasi» ochiq bo'lsa yozilgan so'z e'tiborga olinmasdi va butun katalog qolaverardi. */}
+          {q.trim().length > 0 ? (
+            hits.length > 0 ? (
+              layoutB
+                ? <div className="b3-p2-grid">{hits.slice(0, 20).map(placeTile)}</div>
+                : <div className="b3-p2-list">{hits.slice(0, 20).map((a) => placeRow(a))}</div>
+            ) : (
+              <div className="d-empty">
+                <div className="d-empty-ico">🔍</div>
+                <div>«{q}» topilmadi</div>
+                <div className="dim fs12 mt4">Boshqacha yozib ko'ring yoki xaritadan tanlang</div>
+              </div>
+            )
+          ) : showAll && layoutB ? (
+            sortedAll.length > 0
+              ? <div className="b3-p2-grid b3-p2-all">{sortedAll.map(placeTile)}</div>
+              : <div className="b3-p2-grid">{[0, 1, 2, 3, 4, 5].map((i) => <Skeleton key={i} h={76} className="b3-p2-tileskel" />)}</div>
+          ) : showAll ? (
             <>
               {letters.length > 1 && (
                 <div className="b3-p2-idx">
@@ -1513,25 +1539,26 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                     })}
               </div>
             </>
-          ) : q.trim().length > 0 ? (
-            hits.length > 0 ? (
-              <div className="b3-p2-list">{hits.slice(0, 20).map((a) => placeRow(a))}</div>
-            ) : (
-              <div className="d-empty">
-                <div className="d-empty-ico">🔍</div>
-                <div>«{q}» topilmadi</div>
-                <div className="dim fs12 mt4">Boshqacha yozib ko'ring yoki pastdan barcha joylarni oching</div>
-              </div>
-            )
           ) : (
             <>
+              {/* Odatdagi/oxirgi joylar — B da ular ham KATTAK bo'lib chiziladi. Ilgari bu yerda
+                  qatorlar turardi va pastda kattaklar — bitta ekranda ikki xil vizual til edi.
+                  Tartibning o'zi ustuvorlikni aytadi: sizniki avval, atrofdagilar keyin. */}
               {(info.quickPickup || recents.length > 0) && (
-                <div className="b3-p2-list">
-                  {info.quickPickup && placeRow(info.quickPickup, "odatdagi")}
-                  {recents.map((a) => placeRow(a, "oxirgi"))}
-                </div>
+                layoutB ? (
+                  <div className="b3-p2-grid">
+                    {info.quickPickup && placeTile(info.quickPickup)}
+                    {recents.map(placeTile)}
+                  </div>
+                ) : (
+                  <div className="b3-p2-list">
+                    {info.quickPickup && placeRow(info.quickPickup, "odatdagi")}
+                    {recents.map((a) => placeRow(a, "oxirgi"))}
+                  </div>
+                )
               )}
-              <div className="b3-p2-seclabel">Atrofingizdagi joylar</div>
+              {/* B da bu sarlavhani tab («Atrofdagi») aytib turibdi — ikki marta yozilmaydi. */}
+              {!layoutB && <div className="b3-p2-seclabel">Atrofingizdagi joylar</div>}
               {/* A = ro'yxat qatorlari, B = rangli kattaklar. Bitta ekranda IKKALASI ham
                   chizilmaydi — bir xil ma'lumot ikki ko'rinishda = takror (minimalizm qarori). */}
               {nearPlaces.length > 0 ? (
@@ -1545,9 +1572,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               )}
             </>
           )}
-          {/* «Barcha joylar · N» — maketdagi ramkali qator. Ochilganda shu tugma ekranni
-              alifbo ro'yxatiga aylantiradi; «‹» esa undan qaytaradi (yuqoridagi back). */}
-          {!showAll && (
+          {/* A: «Barcha joylar · N» ramkali qator — bosilganda ekran alifbo ro'yxatiga aylanadi;
+                 «‹» undan qaytaradi. B da bu ishni yuqoridagi «Barchasi» tab'i bajaradi. */}
+          {!showAll && !layoutB && (
             <button className="b3-p2-allrow" onClick={() => { haptic(); setShowAll(true); }}>
               <span className="pin">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" /></svg>
@@ -1556,9 +1583,18 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <span className="ch"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg></span>
             </button>
           )}
-          {!showAll && (
-            <button className="b3-p2-ghost" onClick={() => { haptic(); setQ(""); setResults([]); setP2min(true); setScreen("pinpick"); }}>Xaritadan ko'rsatish</button>
-          )}
+          {/* Xarita — ZAXIRA yo'l. Maketdagi ikki qatorli blok: savol + harakat. Nomidan
+              topolmagan odam uchun oxirgi chiqish yo'li, targ'ib qilinmaydi. */}
+          <button className="b3-p2-maprow" onClick={() => { haptic(); setQ(""); setResults([]); setShowAll(false); setP2min(true); setScreen("pinpick"); }}>
+            <span className="ico">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 3L3 5.5v15L9 18l6 3 6-2.5v-15L15 6 9 3z" /><path d="M9 3v15M15 6v15" /></svg>
+            </span>
+            <span className="txt">
+              <span className="q">Joy topilmadimi?</span>
+              <span className="a">Xaritadan tanlash</span>
+            </span>
+            <span className="ch"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg></span>
+          </button>
         </div>
       )}
 
