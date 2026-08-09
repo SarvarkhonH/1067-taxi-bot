@@ -3327,3 +3327,44 @@ bilan isbotla. Server: GH Actions `deploy` jobi (autoDeploy o'chiq). **Sxema o'z
 `prisma db push` KERAK EMAS (yangi model/ustun qo'shilmagan; `featureFlags` AppState orqali ishlaydi).
 Ikkala yangi flag DARK holatda chiqadi, ya'ni deploy mijozlarga ko'rinadigan HECH NARSANI
 o'zgartirmaydi — §52/§54 tuzatishlaridan tashqari (ular bug-fix, flagsiz).
+
+---
+
+## §58 — 🔗 TAKLIF KARTASI: rasm-domeni + brend nomi · 2026-07-27
+**Holat: `ready for verification`** (flag YO'Q — matn/meta tuzatishi)
+
+**Qanday topildi.** Ega so'radi: "do'stga ulashda serverda qanday rasm yuklanadi?". Yo'lni oxirigacha
+kuzatib chiqdim va **serverimiz umuman rasm yubormasligi** ma'lum bo'ldi: "📤 Do'stga yuborish"
+`t.me/share/url` ni ochadi, Telegram esa `app.birjoy.online/j/` sahifasining OG teglarini o'qib
+kartani O'ZI chizadi. Shu yerda ikkita nuqson chiqdi.
+
+**A. Rasm boshqa domendan qadalgan edi.** `og:image` / `twitter:image` = `1067taxi-miniapp.vercel.app`,
+sahifaning o'zi esa `app.birjoy.online` da. Butun repoda `*.vercel.app` FAQAT shu 2 joyda qolgan
+edi. Provayder yoki loyiha nomi o'zgarsa taklif kartasi **jimgina rasmsiz** qolardi (ega:
+"vercel endi yo'q-ku"). Ikkalasi ham sahifaning O'Z domeniga ko'chirildi — rasm sahifa bilan bitta
+deploy'da yotgani uchun bu bog'liqlik endi buzilmaydi.
+*Eslatma: jonli holatni TEKSHIRA OLMADIM — bu muhitning proksisi ikkala domenga ham `CONNECT 403`
+beradi. Ya'ni vercel URL rostdan o'lganmi yoki hali ishlayaptimi — bilmayman; tuzatish baribir
+to'g'ri, chunki u domendan mustaqil.*
+
+**B. Brend nomi ikki xil edi.** Ulashish matni «BirJoy», karta va landing sahifasi «1067 Taxi» —
+do'st bitta xabarda ikki nom ko'rardi. **Ega tanlovi: «BirJoy — 1067 taxi» (ikkisi birga)** —
+yangi mijoz superapp nomini o'rganadi, eskisi tanish raqamni ko'radi. `<title>`, `og:site_name`,
+`og:title`, logotip va sahifa matni shunga moslandi.
+
+**C. Kesh-buzuvchi oshirildi (`v=2` → `v=3`).** Kodning O'Z izohi ogohlantiradi: OG mazmuni
+o'zgarsa `&v` oshirilmasa Telegram ESKI keshlangan kartani ko'rsatadi. Ikki joyda sinxron
+(`bot.ts:81`, `miniapp/telegram.ts:481`) — busiz yuqoridagi ikkala tuzatish ham KO'RINMAS qolardi.
+
+**D. Yo'l-yo'lakay qayd (tuzatilmadi, ongli).** Landing sahifa STATIK, undagi «5000» qo'lda
+yozilgan va jonli knobni (`bonusConfig.firstRide`, standart `REFEREE_REWARD = 5000`) o'qiy olmaydi.
+Bugun mos, lekin knob o'zgartirilsa karta bir raqamni, ulashish matni boshqasini aytadi. Faylga
+ogohlantiruvchi izoh qo'yildi.
+
+**Isbot.** `tsc` server+miniapp **0 xato** · toza `vite build` ✓ · `dist/j/index.html` da
+`og:image = https://app.birjoy.online/invite-poster.jpg` va `og:title = 🚕 BirJoy — sizga 5000
+so'm sovg'a!` · `dist/invite-poster.jpg` 172 576 bayt · bundle'da `v=3` ·
+repoda qolgan `vercel.app` = **0 ta** (faqat izohdagi eslatma).
+
+**TEKSHIRILMAGAN.** Telegram kartani qanday chizishi ko'rilmagan — deploydan keyin o'zingizga
+taklif havolasini yuborib ko'ring: rasm chiqdimi va sarlavha «BirJoy — 1067 taxi» mi.
