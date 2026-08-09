@@ -1448,7 +1448,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <span>Qayerdan?</span>
             </button>
           )}
-          <div className={`b3-centerpin${walking ? " b3-walking" : ""}`} aria-hidden="true">
+          {/* Yuruvchi odamcha — FAQAT xaritadan tanlash rejimida (p2min). A tartibida varaq
+              xaritaning markazini yopib turadi va odamcha «5-MAKTAB» yozuvi USTIGA chiqib
+              qolardi (ega skrinshotida ko'rindi). Maketning bosh ekranida ham u yo'q. */}
+          <div className={`b3-centerpin${walking ? " b3-walking" : ""}${pickup2 && !p2min ? " b3-hidden" : ""}`} aria-hidden="true">
             <svg viewBox="0 0 44 60" width="44" height="60">
               <ellipse className="b3-hail-shadow" cx="22" cy="56" rx="10" ry="2.6" />
               <g className="b3-hail-fig">
@@ -1547,10 +1550,16 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 ? <div className="b3-p2-grid">{hits.slice(0, 20).map(placeTile)}</div>
                 : <div className="b3-p2-list">{hits.slice(0, 20).map((a) => placeRow(a))}</div>
             ) : (
+              /* Bo'sh natija — aynan SHU LAHZADA odamga xarita kerak bo'ladi. Ilgari bu yerda
+                 «yoki xaritadan tanlang» deb YOZILGAN edi, lekin bosadigan joy yo'q edi
+                 (DIZAYN_QOIDALARI #14: yozuv harakat va'da qilsa — tugma shart). */
               <div className="d-empty">
                 <div className="d-empty-ico">🔍</div>
                 <div>«{q}» topilmadi</div>
-                <div className="dim fs12 mt4">Boshqacha yozib ko'ring yoki xaritadan tanlang</div>
+                <div className="dim fs12 mt4">Boshqacha yozib ko'ring yoki xaritadan belgilang</div>
+                <button className="b3-p2-cta b3-p2-empty-cta" onClick={() => { haptic(); setQ(""); setResults([]); setShowAll(false); setP2min(true); setScreen("pinpick"); }}>
+                  Xaritadan tanlash
+                </button>
               </div>
             )
           ) : showAll && layoutB ? (
@@ -1761,10 +1770,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                   <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--p2-purple)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 3L3 5.5v15L9 18l6 3 6-2.5v-15L15 6 9 3z" /><path d="M9 3v15M15 6v15" /></svg>
                   <span className="lb">Xaritadan</span>
                 </button>
-                <button className="b3-p2-alt" onClick={() => { haptic(); setScreen("map"); }}>
-                  <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--p2-orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.1 2.1 0 0 0-3-3L5 17v3z" /><path d="M14.5 6.5l3 3" /></svg>
-                  <span className="lb">Izoh yozish</span>
-                </button>
+                {/* ⛔ «Izoh yozish» ATAYLAB YO'Q. Maketda u bor edi, lekin tizimda izoh maydoni
+                    UMUMAN mavjud emas: `BookingCreateBody` da faqat pickupId/pickupName/lat/lng,
+                    kas dispetcherlik API'sida ham buyurtma-izohi yo'q. Tugma qo'yilsa u qidiruvni
+                    ochardi — ya'ni va'da bajarilmasdi (DIZAYN_QOIDALARI #7 va #14). Backend
+                    qo'llab-quvvatlagach qaytariladi. */}
               </div>
             </>
           )}

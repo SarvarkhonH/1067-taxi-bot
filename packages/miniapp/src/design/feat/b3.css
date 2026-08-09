@@ -594,6 +594,18 @@
 /* Chip'lar ham yorug' dunyoda o'qiladigan bo'lsin (jadval kunlari, oila ro'yxati). */
 .b3-screen.b3-p2-lt .d-chip { background: #F4F6F9; border-color: #ECEEF3; color: #464F5F; }
 .b3-screen.b3-p2-lt .d-chip.on { background: #EAF7EF; border-color: rgba(1,169,94,.35); color: #067A45; }
+/* Varaq xarita markazini yopadigan rejimda markaziy odamcha chizilmaydi. */
+.b3-centerpin.b3-hidden { display: none; }
+/* GPS tugmasi: A tartibida varaq baland, shuning uchun u YUQORIROQQA ko'chadi —
+   aks holda «Izoh yozish» kattakchasi ustiga tushardi (ega skrinshotida ko'rindi). */
+/* Varaq balandligi o'zgaruvchan (A/B, safar holatlari) — shuning uchun tugma PASTGA emas,
+   TEPAGA bog'lanadi: u har doim xarita maydonida qoladi va varaq ustiga tushmaydi. */
+.b3-screen.b3-p2-lt .b3-myloc { bottom: auto; top: calc(var(--safe-top, 0px) + 100px); background: #FFFFFF;
+  border: 1px solid #E7EAF0; box-shadow: 0 4px 16px rgba(11,12,16,.14); }
+.b3-screen.b3-p2-lt .b3-myloc svg { color: #0A76FA; }
+/* Zaxira yo'l yozuvlari kesilmasin: uzun nom ikki qatorga o'tadi (qoida #12). */
+.b3-p2-alt .lb { text-align: center; line-height: 1.25; white-space: normal;
+  overflow-wrap: anywhere; }
 /* Xarita maketdagidek TABIIY rangda — qorong'i rejimdagi teskari filtr olib tashlanadi. */
 .b3-screen.b3-p2-lt .b3-map .leaflet-tile-pane { filter: none; }
 .b3-screen.b3-p2-lt .b3-map .leaflet-container { background: #EAECF1; }
@@ -654,7 +666,7 @@
 
 /* ── «Boshqa joydan chaqirmoqchimisiz?» + 3 zaxira yo'l ────────────────── */
 .b3-p2-hint { text-align:center; font-size:12.5px; color:var(--p2-ink-3); margin:12px 0 9px; }
-.b3-p2-alts { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
+.b3-p2-alts { display:grid; grid-template-columns:repeat(2,1fr); gap:9px; }
 .b3-p2-alt { display:flex; flex-direction:column; align-items:center; gap:7px; padding:12px 6px 10px;
   border:1px solid var(--p2-line); border-radius:14px; background:var(--p2-card); cursor:pointer;
   font:inherit; color:var(--p2-ink-2); }
@@ -766,6 +778,8 @@
    Ega e'tirozi: «bu yangi dizayn emas, faqat eski oqartirilgani». Eski ekranda sariq tugma,
    emojili qatorlar va uchta bir xil vaznli tugma bor edi. Endi: bitta yashil asosiy harakat,
    ikkilamchi yo'llar past-kontrastda, uchinchi darajali «Bekor» eng past kontrastda.           */
+.b3-p2-empty-cta { margin-top:14px; max-width:260px; }
+
 .b3-p2-conf-head { display:flex; align-items:flex-start; gap:12px; padding:6px 0 14px; }
 .b3-p2-conf-lbl { font-size:12.5px; font-weight:700; color:var(--p2-g-ink); }
 .b3-p2-conf-name { font-size:23px; font-weight:800; letter-spacing:-.02em; line-height:1.2;
