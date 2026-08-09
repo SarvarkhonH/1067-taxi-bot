@@ -67,6 +67,10 @@ export interface BehaviorParams {
   /** "Hech qachon minmaydiganlar" darvozasi: rideNeed/trust-ball past bo'lsa 1-safar bo'lmaydi
    *  (real: ulanganlarning 80.6%i hech minmagan). */
   firstRideGate: number;
+  /** YETIB BORILADIGAN auditoriya ulushi (0..1). Faqat shu ulushdagi aholi umuman "eshitadi" —
+   *  qolgani hech qachon aware bo'lmaydi (real: Telegram-taksi hammaga yetmaydi). Bu — PLATO
+   *  manbai: awareness-oqim shu chekli hovuz tugagach so'nadi (P2-backtest tuzatishi). */
+  reachablePct: number;
 }
 
 // ── Aholi ──────────────────────────────────────────────────────────────────────

@@ -41,15 +41,19 @@ export function advanceFunnel(
   const newInstalled: AgentState[] = [];
   const newLinked: AgentState[] = [];
 
-  // 1-o'tish: bugungi unaware-soni — kunlik inflow'ni per-agent ehtimolga aylantirish uchun
-  let unawareCount = 0;
-  for (const a of agents) if (a.stage === "unaware") unawareCount++;
-  const pInflow = unawareCount > 0 ? Math.min(1, cfg.dailyAwarenessInflow / unawareCount) : 0;
+  // 1-o'tish: PLATO manbai — YETIB BORILADIGAN chekli hovuz (reachablePct×aholi). id shu chegaradan
+  // yuqori agentlar HECH QACHON aware bo'lmaydi (real: Telegram-taksi hammaga yetmaydi). Denominator
+  // KICHRAYADIGAN unawareCount EMAS, QAT'IY reachableTotal — shunda kunlik konversiya = pInflow ×
+  // (qolgan yetib-boriladigan-unaware) hovuz tugagach EKSPONENSIAL so'nadi → o'sish PLATOga chiqadi
+  // (eski xato: unawareCount bilan bo'lish tezlashtirardi, hech to'yinmasdi → cheksiz o'sish).
+  const reachableTotal = Math.max(1, Math.floor((b.reachablePct ?? 1) * agents.length));
+  const pInflow = Math.min(1, cfg.dailyAwarenessInflow / reachableTotal);
 
   // 2-o'tish: o'tishlar — switch bitta branch'ni bajaradi, shu kunda ikki pog'ona sakralmaydi
   for (const a of agents) {
     switch (a.stage) {
       case "unaware": {
+        if (a.id >= reachableTotal) break; // yetib bo'lmaydigan auditoriya — abadiy unaware
         const pSocial = socialAwarenessBoost(a, agents, mahallas, b.socialContagion);
         if (rngBool(rng, Math.min(1, pInflow + pSocial))) {
           a.stage = "aware";

@@ -20,7 +20,9 @@ export const BASELINE_CONFIG: SimConfig = {
     waitCompetitorMin: 4,
     waitBirjoyBaseMin: 6,
   },
-  dailyAwarenessInflow: 25, // ~1177 bot-user / ~2 oy oqimidan kunlik baho
+  // To'yinish TEZLIGI (chekli hovuz reachablePct×aholi). Boshda ~inflow/kun eshitadi, hovuz
+  // kamaygach so'nadi. ~1 oyda platoga chiqishi uchun yetarli (real iyul-portlash tez edi).
+  dailyAwarenessInflow: 100,
   checkpoints: [30],
   behavior: {
     // aware→installed kunlik baza: iyul-portlashda oqim tez edi, o'rtacha bir-necha kunda start.
@@ -47,5 +49,8 @@ export const BASELINE_CONFIG: SimConfig = {
     linkGate: 0.35,
     // N4 (19.4% minadi): yuqori darvoza — ko'pchilik ulangan hech qachon minmaydi.
     firstRideGate: 0.55,
+    // PLATO manbai: aholining ~30%i umuman "eshitadi" (ceiling ~1500 aware — kalibratsiyaga headroom;
+    // darvozalar 642/127'ga tushiradi). Chekli hovuz tugagach awareness-oqim so'nadi → real plato.
+    reachablePct: 0.3,
   },
 };
