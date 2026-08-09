@@ -657,6 +657,15 @@
   display:grid; place-items:center; }
 
 /* ── asosiy tugma: maketdagi 343×56 r14, KATTA HARF ────────────────────── */
+/* GPS aniqlanmagan holat: yashil emas — amber (ogohlantirish, xato emas). */
+.b3-p2-eyebrow-guess { color:var(--p2-amber); }
+.b3-p2-ok-guess { color:var(--p2-ink-2); flex-wrap:wrap; }
+.b3-p2-tick-guess { background:var(--p2-amber); color:#fff; font-size:12px; font-weight:800;
+  line-height:17px; text-align:center; }
+.b3-p2-fixloc { margin-left:auto; border:0; background:transparent; color:var(--p2-blue);
+  font:inherit; font-size:13.5px; font-weight:700; cursor:pointer; padding:0; }
+.b3-p2-fixloc:active { opacity:.6; }
+
 .b3-p2-cta { width:100%; height:56px; margin-top:12px; border:0; border-radius:14px;
   background:var(--p2-g); color:#fff; font:inherit; font-size:14.5px; font-weight:800;
   letter-spacing:.035em; text-transform:uppercase; cursor:pointer;

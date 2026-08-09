@@ -541,6 +541,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       : active.etaMin && etaMaxRef.current > 0
         ? Math.min(96, Math.max(10, Math.round((1 - active.etaMin / etaMaxRef.current) * 100)))
         : 10;
+  // 📍 GPS HAQIQATAN aniqlandimi. Buni bilmasak, javob kartasi «Siz shu yerdasiz» deb
+  // YOLG'ON aytadi: pin shunchaki xarita qayerda tursa o'sha yerda turibdi (kompaniya
+  // markazi yoki oxirgi manzil) va uning nomi ko'rsatiladi. Aynan shu «lokatsiya eski
+  // joyda qotib qolgan» shikoyatining qaytishi bo'lardi.
+  const [gpsOk, setGpsOk] = useState(false);
   const [finishFare, setFinishFare] = useState(0); // safar tugaganda ushlab qolingan taksometr qiymati
   const [stars, setStars] = useState(0);
   const [rateTags, setRateTags] = useState<string[]>([]);
@@ -1138,6 +1143,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // Aniqlikni RAQAM bilan aytamiz. Ilgari faqat «aniqlik past» derdi — mijoz ham, biz ham
     // xato 50 metrmi yoki 800 metrmi, bila olmasdik. Endi ekranning o'zi diagnostika beradi.
     const apply = (lat: number, lng: number, accuracy: number) => {
+      setGpsOk(true); // haqiqiy fix keldi — endi «Siz shu yerdasiz» deyishga haqimiz bor
       map.current?.setView([lat, lng], 17, { animate: true });
       flashMsg(accuracy <= 35 ? null : `📍 Aniqlik ~${Math.round(accuracy)} m — pinni biroz suring`, 6000);
     };
@@ -1738,22 +1744,35 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               {/* Javob kartasi — ega maketining bosh ekrani: yashil «siz shu yerdasiz», katta toza
                   nom (masofasiz — haydovchi ham aynan shu nomni ko'radi), shahar, tasdiq belgisi. */}
               <div className="b3-p2-ans">
-                <div className="b3-p2-eyebrow">
+                {/* GPS aniqlanmagan bo'lsa «Siz shu yerdasiz» DEYILMAYDI — pin shunchaki xarita
+                    turgan joyda va uning nomi TAXMIN. Halol sarlavha qo'yamiz, tugma esa baribir
+                    ishlaydi (odam nomni o'qiydi va noto'g'ri bo'lsa o'zgartiradi). */}
+                <div className={`b3-p2-eyebrow${gpsOk ? "" : " b3-p2-eyebrow-guess"}`}>
                   <svg width="13" height="16" viewBox="0 0 12 15" fill="currentColor" aria-hidden="true">
                     <path d="M6 0C2.7 0 0 2.7 0 6c0 4.5 6 9 6 9s6-4.5 6-9c0-3.3-2.7-6-6-6zm0 8.2A2.2 2.2 0 1 1 6 3.8a2.2 2.2 0 0 1 0 4.4z" />
                   </svg>
-                  Siz shu yerdasiz
+                  {gpsOk ? "Siz shu yerdasiz" : "Shu yerdanmi?"}
                 </div>
                 {pinBusy || !pinNear
                   ? <Skeleton h={33} w="70%" className="b3-p2-nameskel" />
                   : <div className="b3-p2-place">{pinNear}</div>}
                 <div className="b3-p2-city">Koson</div>
-                <div className="b3-p2-ok">
-                  <span className="b3-p2-tick">
-                    <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 4l2.6 2.6L9 1.2" /></svg>
-                  </span>
-                  {pinBusy || !pinNear ? "Joylashuv aniqlanmoqda…" : "Joylashuv aniqlandi"}
-                </div>
+                {/* ✓ belgisi FAQAT haqiqiy GPS bo'lganda. Aks holda halol ogohlantirish +
+                    tuzatish yo'li (qoida #14: yozuv harakat aytsa — bosadigan joy bo'lsin). */}
+                {gpsOk ? (
+                  <div className="b3-p2-ok">
+                    <span className="b3-p2-tick">
+                      <svg width="10" height="8" viewBox="0 0 10 8" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 4l2.6 2.6L9 1.2" /></svg>
+                    </span>
+                    {pinBusy || !pinNear ? "Joylashuv aniqlanmoqda…" : "Joylashuv aniqlandi"}
+                  </div>
+                ) : (
+                  <div className="b3-p2-ok b3-p2-ok-guess">
+                    <span className="b3-p2-tick b3-p2-tick-guess">?</span>
+                    {pinBusy ? "Joylashuv aniqlanmoqda…" : "Joylashuvingiz aniqlanmadi — tekshiring"}
+                    <button className="b3-p2-fixloc" onClick={() => { haptic(); void locateMe(); }}>Aniqlash</button>
+                  </div>
+                )}
               </div>
               <button className="b3-p2-cta" disabled={!pinPt || pinBusy} onClick={confirmPin}>
                 Shu yerdan taxi chaqirish
