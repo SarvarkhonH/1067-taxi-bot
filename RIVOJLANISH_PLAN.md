@@ -8,10 +8,15 @@
 
 ## 0. Asosiy xulosa — bir jumlada
 
-**Muammo qurishda emas, YETKAZISHDA.** Kodbazada 59 ta feature-flag bor, shundan **49 tasi
-qorong'i** (DEFAULT_OFF). Ya'ni yozilgan xususiyatlarning ~83% i mijozga hech qachon yetib
-bormagan, lekin ularning hammasi saqlanadi, typecheck qilinadi, sinovdan o'tkaziladi va har yangi
-o'zgarishda o'ylab ko'riladi. Qurish tezligi qabul qilish tezligidan ~6 barobar oshib ketgan.
+**Muammo qurishda emas, YETKAZISHDA.** Kodbazada 59 ta feature-flag bor. Ulardan **39 tasi ega
+qabul qilgan** (`EXPECTED_ON` — "the owner-accepted record"), **18 tasi esa hech qachon qabul
+qilinmagan** va prod'da o'chiq turibdi. Ya'ni yozilgan xususiyatlarning ~30% i mijozga yetib
+bormagan, lekin ularning hammasi saqlanadi, typecheck qilinadi va har refaktorda o'ylab ko'riladi.
+
+> ⚠️ **Diqqat:** `DEFAULT_OFF` (49 ta) "hozir qorong'i" DEGANI EMAS — u "DB'da aniq `on` satri
+> bo'lmasa o'chiq" degani. Haqiqiy jonli holat FAQAT DB'dan bilinadi. Kodning o'z izohi
+> ogohlantiradi: *"a reseeded/reset DB silently reverts each owner-accepted feature to OFF with no
+> error"* — shuning uchun birinchi ish jonli holatni o'lchash (§P1.2).
 
 Shuning uchun bu plan **yangi xususiyatlar ro'yxati emas**. U uchta narsani ko'zlaydi:
 1. Bor narsani chiqarish yoki o'chirish (qarzni yopish).
@@ -24,7 +29,7 @@ Shuning uchun bu plan **yangi xususiyatlar ro'yxati emas**. U uchta narsani ko'z
 
 | O'lchov | Qiymat | Nima demoqchi |
 |---|---|---|
-| Feature-flaglar | **59**, shundan **49 qorong'i** | 83% ish mijozga yetmagan |
+| Feature-flaglar | **59**: 39 qabul qilingan · **18 hech qachon qabul qilinmagan** | ~30% ish mijozga yetmagan |
 | Prisma modellari | **109** | Ko'pi o'chirilgan o'yinlardan qolgan |
 | Ad-hoc skriptlar | **160** (`src/scripts/`) | Test to'plami emas — bir martalik vositalar |
 | Mini App test qamrovi | **0** | Faqat `tsc` |
@@ -40,9 +45,9 @@ deyarli hammasi tugmani **bosmagan ham**. Bu marketing muammosi emas, mahsulot m
 
 ## 2. Uchta yo'riq (har qarorda shu bilan o'lchang)
 
-**Y1 — Yopilmagan ish yangi ishdan qimmat.** Qorong'i flag bepul emas: u kodda yashaydi, har
-refaktorda o'ylanadi, har testda yuritiladi. Yangi tiket boshlashdan oldin bitta qorong'i flagni
-yoq yoki o'chir.
+**Y1 — Yopilmagan ish yangi ishdan qimmat.** Qabul qilinmagan flag bepul emas: u kodda yashaydi,
+har refaktorda o'ylanadi, har testda yuritiladi. Yangi tiket boshlashdan oldin bitta qorong'i
+flagni yoq yoki o'chir.
 
 **Y2 — Voronkaning yuqorisi pastidan muhimroq.** Do'kon, restoran, e'lonlar — hammasi
 ro'yxatdan o'tgan mijoz uchun. 27% odam esa **eshikdan kirmagan**. Yuqorini yamamasdan pastga
@@ -92,11 +97,14 @@ muammosini to'g'ridan-to'g'ri yechadi.
 **O'lchov (majburiy):** ulanish konversiyasi `/start` → `linked`. Hozir **73%**. Maqsad **85%**.
 Agar 7 kunda o'zgarmasa — sabab tugmada emas, keyingi qadamga o'tmaymiz, qidiramiz.
 
-### P1.2 Qorong'i flaglar inventarizatsiyasi 🔴 (eng ko'p qiymat beradigan tozalash)
-49 ta qorong'i flagning **har biri** uchun bitta qaror: **yoq / o'chir / muzlat (sana bilan)**.
-Uchinchi variant faqat aniq sana bilan; sanasiz "keyinroq" = o'chirish.
-**Ish:** `FLAG_AUDIT.md` — jadval: flag / nima qiladi / oxirgi tegilgan sana / qaror / kim.
-**O'lchov:** qorong'i flaglar soni **49 → ≤20**. O'chirilgan har flag bilan birga uning kodi,
+### P1.2 Flag inventarizatsiyasi 🔴 (eng ko'p qiymat beradigan tozalash)
+**Avval o'lchang:** jonli DB'dan `feature:*` satrlarini olib, `EXPECTED_ON` bilan solishtiring
+(`scripts/auditFlags.ts` shuning uchun bor). Bu 39 ta "qabul qilingan" flag ROSTDAN yoniqmi degan
+savolga javob beradi — DB reset bo'lgan bo'lsa ular jimgina o'chgan bo'lishi mumkin.
+**Keyin:** 18 ta qabul qilinmagan flagning **har biri** uchun bitta qaror: **yoq / o'chir /
+muzlat (sana bilan)**. Sanasiz "keyinroq" = o'chirish.
+**Ish:** `FLAG_AUDIT.md` — jadval: flag / nima qiladi / jonli holati / oxirgi tegilgan sana / qaror.
+**O'lchov:** qabul qilinmagan flaglar **18 → ≤5**. O'chirilgan har flag bilan birga uning kodi,
 modellari va testlari ham ketadi.
 **Kutilayotgan yon-foyda:** 109 Prisma modelining kamayishi, bundle kichrayishi, sweep tezlashishi.
 
@@ -145,7 +153,7 @@ shareToStory, isActive+CloudStorage). Qolganlari **faqat P1 o'lchovlari talab qi
 ## 6. Nima QILMASLIK kerak (bu ham plan)
 
 - ❌ **Yangi vertikal qo'shmaslik** (taksi/do'kon/restoran/xizmat/e'lon/bozordan tashqari) —
-  qorong'i flaglar 20 dan tushmaguncha.
+  qabul qilinmagan flaglar 5 dan tushmaguncha.
 - ❌ **Yangi poller yozmaslik** — `bookingNotifier` sweep'i kengaytiriladi (CLAUDE.md qoidasi).
 - ❌ **Pul mexanikasini murakkablashtirmaslik** — hozirgi intizom (idempotent ledger, ≤350 clamp,
   member-lock) kodbazaning eng kuchli joyi. Har yangi faucet uni zaiflashtiradi.
@@ -160,7 +168,7 @@ shareToStory, isActive+CloudStorage). Qolganlari **faqat P1 o'lchovlari talab qi
 | 1 | P0.1–P0.4 (hujjat, async, token, restoran) | CI yashil, 4 xatar yopilgan |
 | 1 | §52–§57 deploy + telefonda QABUL | Ega skrinshot bilan tasdiqlaydi |
 | 2 | `linkinapp` global yoqish + o'lchash boshlanishi | Kunlik konversiya yozib borilyapti |
-| 2–3 | P1.2 flag inventarizatsiyasi (`FLAG_AUDIT.md`) | 49 flagning har biriga qaror |
+| 2–3 | P1.2: jonli flag holatini o'lchash + 18 flagga qaror | `FLAG_AUDIT.md` to'ldirilgan |
 | 3 | ESLint + vitest + CI darvozasi | Hook xatosi CI'da tutiladi |
 | 4 | Konversiya natijasi + bitta vertikal tanlash | 73% → ? raqami ma'lum |
 
