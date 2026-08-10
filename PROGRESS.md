@@ -52,6 +52,23 @@ Yangi testlar IKKI xil, kuchi HAR XIL va bu faylda ochiq yozilgan:
 · **Tuzilma qo'riqlari** (8 ta) — `computeBallMap` manbasini o'qib oyna-invariantini tekshiradi.
   Bu xatti-harakat isboti EMAS (DB kerak, `TEST_DATABASE_URL` yo'q), faqat JIM REGRESSIYA qo'rig'i.
 
+### ⚠️ DEPLOY POYGASI (2026-08-10 19:18) — kod aybdor emas
+
+`3c72d8e1` push qilingandan **47 soniya keyin** boshqa sessiya `4c726d3d` ni push qildi.
+Ikkala `deploy` ishi bir vaqtda VPS'ga SSH bilan kirdi va **meniki yiqildi**:
+
+```
+3c72d8e1  shield=success  deploy=FAILURE   («Deploy to VPS over SSH»)
+4c726d3d  shield=success  deploy=success    47 soniya keyin
+```
+
+`shield` ning HAMMA qadami o'tdi (typecheck · 157 test · 3 sim) — muammo faqat SSH qadamida.
+Keyingi deploy `main` ning eng so'nggi holatini tortadi, ya'ni bu o'zgarish ham chiqqan
+bo'lishi KERAK, lekin tashqaridan isbotlab bo'lmadi → alohida deploy chaqirildi.
+
+**Tizimli xulosa:** `ci.yml` dagi `deploy` ishida `concurrency` guruhi YO'Q. Ikki push ketma-ket
+kelsa deploylar poygaga tushadi va biri yiqiladi. Tuzatish — alohida kichik ish (V-NEXT).
+
 ### ⚠️ Halol chegaralar
 
 1. **Jonli bazada sinalmagan** — `computeBallMap` DB talab qiladi. Haqiqiy isbot: ega panelda
