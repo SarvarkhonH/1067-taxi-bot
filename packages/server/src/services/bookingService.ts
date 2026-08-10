@@ -147,6 +147,9 @@ export async function getBookingInfo(memberId: number): Promise<BookingInfoRespo
     quickPickup: quick,
     tariff: fare ? { minimalPayment: fare.minimalPayment, minimalDistanceKm: fare.minimalDistanceKm, perKmCity: fare.perKmCity, perMinute: fare.perMinute } : null,
     waitComp,
+    // ☎️ Birinchi dispetcher raqami — mijozning "hech kim javob bermadi" holatidagi tirik yo'li.
+    // Bo'sh satr `null` ga aylantiriladi: aks holda mijoz `tel:` bo'sh tugmani ko'rardi.
+    dispatcherPhone: company.dispatcherPhones?.[0]?.trim() || null,
   };
 }
 

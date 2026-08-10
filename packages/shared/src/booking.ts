@@ -78,6 +78,11 @@ export interface BookingInfoResponse {
   // running estimate while searching (the real payout is server-timed at ride-finish — this is a
   // client-side preview using the same knobs, not the source of truth).
   waitComp: { graceSec: number; fullSec: number; ceiling: number } | null;
+  // ☎️ Dispetcher raqami (kas `getCompanyInfo().dispatcherPhones[0]`). Haydovchi ekranida u
+  // ALLAQACHON bor edi (driver.tsx:119), mijoz oqimida esa umuman yo'q edi — ya'ni qidiruv
+  // muvaffaqiyatsiz tugaganda odamning oldida bironta ham chiqish yo'li qolmasdi. `null` bo'lsa
+  // tugma UMUMAN chizilmaydi (DIZAYN_QOIDALARI #14: ishlamaydigan va'da qo'yilmaydi).
+  dispatcherPhone: string | null;
 }
 
 // V1 living home aggregate — greeting, your usual ride, live cars, balances.

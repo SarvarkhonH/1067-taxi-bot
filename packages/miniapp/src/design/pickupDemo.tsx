@@ -39,30 +39,41 @@ const INFO: BookingInfoResponse = {
   tariff: { minimalPayment: 5000, minimalDistanceKm: 3, perKmCity: 2200, perMinute: 400 },
   booking3: true,
   waitComp: null,
+  dispatcherPhone: "1067", // kas mock ham aynan shuni beradi (kas/mock.ts:258)
 };
 
 // 🚕 Safar holatlari — bu ekranlarni boshqacha yo'l bilan faqat HAQIQIY safar paytida ko'rish
 // mumkin edi. Demo ularni buyurtmasiz ko'rsatadi (mock kas javobi), ya'ni ega haydovchi kartasini,
 // jonli hisoblagichni va yakun ekranini istalgan vaqtda tekshira oladi.
-type Ride = "none" | "accepted" | "started";
+// ⚠️ Holatlar ro'yxati JONLI OQIM bilan bir xil bo'lishi kerak, aks holda demo bor bug'ni yashiradi:
+// «qidiruv» (haydovchisiz faol buyurtma) va «yetib keldi» ilgari YO'Q edi — ya'ni ega dispetcher
+// tugmasini ham, kelgan mashina kartochkasini ham demo'da umuman ko'ra olmasdi.
+type Ride = "none" | "searching" | "accepted" | "arrived" | "started";
 const DRIVER = {
   fullName: "ZAFARBEK", carModel: "Cobalt", carNumber: "70Z878ZZ", rating: 4.9,
   phone: "+998901234567", lat: 39.0472, lng: 65.5836, bearing: 120,
 };
-const ACTIVE = (r: Ride) =>
-  r === "none"
-    ? null
-    : {
-        id: 90001,
-        status: r === "started" ? "started" : "accepted",
-        notifiedCount: 3,
-        etaMin: r === "started" ? null : 2,
-        rideStartedAt: r === "started" ? new Date(Date.now() - 6 * 60_000).toISOString() : null,
-        driver: { ...DRIVER, meterPayment: r === "started" ? 5021 : 0, meterDistance: r === "started" ? 3.4 : 0.4 },
-      };
+const ACTIVE = (r: Ride) => {
+  if (r === "none") return null;
+  // Qidiruv holati — buyurtma bor, haydovchi HALI YO'Q (kas hali hech kimga bermagan).
+  if (r === "searching") return { id: 90001, status: "new", notifiedCount: 3, etaMin: null, rideStartedAt: null, driver: null };
+  return {
+    id: 90001,
+    status: r === "started" ? "started" : r === "arrived" ? "arrived" : "accepted",
+    notifiedCount: 3,
+    etaMin: r === "started" || r === "arrived" ? null : 2,
+    rideStartedAt: r === "started" ? new Date(Date.now() - 6 * 60_000).toISOString() : null,
+    driver: { ...DRIVER, meterPayment: r === "started" ? 5021 : 0, meterDistance: r === "started" ? 3.4 : 0.4 },
+  };
+};
 let RIDE: Ride = "none"; // patchFetch shundan o'qiydi (modul darajasida, remount'da saqlanadi)
-const RIDE_LABEL: Record<Ride, string> = { none: "🚕 Safar: yo'q", accepted: "🚕 Haydovchi yo'lda", started: "🚕 Safarda" };
-const RIDE_NEXT: Record<Ride, Ride> = { none: "accepted", accepted: "started", started: "none" };
+const RIDE_LABEL: Record<Ride, string> = {
+  none: "🚕 Safar: yo'q", searching: "🔍 Qidirilyapti", accepted: "🚕 Haydovchi yo'lda",
+  arrived: "📍 Yetib keldi", started: "🚕 Safarda",
+};
+const RIDE_NEXT: Record<Ride, Ride> = {
+  none: "searching", searching: "accepted", accepted: "arrived", arrived: "started", started: "none",
+};
 
 type Mode = "a" | "b" | "off";
 const ME = (mode: Mode, lt: boolean): MeResponse =>
@@ -110,9 +121,21 @@ export function PickupDemoPage() {
   const [mode, setMode] = useState<Mode>("a");
   const [lt, setLt] = useState(true); // ega maketi YORUG' — demo shundan boshlanadi
   const [ride, setRide] = useState<Ride>(RIDE);
+  // 🔑 `gen` — safar SEANSI. Ilgari `key` ichida `ride` turardi va har bosishda ekran QAYTA
+  // QURILARDI: shu sababli birorta O'TISH ko'rinmasdi — «topildi» quvonchi ham, kelgan mashina
+  // kartochkasi ham, eng muhimi YAKUN ekrani ham (u `active` yo'qolishini KUZATIB topiladi).
+  // Endi qayta qurish FAQAT yangi qidiruv boshlanganda bo'ladi; qolgan o'tishlarni jonli
+  // oqimning O'Z so'rov halqasi ko'radi — ya'ni demo mahsulotdagidek ishlaydi.
+  const [gen, setGen] = useState(0);
+  const nextRide = (): void => {
+    const n = RIDE_NEXT[ride];
+    RIDE = n;
+    if (n === "searching") setGen((g) => g + 1); // yangi seans → toza qayta qurish
+    setRide(n);
+  };
   return (
     <div style={{ position: "fixed", inset: 0 }}>
-      <Booking3View key={`${mode}-${lt}-${ride}`} me={ME(mode, lt)} onClose={() => undefined} />
+      <Booking3View key={`${mode}-${lt}-${gen}`} me={ME(mode, lt)} onClose={() => undefined} />
       <button
         className="d-chip"
         style={{ position: "fixed", top: "calc(6px + var(--safe-top))", right: 10, zIndex: 99 }}
@@ -132,7 +155,7 @@ export function PickupDemoPage() {
       <button
         className="d-chip"
         style={{ position: "fixed", top: "calc(90px + var(--safe-top))", right: 10, zIndex: 99 }}
-        onClick={() => { RIDE = RIDE_NEXT[ride]; setRide(RIDE); }}
+        onClick={nextRide}
       >
         {RIDE_LABEL[ride]}
       </button>

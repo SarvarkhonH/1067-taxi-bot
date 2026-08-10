@@ -1436,6 +1436,23 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     setScreen("confirm");
   };
 
+  // ☎️ «1067 ga qo'ng'iroq» — mijoz oqimidagi YAGONA odam-yordami. Bugungacha dispetcher raqami
+  // faqat HAYDOVCHI ekranida bor edi (driver.tsx:119); mijoz esa «mashina topib bera olmadik»
+  // ekranida boshi berk ko'chada qolardi — birorta ham tirik yo'l yo'q edi. Raqam serverdan
+  // keladi (`/api/booking/info` → kas `getCompanyInfo`), YO'Q bo'lsa tugma UMUMAN chizilmaydi
+  // (DIZAYN_QOIDALARI #14). Rangi ATAYLAB yashil emas: yashil — «taxi chaqirish», ya'ni asosiy
+  // harakat; qo'ng'iroq esa zaxira yo'l va u bilan bir xil vaznda turmasligi kerak.
+  const dispatchTel = info.dispatcherPhone ? info.dispatcherPhone.replace(/[^\d+]/g, "") : null;
+  const dispatchBtn = (extraClass = "") =>
+    pickup2 && dispatchTel ? (
+      <a className={`b3-dispatch${extraClass ? ` ${extraClass}` : ""}`} href={`tel:${dispatchTel}`} onClick={() => haptic()}>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.24c1.1.37 2.3.57 3.6.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.3.2 2.5.57 3.6a1 1 0 0 1-.25 1l-2.2 2.2z" />
+        </svg>
+        <span>{info.dispatcherPhone} ga qo'ng'iroq</span>
+      </a>
+    ) : null;
+
   // quickPickup is usually ALSO the top saved address, so listing both printed the same place twice
   // on one screen ("one of each thing"). Under pickup2 the quick one wins and recents drop it.
   const recents = pickup2
@@ -2214,6 +2231,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                     : "haydovchi javobini kutmoqda…"}
               </div>
               <WaitTicker waitComp={info.waitComp} startAt={waitStartRef.current} />
+              {/* Kutish uzoq cho'zilsa odam nima qilishini bilmaydi — shu yerda tirik odam bilan
+                  gaplashish yo'li turadi. Bekor qilish tugmasidan YUQORIDA: «kutolmayapman» degan
+                  odamning birinchi ehtiyoji chiqib ketish emas, YORDAM. */}
+              {dispatchBtn()}
             </>
           )}
           {!(searchMin && !active?.driver) && !(rideMin && active?.driver) && (
@@ -2297,6 +2318,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             <div className="b3-voucher">🎁 <b>+{formatNumber(failedComp)} tanga</b> keyingi safaringizda sizni kutadi</div>
           )}
           <Button onClick={rebook}>🔁 Qayta urinib ko'rish</Button>
+          {/* Ilova mashina topolmadi — bu ekranda «yana bosing» dan boshqa yo'l YO'Q edi. Endi
+              dispetcher raqami bor: qayta urinish ishlamasa odam telefon qilib safarini oladi. */}
+          {dispatchBtn("b3-dispatch-fail")}
         </div>
       )}
 
