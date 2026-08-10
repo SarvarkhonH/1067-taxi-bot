@@ -1,6 +1,71 @@
 # PROGRESS
 
-## 🟡 2026-08-10 — UY SOVG'A-KARTASI ega maketiga keltirildi + 2 ta jonli bug — READY FOR VERIFICATION
+## 🟡 2026-08-11 — BALL ENDI MAVSUM BILAN YONADI (ega qarori) — TEKSHIRUVGA TAYYOR
+
+Ega konsoldagi yangi reytingni ochib so'radi: «nega hali hech nima boshlanmay hammada ball bor
+allaqachon?». Sabab topildi va ega yangi qoida berdi:
+
+> «Har mavsum ball nol bo'ladi. Uni saqlashning yagona yo'li — karta olib qo'yish.
+>  To'lmagan sovg'a kartalari keyingi mavsumga o'ynaladi; faqat o'ynalib yutuq chiqmaganlari
+>  to'liq yo'qoladi — balli ham, kartasi ham.»
+
+### Nega hammada ball bor edi
+
+Ball mavsumdan EMAS, **oxirgi 24 oydan** hisoblanardi (`BALL_DATA_WINDOW_MS`) va faqat 6 oy
+harakatsizlikda so'nardi. Bu S8 (2026-08-04, `94e281ff`) qarori edi: «karta abadiy → `spent`
+abadiy → `earned` ham abadiy bo'lishi shart», aks holda karta olganlarning hammasida
+`max(0, earned − spent)` = 0 chiqardi.
+
+### O'zgarish (4 nuqta)
+
+| # | Nima | Nega |
+|---|---|---|
+| 1 | Ball oynasi **24 oy → mavsum** (`fromMs = season.startMs`, `toMs = min(now, season.endMs)`) | Asosiy qoida |
+| 2 | Qo'lda tuzatish (`oyin:adj:`) **sanaga bog'landi** | Avval `total` sanasiz olinardi → bir marta qo'shilgan ball HAR MAVSUM qaytaverardi |
+| 3 | Telefon bonusi (`oyin:phoneball:`) **sanaga bog'landi**, belgi endi ISO sana saqlaydi | Avval sanasiz "1" edi → har mavsum qayta to'lanardi |
+| 4 | Harakatsizlik so'nishi (`BALL_INACTIVITY_MS`) **olib tashlandi** | Ball mavsum bilan yonsa u hech qachon ishlamaydi; qolsa `touch()` chaqirmagan manba paydo bo'lganda HAQIQIY mavsum-ichi balni nolga tushirib yuborardi |
+
+**S8 dagi «hammada 0» bug'i QAYTMAYDI:** o'shanda `earned` mavsumga kesilgan, `spent` esa
+kesilmagan edi. Bu yerda ikkalasi ham AYNAN bir xil `fromMs`/`toMs` oynasidan filtrlanadi.
+
+**Ega qoidasining karta qismi uchun kod KERAK BO'LMADI** — tizim allaqachon shunday ishlaydi:
+`oyin:tickets:` va `oyin_sold:` arxivlanmaydi (to'lmagan mukofot keyingi mavsumda to'lishda
+davom etadi), tirajdan keyin har karta `won`/`lost` deb belgilanadi. Ikkalasiga ham test yozildi.
+
+### O'tish davri KERAK EMAS — o'yin dark
+
+Uch mustaqil dalil: `oyin` — `DEFAULT_OFF` ro'yxatida (featureFlags.ts:182) · `checkFlags.ts`
+EXPECTED_ON ro'yxatida YO'Q · mijoz yo'llari 12 joyda `featureOn("oyin")` bilan qo'riqlangan.
+Ya'ni reytingda ko'ringan ball faqat hisobda bor, mijoz uni ko'rmaydi ham, sarflay ham olmaydi.
+⚠️ Jonli bayroq qatorini men O'QIY OLMAYMAN (admin-token yo'q, baza yopiq) — yakuniy tasdiq egada.
+
+### Isbot
+
+```
+pnpm --filter @t1067/shared test   → 8 fayl / 157 test yashil (17 tasi yangi)
+pnpm -r typecheck                  → toza (sim/ dan tashqari — u kuzatilmagan, meniki emas)
+simEconomy / simLoyalty / simGuards → uchalasi ✅
+```
+
+Yangi testlar IKKI xil, kuchi HAR XIL va bu faylda ochiq yozilgan:
+· **Sof funksiya** (`oyinSumInWindow`, 9 ta) — haqiqiy xatti-harakat isboti
+· **Tuzilma qo'riqlari** (8 ta) — `computeBallMap` manbasini o'qib oyna-invariantini tekshiradi.
+  Bu xatti-harakat isboti EMAS (DB kerak, `TEST_DATABASE_URL` yo'q), faqat JIM REGRESSIYA qo'rig'i.
+
+### ⚠️ Halol chegaralar
+
+1. **Jonli bazada sinalmagan** — `computeBallMap` DB talab qiladi. Haqiqiy isbot: ega panelda
+   reytingni ochib, ballar mavsum boshidan hisoblanayotganini ko'radi.
+2. **Tuzatish jurnali oxirgi 50 yozuv bilan cheklangan** (`adminAdjustBall`). Bitta a'zoga bir
+   mavsumda 50 dan ko'p tuzatish qilinsa eng eskilari hisobga kirmaydi. Real emas, lekin yozildi.
+3. **`simFullGame.ts:268` eskirdi** — u harakatsizlik mantig'ini izohda tasvirlaydi. CI'da
+   yurmaydi (CI faqat simEconomy/simLoyalty/simGuards), shuning uchun tegilmadi.
+
+---
+
+## ✅ 2026-08-10 — UY SOVG'A-KARTASI ega maketiga keltirildi + 2 ta jonli bug — OWNER-ACCEPTED
+
+**Ega QABUL berdi 2026-08-11** (real telefonda ko'rib, R6). Commit `957852ac` jonli.
 
 Ega maket yubordi («shu ideal dizayn») va uch narsani so'radi: qaytgan odam holati baland ovozli
 bo'lsin · CTA kattaroq · pill matni maketga mos. Maketni o'lchaganda yana uchtasi chiqdi (maketda

@@ -1419,3 +1419,27 @@ export function oyinProject(i: OyinProjectInput): OyinProjection {
     strandedBall: Math.max(0, ballAtEnd - cardsSold * price),
   };
 }
+
+/** ⏳ Vaqt oynasidagi yozuvlar yig'indisi (2026-08-11, «har mavsum ball nol» qoidasi).
+ *
+ *  Qo'lda tuzatilgan ball (`oyin:adj:`) va telefon bonusi (`oyin:phoneball:`) avval SANASIZ
+ *  saqlanardi — ya'ni bir marta berilgan ball HAR MAVSUM qaytaverardi. Yangi qoidada bu
+ *  cheksiz ball eshigi bo'lardi, shuning uchun ikkalasi ham shu funksiya orqali mavsum
+ *  oynasiga kesiladi.
+ *
+ *  ⚠️ Sanasi O'QILMAYDIGAN yozuv HISOBGA OLINMAYDI. Sabab: sanasiz yozuv — eski formatdagi
+ *  yozuv, ya'ni o'tmishda, boshqa mavsumda sodir bo'lgan. Uni "hisobga ol" desak eski bonus
+ *  har mavsum qayta to'lanardi; bu ball BERUVCHI yo'nalish, shuning uchun qat'iy rad etiladi.
+ *  (Chipta `ts` si bunga TESKARI qoida bilan ishlaydi — u ball SARFLAYDI, shuning uchun
+ *  buzuq sana hisobga OLINADI. Ikkalasida ham shubha mijoz foydasiga emas, KASSA foydasiga
+ *  hal qilinadi.) */
+export function oyinSumInWindow(entries: { at: string; ball: number }[], fromMs: number, toMs: number): number {
+  let sum = 0;
+  for (const e of entries) {
+    const t = Date.parse(e.at);
+    if (!Number.isFinite(t) || t < fromMs || t > toMs) continue;
+    const b = Number(e.ball);
+    if (Number.isFinite(b)) sum += Math.round(b);
+  }
+  return sum;
+}

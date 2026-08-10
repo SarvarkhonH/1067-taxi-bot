@@ -10,6 +10,7 @@ import {
   OYIN_CAPACITY_RATIO,
   OYIN_FINAL_LOCK_MS,
   oyinRiskScore,
+  oyinSumInWindow,
   OYIN_JAMOA_MAX,
   OYIN_JAMOA_MIN,
   OYIN_MAX_OPEN_PRIZES,
@@ -246,13 +247,18 @@ function tashkentDayKey(d: Date): string {
  *  oynasiga kesilsa, davr almashganda odam ham kartasini, ham ballini yo'qotardi va mukofot
  *  hech qachon o'ynalmasdi. Ya'ni S2/S3 ning butun mantig'i ishlamasdi.
  *
- *  ⚠️ Karta abadiy bo'lgani uchun `spent` ham abadiy — demak `earned` ham abadiy bo'lishi SHART,
- *  aks holda `max(0, earned − spent)` yangi davrda HAMMADA 0 chiqardi. Shuning uchun ball endi
- *  davrga emas, HARAKATSIZLIKKA bog'langan (pastdagi `BALL_INACTIVITY_MS`). */
-export const BALL_INACTIVITY_MS = 183 * 86400_000; // ~6 oy — ega qarori
-/** So'rov chegarasi: bundan eski ma'lumot umuman o'qilmaydi. Harakatsizlik qoidasi 6 oyda
- *  ballni nolga tushirgani uchun 24 oylik oyna hech kimga zarar qilmaydi, lekin `RideReward`
- *  to'liq skanini oldini oladi. */
+ *  ⚠️ 2026-08-11 DAN KEYINGI HOLAT (ega qarori: «har mavsum ball nol bo'ladi, saqlashning
+ *  yagona yo'li — karta olib qo'yish»): ball MAVSUM oynasida yashaydi. `earned` ham, `spent`
+ *  ham AYNAN bir xil oynadan filtrlanadi, shuning uchun yuqorida tasvirlangan «hammada 0»
+ *  holati YUZAGA KELMAYDI — eski mavsum kartasining narxi ham, uni to'lagan ball ham birga
+ *  hisobdan chiqadi. Karta O'ZI esa qoladi va to'lmagan mukofot keyingi mavsumda to'lishda
+ *  davom etadi (`oyin:tickets:`/`oyin_sold:` arxivlanmaydi).
+ *
+ *  ⛔ `BALL_INACTIVITY_MS` (6 oylik harakatsizlik so'nishi) OLIB TASHLANDI — ball mavsum bilan
+ *  yonadigan bo'lgach u hech qachon ishlamaydi, lekin `touch()` chaqirilmagan manba paydo
+ *  bo'lsa haqiqiy ballni nolga tushirib yuborishi mumkin edi. */
+/** So'rov chegarasi: mavsum sanasi yo'q bo'lsa (nazariy holat) ishlatiladigan zaxira oyna —
+ *  `RideReward` to'liq skanini oldini oladi. */
 const BALL_DATA_WINDOW_MS = 730 * 86400_000;
 
 // ── ball-xaritasi: BUTUN o'yinchilar populyatsiyasi uchun BIR marta hisoblanadi (loop-ichida-
@@ -302,8 +308,22 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   // ham abadiy bo'lishi shart, aks holda yangi davrda `max(0, earned − spent)` HAMMADA 0 chiqardi.
   // Endi ball davr chegarasida KUYMAYDI; u faqat 6 oy HARAKATSIZLIKDA so'nadi (pastda).
   const nowMs = Date.now();
-  const fromMs = nowMs - BALL_DATA_WINDOW_MS;
-  const toMs = nowMs;
+  // 🔄 2026-08-11 — EGA QARORI: «har mavsum ball nol bo'ladi, uni saqlashning yagona yo'li
+  // karta olib qo'yish». Ya'ni ball MAVSUM ICHIDA yashaydi va mavsum tugashi bilan yonadi.
+  //
+  // Nega bu S8 dagi «hammada 0» bug'ini QAYTARMAYDI: o'shanda `earned` mavsumga kesilgan,
+  // `spent` esa kesilmagan edi → karta olgan odamda `max(0, earned − spent)` = 0 chiqardi.
+  // Bu yerda IKKALASI ham AYNAN shu `fromMs`/`toMs` oynasidan filtrlanadi (pastda `spent`
+  // hisobiga qarang) — ya'ni eski mavsum kartasining narxi yangi balansdan CHIQARILADI.
+  // Bu to'g'ri: u karta eski mavsum balli bilan to'langan.
+  //
+  // ⚠️ Karta O'ZI hech qayerga ketmaydi: `myTickets`/`drawExport` uni ko'rsatishda davom
+  // etadi va `oyin_sold:` hisoblagichi arxivlanmaydi — ya'ni to'lmagan mukofot keyingi
+  // mavsumda to'lishda DAVOM etadi (ega qoidasi: «to'lmagan sovg'a kartalari keyingi
+  // mavsumga o'ynaladi, faqat o'ynalib yutuq chiqmagani yo'qoladi»).
+  const fromMs = season.startMs ?? nowMs - BALL_DATA_WINDOW_MS;
+  // Mavsum tugagach ball o'smaydi: tugash sanasidan keyingi harakat hisobga kirmaydi.
+  const toMs = season.endMs != null ? Math.min(nowMs, season.endMs) : nowMs;
   const from = new Date(fromMs);
   const to = new Date(toMs);
   const fromDay = tashkentDayKey(from);
@@ -458,15 +478,29 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   // 2026-08-10: `linkedAt` admin unlink→relink'da qayta yozilishi cheksiz ball eshigi edi).
   const phoneBallGranted = new Set<number>();
   for (const row of phoneBallRows) {
+    // 🔄 2026-08-11: belgi endi SANA saqlaydi (`markPhoneVerified`). Eski qatorlarda "1"
+    // turadi — ular O'TMISHDA sodir bo'lgan deb qaraladi va joriy mavsumda ball BERMAYDI.
+    // Aks holda telefon bonusi har mavsum qayta berilib, cheksiz ball eshigi bo'lardi.
     const memberId = Number(row.key.slice("oyin:phoneball:".length));
-    if (Number.isFinite(memberId)) phoneBallGranted.add(memberId);
+    if (!Number.isFinite(memberId)) continue;
+    // Eski "1" qiymati → `Date.parse` NaN → mavsumga kirmaydi → ball bermaydi (to'g'ri:
+    // u bonus o'tmishda, boshqa mavsumda berilgan).
+    const at = Date.parse(row.value);
+    if (Number.isFinite(at) && at >= fromMs && at <= toMs) phoneBallGranted.add(memberId);
   }
 
   // 🛠 Admin tuzatishi — musbat ham, manfiy ham bo'lishi mumkin.
   const adjustByMember = new Map<number, number>();
   for (const row of adjRows) {
     const memberId = Number(row.key.slice(ADJ_PREFIX.length));
-    if (Number.isFinite(memberId)) adjustByMember.set(memberId, parseAdjust(row.value).total);
+    if (!Number.isFinite(memberId)) continue;
+    // 🔄 2026-08-11: `total` EMAS, MAVSUM ICHIDAGI yozuvlar yig'indisi. Avval `total` olinardi
+    // va u sanasiz edi — ya'ni bir marta qo'shilgan ball HAR MAVSUM qaytaverardi (yangi
+    // «ball nol bo'ladi» qoidasida bu cheksiz ball eshigi bo'lardi).
+    // ⚠️ Jurnal oxirgi 50 yozuv bilan cheklangan (`adminAdjustBall`): bitta a'zoga bir
+    // mavsumda 50 dan ko'p tuzatish qilinsa eng eskilari hisobga kirmaydi. Real emas, lekin
+    // yozib qo'yildi — jim yaxlitlash bo'lmasin.
+    adjustByMember.set(memberId, oyinSumInWindow(parseAdjust(row.value).log, fromMs, toMs));
   }
   // Tasdiqlangan + mavsum oynasidagi hikoya-isbotlar
   const storyByMember = new Map<number, number>();
@@ -545,27 +579,15 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const jamoaBall = jamoaByMember.get(memberId) ?? 0;
     const earnedRaw = ridesBall + phoneBall + referJoinBall + referFirstBall + referRideBall + loginBall + shareBall + storyBall + streakBall + sprintBall + questBall + homeBall + adjustBall + jamoaBall;
     const spentRaw = spentByMember.get(memberId) ?? 0;
-    // ⏳ HARAKATSIZLIK QOIDASI (S8, ega qarori): ball 6 oy hech qanday harakatsiz qolsa so'nadi.
+    // ⛔ HARAKATSIZLIK QOIDASI (S8) OLIB TASHLANDI — 2026-08-11, ega qarori bilan keraksiz.
     //
-    // Nega "har ball o'z tug'ilganidan 6 oy" EMAS: u FIFO daftarini talab qiladi (qaysi ball
-    // avval sarflandi), bizda esa ball JONLI hisoblanadi. Daftarsiz "oyna" varianti FAOL
-    // mijozni jazolardi: eski daromadi oynadan chiqib ketadi-yu, o'sha ball bilan olingan
-    // kartaning `spent` i qoladi → balans asossiz tushardi. Harakatsizlik varianti esa
-    // aviakompaniya/bank sodiqlik dasturlarining standart javobi va faol mijozga HECH QACHON
-    // tegmaydi — bitta safar butun balansni tirik saqlaydi.
-    // 🔴 S8-6 (nazoratchi 2026-08-04): avval `lastAct === 0` bo'lsa `earnedRaw > 0` → DARHOL
-    // dormant edi. Ya'ni admin odamga ball qo'shsa u KO'RINMASDI (`adminAdjustBall` javobda
-    // 0 qaytarardi), telefon ulagan-u miniapp ochmagan odam `phoneBall` ni hech qachon
-    // ko'rmasdi. Va mantiq nomutanosib edi: MANFIY tuzatish o'tardi, musbat o'tmasdi.
-    // Endi: harakat yozuvi YO'Q bo'lsa dormant EMAS. Harakatsizlik faqat MA'LUM oxirgi
-    // harakatdan hisoblanadi — noma'lumlik jazo bo'lmaydi.
-    const lastAct = lastActivityByMember.get(memberId) ?? 0;
-    const dormant = lastAct > 0 && nowMs - lastAct > BALL_INACTIVITY_MS;
-    const earned = dormant ? 0 : earnedRaw;
-    // ⚠️ `spent` ham nolga tushadi: aks holda uyquga ketgan odam qaytganda `earned` 0 dan
-    // boshlaydi-yu, eski `spent` qolib `max(0, 0 − spent)` bilan abadiy 0 da qamalib qolardi.
-    // Kartalari esa JOYIDA — ular hech qachon kuymaydi (mukofot kunini kutib turadi).
-    const spent = dormant ? 0 : spentRaw;
+    // U ball 6 oy harakatsizlikda so'nishini ta'minlardi. Endi ball MAVSUM bilan yonadi,
+    // ya'ni 6 oy harakatsiz odamda joriy mavsum balli allaqachon 0 — qoida hech qachon
+    // ishlamaydi. Uni QOLDIRISH esa xavfli edi: agar biror ball manbai `touch()` chaqirmasa,
+    // `lastAct` eskirib qolib, HAQIQIY mavsum-ichi balni nolga tushirib yuborardi.
+    // O'lik-lekin-xavfli kod saqlanmaydi.
+    const earned = earnedRaw;
+    const spent = spentRaw;
     map.set(memberId, {
       memberId,
       telegramId: tu.id,
@@ -1705,11 +1727,13 @@ async function markDay(prefix: "oyin:login:" | "oyin:share:" | "oyin:quest:" | "
  *  2026-08-10: avval `linkedAt` oynasiga bog'liq edi va bu CHEKSIZ ball eshigi edi). */
 async function markPhoneVerified(memberId: number): Promise<void> {
   const key = `oyin:phoneball:${memberId}`;
+  // ⚠️ Qiymat — ISO SANA (avval "1" edi). Ball mavsum-doirali bo'lgani uchun bonus qaysi
+  // mavsumda berilganini bilish SHART; sanasiz belgi har mavsum qayta to'lanardi.
   const already = await prisma.appState.findUnique({ where: { key } });
   if (already) return;
   const tu = await prisma.telegramUser.findUnique({ where: { memberId }, select: { phone: true } });
   if (!tu?.phone) return;
-  await prisma.appState.create({ data: { key, value: "1" } }).catch(() => undefined); // P2002 poyga — beparvo
+  await prisma.appState.create({ data: { key, value: new Date().toISOString() } }).catch(() => undefined); // P2002 poyga — beparvo
   invalidateBallCache();
 }
 export async function markLogin(memberId: number, preview = false): Promise<void> {
@@ -3341,9 +3365,9 @@ export async function seasonClose(): Promise<OyinSeasonCloseResult> {
 // ball ko'rinmaydi ("nega ballim tushmayapti?"), qarz to'langunga qadar butun mehnati bekor.
 // Tugma nomi ("toza boshlash") aynan teskarisini qilardi.
 //
-// Yangi qoida: **ball tarixi hech qachon arxivlanmaydi.** Ball 24 oylik siljiydigan oynada
-// o'zi eskiradi (`BALL_DATA_WINDOW_MS`) va 6 oy harakatsizlikda o'zi nolga tushadi
-// (`BALL_INACTIVITY_MS`) — qo'lda tozalash SHART EMAS va xavfli.
+// Yangi qoida (2026-08-11): **ball tarixi hech qachon arxivlanmaydi.** Ball MAVSUM oynasidan
+// hisoblanadi — mavsum almashishi bilan eski faoliyat o'zi hisobdan chiqadi, ya'ni qo'lda
+// tozalash SHART EMAS va xavfli (arxivlash kartani va sotilgan-hisoblagichni ham buzardi).
 // Bu tugmaning qolgan ishi: haftalik sprint holatini va davr hisoblagichini qayta boshlash.
 export const ARCHIVED_PREFIXES = [
   // ✅ Arxivlanadi — ball BERMAYDI, faqat holat/marker:
