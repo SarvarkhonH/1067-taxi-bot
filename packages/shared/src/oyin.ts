@@ -18,6 +18,10 @@ export interface OyinCatalogPrize {
   price: number; // chipta ball-narxi
   limit: number; // chipta-o'rin soni (N-limit)
   photoUrl: string | null;
+  /** 📤 Telegram'da saqlangan rasm (2026-08-10). Ega fayl yuklaganda shu to'ladi va rasm
+   *  BIZNIKI bo'ladi — tashqi sayt o'chsa ham vitrina bo'shab qolmaydi. `photoUrl` (tashqi
+   *  havola) eski yozuvlar uchun QOLADI: ikkalasi bo'lsa fileId ustun. */
+  photoFileId?: string | null;
   active: boolean; // false = vitrinada/xariddan yashiringan, lekin tarixiy yozuvlar (tiraj/
                     // faoliyat-jadval) uchun katalogda QOLADI — hech qachon chin o'chirilmaydi
                     // (sotilgan chiptasi bo'lsa kalit "yetim" bo'lib qolmasin).
@@ -535,6 +539,11 @@ export interface OyinDrawTicketRow {
   ticketNo: number;
   memberId: number;
   name: string;
+  /** 📅 Karta olingan vaqt (ISO). 2026-08-10 da qo'shildi: ma'lumot chiptada (`TicketRecord.ts`)
+   *  ALLAQACHON bor edi, faqat eksportga solinmagan — shu sababli admin panelda «sana ustuni
+   *  yo'q, soxta sana chizmadik» degan izoh turardi va «kim qachon karta oldi» savoliga javob
+   *  yo'q edi. Eski chiptalarda `ts` bo'sh bo'lishi mumkin → `null`. */
+  at: string | null;
 }
 export interface OyinDrawExport {
   generatedAt: string;
@@ -1122,4 +1131,283 @@ export interface OyinBuyResult {
   gno?: number;
   prizeKey?: OyinPrizeKey;
   ballLeft?: number;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// 🛠 O'YIN KONSOLI (2026-08-10, ega talabi «kengroq kirib boradigan nazorat»)
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// Uchta yangi qatlam: REYTING (kim qancha ball to'pladi) · XAVF (kimni qo'lda tekshirish kerak) ·
+// AUDIT (admin nima o'zgartirdi). Ikkinchisi eng nozigi — pastdagi izohni o'qing.
+
+/** 🏆 Reyting qatori. Manba `computeBallMap()` — ya'ni mijoz ilovada ko'radigan ball bilan
+ *  AYNAN bir xil hisob, ikkinchi formula YO'Q. */
+export interface OyinLeaderRow {
+  memberId: number;
+  name: string;
+  phone: string | null;
+  ball: number;
+  earned: number;
+  spent: number;
+  seasonRides: number;
+  cards: number;
+  /** Qo'lda tuzatilgan ball (musbat/manfiy). Reytingda alohida ustun — «yig'gan» va «berilgan»
+   *  aralashib ketmasin. */
+  adjust: number;
+  /** Oxirgi REAL safar (ISO) — `RideReward` dan. Ilova ochish emas: pul keltirgan harakat. */
+  lastRideAt: string | null;
+  banned: boolean;
+  risk: OyinRiskScore;
+}
+
+/** ⚠️ XAVF BALLI — bu AYBLOV EMAS, tekshirish navbatidagi tartib.
+ *
+ *  Muhim qaror (2026-08-10): faqat REAL ma'lumot manbai bor signallar sanaladi. Dastlabki
+ *  dizaynda «kunlik ball shiftiga urilish» signali bor edi — kodda bunday shift UMUMAN YO'Q
+ *  (`grep -n "dailyCap\|CAP_PREFIX" oyinService.ts` → 0 qator), ya'ni u raqam O'YLAB TOPILGAN
+ *  bo'lardi. Chizilmadi (DIZAYN_QOIDALARI: ma'lumotsiz element jo'natilmaydi).
+ *
+ *  HECH QANDAY AVTOMATIK JAZO YO'Q. Ball faqat saralaydi; chetlatish har doim odam qarori. */
+export interface OyinRiskScore {
+  /** 0..100. Signal og'irliklari yig'indisi, 100 da kesiladi. */
+  score: number;
+  flags: OyinRiskFlag[];
+  /** Har flag uchun o'qiladigan sabab — panel «nega shubhali» deb aynan shuni ko'rsatadi. */
+  reasons: string[];
+}
+export const OYIN_RISK_FLAGS = [
+  /** Safar kam, ball ko'p — ball safardan emas, boshqa manbadan kelgan. */
+  "ballWithoutRides",
+  /** Bitta mukofotga ko'p karta — tirajni bosib olishga urinish. */
+  "cardHoarding",
+  /** Qisqa oynada ko'p do'st — referal portlashi. */
+  "referBurst",
+  /** Ballning katta qismi ADMIN qo'lidan (yig'ilgan emas, berilgan). */
+  "adjustHeavy",
+] as const;
+export type OyinRiskFlag = (typeof OYIN_RISK_FLAGS)[number];
+
+export interface OyinRiskInput {
+  earned: number;
+  seasonRides: number;
+  adjust: number;
+  /** Bitta mukofotga olingan ENG KO'P karta soni. */
+  maxCardsOnOnePrize: number;
+  /** Bir kunda ulangan do'stlarning eng ko'p soni. */
+  maxReferralsInADay: number;
+}
+
+/** Og'irliklar ATAYLAB ochiq konstanta — panelda «nega 71 ball» savoliga javob shu yerdan.
+ *  O'zgartirilsa test yiqiladi (qasddan: jim surилиш bo'lmasin). */
+export const OYIN_RISK_WEIGHTS = { ballWithoutRides: 45, cardHoarding: 25, referBurst: 20, adjustHeavy: 10 } as const;
+/** Chegaralar — har biri jonli ma'lumotdan kelib chiqqan, ko'z bilan tanlangan emas:
+ *  · 5 safar = mavsumda «faol mijoz» chegarasi (byudjet kartasi ham shu qadamda o'ylaydi)
+ *  · 2 000 ball ≈ 57 safarlik mehnat (oyinRideBall=35) — 5 safar bilan bunga yetib bo'lmaydi
+ *  · 5 karta bitta mukofotga = o'rinlarning ~1/7 qismi (o'rtacha limit 30)
+ *  · 4 do'st bir kunda — real hayotda kam uchraydi */
+export const OYIN_RISK_LIMITS = { minRides: 5, ballFloor: 2000, cardsOnOnePrize: 5, referralsPerDay: 4, adjustShare: 0.5 } as const;
+
+export function oyinRiskScore(i: OyinRiskInput): OyinRiskScore {
+  const flags: OyinRiskFlag[] = [];
+  const reasons: string[] = [];
+  let score = 0;
+  if (i.seasonRides < OYIN_RISK_LIMITS.minRides && i.earned >= OYIN_RISK_LIMITS.ballFloor) {
+    flags.push("ballWithoutRides");
+    score += OYIN_RISK_WEIGHTS.ballWithoutRides;
+    reasons.push(`faqat ${i.seasonRides} safar, lekin ${i.earned} ball yig'ilgan`);
+  }
+  if (i.maxCardsOnOnePrize >= OYIN_RISK_LIMITS.cardsOnOnePrize) {
+    flags.push("cardHoarding");
+    score += OYIN_RISK_WEIGHTS.cardHoarding;
+    reasons.push(`bitta mukofotga ${i.maxCardsOnOnePrize} ta karta olgan`);
+  }
+  if (i.maxReferralsInADay >= OYIN_RISK_LIMITS.referralsPerDay) {
+    flags.push("referBurst");
+    score += OYIN_RISK_WEIGHTS.referBurst;
+    reasons.push(`bir kunda ${i.maxReferralsInADay} ta do'st ulagan`);
+  }
+  // ⚠️ Faqat MUSBAT tuzatish shubhali. Manfiy tuzatish — jazo/tuzatish, uni "xavf" deb belgilash
+  // ega o'zining tuzatish ishini o'zi ayblagani bo'lardi.
+  if (i.adjust > 0 && i.earned > 0 && i.adjust / i.earned >= OYIN_RISK_LIMITS.adjustShare) {
+    flags.push("adjustHeavy");
+    score += OYIN_RISK_WEIGHTS.adjustHeavy;
+    reasons.push(`ballning ${Math.round((i.adjust / i.earned) * 100)}% qo'lda qo'shilgan`);
+  }
+  return { score: Math.min(100, score), flags, reasons };
+}
+
+// ── 🧾 AUDIT JURNALI ──────────────────────────────────────────────────────────────────────────
+// ⚠️ Bu «📜 faoliyat jurnali» (`OyinActivityRow`) BILAN CHALKASHTIRILMAYDI. Ikkalasi ham kerak:
+//   · faoliyat = MIJOZ ball voqealari (safar, do'st, hikoya, karta xaridi) — mijozning savoliga javob
+//   · audit   = ADMIN amallari (narx, o'chirish, mavsum, muzlatish) — EGANING savoliga javob
+// Eski panelda ikkinchisi umuman yo'q edi: narxni kim va qachon o'zgartirgani hech qayerda qolmasdi.
+export const OYIN_AUDIT_ACTIONS = [
+  "prize.upsert", "prize.delete", "prize.active", "prize.photo", "prize.cancelTickets",
+  "catalog.bulk", "catalog.restore",
+  "season.set", "season.reset", "knobs.set", "sponsor.set",
+  "freeze.set", "capacity.open",
+  "ball.adjust", "ticket.cancel", "member.ban",
+  "story.review", "gashtak.kick", "gashtak.disband", "gashtak.turn",
+] as const;
+export type OyinAuditAction = (typeof OYIN_AUDIT_ACTIONS)[number];
+
+export interface OyinAuditEntry {
+  at: string; // ISO
+  action: OyinAuditAction;
+  /** Kim: `owner` yoki operator nomi. Token'dan olinadi, mijozdan EMAS. */
+  actor: string;
+  /** Nimaga tegdi — o'qiladigan nom («iPhone 12», «Dilshod Rasulov #1207»). */
+  target: string;
+  /** Eski → yangi. Faqat O'ZGARGAN maydonlar (butun obyekt emas — jurnal o'qilmay qolmasin). */
+  changes: { field: string; from: string; to: string }[];
+  note?: string;
+}
+/** Jurnal AppState'da BITTA aylanma ro'yxat: har yozuv uchun alohida qator YARATILMAYDI
+ *  (AppState markerlari abadiy to'planishi — ARCHITECTURE.md §5 dagi ma'lum qarz). */
+export const OYIN_AUDIT_MAX = 500;
+
+// ── 📟 VITAL PANEL ────────────────────────────────────────────────────────────────────────────
+/** Konsol tepasidagi doimiy panel BITTA so'rov bilan boqiladi. Avval ega har raqam uchun
+ *  alohida ekran ochardi va panel 7 ta so'rov yuborardi. */
+export interface OyinVitals {
+  seasonPhase: OyinSeasonPhase;
+  seasonLabel: string | null;
+  daysLeft: number | null;
+  finalLock: boolean;
+  circulatingBall: number;
+  capacityRatio: number;
+  capacityHealthy: boolean;
+  budgetSom: number;
+  catalogSom: number;
+  overBudget: boolean;
+  cardsIssued: number;
+  prizesFilled: number;
+  storiesPending: number;
+  riskCount: number;
+  frozen: boolean;
+  /** Hisob qachon olingani — panel «eskirgan raqam» ko'rsatmasligi uchun. */
+  at: string;
+}
+
+// ── 📥 OMMAVIY IMPORT + ↩ QAYTARISH (2026-08-10) ──────────────────────────────────────────────
+// Eski panelda 100 ta mukofot = 100 ta so'rov, har biri butun katalogni qayta yozardi. Endi
+// BITTA atomik yozuv. Va har yozuvdan OLDIN nusxa olinadi — noto'g'ri narx bitta bosishda qaytadi.
+
+/** Bitta import qatori — panel MATNNI shu shaklga o'giradi va serverga TAYYOR yuboradi.
+ *  Ball-narx/o'rin hisobi panelda (`oyinCardPlan`) qilinadi, ya'ni ega bosishdan OLDIN
+ *  aynan nima yoziladigan bo'lsa shuni ko'radi (farq jadvali). */
+export interface OyinBulkPrizeInput {
+  /** Mavjud mukofot kaliti — berilsa TAHRIR, berilmasa yangi qo'shiladi. */
+  key?: string;
+  icon: string;
+  name: string;
+  valueLabel: string;
+  price: number;
+  limit: number;
+  photoUrl: string | null;
+  queued?: boolean;
+}
+export interface OyinBulkResult {
+  ok: boolean;
+  added: number;
+  updated: number;
+  /** Qabul qilinmagan qatorlar — JIMGINA tashlanmaydi, sababi bilan qaytadi. */
+  rejected: { name: string; reason: string }[];
+  prizes: OyinAdminPrizeRow[];
+}
+/** Bir marta yuborish chegarasi. 200 dan ko'pi bitta AppState yozuvini haddan tashqari
+ *  kattalashtiradi (katalog JSON butun bo'lib yoziladi). */
+export const OYIN_BULK_MAX = 200;
+
+export interface OyinCatalogSnapshot {
+  at: string;
+  /** Qaysi amal bu holatni yaratdi — «import», «narx tahriri», «navbatdan ochish»… */
+  label: string;
+  /** Nechta mukofot bor edi — panel ro'yxatda shuni ko'rsatadi. */
+  count: number;
+  /** Qaytarish uchun kalit (ro'yxatdagi o'rin emas — ro'yxat siljiydi). */
+  id: string;
+}
+/** Nusxalar aylanma: oxirgi 30 tasi. Ko'proq saqlash AppState qatorini o'stiradi, kamrog'i
+ *  esa «kecha nima qilgan edim» savoliga javob bermaydi. */
+export const OYIN_SNAPSHOT_MAX = 30;
+
+// ── 📅 KELASI MAVSUM QORALAMASI (S10) ─────────────────────────────────────────────────────────
+// Jonli mavsumga TEGMAYDI. Ega kelasi mavsumni oldindan rejalashtiradi: sanalar, byudjet,
+// mukofot tarkibi. Faqat qoralama — «boshlash» alohida ongli qadam.
+export interface OyinSeasonPlan {
+  startIso: string | null;
+  endIso: string | null;
+  label: string | null;
+  budgetSom: number;
+  /** Daraja bo'yicha byudjet ulushi (%) — yig'indisi 100 bo'lishi SHART emas (ega erkin). */
+  split: { kichik: number; orta: number; katta: number };
+  note: string;
+  updatedAt: string | null;
+}
+export const OYIN_SEASON_PLAN_DEFAULT: OyinSeasonPlan = {
+  startIso: null, endIso: null, label: null, budgetSom: 0,
+  split: { kichik: 25, orta: 35, katta: 40 }, note: "", updatedAt: null,
+};
+
+// ── 🔮 PROYEKSIYA (2026-08-10) ────────────────────────────────────────────────────────────────
+// ⚠️ HALOL NOM: bu MONTE-CARLO EMAS. Loyihada to'liq raqamli egizak bor (`server/src/sim/` —
+// `predict.ts`, `runArms.ts`, 1067'ning iyul bozori bilan kalibrlangan), lekin u hozircha git'ga
+// qo'shilmagan (boshqa sessiyaning ishi) va uni panelga ulash uni commit qilishni talab qiladi.
+// Shu sabab bu yerda ODDIY, TUSHUNARLI chiziqli proyeksiya: har qadami ekranda ko'rsatiladi.
+// Egizak repoga tushganda bu funksiya o'rniga o'sha ulanadi (ishonch oralig'i bilan).
+export interface OyinProjectInput {
+  /** Oxirgi 30 kunning REAL safar soni (`adminBudget` dan — taxmin emas). */
+  rides30d: number;
+  /** Mavsum tugashiga qolgan kun. */
+  daysLeft: number;
+  /** Hozir xalq qo'lidagi ball. */
+  circulatingBall: number;
+  /** Bitta safar uchun beriladigan ball (`oyinRideBall`). */
+  rideBall: number;
+  /** Ochiq mukofotlarning o'rtacha karta bahosi. */
+  avgCardPrice: number;
+  /** Ochiq mukofotlarda qolgan bo'sh o'rin. */
+  openSlots: number;
+  /** Ochiq mukofotlarning jami real qiymati (so'm). */
+  openValueSom: number;
+}
+export interface OyinProjection {
+  projectedRides: number;
+  ballFromRides: number;
+  ballAtEnd: number;
+  /** Ball yetadigan karta soni (o'rin chegarasi hisobga olingan). */
+  cardsAffordable: number;
+  cardsSold: number;
+  /** O'rin to'lib qolganmi — ya'ni ball sarflanadigan joy tugadimi. */
+  slotsAreTheLimit: boolean;
+  kassaSom: number;
+  /** Sotilgan kartalar ulushiga to'g'ri keladigan mukofot qiymati. */
+  costSom: number;
+  coverage: number;
+  /** Mavsum oxirida sarflanmay qoladigan ball — «yig'dim, olib bo'lmadi» xavfi. */
+  strandedBall: number;
+}
+
+export function oyinProject(i: OyinProjectInput): OyinProjection {
+  const safe = (n: number): number => (Number.isFinite(n) ? Math.max(0, n) : 0);
+  const days = safe(i.daysLeft);
+  const perDay = safe(i.rides30d) / 30;
+  const projectedRides = Math.round(perDay * days);
+  const ballFromRides = projectedRides * safe(i.rideBall);
+  const ballAtEnd = safe(i.circulatingBall) + ballFromRides;
+  const price = Math.max(1, safe(i.avgCardPrice));
+  const cardsAffordable = Math.floor(ballAtEnd / price);
+  const slots = safe(i.openSlots);
+  const cardsSold = Math.min(cardsAffordable, slots);
+  const kassaSom = cardsSold * price * OYIN_SOM_PER_BALL;
+  // Xarajat: sotilgan o'rin ulushiga to'g'ri keladigan mukofot qiymati. To'lmagan mukofot
+  // bir so'm ham turmaydi — shuning uchun ulush bo'yicha hisoblanadi, hammasi bo'yicha emas.
+  const costSom = slots > 0 ? Math.round((cardsSold / slots) * safe(i.openValueSom)) : 0;
+  return {
+    projectedRides, ballFromRides, ballAtEnd, cardsAffordable, cardsSold,
+    slotsAreTheLimit: cardsAffordable > slots,
+    kassaSom, costSom,
+    coverage: costSom > 0 ? kassaSom / costSom : 0,
+    strandedBall: Math.max(0, ballAtEnd - cardsSold * price),
+  };
 }

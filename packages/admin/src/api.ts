@@ -1,4 +1,11 @@
 import type {
+  OyinAuditEntry,
+  OyinBulkPrizeInput,
+  OyinBulkResult,
+  OyinCatalogSnapshot,
+  OyinLeaderRow,
+  OyinSeasonPlan,
+  OyinVitals,
   AdminActionResult,
   AdminAdContactRow,
   AdminAdReactionRow,
@@ -211,6 +218,25 @@ export const adminApi = {
   // 🎯 Moderatsiya — boshliq noto'g'ri bosgan/nizo chiqqan holatlar uchun.
   oyinGashtakSetTurn: (code: string, monthKey: string, memberId: number | null, note: string) =>
     postJson<OyinJamoaResult>(`/api/admin/oyin/gashtak/${encodeURIComponent(code)}/turn`, { monthKey, memberId, note }),
+  // ── 🛠 O'YIN KONSOLI (2026-08-10) ────────────────────────────────────────────────────────
+  oyinLeaderboard: () => req<{ rows: OyinLeaderRow[] }>("/api/admin/oyin/leaderboard"),
+  oyinVitals: () => req<OyinVitals>("/api/admin/oyin/vitals"),
+  oyinAudit: (f: { action?: string; q?: string; page?: number } = {}) => {
+    const p = new URLSearchParams();
+    if (f.action) p.set("action", f.action);
+    if (f.q) p.set("q", f.q);
+    if (f.page) p.set("page", String(f.page));
+    return req<{ rows: OyinAuditEntry[]; total: number; page: number; pageSize: number; truncated: boolean }>(`/api/admin/oyin/audit?${p.toString()}`);
+  },
+  // 📤 Rasm base64 bilan ketadi (multer yo'q — driver-photo naqshi).
+  oyinPrizePhoto: (key: string, base64: string, mime: string) =>
+    postJson<{ ok: boolean; reason?: string }>("/api/admin/oyin/prize/photo", { key, base64, mime }),
+  // 📥 BITTA atomik so'rov — 100 ta mukofot uchun 100 ta emas.
+  oyinBulkPrizes: (rows: OyinBulkPrizeInput[]) => postJson<OyinBulkResult>("/api/admin/oyin/catalog/bulk", { rows }),
+  oyinSnapshots: () => req<{ rows: OyinCatalogSnapshot[] }>("/api/admin/oyin/catalog/snapshots"),
+  oyinRestore: (id: string) => postJson<{ ok: boolean; reason?: string; prizes?: OyinAdminPrizeRow[] }>("/api/admin/oyin/catalog/restore", { id }),
+  oyinSeasonPlan: () => req<OyinSeasonPlan>("/api/admin/oyin/season/plan"),
+  setOyinSeasonPlan: (plan: Partial<OyinSeasonPlan>) => postJson<OyinSeasonPlan>("/api/admin/oyin/season/plan", plan),
   corps: () => req<{ corps: { id: number; name: string; balance: number; employees: number }[] }>("/api/admin/corps"),
   corpCreate: (name: string, cap: number) => postJson<{ id: number }>("/api/admin/corps", { name, cap }),
   corpAddEmployee: (id: number, phone: string, name?: string) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/corps/${id}/employees`, { phone, name }),

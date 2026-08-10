@@ -35,7 +35,7 @@ import { findDriverByCar, getDriverEarnings, lookupDriverForPay, lookupRecipient
 import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, getRecentPickups, listCatalogPlaces, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
-import type { BookingCreateBody, BookingNowBody, GeoPt } from "@t1067/shared";
+import type { BookingCreateBody, BookingNowBody, GeoPt, OyinBulkPrizeInput, OyinSeasonPlan } from "@t1067/shared";
 import { validateContactResponse, validateInitData } from "./telegramAuth";
 import { isTgBanned } from "../services/banService";
 import { featureOn } from "../services/featureFlags";
@@ -1756,11 +1756,20 @@ export function createApiServer(opts: ApiOptions = {}) {
   // iflos bo'lib, poster saqlanmay qolardi.
   app.get("/api/oyin/prizephoto", async (req, res) => {
     const key = String((req.query as { key?: string }).key ?? "").slice(0, 64);
-    const { adminListCatalog } = await import("../services/oyinService");
-    const prize = (await adminListCatalog()).find((p) => p.key === key);
-    if (!prize?.photoUrl) { res.status(404).json({ error: "no photo" }); return; }
+    const { resolvePrizePhoto } = await import("../services/oyinService");
+    const { fileId, url } = await resolvePrizePhoto(key);
+    // 📤 2026-08-10: ega FAYL yuklagan bo'lsa rasm Telegram'da — BIZNIKI, tashqi saytga
+    // bog'liq emas. Shuning uchun fileId USTUN, tashqi havola esa zaxira bo'lib qoladi.
+    if (fileId) { await pipeTelegramFile(res, fileId, 3600, req); return; }
+    if (url?.startsWith("data:")) {
+      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
+      if (!m) { res.status(404).json({ error: "no photo" }); return; }
+      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
+      return;
+    }
+    if (!url) { res.status(404).json({ error: "no photo" }); return; }
     try {
-      const r = await fetch(prize.photoUrl);
+      const r = await fetch(url);
       if (!r.ok) { res.status(404).json({ error: "fetch failed" }); return; }
       const buf = Buffer.from(await r.arrayBuffer());
       res.setHeader("Content-Type", r.headers.get("content-type") ?? "image/jpeg");
@@ -2266,10 +2275,26 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.status(400).json({ error: "unknown knob or bad value" });
       return;
     }
-    const { setBonusEcon } = await import("../services/bonusConfig");
-    res.json({ ok: true, values: await setBonusEcon(b.key as string, b.value) });
+    const { setBonusEcon, getBonusEcon } = await import("../services/bonusConfig");
+    // 🧾 Audit — FAQAT `oyin*` knoblari uchun. Bu route butun bonus-iqtisod knoblariga umumiy;
+    // hammasini o'yin jurnaliga yozsak jurnal o'yinga aloqasi yo'q yozuvlar bilan to'lib ketardi.
+    const knob = BONUS_ECON_KNOBS.find((k) => k.key === b.key);
+    const before = b.key?.startsWith("oyin") ? (await getBonusEcon().catch(() => null)) : null;
+    const values = await setBonusEcon(b.key as string, b.value);
+    if (b.key?.startsWith("oyin")) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "knobs.set", actor: auditActor(res), target: knob?.label ?? String(b.key),
+        changes: [{ field: String(b.key), from: String(before?.[b.key as string] ?? knob?.def ?? "-"), to: String(b.value) }],
+      });
+    }
+    res.json({ ok: true, values });
   });
   // 🎮 Koson O'yini — mavsum homiysi (KOSON_OYIN_PLAN.md v9.2 §5). Sozlanmaganda BirJoy fallback.
+  // 🧾 Audit uchun «kim» — token'dan, mijozdan EMAS. `operatorName` allaqachon requireAdmin'da
+  // to'ldiriladi (ega uchun ham — o'z amallari ham nomlanadi, server.ts:328).
+  const auditActor = (res: Response): string => String(res.locals.operatorName ?? res.locals.adminRole ?? "operator");
+
   app.get("/api/admin/oyin/sponsor", requireAdmin, async (_req, res) => {
     const { getSponsor } = await import("../services/sponsorService");
     res.json(await getSponsor());
@@ -2280,8 +2305,16 @@ export function createApiServer(opts: ApiOptions = {}) {
       res.status(400).json({ error: "name required" });
       return;
     }
-    const { setSponsor } = await import("../services/sponsorService");
-    res.json(await setSponsor({ name: b.name, photoUrl: b.photoUrl ?? null, active: !!b.active }));
+    const { setSponsor, getSponsor } = await import("../services/sponsorService");
+    const before = await getSponsor().catch(() => null);
+    const r = await setSponsor({ name: b.name, photoUrl: b.photoUrl ?? null, active: !!b.active });
+    const { writeAudit, diffFields } = await import("../services/oyinAudit");
+    void writeAudit({
+      action: "sponsor.set", actor: auditActor(res), target: r.name,
+      changes: diffFields(before as unknown as Record<string, unknown> | null, r as unknown as Record<string, unknown>,
+        [{ key: "name", label: "nom" }, { key: "active", label: "ko'rinadi" }, { key: "photoUrl", label: "logotip" }]),
+    });
+    res.json(r);
   });
   // 🎟 Tiraj-kuni: raqamlangan chipta-ro'yxati (READ-ONLY, kanalga e'lon/jonli video uchun).
   app.get("/api/admin/oyin/draw", requireAdmin, async (_req, res) => {
@@ -2303,6 +2336,14 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
     const { adminReviewStory } = await import("../services/oyinStory");
     const r = await adminReviewStory(Number(b.memberId), b.storyId, !!b.approve, b.reason);
+    if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "story.review", actor: auditActor(res), target: `#${Number(b.memberId)}`,
+        changes: [{ field: "hikoya", from: "kutmoqda", to: b.approve ? "tasdiqlandi" : "rad etildi" }],
+        ...(b.approve ? {} : { note: String(b.reason ?? "") }),
+      });
+    }
     // Tasdiqlansa ball keyingi hisobda paydo bo'ladi — keshni darhol bekor qilamiz.
     if (r.ok && b.approve) {
       const { invalidateBallCacheExternal } = await import("../services/oyinService");
@@ -2329,8 +2370,17 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     const { adminSetSeason } = await import("../services/oyinService");
+    const { getSeason } = await import("../services/oyinSeason");
+    const before = await getSeason().catch(() => null);
     try {
-      res.json(await adminSetSeason({ startIso: toTashkentIso(b.startIso), endIso: toTashkentIso(b.endIso), label: b.label ?? null }));
+      const r = await adminSetSeason({ startIso: toTashkentIso(b.startIso), endIso: toTashkentIso(b.endIso), label: b.label ?? null });
+      const { writeAudit, diffFields } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "season.set", actor: auditActor(res), target: `${r.seasonId}-mavsum`,
+        changes: diffFields(before as unknown as Record<string, unknown> | null, r as unknown as Record<string, unknown>,
+          [{ key: "startIso", label: "boshlanish" }, { key: "endIso", label: "tugash" }, { key: "label", label: "nom" }]),
+      });
+      res.json(r);
     } catch (e) {
       res.status(400).json({ error: e instanceof Error ? e.message : "Sana noto'g'ri" });
     }
@@ -2343,7 +2393,16 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     const { adminStartNewSeason } = await import("../services/oyinService");
-    res.json(await adminStartNewSeason({ startIso: toTashkentIso(b.startIso), endIso: toTashkentIso(b.endIso), label: b.label ?? null }));
+    const r = await adminStartNewSeason({ startIso: toTashkentIso(b.startIso), endIso: toTashkentIso(b.endIso), label: b.label ?? null });
+    if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "season.reset", actor: auditActor(res), target: `${r.seasonId ?? "?"}-mavsum`,
+        changes: [{ field: "arxivlangan yozuv", from: "—", to: String(r.archivedRows ?? 0) }],
+        note: "yangi mavsum toza boshlandi",
+      });
+    }
+    res.json(r);
   });
   // 🎁 Sovrin-katalog — to'liq admin-CRUD (2026-08-02, ega talabi: "sovg'alarni ham yasash kerakda
   // nimaga fixed"). Homiy bilan bir xil AppState naqshi (yangi Prisma model YO'Q) — oyinService.ts.
@@ -2360,9 +2419,9 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.post("/api/admin/oyin/prize", requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { key?: string; icon?: string; name?: string; valueLabel?: string; price?: number; limit?: number; photoUrl?: string | null; queued?: boolean };
     if (typeof b?.name !== "string" || !b.name.trim()) { res.status(400).json({ error: "name required" }); return; }
-    const { adminUpsertPrize } = await import("../services/oyinService");
-    res.json({
-      prizes: await adminUpsertPrize({
+    const { adminUpsertPrize, adminListCatalog } = await import("../services/oyinService");
+    const before = typeof b.key === "string" ? (await adminListCatalog()).find((p) => p.key === b.key) ?? null : null;
+    const prizes = await adminUpsertPrize({
         key: typeof b.key === "string" ? b.key : undefined,
         icon: String(b.icon ?? ""), name: b.name, valueLabel: String(b.valueLabel ?? ""),
         price: Number(b.price) || 0, limit: Number(b.limit) || 0, photoUrl: b.photoUrl ?? null,
@@ -2370,20 +2429,49 @@ export function createApiServer(opts: ApiOptions = {}) {
         // qo'lda ocha ham olmaydi (S5 agenti topdi: tipda bor edi, route to'ldirmasdi —
         // `OyinActivityFilter.scope` bilan aynan bir xil xato).
         ...(typeof b.queued === "boolean" ? { queued: b.queued } : {}),
-      }),
     });
+    // Yangi qator — KALIT bo'yicha topiladi (nom bo'yicha emas: bir xil nomli ikkinchi mukofot
+    // qo'shilsa nom-qidiruv eskisini topib, jurnalga YOLG'ON yozardi).
+    const after = prizes.find((p) => p.key === (b.key ?? "")) ?? prizes.find((p) => !before && p.name === b.name) ?? null;
+    const { writeAudit, diffFields } = await import("../services/oyinAudit");
+    void writeAudit({
+      action: "prize.upsert", actor: auditActor(res), target: b.name,
+      changes: after
+        ? diffFields(before as unknown as Record<string, unknown> | null, after as unknown as Record<string, unknown>,
+            [{ key: "name", label: "nom" }, { key: "price", label: "ball narxi" }, { key: "limit", label: "o'rin" },
+             { key: "valueLabel", label: "real narx" }, { key: "photoUrl", label: "rasm" }])
+        : [],
+      ...(before ? {} : { note: "yangi mukofot" }),
+    });
+    res.json({ prizes });
   });
   app.post("/api/admin/oyin/prize/active", requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { key?: string; active?: boolean };
     if (typeof b?.key !== "string") { res.status(400).json({ error: "key required" }); return; }
-    const { adminSetPrizeActive } = await import("../services/oyinService");
-    res.json({ prizes: await adminSetPrizeActive(b.key, !!b.active) });
+    const { adminSetPrizeActive, adminListCatalog } = await import("../services/oyinService");
+    const before = (await adminListCatalog()).find((p) => p.key === b.key) ?? null;
+    const prizes = await adminSetPrizeActive(b.key, !!b.active);
+    const { writeAudit } = await import("../services/oyinAudit");
+    void writeAudit({
+      action: "prize.active", actor: auditActor(res), target: before?.name ?? b.key,
+      changes: [{ field: "vitrinada", from: before ? String(before.active) : "—", to: String(!!b.active) }],
+    });
+    res.json({ prizes });
   });
   app.post("/api/admin/oyin/prize/delete", requireAdmin, requireOwner, async (req, res) => {
     const b = req.body as { key?: string };
     if (typeof b?.key !== "string") { res.status(400).json({ error: "key required" }); return; }
-    const { adminDeletePrize } = await import("../services/oyinService");
-    res.json(await adminDeletePrize(b.key));
+    const { adminDeletePrize, adminListCatalog } = await import("../services/oyinService");
+    const before = (await adminListCatalog()).find((p) => p.key === b.key) ?? null;
+    const r = await adminDeletePrize(b.key);
+    if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "prize.delete", actor: auditActor(res), target: before?.name ?? b.key,
+        changes: [{ field: "mukofot", from: before ? `${before.price} ball × ${before.limit} o'rin` : b.key, to: "o'chirildi" }],
+      });
+    }
+    res.json(r);
   });
   // ── 🛠 O'YIN NAZORATI (ega talabi 2026-08-03: "oddiy kuzatuv emas") ───────────────────────────
   // To'rttasi ham `requireOwner`: ball, chipta, jazo va tiraj — bularning har biri pulga yoki
@@ -2441,6 +2529,14 @@ export function createApiServer(opts: ApiOptions = {}) {
       const { alertAdmins } = await import("../services/economyService");
       await alertAdmins(`📋 <b>Navbatdan ochildi</b>\n${r.opened.length} ta mukofot: ${r.opened.join(", ")}\nSabab: ${r.reason}`).catch(() => undefined);
     }
+    if (r.opened.length > 0) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "capacity.open", actor: auditActor(res), target: `${r.opened.length} ta mukofot`,
+        changes: [{ field: "navbatdan ochildi", from: "navbatda", to: r.opened.join(", ") }],
+        note: r.reason,
+      });
+    }
     res.json({ ...r, capacity: await getCapacity() });
   });
   // 💰 Mavsum byudjeti — REAL safar sonidan (taxmin emas). Panel avval teskari ishlardi:
@@ -2456,10 +2552,119 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (typeof b?.key !== "string" || !b.key) { res.status(400).json({ error: "key required" }); return; }
     const { adminCancelPrizeTickets } = await import("../services/oyinService");
     const r = await adminCancelPrizeTickets(b.key);
+    const { writeAudit } = await import("../services/oyinAudit");
+    void writeAudit({
+      action: "prize.cancelTickets", actor: auditActor(res), target: b.key,
+      changes: [{ field: "bekor qilingan karta", from: String(r.cancelled), to: "0" },
+                { field: "ball qaytgan a'zo", from: "-", to: String(r.members) }],
+    });
     const { alertAdmins } = await import("../services/economyService");
     await alertAdmins(`🛡 <b>Sovrin chiptalari bekor qilindi</b>\n«${b.key}» — ${r.cancelled} ta chipta, ${r.members} ta a'zo.\nBall egalariga qaytarildi, o'rinlar bo'shatildi.`).catch(() => undefined);
     res.json(r);
   });
+  // ── 🛠 O'YIN KONSOLI (2026-08-10, ega talabi «kengroq kirib boradigan nazorat») ──────────────
+  // 🏆 Ball bo'yicha TO'LIQ reyting + har a'zoning xavf balli. Eski panelda bu YO'Q edi va
+  // panelning o'zi buni tan olardi ("serverda ball bo'yicha saralangan route yo'q" — App.tsx:6020),
+  // holbuki `computeBallMap()` hamma a'zoni allaqachon hisoblardi.
+  app.get("/api/admin/oyin/leaderboard", requireAdmin, async (_req, res) => {
+    const { adminLeaderboard } = await import("../services/oyinService");
+    res.json({ rows: await adminLeaderboard() });
+  });
+  // 📟 Konsol tepasidagi doimiy vital panel — BITTA arzon so'rov (20s kesh servis ichida).
+  app.get("/api/admin/oyin/vitals", requireAdmin, async (_req, res) => {
+    const { adminVitals } = await import("../services/oyinService");
+    res.json(await adminVitals());
+  });
+  // 🧾 Audit jurnali — ADMIN amallari. ⚠️ `/activity` bilan chalkashtirilmaydi: u MIJOZ ball
+  // voqealari (mijozning savoliga javob), bu esa kim nimani o'zgartirgani (eganing savoliga javob).
+  app.get("/api/admin/oyin/audit", requireAdmin, async (req, res) => {
+    const q = req.query as { action?: string; q?: string; page?: string; pageSize?: string };
+    const { readAudit } = await import("../services/oyinAudit");
+    const { OYIN_AUDIT_ACTIONS } = await import("@t1067/shared");
+    const action = (OYIN_AUDIT_ACTIONS as readonly string[]).includes(String(q.action))
+      ? (String(q.action) as (typeof OYIN_AUDIT_ACTIONS)[number])
+      : undefined;
+    res.json(await readAudit({
+      ...(action ? { action } : {}),
+      ...(q.q ? { q: String(q.q) } : {}),
+      page: Number(q.page) || 1,
+      pageSize: Number(q.pageSize) || 50,
+    }));
+  });
+
+  // 📤 Mukofot rasmini FAYLDAN yuklash (base64 JSON, multer'siz — driver-photo naqshi).
+  // Eski yo'l: ega internetdan URL topib qo'yardi va server har ko'rsatishda O'SHA saytga
+  // borardi — sayt o'chsa vitrina bo'shab qolardi. Endi rasm Telegram'da, ya'ni BIZNIKI.
+  app.post("/api/admin/oyin/prize/photo", express.json({ limit: "6mb" }), requireAdmin, requireOwner, rateLimit(60), async (req, res) => {
+    const b = (req.body ?? {}) as { key?: string; mime?: string; base64?: string };
+    if (typeof b.key !== "string" || !b.key || !b.base64) { res.status(400).json({ error: "key/base64 required" }); return; }
+    const buf = Buffer.from(b.base64, "base64");
+    if (buf.length === 0) { res.status(400).json({ error: "empty image" }); return; }
+    const { adminSetPrizePhoto } = await import("../services/oyinService");
+    const r = await adminSetPrizePhoto(b.key, buf, b.mime || "image/jpeg");
+    if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "prize.photo", actor: auditActor(res), target: b.key,
+        changes: [{ field: "rasm", from: "-", to: `${Math.round(buf.length / 1024)} KB yuklandi` }],
+      });
+    }
+    res.json(r);
+  });
+
+  // 📥 OMMAVIY IMPORT — N ta mukofot BITTA atomik yozuvda. Panel farq jadvalini KO'RSATGANDAN
+  // keyin shu route'ni bir marta chaqiradi (eski yo'l: har mukofotga bitta POST).
+  app.post("/api/admin/oyin/catalog/bulk", express.json({ limit: "2mb" }), requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const b = (req.body ?? {}) as { rows?: unknown };
+    if (!Array.isArray(b.rows)) { res.status(400).json({ error: "rows[] required" }); return; }
+    const { adminBulkUpsertPrizes } = await import("../services/oyinService");
+    const r = await adminBulkUpsertPrizes(b.rows as OyinBulkPrizeInput[]);
+    if (r.ok && (r.added > 0 || r.updated > 0)) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "catalog.bulk", actor: auditActor(res), target: `${r.added + r.updated} ta mukofot`,
+        changes: [{ field: "qo'shildi", from: "-", to: String(r.added) }, { field: "yangilandi", from: "-", to: String(r.updated) }],
+        ...(r.rejected.length > 0 ? { note: `${r.rejected.length} ta qator qabul qilinmadi` } : {}),
+      });
+      const { alertAdmins } = await import("../services/economyService");
+      await alertAdmins(`📥 <b>Katalogga ommaviy yuklash</b>\n${r.added} ta yangi · ${r.updated} ta yangilandi\nHammasi NAVBATDA — mijoz hali ko'rmaydi.`).catch(() => undefined);
+    }
+    res.json(r);
+  });
+
+  // ↩ KATALOG TARIXI — har yozuvdan oldin olingan nusxalar. Noto'g'ri narx bitta bosishda qaytadi.
+  app.get("/api/admin/oyin/catalog/snapshots", requireAdmin, async (_req, res) => {
+    const { adminListSnapshots } = await import("../services/oyinService");
+    res.json({ rows: await adminListSnapshots() });
+  });
+  app.post("/api/admin/oyin/catalog/restore", requireAdmin, requireOwner, rateLimit(10), async (req, res) => {
+    const b = (req.body ?? {}) as { id?: string };
+    if (typeof b.id !== "string" || !b.id) { res.status(400).json({ error: "id required" }); return; }
+    const { adminRestoreSnapshot } = await import("../services/oyinService");
+    const r = await adminRestoreSnapshot(b.id);
+    if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "catalog.restore", actor: auditActor(res), target: b.id,
+        changes: [{ field: "katalog", from: "joriy holat", to: "nusxadan tiklandi" }],
+        note: "sotilgan kartalarga tegilmadi",
+      });
+      const { alertAdmins } = await import("../services/economyService");
+      await alertAdmins(`↩️ <b>Katalog nusxadan tiklandi</b>\nSotilgan kartalar TEGILMADI — faqat narx/o'rin/nom/rasm qaytdi.`).catch(() => undefined);
+    }
+    res.json(r);
+  });
+
+  // 📅 KELASI MAVSUM QORALAMASI — jonli mavsumga TEGMAYDI (alohida kalit).
+  app.get("/api/admin/oyin/season/plan", requireAdmin, async (_req, res) => {
+    const { adminGetSeasonPlan } = await import("../services/oyinService");
+    res.json(await adminGetSeasonPlan());
+  });
+  app.post("/api/admin/oyin/season/plan", requireAdmin, requireOwner, async (req, res) => {
+    const { adminSetSeasonPlan } = await import("../services/oyinService");
+    res.json(await adminSetSeasonPlan((req.body ?? {}) as Partial<OyinSeasonPlan>));
+  });
+
   // 🔎 Qidiruv: ID, telefon yoki ism. Ega o'z `memberId`sini bilmaydi — jonli sinovda
   // kartochka shu sababdan ochilmadi ("admin panel qo'shib bo'lmadiku").
   app.get("/api/admin/oyin/find", requireAdmin, async (req, res) => {
@@ -2477,6 +2682,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminAdjustBall } = await import("../services/oyinService");
     const r = await adminAdjustBall({ memberId: Number(b?.memberId), ball: Number(b?.ball), reason: String(b?.reason ?? "") });
     if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "ball.adjust", actor: auditActor(res), target: `#${Number(b?.memberId)}`,
+        changes: [{ field: "ball", from: String((r.ball ?? 0) - Number(b?.ball)), to: String(r.ball ?? 0) }],
+        note: String(b?.reason ?? ""),
+      });
       const { alertAdmins } = await import("../services/economyService");
       const sign = Number(b?.ball) > 0 ? "+" : "";
       await alertAdmins(`🛠 <b>O'yin ball tuzatildi</b>\n#${Number(b?.memberId)} → ${sign}${Number(b?.ball)} ball\nSabab: ${String(b?.reason ?? "")}\nYangi balans: ${r.ball}`).catch(() => undefined);
@@ -2488,6 +2699,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminCancelTicket } = await import("../services/oyinService");
     const r = await adminCancelTicket(Number(b?.memberId), Number(b?.gno));
     if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "ticket.cancel", actor: auditActor(res), target: `#${Number(b?.memberId)} - karta N${Number(b?.gno)}`,
+        changes: [{ field: "karta", from: "tirajda", to: "bekor" }, { field: "yangi balans", from: "-", to: String(r.ball ?? 0) }],
+      });
       const { alertAdmins } = await import("../services/economyService");
       await alertAdmins(`🎟 <b>O'yin chiptasi bekor qilindi</b>\n#${Number(b?.memberId)} · chipta №${Number(b?.gno)}\nO'rin sovringa qaytarildi, ball qaytdi (yangi balans: ${r.ball})`).catch(() => undefined);
     }
@@ -2498,6 +2714,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminSetBan } = await import("../services/oyinService");
     const r = await adminSetBan(Number(b?.memberId), !!b?.banned, String(b?.reason ?? ""));
     if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "member.ban", actor: auditActor(res), target: `#${Number(b?.memberId)}`,
+        changes: [{ field: "chetlangan", from: String(!b?.banned), to: String(!!b?.banned) }],
+        note: String(b?.reason ?? ""),
+      });
       const { alertAdmins } = await import("../services/economyService");
       await alertAdmins(b?.banned
         ? `🚫 <b>O'yindan chetlatildi</b>\n#${Number(b?.memberId)}\nSabab: ${String(b?.reason ?? "")}\nChiptalari tirajdan chiqarildi.`
@@ -2513,6 +2735,11 @@ export function createApiServer(opts: ApiOptions = {}) {
     const b = req.body as { frozen?: boolean };
     const { adminSetFreeze } = await import("../services/oyinService");
     const r = await adminSetFreeze(!!b?.frozen);
+    const { writeAudit } = await import("../services/oyinAudit");
+    void writeAudit({
+      action: "freeze.set", actor: auditActor(res), target: `${r.ticketCount} ta karta`,
+      changes: [{ field: "tiraj", from: r.frozen ? "ochiq" : "muzlatilgan", to: r.frozen ? "MUZLATILGAN" : "ochiq" }],
+    });
     const { alertAdmins } = await import("../services/economyService");
     await alertAdmins(r.frozen
       ? `🔒 <b>TIRAJ MUZLATILDI</b>\nRo'yxatda ${r.ticketCount} ta chipta.\nShu lahzadan HECH KIM (ega ham) chipta ola olmaydi.`
@@ -2558,6 +2785,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminKickFromJamoa } = await import("../services/oyinService");
     const r = Number.isFinite(target) ? await adminKickFromJamoa(String(req.params.code), target) : { ok: false as const, reason: "not_found" as const };
     if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "gashtak.kick", actor: auditActor(res), target: `${String(req.params.code)} - #${target}`,
+        changes: [{ field: "guruh a'zoligi", from: "faol", to: "chiqarildi" }],
+        note: "o'tgan navbat ballari saqlandi",
+      });
       const { alertAdmins } = await import("../services/economyService");
       await alertAdmins(`👔 <b>Gashtakdan chiqarildi</b>\nGuruh: ${req.params.code} · a'zo #${target}`).catch(() => undefined);
     }
@@ -2567,6 +2800,12 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { adminDisbandJamoa } = await import("../services/oyinService");
     const r = await adminDisbandJamoa(String(req.params.code));
     if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "gashtak.disband", actor: auditActor(res), target: String(req.params.code),
+        changes: [{ field: "guruh", from: "faol", to: "tarqatilgan" }],
+        note: "ball tarixi saqlandi",
+      });
       const { alertAdmins } = await import("../services/economyService");
       await alertAdmins(`🗑 <b>Gashtak tarqatildi (admin)</b>\nGuruh: ${req.params.code}`).catch(() => undefined);
     }
@@ -2598,6 +2837,14 @@ export function createApiServer(opts: ApiOptions = {}) {
     const r = target === null || Number.isFinite(target)
       ? await adminSetGashtakTurn(String(req.params.code), String(b?.monthKey ?? ""), target, String(b?.note ?? ""))
       : { ok: false as const, reason: "not_group_member" as const };
+    if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "gashtak.turn", actor: auditActor(res), target: `${String(req.params.code)} - ${String(b?.monthKey ?? "")}`,
+        changes: [{ field: "navbatchi", from: "-", to: target === null ? "olib tashlandi" : `#${target}` }],
+        note: String(b?.note ?? ""),
+      });
+    }
     res.json(r);
   });
   // ── 🛍 SHOP admin (owner-gated writes) ────────────────────────────────────────────────────────

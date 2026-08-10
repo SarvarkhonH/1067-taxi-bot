@@ -9,6 +9,7 @@
 import {
   OYIN_CAPACITY_RATIO,
   OYIN_FINAL_LOCK_MS,
+  oyinRiskScore,
   OYIN_JAMOA_MAX,
   OYIN_JAMOA_MIN,
   OYIN_MAX_OPEN_PRIZES,
@@ -53,6 +54,15 @@ import {
   type OyinAdminMemberHit,
   type OyinBudgetView,
   type OyinCapacityView,
+  OYIN_BULK_MAX,
+  OYIN_SEASON_PLAN_DEFAULT,
+  OYIN_SNAPSHOT_MAX,
+  type OyinBulkPrizeInput,
+  type OyinBulkResult,
+  type OyinCatalogSnapshot,
+  type OyinSeasonPlan,
+  type OyinLeaderRow,
+  type OyinVitals,
   type OyinDrawCard,
   type OyinJamoaResult,
   type OyinJamoaView,
@@ -1017,7 +1027,13 @@ async function saveCatalog(catalog: OyinCatalogPrize[]): Promise<void> {
  *  CAS: `WHERE value = <o'qilgan qiymat>`. Orada kimdir yozgan bo'lsa `n === 0` bo'ladi va
  *  biz QAYTA O'QIB qayta uriniladi — ya'ni o'zgarish yo'qolmaydi, ustma-ust tushadi.
  *  `mutate` `null` qaytarsa — o'zgarish shart emas. */
-async function mutateCatalog(mutate: (cur: OyinCatalogPrize[]) => OyinCatalogPrize[] | null): Promise<boolean> {
+async function mutateCatalog(
+  mutate: (cur: OyinCatalogPrize[]) => OyinCatalogPrize[] | null,
+  /** ↩ Nusxa yorlig'i (2026-08-10). Berilsa — YOZUVDAN OLDINGI holat nusxaga olinadi va ega
+   *  uni bitta bosishda qaytara oladi. Berilmasa nusxa olinmaydi: `autoOpenPrizes` kabi
+   *  AVTOMATIK o'zgarishlar tarixni to'ldirib, eganing o'z tahrirlarini siqib chiqarmasin. */
+  snapshotLabel?: string,
+): Promise<boolean> {
   for (let attempt = 0; attempt < 5; attempt++) {
     const row = await prisma.appState.findUnique({ where: { key: CATALOG_KEY } });
     if (!row) {
@@ -1032,7 +1048,12 @@ async function mutateCatalog(mutate: (cur: OyinCatalogPrize[]) => OyinCatalogPri
     if (!next) return false;
     const value = JSON.stringify(next);
     const n = await prisma.$executeRaw`UPDATE "AppState" SET "value" = ${value} WHERE "key" = ${CATALOG_KEY} AND "value" = ${row.value}`;
-    if (n === 1) return true;
+    if (n === 1) {
+      // Nusxa YOZUV MUVAFFAQIYATLI bo'lgandan KEYIN olinadi — CAS urinishi behuda ketgan
+      // bo'lsa tarixga soxta qator tushmasin.
+      if (snapshotLabel) void pushCatalogSnapshot(row.value, snapshotLabel);
+      return true;
+    }
   }
   console.error("[oyin] mutateCatalog: 5 urinishda ham yozilmadi — katalog band");
   return false;
@@ -2039,6 +2060,8 @@ export async function drawExport(): Promise<OyinDrawExport> {
         // ⚠️ `t.no` — sovrin-ichi tartib raqami; mijoz esa ekranida GLOBAL `gno` ni ko'radi.
         // Eksportda `no` qolsa jonli efirda o'qiladigan raqam mijoz qo'lidagi raqam BO'LMAYDI.
         prizeKey: t.prizeKey, ticketNo: t.gno ?? t.no, memberId, name: nameByMember.get(memberId) ?? "Mijoz",
+        // Buzuq/bo'sh `ts` da SOXTA sana chiqarmaymiz — `null` qaytadi va panel "—" ko'rsatadi.
+        at: t.ts && Number.isFinite(Date.parse(t.ts)) ? t.ts : null,
       }];
     });
   });
@@ -3817,4 +3840,370 @@ export async function getActivity(filters: OyinActivityFilter): Promise<OyinActi
   const page = Math.max(1, filters.page ?? 1);
   const start = (page - 1) * pageSize;
   return { rows: filtered.slice(start, start + pageSize), total: filtered.length, page, pageSize };
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// 🏆 REYTING · ⚠️ XAVF · 📟 VITAL — o'yin konsoli (2026-08-10)
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// Ega talabi: «kengroq kirib boradigan nazorat». Eski panel o'zi tan olardi:
+// «serverda ball bo'yicha saralangan ro'yxat qaytaradigan route yo'q» (App.tsx:6020).
+// Aslida hisob ALLAQACHON bor edi — `computeBallMap()` HAMMA a'zoni bir marta hisoblaydi.
+// Yetishmagani — uni massivga aylantirib qaytaradigan funksiya.
+
+/** 🏆 To'liq reyting. Saralash/filtr/sahifalash MIJOZ tomonida (ro'yxat ~500-2000 qator —
+ *  serverga har saralashda qaytish sekinroq bo'lardi). */
+export async function adminLeaderboard(): Promise<OyinLeaderRow[]> {
+  const [map, ticketRows, banRows, tus, lastRides, referrals] = await Promise.all([
+    computeBallMap(),
+    prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
+    prisma.appState.findMany({ where: { key: { startsWith: BAN_PREFIX } }, select: { key: true } }),
+    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { memberId: true, phone: true, id: true } }),
+    // Oxirgi REAL safar — ilova ochish emas. «Faol» so'zi pul keltirgan harakatni bildiradi.
+    prisma.rideReward.groupBy({ by: ["memberId"], _max: { createdAt: true } }),
+    // Referal portlashi uchun: kim, qachon. `referrerId` — TELEGRAM id (memberId emas!),
+    // shuning uchun pastda `tgIdToMember` orqali o'giriladi.
+    prisma.referral.findMany({ select: { referrerId: true, createdAt: true } }),
+  ]);
+
+  const phoneByMember = new Map<number, string | null>();
+  const tgIdToMember = new Map<string, number>();
+  for (const tu of tus) {
+    if (tu.memberId == null) continue;
+    phoneByMember.set(tu.memberId, tu.phone ?? null);
+    tgIdToMember.set(String(tu.id), tu.memberId);
+  }
+
+  // Kartalar: jami soni + BITTA mukofotga eng ko'pi (xavf signali).
+  const cardsByMember = new Map<number, { total: number; maxOnOnePrize: number }>();
+  for (const row of ticketRows) {
+    const memberId = Number(row.key.slice("oyin:tickets:".length));
+    if (!Number.isFinite(memberId)) continue;
+    const tickets = parseTickets(row.value);
+    const perPrize = new Map<string, number>();
+    for (const t of tickets) perPrize.set(t.prizeKey, (perPrize.get(t.prizeKey) ?? 0) + 1);
+    let maxOnOnePrize = 0;
+    for (const n of perPrize.values()) if (n > maxOnOnePrize) maxOnOnePrize = n;
+    cardsByMember.set(memberId, { total: tickets.length, maxOnOnePrize });
+  }
+
+  // Bir kunda ulangan do'stlarning eng ko'p soni (referrer bo'yicha).
+  const referPerDay = new Map<number, Map<string, number>>();
+  for (const r of referrals) {
+    const memberId = tgIdToMember.get(String(r.referrerId));
+    if (memberId == null) continue;
+    const day = tashkentDayKey(r.createdAt);
+    let byDay = referPerDay.get(memberId);
+    if (!byDay) { byDay = new Map(); referPerDay.set(memberId, byDay); }
+    byDay.set(day, (byDay.get(day) ?? 0) + 1);
+  }
+  const maxReferPerDay = new Map<number, number>();
+  for (const [memberId, byDay] of referPerDay) {
+    let mx = 0;
+    for (const n of byDay.values()) if (n > mx) mx = n;
+    maxReferPerDay.set(memberId, mx);
+  }
+
+  const lastRideByMember = new Map<number, string | null>();
+  for (const r of lastRides) lastRideByMember.set(r.memberId, r._max.createdAt?.toISOString() ?? null);
+
+  const banned = new Set<number>();
+  for (const b of banRows) {
+    const memberId = Number(b.key.slice(BAN_PREFIX.length));
+    if (Number.isFinite(memberId)) banned.add(memberId);
+  }
+
+  const out: OyinLeaderRow[] = [];
+  for (const [memberId, row] of map) {
+    const cards = cardsByMember.get(memberId) ?? { total: 0, maxOnOnePrize: 0 };
+    out.push({
+      memberId,
+      name: row.name,
+      phone: phoneByMember.get(memberId) ?? null,
+      ball: row.breakdown.ball,
+      earned: row.breakdown.earned,
+      spent: row.breakdown.spent,
+      seasonRides: row.seasonRides,
+      cards: cards.total,
+      adjust: row.breakdown.adjust,
+      lastRideAt: lastRideByMember.get(memberId) ?? null,
+      banned: banned.has(memberId),
+      risk: oyinRiskScore({
+        earned: row.breakdown.earned,
+        seasonRides: row.seasonRides,
+        adjust: row.breakdown.adjust,
+        maxCardsOnOnePrize: cards.maxOnOnePrize,
+        maxReferralsInADay: maxReferPerDay.get(memberId) ?? 0,
+      }),
+    });
+  }
+  // Standart tartib — ball bo'yicha. Panel boshqacha saralashi mumkin, lekin BIRINCHI
+  // ko'rinish har doim "eng ko'p ball to'plagan" bo'ladi (ega shuni so'ragan).
+  out.sort((a, b) => b.ball - a.ball);
+  return out;
+}
+
+/** 📟 Vital panel — konsol tepasidagi doimiy qator. BITTA so'rov, 20s kesh.
+ *  Avval panel bu raqamlar uchun 7 ta alohida so'rov yuborardi. */
+let vitalsCache: { at: number; val: OyinVitals } | null = null;
+
+export async function adminVitals(): Promise<OyinVitals> {
+  if (vitalsCache && Date.now() - vitalsCache.at < 20_000) return vitalsCache.val;
+
+  const [season, cap, budget, freeze, catalog, soldMap, leaders, stories] = await Promise.all([
+    getSeason(),
+    getCapacity(),
+    adminBudget(),
+    getFreeze(),
+    getCatalog(),
+    getSoldMap(),
+    adminLeaderboard(),
+    // Hikoya navbati — `oyinStory` moduli o'zi biladi; xato bo'lsa 0 EMAS, `null` bo'lardi,
+    // lekin vital panelda `null` ustuni yo'q, shuning uchun xato log'ga chiqadi va 0 qo'yiladi.
+    import("./oyinStory").then((m) => m.adminListStories("pending")).then((r) => r.length).catch((e) => {
+      console.error("[oyin] vitals: hikoya navbati o'qilmadi:", e);
+      return 0;
+    }),
+  ]);
+
+  const nowMs = Date.now();
+  const msLeft = season.endMs != null ? season.endMs - nowMs : null;
+  let cardsIssued = 0;
+  let prizesFilled = 0;
+  for (const p of catalog) {
+    if (!p.active) continue;
+    const sold = soldMap.get(p.key) ?? 0;
+    cardsIssued += sold;
+    if (p.limit > 0 && sold >= p.limit) prizesFilled += 1;
+  }
+
+  const val: OyinVitals = {
+    seasonPhase: season.phase,
+    seasonLabel: season.label ?? null,
+    daysLeft: msLeft != null ? Math.max(0, Math.ceil(msLeft / 86400_000)) : null,
+    finalLock: season.phase === "active" && msLeft != null && msLeft <= OYIN_FINAL_LOCK_MS,
+    circulatingBall: cap.circulatingBall,
+    capacityRatio: cap.ratio,
+    capacityHealthy: cap.healthy,
+    budgetSom: budget.budgetSom,
+    catalogSom: budget.catalogSom,
+    overBudget: budget.overBudget,
+    cardsIssued,
+    prizesFilled,
+    storiesPending: stories,
+    riskCount: leaders.filter((l) => l.risk.score > 0).length,
+    frozen: freeze.frozen,
+    at: new Date().toISOString(),
+  };
+  vitalsCache = { at: Date.now(), val };
+  return val;
+}
+
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+// ↩ KATALOG TARIXI · 📥 OMMAVIY IMPORT · 📤 RASM · 📅 KELASI MAVSUM (2026-08-10)
+// ══════════════════════════════════════════════════════════════════════════════════════════════
+
+const SNAP_KEY = "oyin:catalog:snaps";
+interface SnapRow { id: string; at: string; label: string; count: number; json: string }
+
+function parseSnaps(value: string | undefined): SnapRow[] {
+  if (!value) return [];
+  try {
+    const arr = JSON.parse(value) as unknown;
+    return Array.isArray(arr) ? (arr as SnapRow[]) : [];
+  } catch { return []; }
+}
+
+/** Yozuvdan OLDINGI katalog holatini tarixga qo'yadi. Chaqiruvchini HECH QACHON yiqitmaydi —
+ *  nusxa olinmagani uchun ega narxni o'zgartira olmay qolishi mantiqsiz bo'lardi. */
+async function pushCatalogSnapshot(prevJson: string, label: string): Promise<void> {
+  try {
+    const count = parseCatalog(prevJson).length;
+    // `id` — vaqt + tasodifiy: ro'yxat siljiganda ham qaytarish kaliti o'zgarmaydi.
+    const snap: SnapRow = {
+      id: `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`,
+      at: new Date().toISOString(), label, count, json: prevJson,
+    };
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const cur = await prisma.appState.findUnique({ where: { key: SNAP_KEY } });
+      const next = [snap, ...parseSnaps(cur?.value)].slice(0, OYIN_SNAPSHOT_MAX);
+      const value = JSON.stringify(next);
+      if (!cur) { await prisma.appState.create({ data: { key: SNAP_KEY, value } }); return; }
+      const n = await prisma.$executeRaw`UPDATE "AppState" SET "value" = ${value} WHERE "key" = ${SNAP_KEY} AND "value" = ${cur.value}`;
+      if (n === 1) return;
+    }
+  } catch (e) {
+    console.error("[oyin] katalog nusxasi olinmadi:", e);
+  }
+}
+
+export async function adminListSnapshots(): Promise<OyinCatalogSnapshot[]> {
+  const cur = await prisma.appState.findUnique({ where: { key: SNAP_KEY } });
+  return parseSnaps(cur?.value).map((s) => ({ id: s.id, at: s.at, label: s.label, count: s.count }));
+}
+
+/** ↩ Katalogni nusxadagi holatga qaytaradi. ⚠️ SOTILGAN kartalarga TEGMAYDI — ular alohida
+ *  hisoblagichda (`oyin_sold:`). Ya'ni qaytarish narx/o'rin/nom/rasmni tiklaydi, mijozning
+ *  qo'lidagi kartani YO'Q QILMAYDI. Aks holda «qaytarish» tugmasi pul o'chiruvchiga aylanardi. */
+export async function adminRestoreSnapshot(id: string): Promise<{ ok: boolean; reason?: string; prizes?: OyinAdminPrizeRow[] }> {
+  const cur = await prisma.appState.findUnique({ where: { key: SNAP_KEY } });
+  const snap = parseSnaps(cur?.value).find((s) => s.id === id);
+  if (!snap) return { ok: false, reason: "not_found" };
+  const restored = parseCatalog(snap.json);
+  if (restored.length === 0) return { ok: false, reason: "empty" };
+  const soldMap = await getSoldMap();
+  // 🛡 Limit sotilganidan past tushib qolmasin (`adminUpsertPrize` bilan BIR XIL qoida): eski
+  // nusxada o'rin 20 bo'lib, o'shandan beri 34 ta sotilgan bo'lsa — 34 da qoladi.
+  for (const p of restored) {
+    const sold = soldMap.get(p.key) ?? 0;
+    if (p.limit < sold) p.limit = sold;
+  }
+  const ok = await mutateCatalog(() => restored, `qaytarish: ${snap.label}`);
+  if (!ok) return { ok: false, reason: "busy" };
+  return { ok: true, prizes: await adminListCatalog() };
+}
+
+/** 📥 OMMAVIY IMPORT — N ta mukofot BITTA atomik yozuvda.
+ *  Eski yo'l: har mukofot uchun alohida POST → 100 ta so'rov, har biri butun katalogni qayta
+ *  yozadi va oraliqda xarid bo'lsa CAS urinishlari ko'payadi. Endi bitta yozuv, yarim holat yo'q. */
+export async function adminBulkUpsertPrizes(inputs: OyinBulkPrizeInput[]): Promise<OyinBulkResult> {
+  const rejected: { name: string; reason: string }[] = [];
+  const clean: OyinBulkPrizeInput[] = [];
+  for (const raw of inputs.slice(0, OYIN_BULK_MAX)) {
+    const name = (raw?.name ?? "").trim().slice(0, 60);
+    const price = Math.round(Number(raw?.price));
+    const limit = Math.round(Number(raw?.limit));
+    if (!name) { rejected.push({ name: "(nomsiz)", reason: "nom bo'sh" }); continue; }
+    if (!Number.isFinite(price) || price < 1) { rejected.push({ name, reason: "karta bahosi noto'g'ri" }); continue; }
+    if (!Number.isFinite(limit) || limit < 1) { rejected.push({ name, reason: "o'rinlar soni noto'g'ri" }); continue; }
+    clean.push({ ...raw, name, price, limit });
+  }
+  if (inputs.length > OYIN_BULK_MAX) {
+    rejected.push({ name: `(+${inputs.length - OYIN_BULK_MAX} qator)`, reason: `bir marta ${OYIN_BULK_MAX} tadan ko'p yuborib bo'lmaydi` });
+  }
+  if (clean.length === 0) return { ok: false, added: 0, updated: 0, rejected, prizes: await adminListCatalog() };
+
+  const soldMap = await getSoldMap();
+  let added = 0;
+  let updated = 0;
+  const ok = await mutateCatalog((catalog) => {
+    added = 0; updated = 0; // CAS qayta urinsa hisoblagich ikki marta o'smasin
+    for (const inp of clean) {
+      const icon = (inp.icon || "🎁").trim().slice(0, 8) || "🎁";
+      const valueLabel = (inp.valueLabel || "").trim().slice(0, 60);
+      const photoUrl = inp.photoUrl?.trim().slice(0, 500) || null;
+      const existing = inp.key ? catalog.find((p) => p.key === inp.key) : undefined;
+      if (existing) {
+        const sold = soldMap.get(existing.key) ?? 0;
+        Object.assign(existing, {
+          name: inp.name, icon, valueLabel, price: inp.price,
+          limit: Math.max(inp.limit, sold), photoUrl,
+          ...(typeof inp.queued === "boolean" ? { queued: inp.queued } : {}),
+        });
+        updated += 1;
+      } else {
+        catalog.push({
+          key: uniqueCatalogKey(inp.name, catalog), icon, name: inp.name, valueLabel,
+          price: inp.price, limit: inp.limit, photoUrl, active: true,
+          // ⚠️ Import HAR DOIM navbatga. 100 ta mukofot birdan vitrinaga chiqsa ball tarqalib
+          // ketadi va HECH BIRI to'lmaydi — to'lish-qulfi bilan bu mavsumni o'ldiradi.
+          queued: inp.queued ?? true,
+        });
+        added += 1;
+      }
+    }
+    return catalog;
+  }, `import: ${clean.length} ta mukofot`);
+
+  if (!ok) {
+    return {
+      ok: false, added: 0, updated: 0,
+      rejected: [...rejected, { name: "(hammasi)", reason: "katalog band — qayta urinib ko'ring" }],
+      prizes: await adminListCatalog(),
+    };
+  }
+  return { ok: true, added, updated, rejected, prizes: await adminListCatalog() };
+}
+
+/** 📤 Mukofot rasmini FAYLDAN yuklash. Rasm Telegram'da saqlanadi va `photoFileId` yoziladi —
+ *  ya'ni rasm BIZNIKI bo'ladi. Eski yo'l (tashqi havola) ishlashda davom etadi: server
+ *  `photoFileId` bo'lmasa `photoUrl` ni oladi.
+ *  Telegram javob bermasa — do'kon naqshidagi zaxira (`shopService.ts:1199`): `data:` URL. */
+export async function adminSetPrizePhoto(key: string, buf: Buffer, mime = "image/jpeg"): Promise<{ ok: boolean; reason?: string }> {
+  const prize = (await getCatalog()).find((p) => p.key === key);
+  if (!prize) return { ok: false, reason: "not_found" };
+  const { env } = await import("../env");
+  const adminId = env.adminIds.find((id) => id.trim() !== "");
+  let fileId: string | null = null;
+  if (env.BOT_TOKEN && adminId) {
+    try {
+      const form = new FormData();
+      form.append("chat_id", adminId);
+      form.append("photo", new Blob([buf], { type: mime }), "photo.jpg");
+      form.append("caption", `🎁 Mukofot rasmi · ${prize.name}`);
+      form.append("disable_notification", "true");
+      const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/sendPhoto`, { method: "POST", body: form });
+      const data = (await res.json()) as { ok: boolean; result?: { photo?: { file_id: string }[] } };
+      const sizes = data.ok ? (data.result?.photo ?? []) : [];
+      fileId = sizes.length ? sizes[sizes.length - 1]!.file_id : null;
+    } catch (e) {
+      console.error("[oyin] rasm Telegram'ga yuklanmadi:", e);
+    }
+  }
+  // Zaxira: bazaga `data:` URL. Katta rasm katalog JSON'ini shishiradi (u HAR o'qishda
+  // to'liq parse qilinadi), shuning uchun chegara bor va rad etish EKRANDA ko'rinadi.
+  const dataUrl = fileId ? null : `data:${mime};base64,${buf.toString("base64")}`;
+  if (!fileId && dataUrl && dataUrl.length > 700_000) return { ok: false, reason: "telegram_off_and_too_big" };
+
+  const ok = await mutateCatalog((cur) => {
+    const p = cur.find((x) => x.key === key);
+    if (!p) return null;
+    p.photoFileId = fileId;
+    if (!fileId) p.photoUrl = dataUrl;
+    return cur;
+  }, `rasm: ${prize.name}`);
+  return ok ? { ok: true } : { ok: false, reason: "busy" };
+}
+
+/** Rasm manbasini hal qiladi: Telegram `fileId` USTUN, keyin tashqi/`data:` havola. */
+export async function resolvePrizePhoto(key: string): Promise<{ fileId: string | null; url: string | null }> {
+  const prize = (await getCatalog()).find((p) => p.key === key);
+  if (!prize) return { fileId: null, url: null };
+  return { fileId: prize.photoFileId ?? null, url: prize.photoUrl ?? null };
+}
+
+// ── 📅 KELASI MAVSUM QORALAMASI ───────────────────────────────────────────────────────────────
+// ⚠️ JONLI mavsumga TEGMAYDI — alohida AppState kaliti. Qoralamani ishga tushirish
+// (`adminStartNewSeason`) ALOHIDA ONGLI qadam bo'lib qoladi.
+const SEASON_PLAN_KEY = "oyin:seasonplan";
+
+export async function adminGetSeasonPlan(): Promise<OyinSeasonPlan> {
+  const row = await prisma.appState.findUnique({ where: { key: SEASON_PLAN_KEY } });
+  if (!row) return { ...OYIN_SEASON_PLAN_DEFAULT };
+  try {
+    const parsed = JSON.parse(row.value) as Partial<OyinSeasonPlan>;
+    return { ...OYIN_SEASON_PLAN_DEFAULT, ...parsed, split: { ...OYIN_SEASON_PLAN_DEFAULT.split, ...(parsed.split ?? {}) } };
+  } catch {
+    return { ...OYIN_SEASON_PLAN_DEFAULT };
+  }
+}
+
+export async function adminSetSeasonPlan(input: Partial<OyinSeasonPlan>): Promise<OyinSeasonPlan> {
+  const cur = await adminGetSeasonPlan();
+  const pct = (v: unknown, fallback: number): number => Math.max(0, Math.min(100, Math.round(Number(v ?? fallback)) || 0));
+  const next: OyinSeasonPlan = {
+    startIso: input.startIso ?? cur.startIso,
+    endIso: input.endIso ?? cur.endIso,
+    label: input.label ?? cur.label,
+    budgetSom: Math.max(0, Math.round(Number(input.budgetSom ?? cur.budgetSom)) || 0),
+    split: {
+      kichik: pct(input.split?.kichik, cur.split.kichik),
+      orta: pct(input.split?.orta, cur.split.orta),
+      katta: pct(input.split?.katta, cur.split.katta),
+    },
+    note: String(input.note ?? cur.note).slice(0, 500),
+    updatedAt: new Date().toISOString(),
+  };
+  const value = JSON.stringify(next);
+  await prisma.appState.upsert({ where: { key: SEASON_PLAN_KEY }, create: { key: SEASON_PLAN_KEY, value }, update: { value } });
+  return next;
 }

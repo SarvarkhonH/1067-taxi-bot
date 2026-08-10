@@ -60,6 +60,7 @@ import {
 import { RavellaAdminView } from "./ravella";
 import { JamoaAdminView } from "./jamoa";
 import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow, type OprOpsRow, type OprJurnalRow } from "./api";
+import { Konsol } from "./oyin/Konsol";
 
 type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "ravella" | "bilim" | "bosh" | "jamoa" | "oyin";
 
@@ -5420,7 +5421,21 @@ const OYIN_SECTIONS: { id: OyinSection; label: string }[] = [
   { id: "sozlama", label: "⚙️ Sozlamalar" },
 ];
 
+// ⚠️ 2026-08-10: butun o'yin boshqaruvi YANGI KONSOLGA ko'chirildi (`src/oyin/`).
+// Eski bloklar PASTDA turibdi va O'CHIRILMAYDI — ega QABUL bergunча qaytish yo'li ochiq
+// qolsin (CLAUDE.md R6). Qaytarish: `OYIN_KONSOL` ni `false` qilish.
+//
+// Nega konsol alohida papkada: eski bloklar inline stildan iborat (`style={{}}` yuzlab joyda),
+// yangi konsol esa `.oyinx` doirasidagi dizayn tokenlaridan. Ikkisi bir faylda yashasa
+// tokenlar aralashib ketardi.
+const OYIN_KONSOL = true;
+
 function OyinTab() {
+  if (OYIN_KONSOL) return <Konsol />;
+  return <OyinTabLegacy />;
+}
+
+function OyinTabLegacy() {
   const [sec, setSec] = useState<OyinSection>("mukofot");
   return (
     <>

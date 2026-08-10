@@ -1,0 +1,1590 @@
+<title>BirJoy — O'yin Konsoli</title>
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   BirJoy O'yin Konsoli — PROTOTIP
+   Ranglar/o'lchamlar loyihaning O'Z fayllaridan: packages/admin/src/design/tokens.css
+   Ya'ni bu prototip real mahsulotda aynan shunday chiqadi.
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  --bg:#080b12; --surface:#0e131e; --surface-2:#141b29; --surface-3:#1b2436;
+  --overlay:rgba(4,6,11,.72);
+  --line:#1e2938; --line-2:#2a3850;
+  --text:#e7ecf7; --text-2:#9aa9c2; --text-3:#62718c;
+  --brand:#0d9668; --brand-hi:#12b37c; --brand-ink:#3ddc9a;
+  --brand-soft:rgba(13,150,104,.14); --brand-line:rgba(13,150,104,.38); --on-brand:#04150e;
+  --coin:#ffb300; --coin-ink:#ffc94d; --coin-soft:rgba(255,179,0,.13);
+  --ok:#22c55e; --ok-ink:#4ade80; --ok-soft:rgba(34,197,94,.13);
+  --warn:#f59e0b; --warn-ink:#fbbf24; --warn-soft:rgba(245,158,11,.13);
+  --bad:#ef4444; --bad-ink:#f87171; --bad-soft:rgba(239,68,68,.13);
+  --info:#3b82f6; --info-ink:#60a5fa; --info-soft:rgba(59,130,246,.13);
+  --c1:#199e70; --c2:#3987e5; --c3:#d95926; --c4:#9085e9; --c5:#c98500; --c6:#d55181;
+  --grid-line:rgba(255,255,255,.07);
+  --ff:-apple-system,"Segoe UI",Roboto,system-ui,sans-serif;
+  --ff-mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;
+  --fs-11:.6875rem; --fs-12:.75rem; --fs-13:.8125rem; --fs-14:.875rem;
+  --fs-16:1rem; --fs-20:1.25rem; --fs-26:1.625rem; --fs-32:2rem;
+  --fw-med:500; --fw-semi:600; --fw-bold:700; --fw-black:800;
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px; --s-6:24px; --s-8:32px;
+  --r-sm:6px; --r:9px; --r-lg:13px; --r-pill:999px;
+  --sh-2:0 4px 14px rgba(0,0,0,.45); --sh-3:0 18px 48px rgba(0,0,0,.6);
+  --ring:0 0 0 2px var(--bg),0 0 0 4px var(--brand-line);
+  --rail-w:236px; --vital-h:56px; --row-h:38px; --ctrl-h:32px;
+  --dur-fast:90ms; --dur:160ms; --ease:cubic-bezier(.22,.8,.32,1);
+}
+:root[data-theme="light"]{
+  --bg:#f6f8fb; --surface:#fff; --surface-2:#f2f5f9; --surface-3:#e8edf4;
+  --overlay:rgba(16,24,40,.44); --line:#e2e8f0; --line-2:#cbd5e1;
+  --text:#0f1729; --text-2:#52627c; --text-3:#8494ab;
+  --brand-ink:#07704e; --brand-soft:rgba(13,150,104,.1); --brand-line:rgba(13,150,104,.34);
+  --coin-ink:#a86800; --coin-soft:rgba(255,179,0,.16);
+  --ok-ink:#157f3d; --ok-soft:rgba(34,197,94,.12);
+  --warn-ink:#96590a; --warn-soft:rgba(245,158,11,.15);
+  --bad-ink:#b91c1c; --bad-soft:rgba(239,68,68,.1);
+  --info-ink:#1d4ed8; --info-soft:rgba(59,130,246,.11);
+  --c1:#1baf7a; --c2:#2a78d6; --c3:#eb6834; --c4:#4a3aa7; --c5:#eda100; --c6:#e87ba4;
+  --grid-line:rgba(15,23,41,.08);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:var(--fw-med) var(--fs-14)/1.5 var(--ff);
+  -webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:none;box-shadow:var(--ring);border-radius:var(--r-sm)}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ── QOBIQ ─────────────────────────────────────────────────────────────── */
+.app{display:grid;grid-template-columns:var(--rail-w) 1fr;min-height:100vh}
+
+.rail{background:var(--surface);border-right:1px solid var(--line);
+  display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.rail-brand{height:var(--vital-h);display:flex;align-items:center;gap:var(--s-2);
+  padding:0 var(--s-4);border-bottom:1px solid var(--line);flex-shrink:0}
+.rail-mark{width:24px;height:24px;border-radius:var(--r-sm);background:var(--brand);
+  color:var(--on-brand);display:grid;place-items:center;font-weight:var(--fw-black);font-size:var(--fs-13)}
+.rail-name{font-weight:var(--fw-bold);font-size:var(--fs-13);letter-spacing:-.01em}
+.rail-name small{display:block;color:var(--text-3);font-size:var(--fs-11);font-weight:var(--fw-med);letter-spacing:.04em}
+.rail-nav{padding:var(--s-3) var(--s-2);display:flex;flex-direction:column;gap:2px;overflow-y:auto;flex:1}
+.rail-label{font-size:var(--fs-11);color:var(--text-3);letter-spacing:.08em;text-transform:uppercase;
+  font-weight:var(--fw-semi);padding:var(--s-4) var(--s-3) var(--s-2)}
+.navi{display:flex;align-items:center;gap:var(--s-3);padding:0 var(--s-3);height:34px;
+  border-radius:var(--r-sm);background:none;border:0;cursor:pointer;color:var(--text-2);
+  font-size:var(--fs-13);font-weight:var(--fw-med);text-align:left;width:100%;
+  transition:background var(--dur-fast) var(--ease),color var(--dur-fast) var(--ease)}
+.navi:hover{background:var(--surface-2);color:var(--text)}
+.navi[aria-current="true"]{background:var(--brand-soft);color:var(--brand-ink);font-weight:var(--fw-semi)}
+.navi-ico{width:16px;text-align:center;flex-shrink:0;opacity:.9}
+.navi-n{margin-left:auto;font-size:var(--fs-11);font-variant-numeric:tabular-nums;
+  color:var(--text-3);background:var(--surface-3);padding:1px 6px;border-radius:var(--r-pill)}
+.navi[aria-current="true"] .navi-n{background:rgba(13,150,104,.2);color:var(--brand-ink)}
+.navi-n.hot{background:var(--bad-soft);color:var(--bad-ink)}
+.rail-foot{padding:var(--s-3);border-top:1px solid var(--line);display:flex;gap:var(--s-2);align-items:center}
+
+/* ── VITAL BAR — hech qachon aylanmaydi ────────────────────────────────── */
+.main{min-width:0;display:flex;flex-direction:column}
+.vitals{height:var(--vital-h);border-bottom:1px solid var(--line);background:var(--surface);
+  display:flex;align-items:stretch;position:sticky;top:0;z-index:40;overflow-x:auto;scrollbar-width:none}
+.vitals::-webkit-scrollbar{display:none}
+.vital{display:flex;flex-direction:column;justify-content:center;gap:1px;padding:0 var(--s-4);
+  border-right:1px solid var(--line);flex-shrink:0;position:relative;min-width:104px}
+.vital-k{font-size:var(--fs-11);color:var(--text-3);letter-spacing:.04em;white-space:nowrap}
+.vital-v{font-size:var(--fs-14);font-weight:var(--fw-bold);font-variant-numeric:tabular-nums;
+  display:flex;align-items:baseline;gap:5px;white-space:nowrap}
+.vital-v small{font-size:var(--fs-11);font-weight:var(--fw-med);color:var(--text-3)}
+.vital::after{content:"";position:absolute;left:0;top:0;bottom:0;width:2px}
+.vital.is-ok::after{background:var(--ok)} .vital.is-warn::after{background:var(--warn)}
+.vital.is-bad::after{background:var(--bad)} .vital.is-coin::after{background:var(--coin)}
+.vital.is-ok .vital-v{color:var(--ok-ink)} .vital.is-warn .vital-v{color:var(--warn-ink)}
+.vital.is-bad .vital-v{color:var(--bad-ink)} .vital.is-coin .vital-v{color:var(--coin-ink)}
+.vital-spacer{flex:1;border:0;min-width:var(--s-2)}
+.vital-act{display:flex;align-items:center;gap:var(--s-2);padding:0 var(--s-4);flex-shrink:0}
+.pulse{width:6px;height:6px;border-radius:50%;background:var(--ok);
+  box-shadow:0 0 0 0 rgba(34,197,94,.5);animation:pl 2.4s infinite}
+@keyframes pl{0%{box-shadow:0 0 0 0 rgba(34,197,94,.45)}70%{box-shadow:0 0 0 7px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+
+.canvas{padding:var(--s-5);display:flex;flex-direction:column;gap:var(--s-4);max-width:1680px;width:100%}
+
+/* ── ASOSIY BO'LAKLAR ──────────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg)}
+.card-h{display:flex;align-items:center;gap:var(--s-3);padding:var(--s-3) var(--s-4);
+  border-bottom:1px solid var(--line);flex-wrap:wrap}
+.card-t{font-size:var(--fs-13);font-weight:var(--fw-bold);letter-spacing:-.005em}
+.card-sub{font-size:var(--fs-11);color:var(--text-3)}
+.card-b{padding:var(--s-4)}
+.card-b.flush{padding:0}
+.spacer{margin-left:auto}
+.grid{display:grid;gap:var(--s-4)}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(230px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(176px,1fr))}
+.row{display:flex;align-items:center;gap:var(--s-2);flex-wrap:wrap}
+.col{display:flex;flex-direction:column;gap:var(--s-3)}
+.dim{color:var(--text-2);font-size:var(--fs-12)}
+.dim3{color:var(--text-3);font-size:var(--fs-11)}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--ff-mono);font-size:var(--fs-12)}
+
+/* ── TUGMA ─────────────────────────────────────────────────────────────── */
+.btn{height:var(--ctrl-h);padding:0 var(--s-3);border-radius:var(--r-sm);cursor:pointer;
+  background:var(--surface-2);border:1px solid var(--line-2);color:var(--text);
+  font-size:var(--fs-12);font-weight:var(--fw-semi);display:inline-flex;align-items:center;
+  gap:6px;white-space:nowrap;transition:background var(--dur-fast) var(--ease),transform var(--dur-fast) var(--ease)}
+.btn:hover{background:var(--surface-3)}
+.btn:active{transform:translateY(1px)}
+.btn.pri{background:var(--brand);border-color:var(--brand);color:var(--on-brand)}
+.btn.pri:hover{background:var(--brand-hi)}
+.btn.dgr{color:var(--bad-ink);border-color:rgba(239,68,68,.35)}
+.btn.dgr:hover{background:var(--bad-soft)}
+.btn.sm{height:26px;padding:0 var(--s-2);font-size:var(--fs-11)}
+.btn.ghost{background:none;border-color:transparent;color:var(--text-2)}
+.btn.ghost:hover{background:var(--surface-2);color:var(--text)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+.inp{height:var(--ctrl-h);padding:0 var(--s-3);border-radius:var(--r-sm);background:var(--surface-2);
+  border:1px solid var(--line-2);color:var(--text);font-size:var(--fs-13);width:100%}
+.inp::placeholder{color:var(--text-3)}
+.srch{max-width:280px}
+
+/* ── CHIP / BADGE ──────────────────────────────────────────────────────── */
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{height:26px;padding:0 10px;border-radius:var(--r-pill);background:var(--surface-2);
+  border:1px solid var(--line);color:var(--text-2);font-size:var(--fs-11);font-weight:var(--fw-semi);
+  cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.chip:hover{border-color:var(--line-2);color:var(--text)}
+.chip[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand-line);color:var(--brand-ink)}
+.chip b{font-variant-numeric:tabular-nums;font-weight:var(--fw-bold)}
+.chip.risk[aria-pressed="true"]{background:var(--bad-soft);border-color:rgba(239,68,68,.35);color:var(--bad-ink)}
+
+.bdg{display:inline-flex;align-items:center;gap:4px;padding:2px 7px;border-radius:var(--r-sm);
+  font-size:var(--fs-11);font-weight:var(--fw-semi);white-space:nowrap}
+.bdg.ok{background:var(--ok-soft);color:var(--ok-ink)}
+.bdg.warn{background:var(--warn-soft);color:var(--warn-ink)}
+.bdg.bad{background:var(--bad-soft);color:var(--bad-ink)}
+.bdg.info{background:var(--info-soft);color:var(--info-ink)}
+.bdg.coin{background:var(--coin-soft);color:var(--coin-ink)}
+.bdg.mute{background:var(--surface-3);color:var(--text-3)}
+
+/* ── VAZIFA SATRI ──────────────────────────────────────────────────────── */
+.task{display:flex;align-items:center;gap:var(--s-3);padding:11px var(--s-4);
+  border-bottom:1px solid var(--line);position:relative}
+.task:last-child{border-bottom:0}
+.task::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.task.bad::before{background:var(--bad)} .task.warn::before{background:var(--warn)}
+.task.ok::before{background:var(--ok)}
+.task-x{flex:1;min-width:200px;font-size:var(--fs-13);line-height:1.55}
+.task-x b{font-weight:var(--fw-bold)}
+.task.bad .task-x b{color:var(--bad-ink)} .task.warn .task-x b{color:var(--warn-ink)}
+.task.ok .task-x b{color:var(--ok-ink)}
+
+/* ── STAT ──────────────────────────────────────────────────────────────── */
+.stat{padding:var(--s-3) var(--s-4);border:1px solid var(--line);border-radius:var(--r);
+  background:var(--surface);display:flex;flex-direction:column;gap:3px}
+.stat-k{font-size:var(--fs-11);color:var(--text-3);letter-spacing:.03em}
+.stat-v{font-size:var(--fs-26);font-weight:var(--fw-black);font-variant-numeric:tabular-nums;
+  letter-spacing:-.02em;line-height:1.1}
+.stat-s{font-size:var(--fs-11);color:var(--text-2)}
+.stat.coin .stat-v{color:var(--coin-ink)}
+.stat.ok .stat-v{color:var(--ok-ink)} .stat.bad .stat-v{color:var(--bad-ink)}
+.stat.warn .stat-v{color:var(--warn-ink)}
+
+/* ── VORONKA ───────────────────────────────────────────────────────────── */
+.fn{display:flex;flex-direction:column;gap:var(--s-2)}
+.fn-r{display:grid;grid-template-columns:126px 1fr auto;align-items:center;gap:var(--s-3);
+  cursor:pointer;padding:3px 0;border-radius:var(--r-sm)}
+.fn-r:hover .fn-bar{filter:brightness(1.18)}
+.fn-k{font-size:var(--fs-12);color:var(--text-2)}
+.fn-track{height:22px;background:var(--surface-2);border-radius:var(--r-sm);overflow:hidden}
+.fn-bar{height:100%;border-radius:var(--r-sm);transition:filter var(--dur) var(--ease)}
+.fn-v{font-size:var(--fs-13);font-weight:var(--fw-bold);font-variant-numeric:tabular-nums;min-width:78px;text-align:right}
+.fn-d{font-size:var(--fs-11);color:var(--text-3);font-variant-numeric:tabular-nums;
+  padding-left:138px;margin-top:-4px}
+
+/* ── JADVAL ────────────────────────────────────────────────────────────── */
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:var(--fs-13)}
+thead th{position:sticky;top:0;background:var(--surface-2);text-align:left;
+  font-size:var(--fs-11);font-weight:var(--fw-semi);color:var(--text-3);letter-spacing:.04em;
+  text-transform:uppercase;padding:0 var(--s-3);height:30px;white-space:nowrap;
+  border-bottom:1px solid var(--line-2);z-index:5}
+thead th.s{cursor:pointer;user-select:none}
+thead th.s:hover{color:var(--text)}
+thead th .ar{opacity:.4;margin-left:3px}
+thead th[data-on] .ar{opacity:1;color:var(--brand-ink)}
+tbody td{padding:0 var(--s-3);height:var(--row-h);border-bottom:1px solid var(--line);white-space:nowrap}
+tbody tr{cursor:pointer;transition:background var(--dur-fast) var(--ease)}
+tbody tr:hover{background:var(--surface-2)}
+tbody tr.sel{background:var(--brand-soft)}
+td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
+.t-main{font-weight:var(--fw-semi)}
+.t-sub{color:var(--text-3);font-size:var(--fs-11)}
+.t-coin{color:var(--coin-ink);font-weight:var(--fw-bold)}
+
+.mini{width:52px;height:5px;border-radius:3px;background:var(--surface-3);overflow:hidden;display:inline-block;vertical-align:middle}
+.mini i{display:block;height:100%;border-radius:3px}
+
+.thumb{width:28px;height:28px;border-radius:var(--r-sm);background:var(--coin-soft);
+  display:grid;place-items:center;font-size:15px;flex-shrink:0}
+
+/* ── DRAWER ────────────────────────────────────────────────────────────── */
+.scrim{position:fixed;inset:0;background:var(--overlay);opacity:0;pointer-events:none;
+  transition:opacity var(--dur) var(--ease);z-index:70}
+.scrim.on{opacity:1;pointer-events:auto}
+.drw{position:fixed;top:0;right:0;bottom:0;width:min(464px,100vw);background:var(--surface);
+  border-left:1px solid var(--line);z-index:80;transform:translateX(100%);
+  transition:transform var(--dur) var(--ease);display:flex;flex-direction:column;box-shadow:var(--sh-3)}
+.drw.on{transform:none}
+.drw-h{padding:var(--s-4);border-bottom:1px solid var(--line);display:flex;
+  align-items:flex-start;gap:var(--s-3);flex-shrink:0}
+.drw-b{overflow-y:auto;padding:var(--s-4);display:flex;flex-direction:column;gap:var(--s-4);flex:1}
+.drw-f{padding:var(--s-3) var(--s-4);border-top:1px solid var(--line);display:flex;
+  gap:var(--s-2);flex-wrap:wrap;flex-shrink:0;background:var(--surface-2)}
+.ava{width:38px;height:38px;border-radius:var(--r);background:var(--brand-soft);color:var(--brand-ink);
+  display:grid;place-items:center;font-weight:var(--fw-bold);font-size:var(--fs-14);flex-shrink:0}
+.sec-t{font-size:var(--fs-11);color:var(--text-3);letter-spacing:.08em;text-transform:uppercase;
+  font-weight:var(--fw-semi);margin-bottom:var(--s-2)}
+
+.bk{display:flex;flex-direction:column;gap:7px}
+.bk-r{display:grid;grid-template-columns:100px 1fr 62px;align-items:center;gap:var(--s-2);font-size:var(--fs-12)}
+.bk-t{height:7px;border-radius:4px;background:var(--surface-3);overflow:hidden}
+.bk-t i{display:block;height:100%;border-radius:4px}
+.bk-v{text-align:right;font-variant-numeric:tabular-nums;font-weight:var(--fw-semi)}
+
+.tl{display:flex;flex-direction:column;gap:0;position:relative;padding-left:var(--s-4)}
+.tl::before{content:"";position:absolute;left:4px;top:8px;bottom:8px;width:1px;background:var(--line-2)}
+.tl-r{display:flex;gap:var(--s-3);padding:7px 0;font-size:var(--fs-12);position:relative}
+.tl-r::before{content:"";position:absolute;left:calc(-1 * var(--s-4) + 1px);top:13px;
+  width:7px;height:7px;border-radius:50%;background:var(--text-3);border:2px solid var(--surface)}
+.tl-r.coin::before{background:var(--coin)} .tl-r.bad::before{background:var(--bad)}
+.tl-r.ok::before{background:var(--ok)}
+.tl-w{width:74px;color:var(--text-3);font-size:var(--fs-11);flex-shrink:0;font-variant-numeric:tabular-nums}
+.tl-x{flex:1}
+.tl-v{font-variant-numeric:tabular-nums;font-weight:var(--fw-semi)}
+
+/* ── YUKLASH ZONASI ────────────────────────────────────────────────────── */
+.drop{border:1.5px dashed var(--line-2);border-radius:var(--r);padding:var(--s-5);
+  text-align:center;color:var(--text-2);font-size:var(--fs-12);cursor:pointer;
+  transition:border-color var(--dur) var(--ease),background var(--dur) var(--ease)}
+.drop:hover,.drop.hot{border-color:var(--brand-line);background:var(--brand-soft);color:var(--brand-ink)}
+.drop b{display:block;font-size:var(--fs-13);color:var(--text);margin-bottom:3px}
+.drop.hot b{color:var(--brand-ink)}
+
+/* ── MODAL ─────────────────────────────────────────────────────────────── */
+.mdl{position:fixed;inset:0;z-index:100;display:none;align-items:flex-start;justify-content:center;
+  padding:var(--s-8) var(--s-4);overflow-y:auto}
+.mdl.on{display:flex}
+.mdl-c{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-lg);
+  width:min(860px,100%);box-shadow:var(--sh-3);position:relative;z-index:2;
+  animation:up var(--dur-slow,240ms) var(--ease)}
+@keyframes up{from{transform:translateY(10px);opacity:0}to{transform:none;opacity:1}}
+.step{display:flex;gap:var(--s-2);padding:var(--s-3) var(--s-4);border-bottom:1px solid var(--line);
+  align-items:center;flex-wrap:wrap}
+.step-i{display:flex;align-items:center;gap:6px;font-size:var(--fs-12);color:var(--text-3)}
+.step-i b{width:18px;height:18px;border-radius:50%;background:var(--surface-3);display:grid;
+  place-items:center;font-size:var(--fs-11);font-weight:var(--fw-bold)}
+.step-i.on{color:var(--text)} .step-i.on b{background:var(--brand);color:var(--on-brand)}
+.step-i.done b{background:var(--ok-soft);color:var(--ok-ink)}
+.step-d{width:14px;height:1px;background:var(--line-2)}
+textarea.inp{height:auto;padding:var(--s-3);font-family:var(--ff-mono);font-size:var(--fs-12);
+  line-height:1.7;resize:vertical}
+
+.dif-add{color:var(--ok-ink)} .dif-chg{color:var(--warn-ink)} .dif-err{color:var(--bad-ink)}
+.old{color:var(--text-3);text-decoration:line-through}
+
+/* ── PALITRA (⌘K) ──────────────────────────────────────────────────────── */
+.pal{position:fixed;inset:0;z-index:120;display:none;align-items:flex-start;justify-content:center;padding-top:11vh}
+.pal.on{display:flex}
+.pal-c{background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-lg);
+  width:min(560px,92vw);box-shadow:var(--sh-3);position:relative;z-index:2;overflow:hidden;
+  animation:up var(--dur) var(--ease)}
+.pal-i{width:100%;height:46px;background:none;border:0;border-bottom:1px solid var(--line);
+  padding:0 var(--s-4);font-size:var(--fs-14);outline:none}
+.pal-l{max-height:340px;overflow-y:auto;padding:var(--s-2)}
+.pal-r{display:flex;align-items:center;gap:var(--s-3);padding:0 var(--s-3);height:34px;
+  border-radius:var(--r-sm);cursor:pointer;font-size:var(--fs-13)}
+.pal-r:hover,.pal-r.on{background:var(--brand-soft);color:var(--brand-ink)}
+.pal-g{margin-left:auto;font-size:var(--fs-11);color:var(--text-3)}
+kbd{font-family:var(--ff-mono);font-size:var(--fs-11);background:var(--surface-3);
+  border:1px solid var(--line-2);border-bottom-width:2px;border-radius:4px;padding:1px 5px;color:var(--text-2)}
+
+/* ── TOAST ─────────────────────────────────────────────────────────────── */
+.toasts{position:fixed;right:var(--s-4);bottom:var(--s-4);z-index:140;display:flex;
+  flex-direction:column;gap:var(--s-2);align-items:flex-end}
+.toast{background:var(--surface-3);border:1px solid var(--line-2);border-left:3px solid var(--ok);
+  border-radius:var(--r-sm);padding:10px var(--s-3);font-size:var(--fs-12);box-shadow:var(--sh-2);
+  animation:up var(--dur) var(--ease);max-width:340px}
+.toast.bad{border-left-color:var(--bad)} .toast.warn{border-left-color:var(--warn)}
+
+/* ── SIMULYATOR ────────────────────────────────────────────────────────── */
+.knob{display:grid;grid-template-columns:1fr auto;gap:var(--s-2);align-items:center;
+  padding:var(--s-2) 0;border-bottom:1px solid var(--line)}
+.knob:last-child{border-bottom:0}
+.knob-k{font-size:var(--fs-12)}
+.knob-k small{display:block;color:var(--text-3);font-size:var(--fs-11)}
+input[type=range]{width:100%;accent-color:var(--brand);height:20px}
+.knob-v{font-variant-numeric:tabular-nums;font-weight:var(--fw-bold);font-size:var(--fs-13);
+  min-width:66px;text-align:right}
+.qt{display:grid;grid-template-columns:44px 1fr;gap:var(--s-3);align-items:center;font-size:var(--fs-12);padding:5px 0}
+.qt-t{height:16px;background:var(--surface-2);border-radius:var(--r-sm);position:relative;overflow:hidden}
+.qt-b{position:absolute;top:0;bottom:0;background:var(--info-soft);border-left:2px solid var(--info);
+  border-right:2px solid var(--info)}
+.qt-m{position:absolute;top:0;bottom:0;width:2px;background:var(--info-ink)}
+.vs{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-3)}
+.vs-c{border:1px solid var(--line);border-radius:var(--r);padding:var(--s-3);background:var(--surface-2)}
+.vs-c.win{border-color:var(--brand-line);background:var(--brand-soft)}
+.vs-t{font-size:var(--fs-11);color:var(--text-3);letter-spacing:.06em;text-transform:uppercase;margin-bottom:var(--s-2)}
+
+.audit-r{display:grid;grid-template-columns:78px 1fr;gap:var(--s-3);padding:9px 0;
+  border-bottom:1px solid var(--line);font-size:var(--fs-12)}
+.audit-r:last-child{border-bottom:0}
+
+.note{background:var(--surface-2);border-left:2px solid var(--line-2);border-radius:0 var(--r-sm) var(--r-sm) 0;
+  padding:10px var(--s-3);font-size:var(--fs-12);color:var(--text-2);line-height:1.65}
+.note b{color:var(--text)}
+
+.hide{display:none!important}
+
+/* ── TELEFON ───────────────────────────────────────────────────────────── */
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .rail{position:fixed;left:0;top:0;bottom:0;width:var(--rail-w);z-index:90;
+    transform:translateX(-100%);transition:transform var(--dur) var(--ease)}
+  .rail.on{transform:none}
+  .canvas{padding:var(--s-3)}
+  .drw{width:100vw}
+  .vital{min-width:88px;padding:0 var(--s-3)}
+  .fn-r{grid-template-columns:88px 1fr auto}
+  .fn-d{padding-left:100px}
+  .vs{grid-template-columns:1fr}
+  .menu-b{display:inline-flex!important}
+}
+.menu-b{display:none}
+</style>
+
+<div class="app">
+  <aside class="rail" id="rail">
+    <div class="rail-brand">
+      <div class="rail-mark">B</div>
+      <div class="rail-name">O'yin Konsoli<small>BIRJOY · 2-MAVSUM</small></div>
+    </div>
+    <nav class="rail-nav" id="nav"></nav>
+    <div class="rail-foot">
+      <button class="btn sm ghost" onclick="toggleTheme()" id="thBtn">◐ Yorug'</button>
+      <button class="btn sm ghost spacer" onclick="openPal()">⌘K</button>
+    </div>
+  </aside>
+
+  <div class="main">
+    <header class="vitals" id="vitals"></header>
+    <div class="canvas" id="canvas"></div>
+  </div>
+</div>
+
+<div class="scrim" id="scrim" onclick="closeAll()"></div>
+<aside class="drw" id="drw" aria-hidden="true"></aside>
+<div class="mdl" id="mdl"><div class="scrim on" style="z-index:1" onclick="closeMdl()"></div><div class="mdl-c" id="mdlC"></div></div>
+<div class="pal" id="pal"><div class="scrim on" style="z-index:1" onclick="closePal()"></div>
+  <div class="pal-c">
+    <input class="pal-i" id="palI" placeholder="Buyruq yozing…  «iPhone narxi», «Dilshodga ball», «mavsumni muzlat»" autocomplete="off">
+    <div class="pal-l" id="palL"></div>
+  </div></div>
+<div class="toasts" id="toasts"></div>
+
+<script>
+"use strict";
+/* ══════════════════════════════════════════════════════════════════════════
+   MA'LUMOT — prototip uchun realistik namuna (jonli panelda API'dan keladi)
+   ══════════════════════════════════════════════════════════════════════════ */
+const N = n => (n ?? 0).toLocaleString("ru-RU").replace(/,/g," ");
+const el = (h) => { const d=document.createElement("div"); d.innerHTML=h.trim(); return d.firstElementChild; };
+
+const SEASON = { id:2, label:"Avgust mavsumi", phase:"active", daysLeft:21, endsAt:"31 avg 23:59" };
+
+const PEOPLE = [
+  // nom, tel, ball, yig'ilgan, sarflangan, safar, karta, oxirgi, risk, bayroq
+  ["Dilshod Rasulov","90 123 45 67",4820,9320,4500,64,9,"12 daq",8,[]],
+  ["Nodira Yo'ldosheva","91 204 88 12",3910,6410,2500,41,5,"38 daq",4,[]],
+  ["Aziz Qodirov","93 551 09 74",3640,11840,8200,79,17,"1 soat",71,["shift","karta"]],
+  ["Malika Ergasheva","94 700 31 05",3120,4820,1700,33,3,"2 soat",6,[]],
+  ["Jasur To'raev","90 812 66 43",2870,7970,5100,55,11,"3 soat",22,[]],
+  ["Shahnoza Karimova","97 336 20 18",2640,3140,500,21,1,"4 soat",3,[]],
+  ["Bekzod Ismoilov","88 145 77 90",2410,9210,6800,12,14,"20 daq",88,["safar","shift","karta"]],
+  ["Gulnora Salimova","91 662 04 37",2280,3980,1700,28,4,"5 soat",11,[]],
+  ["Otabek Nazarov","90 447 19 26",2050,5350,3300,44,7,"6 soat",17,[]],
+  ["Feruza Xolmatova","93 218 50 61",1870,2270,400,19,1,"8 soat",5,[]],
+  ["Rustam Yusupov","94 903 12 88",1640,6140,4500,3,9,"11 soat",93,["safar","referal"]],
+  ["Kamola Abdullayeva","90 771 45 03",1520,2420,900,17,2,"1 kun",7,[]],
+  ["Sherzod Tursunov","91 508 63 29",1390,4190,2800,31,6,"1 kun",14,[]],
+  ["Zilola Rahimova","97 220 84 55",1210,1610,400,13,1,"2 kun",4,["chetlangan"]],
+  ["Ulug'bek Mamatov","90 316 92 40",1080,3280,2200,26,5,"2 kun",19,[]],
+  ["Sarvarxon H. (siz)","90 000 10 67",980,1480,500,7,1,"5 daq",0,["ega"]],
+].map((r,i)=>({id:1200+i*7,name:r[0],phone:r[1],ball:r[2],earned:r[3],spent:r[4],rides:r[5],cards:r[6],last:r[7],risk:r[8],flags:r[9]}));
+
+const PRIZES = [
+  // emoji, nom, so'm, ball-narx, limit, sotilgan, holat, rasm bormi
+  ["📱","iPhone 12","7 800 000",6300,42,11,"open",1],
+  ["❄️","Muzlatgich Artel 340L","4 200 000",3600,39,39,"filled",1],
+  ["🧺","Kir yuvish mashinasi 7kg","3 900 000",3600,36,28,"open",1],
+  ["📺","Televizor Samsung 43\"","3 600 000",3600,34,34,"filled",1],
+  ["🔥","Gaz plita 4 ko'zli","1 900 000",1800,36,22,"open",0],
+  ["🌀","Changyutgich Samsung","1 450 000",1400,35,31,"open",1],
+  ["🍲","Mikroto'lqinli pech","900 000",900,34,34,"filled",1],
+  ["🥤","Blender Philips","350 000",700,17,9,"open",1],
+  ["👕","Dazmol Tefal","180 000",350,18,12,"open",0],
+  ["💇","Sochquritgich","165 000",350,16,7,"open",0],
+  ["🫖","Elektr chaynak","140 000",350,14,5,"open",1],
+  ["🍵","Choy serviz 12 kishilik","120 000",350,12,3,"open",0],
+  ["🎒","Maktab sumkasi","95 000",350,10,0,"queued",0],
+  ["⌚","Qo'l soati Casio","420 000",700,20,0,"queued",1],
+  ["🎧","Quloqchin JBL","560 000",700,27,0,"queued",0],
+  ["🚲","Velosiped Desna","1 250 000",1400,30,0,"queued",0],
+].map((r,i)=>({key:"p"+i,ico:r[0],name:r[1],som:r[2],price:r[3],limit:r[4],sold:r[5],stage:r[6],photo:r[7]}));
+
+const CARDS = [
+  [10482,"p0","Dilshod Rasulov",1207,"9 avg 21:14","tirajda"],
+  [10481,"p2","Aziz Qodirov",1214,"9 avg 20:52","tirajda"],
+  [10480,"p1","Bekzod Ismoilov",1242,"9 avg 19:03","to'lgan"],
+  [10479,"p5","Nodira Yo'ldosheva",1207,"9 avg 18:41","tirajda"],
+  [10478,"p6","Malika Ergasheva",1221,"9 avg 16:20","to'lgan"],
+  [10477,"p0","Jasur To'raev",1228,"9 avg 15:58","tirajda"],
+  [10476,"p3","Rustam Yusupov",1270,"8 avg 22:30","g'olib"],
+  [10475,"p2","Gulnora Salimova",1249,"8 avg 21:12","tirajda"],
+  [10474,"p7","Otabek Nazarov",1256,"8 avg 19:47","tirajda"],
+  [10473,"p1","Aziz Qodirov",1214,"8 avg 18:05","to'lgan"],
+  [10472,"p5","Sherzod Tursunov",1284,"8 avg 17:22","tirajda"],
+  [10471,"p0","Bekzod Ismoilov",1242,"8 avg 14:10","tirajda"],
+].map(r=>({no:r[0],prize:r[1],owner:r[2],mid:r[3],at:r[4],st:r[5]}));
+
+const STORIES = [
+  ["Nodira Yo'ldosheva",1207,"t.me/nodira_y/story/482",3,2],
+  ["Jasur To'raev",1228,"t.me/jasurtrv/s/1140",9,1],
+  ["Malika Ergasheva",1221,"instagram.com/stories/malika.e/33",26,4],
+  ["Otabek Nazarov",1256,"t.me/otabek_n/story/77",31,0],
+  ["Kamola Abdullayeva",1277,"t.me/kamola_a/s/205",48,3],
+].map((r,i)=>({id:"s"+i,name:r[0],mid:r[1],url:r[2],hours:r[3],inSeason:r[4]}));
+
+const GASHTAK = [
+  ["Ko'kcha bolalari","GSH-4471","Dilshod Rasulov",1207,7,12400,"avgust · Nodira",0],
+  ["Bozor yigitlari","GSH-2290","Aziz Qodirov",1214,10,18900,"avgust · Aziz",0],
+  ["Mahalla-7","GSH-8813","Gulnora Salimova",1249,5,6300,"avgust · belgilanmagan",0],
+  ["Tungi smena","GSH-5502","Jasur To'raev",1228,9,15100,"avgust · Sherzod",0],
+  ["Eski guruh","GSH-1104","Rustam Yusupov",1270,0,4200,"—",1],
+].map(r=>({name:r[0],code:r[1],leader:r[2],lid:r[3],n:r[4],ball:r[5],turn:r[6],dis:r[7]}));
+
+const GMEMBERS = [
+  ["Dilshod Rasulov",1207,"90 123 45 67","12 mar",64,4820,1,0],
+  ["Nodira Yo'ldosheva",1204,"91 204 88 12","14 mar",41,3910,0,0],
+  ["Malika Ergasheva",1221,"94 700 31 05","2 apr",33,3120,0,0],
+  ["Shahnoza Karimova",1235,"97 336 20 18","2 apr",21,2640,0,0],
+  ["Otabek Nazarov",1256,"90 447 19 26","19 apr",44,2050,0,0],
+  ["Test 1",-9001,"—","1 avg",12,420,0,1],
+  ["Feruza Xolmatova",1263,"93 218 50 61","3 may",19,1870,0,0],
+].map(r=>({name:r[0],id:r[1],phone:r[2],joined:r[3],rides:r[4],ball:r[5],lead:r[6],test:r[7]}));
+
+const ACTIVITY = [
+  ["10 avg 09:41","Dilshod Rasulov",1207,"ride","Safar tugadi",35,null],
+  ["10 avg 09:38","Aziz Qodirov",1214,"ticket_buy","«iPhone 12» kartasi №10482",-6300,null],
+  ["10 avg 09:22","Nodira Yo'ldosheva",1207,"story","Hikoya-isbot tasdiqlandi",100,null],
+  ["10 avg 09:10","Bekzod Ismoilov",1242,"refer_first_ride","Do'st birinchi safarini qildi",150,"Ozoda M."],
+  ["10 avg 08:55","Malika Ergasheva",1221,"login","Ilovaga kirdi",10,null],
+  ["10 avg 08:40","Dilshod Rasulov",1207,"adjust","Ega qo'lda tuzatdi",500,null],
+  ["10 avg 08:31","Jasur To'raev",1228,"jamoa","Gashtak navbat bonusi",150,null],
+  ["9 avg 22:14","Rustam Yusupov",1270,"ride","Safar tugadi",35,null],
+  ["9 avg 21:50","Gulnora Salimova",1249,"share","Ilovani ulashdi",25,null],
+  ["9 avg 21:14","Sherzod Tursunov",1284,"streak","7 kunlik ketma-ketlik",70,null],
+].map(r=>({at:r[0],name:r[1],mid:r[2],act:r[3],txt:r[4],ball:r[5],helped:r[6]}));
+
+const VELOCITY = [
+  ["📱","iPhone 12",11,42,1.4,"22 kun","ulgurmaydi"],
+  ["🌀","Changyutgich Samsung",31,35,2.8,"1.4 kun","tez"],
+  ["🧺","Kir yuvish mashinasi",28,36,2.1,"3.8 kun","tez"],
+  ["🔥","Gaz plita 4 ko'zli",22,36,1.1,"12.7 kun","sekin"],
+  ["🥤","Blender Philips",9,17,0.6,"13.3 kun","sekin"],
+  ["🍵","Choy serviz",3,12,0.2,"45 kun","ulgurmaydi"],
+].map(r=>({ico:r[0],name:r[1],sold:r[2],limit:r[3],perDay:r[4],eta:r[5],tag:r[6]}));
+
+const AUDIT = [
+  ["10 avg 09:12","Ega","Narx o'zgardi","iPhone 12 · ball-narx",5600,6300],
+  ["10 avg 09:11","Ega","Mukofot navbatga","Velosiped Desna","—","navbatda"],
+  ["9 avg 22:40","Ega","Ball tuzatildi","Dilshod Rasulov #1207","+0","+500"],
+  ["9 avg 18:02","Operator","Karta bekor qilindi","№10390 · Choy serviz","tirajda","bekor"],
+  ["9 avg 11:35","Ega","Mavsum sanasi","Tugash vaqti","28 avg","31 avg"],
+  ["8 avg 20:15","Ega","Tiraj muzlatildi","Mikroto'lqinli pech","ochiq","muzlatilgan"],
+];
+
+const KNOBS = [
+  {k:"oyinRideBall",   n:"Safar bali",           s:"bitta safar uchun",  v:35,  min:0,  max:80, step:5},
+  {k:"oyinLoginBall",  n:"Kunlik kirish",        s:"ilovaga kirgani",    v:10,  min:0,  max:40, step:5},
+  {k:"oyinReferBall",  n:"Do'st olib kelish",    s:"do'st 1-safaridan",  v:150, min:0,  max:400,step:25},
+  {k:"oyinStoryBall",  n:"Hikoya-isbot",         s:"tasdiqlangani uchun",v:100, min:0,  max:300,step:25},
+  {k:"oyinGashtakBall",n:"Gashtak navbati",      s:"oylik guruh bonusi", v:150, min:0,  max:400,step:25},
+];
+
+const BALLFLOW = [
+  ["Berilgan ball",1240000,"var(--c1)","mavsum boshidan"],
+  ["Xalq qo'lida",486000,"var(--coin)","hali sarflanmagan"],
+  ["Sarflangan",754000,"var(--c2)","kartaga aylangan"],
+  ["Chiqarilgan karta",1284,"var(--c4)","dona"],
+  ["O'ynalgan mukofot",3,"var(--c3)","dona"],
+];
+
+const SERIES_BALL = [18,22,19,26,31,28,24,33,38,35,29,41,44,39,47,52,48,44,51,58,55,49,61,64,59,68,71,66,74,79,83];
+const SERIES_CARD = [4,6,5,9,11,8,7,14,16,12,10,18,21,17,23,27,22,19,26,31,28,24,33,36,30,38,41,35,44,47,52];
+
+/* ══════════════════════════════════════════════════════════════════════════
+   HOLAT
+   ══════════════════════════════════════════════════════════════════════════ */
+const MODULES = [
+  {id:"nazorat",  ico:"◎", label:"Nazorat",        n:5, hot:1},
+  {id:"odamlar",  ico:"◍", label:"Odamlar",        n:517},
+  {id:"mukofot",  ico:"🎁", label:"Mukofotlar",     n:16},
+  {id:"kartalar", ico:"💳", label:"Kartalar & Tiraj",n:1284},
+  {id:"hikoya",   ico:"📸", label:"Hikoyalar",      n:5, hot:1},
+  {id:"gashtak",  ico:"👑", label:"Gashtak",        n:5},
+  {id:"simulyator",ico:"🔮",label:"Simulyator"},
+  {id:"sozlama",  ico:"⚙", label:"Sozlama & Audit"},
+];
+let VIEW="nazorat", SORT={key:"ball",dir:-1}, FILTER="all", Q="", SEL=new Set();
+let SUB={odamlar:"reyting", mukofot:"katalog", sozlama:"mavsum"}, GOPEN=null;
+function sub(mod,id){ SUB[mod]=id; FILTER="all"; Q=""; SEL.clear(); render(); }
+function tabs(mod,items){ return `<div class="chips" style="margin-bottom:var(--s-4)">${items.map(i=>
+  `<button class="chip" aria-pressed="${SUB[mod]===i[0]}" onclick="sub('${mod}','${i[0]}')">${i[1]}${i[2]!=null?` <b>${i[2]}</b>`:""}</button>`).join("")}</div>`; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   VITAL BAR
+   ══════════════════════════════════════════════════════════════════════════ */
+function renderVitals(){
+  const v=[
+    ["Mavsum",`${SEASON.daysLeft} kun`,SEASON.endsAt,"ok"],
+    ["Xalqdagi ball","486 000","tanga emas — ball","coin"],
+    ["Sig'im","2.4×","kerak 3.0×","warn"],
+    ["Byudjet","12.4M","18.0M dan","ok"],
+    ["Kartalar","1 284","3 mukofot to'lgan",""],
+    ["Shubhali","63","tekshiruv kutmoqda","bad"],
+  ].map(([k,val,sub,t])=>`<div class="vital ${t?'is-'+t:''}"><span class="vital-k">${k}</span>
+    <span class="vital-v">${val} <small>${sub}</small></span></div>`).join("");
+  document.getElementById("vitals").innerHTML = v +
+    `<div class="vital vital-spacer"></div>
+     <div class="vital-act">
+       <span class="pulse" title="jonli"></span><span class="dim3">jonli · 20s</span>
+       <button class="btn sm ghost menu-b" onclick="document.getElementById('rail').classList.toggle('on')">☰</button>
+       <button class="btn sm" onclick="openPal()">⌘K Buyruq</button>
+     </div>`;
+}
+function renderNav(){
+  document.getElementById("nav").innerHTML =
+    `<div class="rail-label">O'yin boshqaruvi</div>` +
+    MODULES.map(m=>`<button class="navi" aria-current="${VIEW===m.id}" onclick="go('${m.id}')">
+      <span class="navi-ico">${m.ico}</span>${m.label}
+      ${m.n?`<span class="navi-n ${m.hot?'hot':''}">${N(m.n)}</span>`:""}</button>`).join("");
+}
+function go(id){ VIEW=id; Q=""; FILTER="all"; SEL.clear(); renderNav(); render();
+  document.getElementById("rail").classList.remove("on"); window.scrollTo(0,0); }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   GRAFIK — kichik maydon-chizig'i
+   ══════════════════════════════════════════════════════════════════════════ */
+function area(vals,color,h=54){
+  const w=100, max=Math.max(...vals), min=0;
+  const pt=(v,i)=>[ (i/(vals.length-1))*w, h-4-((v-min)/(max-min))*(h-10) ];
+  const p=vals.map(pt);
+  const line=p.map((c,i)=>(i?"L":"M")+c[0].toFixed(2)+" "+c[1].toFixed(2)).join(" ");
+  const last=p[p.length-1];
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="width:100%;height:${h}px;display:block">
+    <defs><linearGradient id="g${color.replace(/\W/g,"")}" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="${color}" stop-opacity=".28"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </linearGradient></defs>
+    <path d="${line} L ${w} ${h} L 0 ${h} Z" fill="url(#g${color.replace(/\W/g,"")})"/>
+    <path d="${line}" fill="none" stroke="${color}" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="2.2" fill="${color}"/></svg>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   1. ◎ NAZORAT
+   ══════════════════════════════════════════════════════════════════════════ */
+function viewNazorat(){
+  const tasks=[
+    ["bad","<b>3 ta mukofot to'ldi</b> — Muzlatgich, Televizor, Mikroto'lqinli pech. Tiraj kutmoqda.","Tirajni ochish","kartalar"],
+    ["bad","<b>63 kishi shubhali</b> — 2 tasi 0 safar bilan 4 500+ ball to'plagan.","Ro'yxatni ko'rish","odamlar"],
+    ["warn","<b>Sig'im 2.4×</b> (kerak 3.0×) — xalqda 486 000 ball, ochiq mukofotlarda 1.16M joy.","Navbatdan ochish",null],
+    ["warn","<b>«Choy serviz» chegaraga yetmayapti</b> — 3/12. Shu holatda tirajga tushmaydi.","Mukofotga o'tish","mukofot"],
+    ["ok","Byudjet 69% ishlatilgan — mavsum oxirigacha yetadi.",null,null],
+  ];
+  const maxB=BALLFLOW[0][1];
+  return `
+  <div class="grid g2" style="grid-template-columns:minmax(0,1.35fr) minmax(0,1fr)">
+    <div class="card">
+      <div class="card-h"><span class="card-t">Bugun nima qilish kerak</span>
+        <span class="bdg bad">4 ta hal qilinmagan</span>
+        <button class="btn sm ghost spacer" onclick="toast('Yangilandi — 20 soniyada bir marta o‘zi ham yangilanadi')">↻</button></div>
+      <div class="card-b flush">${tasks.map(t=>`<div class="task ${t[0]}">
+        <span class="task-x">${t[1]}</span>
+        ${t[2]?`<button class="btn sm ${t[0]==='bad'?'pri':''}" onclick="${t[3]?`go('${t[3]}')`:`toast('4 ta mukofot navbatdan ochildi — sig‘im 3.1× bo‘ldi')`}">${t[2]}</button>`:""}
+      </div>`).join("")}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><span class="card-t">Ball qayerda</span>
+        <span class="card-sub">har qatorni bosing → orqasidagi ro'yxat</span></div>
+      <div class="card-b">
+        <div class="fn">${BALLFLOW.map((f,i)=>{
+          const isCount=i>=3, w=isCount?(f[1]/BALLFLOW[3][1])*100:(f[1]/maxB)*100;
+          return `<div class="fn-r" onclick="${i===3?"go('kartalar')":i===1?"go('odamlar')":"toast('Bu raqam orqasidagi ro‘yxat ochiladi')"}">
+            <span class="fn-k">${f[0]}<br><span class="dim3">${f[3]}</span></span>
+            <span class="fn-track"><i class="fn-bar" style="width:${Math.max(6,w)}%;background:${f[2]}"></i></span>
+            <span class="fn-v">${N(f[1])}</span></div>`;
+        }).join("")}</div>
+        <div class="note" style="margin-top:var(--s-3)">
+          <b>39%</b> berilgan ball hali sarflanmagan. Sig'im 3× bo'lmasa bu ball <b>sarflanadigan joy topmaydi</b> —
+          mijoz «yig'dim, lekin olib bo'lmadi» deydi. Navbatda 4 ta mukofot turibdi.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><span class="card-t">Kunlik ball emissiyasi</span>
+      <span class="card-sub spacer num">bugun 83k · +12% ↑</span></div>
+      <div class="card-b">${area(SERIES_BALL,"var(--c1)",64)}
+        <div class="row" style="justify-content:space-between;margin-top:6px"><span class="dim3">10 iyul</span><span class="dim3">bugun</span></div></div></div>
+    <div class="card"><div class="card-h"><span class="card-t">Kunlik karta xaridi</span>
+      <span class="card-sub spacer num">bugun 52 ta · +18% ↑</span></div>
+      <div class="card-b">${area(SERIES_CARD,"var(--c4)",64)}
+        <div class="row" style="justify-content:space-between;margin-top:6px"><span class="dim3">10 iyul</span><span class="dim3">bugun</span></div></div></div>
+  </div>
+
+  <div class="grid g4">
+    ${[["Ball egalari","517","+34 shu hafta",""],["O'rtacha ball","940","odam boshiga",""],
+       ["Bugungi karta","52","kecha 47 edi","ok"],["Mukofot to'lgan","3","tiraj kutmoqda","warn"],
+       ["Byudjet qoldig'i","5.6M","so'm","coin"],["Shubhali","63","12 tasi og'ir","bad"]]
+      .map(s=>`<div class="stat ${s[3]}"><span class="stat-k">${s[0]}</span>
+        <span class="stat-v">${s[1]}</span><span class="stat-s">${s[2]}</span></div>`).join("")}
+  </div>
+
+  <div class="grid g2">
+    <!-- 🎯 SIG'IM — eski panelda faqat tugma bor edi, ekrani yo'q edi -->
+    <div class="card"><div class="card-h"><span class="card-t">🎯 Sig'im</span>
+      <span class="card-sub">xalqdagi ball ochiq mukofotlarga sig'adimi</span></div>
+      <div class="card-b col">
+        <div class="row" style="justify-content:space-between;align-items:flex-end">
+          <span><span class="stat-v" style="color:var(--warn-ink)">2.4×</span>
+            <span class="dim3"> hozir · kerak 3.0×</span></span>
+          <span class="bdg warn">yetarli emas</span></div>
+        <div class="fn-track" style="height:26px;position:relative">
+          <i class="fn-bar" style="width:80%;background:var(--warn)"></i>
+          <span style="position:absolute;left:100%;top:-4px;bottom:-4px;width:2px;background:var(--ok)"></span></div>
+        <div class="dim3">Xalqda <b>486 000</b> ball · ochiq mukofotlarda <b>1 166 000</b> ball joy.
+          3× bo'lishi uchun yana <b>292 000</b> ball joy kerak.</div>
+        <div><div class="sec-t">Qaysi darajada joy yo'q</div>
+          <div class="row">${[["100–500 ball","ok"],["500–1500","ok"],["1500–4000","bad"],["4000+","warn"]]
+            .map(t=>`<span class="bdg ${t[1]}">${t[0]} ${t[1]==="ok"?"✓":t[1]==="bad"?"✕ yo'q":"kam"}</span>`).join("")}</div>
+          <div class="dim3" style="margin-top:6px">«1500–4000» darajasiga yetgan <b>84 kishi</b> sotib
+            oladigan narsa topmaydi.</div></div>
+        <div class="row"><button class="btn pri" onclick="toast('4 ta mukofot navbatdan ochildi — sig‘im 3.1× bo‘ldi')">📋 Navbatdan 4 tasini ochish</button>
+          <button class="btn" onclick="go('mukofot')">Navbatni ko'rish</button></div>
+      </div></div>
+
+    <!-- 📊 MAVSUM KO'RSATKICHLARI — eski OyinSeasonMetricsCard -->
+    <div class="card"><div class="card-h"><span class="card-t">📊 Mavsum ko'rsatkichlari</span>
+      <span class="card-sub">2-mavsum · 10 kun o'tdi, 21 kun qoldi</span></div>
+      <div class="card-b">
+        <div class="tw"><table><tbody>
+          ${[["Mavsumda safar qilganlar","517 kishi","+34 shu hafta","ok"],
+             ["Karta olganlar","238 kishi","46% ball egalaridan",""],
+             ["Bir kishiga o'rtacha karta","5.4 ta","eng ko'pi 17 ta","warn"],
+             ["Hikoya-isbot yuborganlar","94 kishi","5 tasi kutmoqda",""],
+             ["Gashtakdagi odamlar","38 kishi","5 guruh",""],
+             ["Mavsum boshidan berilgan ball","1 240 000","kunlik o'rtacha 124 000","coin"],
+             ["Bir safar o'rtacha narxi","2 096 so'm","o'tgan mavsum 2 240 edi","ok"]]
+            .map(m=>`<tr><td>${m[0]}</td><td class="r t-main ${m[3]==='coin'?'t-coin':m[3]==='ok'?'dif-add':m[3]==='warn'?'dif-chg':''}">${m[1]}</td>
+              <td class="t-sub r">${m[2]}</td></tr>`).join("")}
+        </tbody></table></div></div></div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   2. ◍ ODAMLAR — chuqur nazorat
+   ══════════════════════════════════════════════════════════════════════════ */
+const P_FILTERS=[["all","Hammasi",PEOPLE.length],["risk","⚠ Shubhali",63,1],["nor","0 safar bilan ball",2],
+  ["card","5+ karta bir mukofotda",4],["ban","Chetlanganlar",12],["gash","Gashtakda",38]];
+
+function peopleRows(){
+  let r=PEOPLE.slice();
+  if(FILTER==="risk") r=r.filter(p=>p.risk>=50);
+  if(FILTER==="nor")  r=r.filter(p=>p.flags.includes("safar"));
+  if(FILTER==="card") r=r.filter(p=>p.flags.includes("karta"));
+  if(FILTER==="ban")  r=r.filter(p=>p.flags.includes("chetlangan"));
+  if(FILTER==="gash") r=r.filter(p=>p.cards>3);
+  if(Q){const q=Q.toLowerCase();r=r.filter(p=>p.name.toLowerCase().includes(q)||p.phone.includes(q)||String(p.id)===q);}
+  const k=SORT.key;
+  return r.sort((a,b)=>(typeof a[k]==="string"?a[k].localeCompare(b[k]):a[k]-b[k])*SORT.dir);
+}
+function riskCell(v){
+  const t=v>=70?"bad":v>=35?"warn":"ok";
+  return `<span class="mini"><i style="width:${v}%;background:var(--${t})"></i></span>
+    <span class="t-sub num" style="margin-left:6px">${v}</span>`;
+}
+const ACT_LABEL={ride:["🚕","Safar"],ticket_buy:["🎟","Karta xaridi"],story:["📸","Hikoya"],
+  refer_first_ride:["🤝","Do'st"],login:["📲","Kirish"],adjust:["🛠","Qo'lda tuzatish"],
+  jamoa:["👑","Gashtak"],share:["📣","Ulashish"],streak:["🔥","Ketma-ketlik"]};
+
+function viewJurnal(){
+  let rows=ACTIVITY.slice();
+  if(FILTER!=="all") rows=rows.filter(a=>a.act===FILTER);
+  if(Q) rows=rows.filter(a=>a.name.toLowerCase().includes(Q.toLowerCase())||String(a.mid)===Q);
+  const kinds=[...new Set(ACTIVITY.map(a=>a.act))];
+  return `
+  <div class="card">
+    <div class="card-h"><span class="card-t">📜 Faoliyat jurnali</span>
+      <span class="card-sub">har ball qayerdan keldi · mijoz qo'ng'irog'iga javob shu yerda</span>
+      <div class="spacer row">
+        <input class="inp srch" placeholder="🔍 Ism yoki ID…" value="${Q}" oninput="Q=this.value;render();document.querySelector('.srch').focus()">
+        <input class="inp" type="date" style="max-width:150px" value="2026-08-10">
+        <button class="btn sm" onclick="toast('jurnal-2026-08-10.csv yuklab olindi')">⬇ CSV</button></div></div>
+    <div class="card-b" style="padding:var(--s-3) var(--s-4)">
+      <div class="chips"><button class="chip" aria-pressed="${FILTER==='all'}" onclick="FILTER='all';render()">Hammasi <b>${ACTIVITY.length}</b></button>
+        ${kinds.map(k=>`<button class="chip" aria-pressed="${FILTER===k}" onclick="FILTER='${k}';render()">${ACT_LABEL[k][0]} ${ACT_LABEL[k][1]} <b>${ACTIVITY.filter(a=>a.act===k).length}</b></button>`).join("")}</div></div>
+    <div class="tw"><table>
+      <thead><tr><th>Vaqt</th><th>Kim</th><th>Nima</th><th class="r">Ball</th><th>Yordam zanjiri</th></tr></thead>
+      <tbody>${rows.map(a=>`<tr onclick="openPerson(${a.mid})">
+        <td class="t-sub mono">${a.at}</td>
+        <td><span class="t-main">${a.name}</span> <span class="t-sub mono">#${a.mid}</span></td>
+        <td>${ACT_LABEL[a.act][0]} ${a.txt}</td>
+        <td class="r ${a.ball>0?'dif-add':'dif-err'}">${a.ball>0?"+":""}${N(a.ball)}</td>
+        <td class="t-sub">${a.helped??"—"}</td></tr>`).join("")}</tbody>
+    </table></div>
+    <div class="card-b" style="border-top:1px solid var(--line)">
+      <div class="row"><span class="dim3">1–10 / 4 812</span>
+        <button class="btn sm spacer" disabled>← Oldingi</button>
+        <button class="btn sm" onclick="toast('Keyingi sahifa')">Keyingi →</button></div></div>
+  </div>
+  <div class="note">Mijoz «ballim qayerdan keldi / qayerga ketdi» deb qo'ng'iroq qilsa — javob shu jadvalda.
+  Qo'lda tuzatish (<b>🛠</b>) ham shu yerda ko'rinadi, yashirilmaydi.</div>`;
+}
+
+function viewOdamlar(){
+  const head=tabs("odamlar",[["reyting","🏆 Reyting",PEOPLE.length],["jurnal","📜 Faoliyat jurnali",null]]);
+  if(SUB.odamlar==="jurnal") return head+viewJurnal();
+  const rows=peopleRows();
+  const th=(k,l,cls="")=>`<th class="s ${cls}" ${SORT.key===k?'data-on':''} onclick="sortBy('${k}')">${l}<span class="ar">${SORT.key===k?(SORT.dir<0?"↓":"↑"):"↕"}</span></th>`;
+  return head+`
+  <div class="grid g4">
+    ${[["Ball egasi","517","mavsumda faol",""],["Jami ball","486 000","xalq qo'lida","coin"],
+       ["Shubhali","63","12 tasi og'ir","bad"],["Chetlangan","12","karta ololmaydi",""]]
+      .map(s=>`<div class="stat ${s[3]}"><span class="stat-k">${s[0]}</span><span class="stat-v">${s[1]}</span><span class="stat-s">${s[2]}</span></div>`).join("")}
+  </div>
+
+  <div class="card">
+    <div class="card-h">
+      <span class="card-t">Ball bo'yicha reyting</span>
+      <span class="card-sub">${N(rows.length)} qator · ustunni bosib saralang</span>
+      <div class="spacer row">
+        <input class="inp srch" placeholder="🔍 Ism, telefon yoki ID…" value="${Q}" oninput="Q=this.value;render();document.querySelector('.srch').focus()">
+        <button class="btn sm" onclick="toast('odamlar-2026-08-10.csv yuklab olindi — ${N(rows.length)} qator')">⬇ CSV</button>
+      </div>
+    </div>
+    <div class="card-b" style="padding:var(--s-3) var(--s-4)">
+      <div class="chips">${P_FILTERS.map(f=>`<button class="chip ${f[3]?'risk':''}" aria-pressed="${FILTER===f[0]}"
+        onclick="FILTER='${f[0]}';render()">${f[1]} <b>${f[2]}</b></button>`).join("")}</div>
+    </div>
+    <div class="tw"><table>
+      <thead><tr><th>A'zo</th>${th("ball","Ball","r")}${th("earned","Yig'ilgan","r")}${th("spent","Sarflangan","r")}
+        ${th("rides","Safar","r")}${th("cards","Karta","r")}<th>Oxirgi</th>${th("risk","Xavf")}<th></th></tr></thead>
+      <tbody>${rows.map(p=>`<tr onclick="openPerson(${p.id})">
+        <td><span class="t-main">${p.name}</span> <span class="t-sub mono">#${p.id}</span>
+          ${p.flags.includes("chetlangan")?'<span class="bdg bad" style="margin-left:5px">chetlangan</span>':""}
+          ${p.flags.includes("ega")?'<span class="bdg info" style="margin-left:5px">siz</span>':""}
+          <div class="t-sub">${p.phone}</div></td>
+        <td class="r t-coin">${N(p.ball)}</td><td class="r">${N(p.earned)}</td><td class="r">${N(p.spent)}</td>
+        <td class="r ${p.rides<5?'dif-err':''}">${p.rides}</td><td class="r">${p.cards}</td>
+        <td class="t-sub">${p.last}</td><td>${riskCell(p.risk)}</td>
+        <td class="r"><span class="dim3">Ochish →</span></td></tr>`).join("")}</tbody>
+    </table></div>
+  </div>
+
+  <div class="note">Xavf balli — uchta belgidan hisoblanadi: <b>safarsiz ball</b> · <b>kunlik shiftga urilish</b> ·
+  <b>bitta mukofotga karta yig'ish</b>. 70 dan yuqorisi qo'lda tekshiriladi, avtomatik jazo YO'Q.</div>`;
+}
+function sortBy(k){ SORT = SORT.key===k?{key:k,dir:-SORT.dir}:{key:k,dir:-1}; render(); }
+
+function openPerson(id){
+  const p=PEOPLE.find(x=>x.id===id); if(!p) return;
+  const bk=[["Safarlar",Math.round(p.earned*.55),"var(--c1)"],["Do'st olib kelish",Math.round(p.earned*.18),"var(--c2)"],
+    ["Kunlik kirish",Math.round(p.earned*.09),"var(--c4)"],["Hikoya-isbot",Math.round(p.earned*.08),"var(--c5)"],
+    ["Gashtak navbati",Math.round(p.earned*.10),"var(--c6)"]];
+  const mx=Math.max(...bk.map(b=>b[1]));
+  const tl=[["12 daq","coin","Safar tugadi — Ko'kcha → Bozor","+35"],["1 soat","","Ilovaga kirdi","+10"],
+    ["3 soat","coin","«Blender» kartasi olindi №10471","−700"],["Kecha","ok","Hikoya-isbot tasdiqlandi","+100"],
+    ["2 kun","","Do'st qo'shildi — Ozoda M.","+150"],["4 kun","bad","Kunlik ball shiftiga urildi","—"]];
+  const drw=document.getElementById("drw");
+  drw.innerHTML=`
+    <div class="drw-h">
+      <div class="ava">${p.name.slice(0,2).toUpperCase()}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:var(--fw-bold);font-size:var(--fs-16)">${p.name}</div>
+        <div class="dim">${p.phone} · <span class="mono">#${p.id}</span> ·
+          ${p.risk>=70?'<span class="bdg bad">xavf '+p.risk+'</span>':p.risk>=35?'<span class="bdg warn">xavf '+p.risk+'</span>':'<span class="bdg ok">toza</span>'}</div>
+      </div>
+      <button class="btn sm ghost" onclick="closeAll()">✕</button>
+    </div>
+    <div class="drw-b">
+      <div class="grid g4" style="gap:var(--s-2)">
+        ${[["Ball",N(p.ball),"coin"],["Yig'ilgan",N(p.earned),""],["Sarflangan",N(p.spent),""],["Safar",p.rides,p.rides<5?"bad":""]]
+          .map(s=>`<div class="stat ${s[2]}" style="padding:var(--s-2) var(--s-3)">
+            <span class="stat-k">${s[0]}</span><span class="stat-v" style="font-size:var(--fs-20)">${s[1]}</span></div>`).join("")}
+      </div>
+
+      ${p.risk>=70?`<div class="note" style="border-left-color:var(--bad)">
+        <b>⚠ Nega shubhali:</b> ${p.flags.includes("safar")?"faqat <b>"+p.rides+" safar</b>, lekin "+N(p.earned)+" ball yig'ilgan · ":""}
+        ${p.flags.includes("shift")?"oxirgi 14 kunning <b>11 tasida</b> kunlik ball shiftiga urilgan · ":""}
+        ${p.flags.includes("karta")?"bitta mukofotga <b>"+p.cards+" karta</b> olgan · ":""}
+        ${p.flags.includes("referal")?"<b>6 ta do'st</b> bir kunda, hammasi bitta qurilmadan":""}</div>`:""}
+
+      <div><div class="sec-t">Ball qayerdan keldi</div>
+        <div class="bk">${bk.map(b=>`<div class="bk-r"><span class="dim">${b[0]}</span>
+          <span class="bk-t"><i style="width:${(b[1]/mx)*100}%;background:${b[2]}"></i></span>
+          <span class="bk-v">${N(b[1])}</span></div>`).join("")}</div></div>
+
+      <div><div class="sec-t">Kartalari (${p.cards})</div>
+        <div class="tw"><table><thead><tr><th>№</th><th>Mukofot</th><th class="r">Baho</th><th>Olingan</th></tr></thead>
+          <tbody>${CARDS.slice(0,Math.min(p.cards,5)).map((c,i)=>{const pr=PRIZES.find(x=>x.key===c.prize);
+            return `<tr><td class="mono">№${10480-i}</td><td>${pr.ico} ${pr.name}</td>
+              <td class="r t-coin">${N(pr.price)}</td><td class="t-sub">${c.at}</td></tr>`}).join("")}</tbody></table></div>
+        ${p.cards>5?`<div class="dim3" style="margin-top:6px">…yana ${p.cards-5} ta</div>`:""}</div>
+
+      <div><div class="sec-t">Nima qildi</div>
+        <div class="tl">${tl.map(t=>`<div class="tl-r ${t[1]}"><span class="tl-w">${t[0]}</span>
+          <span class="tl-x">${t[2]}</span><span class="tl-v ${t[3][0]==="+"?"dif-add":t[3][0]==="−"?"dif-err":""}">${t[3]}</span></div>`).join("")}</div></div>
+
+      <div><div class="sec-t">Bog'lanishlar</div>
+        <div class="row"><span class="bdg mute">👑 Gashtak: «Ko'kcha bolalari» (7 kishi)</span>
+          <span class="bdg mute">🤝 4 ta do'st olib kelgan</span>
+          <span class="bdg mute">🚕 kas1067 #${p.id+4000}</span></div></div>
+    </div>
+    <div class="drw-f">
+      <button class="btn pri" onclick="toast('«${p.name}» balansiga +500 ball qo‘shildi · audit jurnaliga yozildi')">＋ Ball tuzatish</button>
+      <button class="btn" onclick="toast('Kartani tanlang — ball egasiga qaytadi')">♻️ Kartani bekor qilish</button>
+      <button class="btn dgr" onclick="toast('${p.name} chetlatildi — karta ola olmaydi, ball tarixi saqlandi','warn')">⛔ Chetlatish</button>
+    </div>`;
+  drw.classList.add("on"); drw.setAttribute("aria-hidden","false");
+  document.getElementById("scrim").classList.add("on");
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   3. 🎁 MUKOFOTLAR
+   ══════════════════════════════════════════════════════════════════════════ */
+const STAGE={open:["🟢 Ochiq","ok"],queued:["📋 Navbatda","info"],filled:["📦 To'lgan","warn"]};
+/* 💰 BYUDJET + SOVRIN REJALASHTIRUVCHI — eski OyinBudgetCard */
+function viewByudjet(){
+  const used=12.4, tot=18.0, pct=Math.round(used/tot*100);
+  return `
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><span class="card-t">💰 Mavsum byudjeti</span>
+      <span class="card-sub">faqat TO'LGAN mukofot pul turadi</span></div>
+      <div class="card-b col">
+        <div class="row"><span class="dim" style="width:130px">Mavsum byudjeti</span>
+          <input class="inp" value="18 000 000" style="max-width:160px"><span class="dim3">so'm</span></div>
+        <div class="fn-track" style="height:26px"><i class="fn-bar" style="width:${pct}%;background:var(--c1)"></i></div>
+        <div class="row" style="justify-content:space-between">
+          <span class="dim3">Katalogda: <b style="color:var(--text)">${used}M</b></span>
+          <span class="dim3">Qoldiq: <b style="color:var(--brand-ink)">${(tot-used).toFixed(1)}M</b></span></div>
+        <div class="tw"><table><tbody>
+          ${[["Ochiq mukofotlar qiymati","19.4M so'm","hammasi to'lsa"],
+             ["Shundan HOZIR to'lgani","8.7M so'm","3 ta mukofot"],
+             ["Navbatdagilar","2.3M so'm","hali ochilmagan"],
+             ["Kassaga tushgan (kartalardan)","28.1M so'm","ball × so'm kursi bo'yicha"],
+             ["Sof natija","+19.4M so'm","kassa − to'langan"]]
+            .map((r,i)=>`<tr><td>${r[0]}</td><td class="r t-main ${i===4?'dif-add':''}">${r[1]}</td>
+              <td class="t-sub r">${r[2]}</td></tr>`).join("")}
+        </tbody></table></div>
+        <div class="note"><b>Byudjetdan oshib ketmadingiz.</b> Ochiq mukofotlarning HAMMASI to'lsa 19.4M
+          bo'ladi — bu byudjetdan yuqori, lekin real: mukofot faqat to'lganda pul turadi va
+          to'lganda kassaga undan ko'proq tushadi.</div>
+      </div></div>
+
+    <div class="card"><div class="card-h"><span class="card-t">🧭 Sovrin rejalashtiruvchi</span>
+      <span class="card-sub">byudjetni qanday taqsimlash</span></div>
+      <div class="card-b col">
+        <div class="dim">Byudjetni daraja bo'yicha bo'ling — nechta mukofot kerakligi o'zi chiqadi.</div>
+        <div class="tw"><table>
+          <thead><tr><th>Daraja</th><th class="r">Ulush</th><th class="r">Summa</th><th class="r">Kerak</th><th class="r">Bor</th></tr></thead>
+          <tbody>${[["Kichik (100–500k)",25,"4.5M","~14 ta",9,"ok"],
+                     ["O'rta (500k–2M)",35,"6.3M","~6 ta",4,"warn"],
+                     ["Katta (2M+)",40,"7.2M","~2 ta",3,"ok"]]
+            .map(r=>`<tr><td>${r[0]}</td><td class="r">${r[1]}%</td><td class="r t-main">${r[2]}</td>
+              <td class="r t-sub">${r[3]}</td><td class="r ${r[5]==='ok'?'dif-add':'dif-chg'}">${r[4]} ta</td></tr>`).join("")}
+          </tbody></table></div>
+        <div class="note" style="border-left-color:var(--warn)"><b>O'rta darajada 2 ta mukofot yetishmaydi.</b>
+          Aynan shu darajaga yetgan 84 kishi sotib oladigan narsa topmayapti (sig'im ogohlantirishi
+          ham shundan). Navbatda mos 2 ta bor — ochib qo'ying.</div>
+        <button class="btn pri" onclick="toast('2 ta o‘rta darajali mukofot navbatdan ochildi')">📋 Yetishmaganini ochish</button>
+      </div></div>
+  </div>`;
+}
+
+/* 📈 TEZLIK — eski OyinVelocityBoard */
+function viewTezlik(){
+  const TAG={tez:["ok","tez to'ladi"],sekin:["warn","sekin"],ulgurmaydi:["bad","mavsumga ulgurmaydi"]};
+  return `
+  <div class="card"><div class="card-h"><span class="card-t">📈 Mukofot tezligi</span>
+    <span class="card-sub">mavsum tugashiga 21 kun — qaysi biri ulgurmaydi</span>
+    <button class="btn sm spacer" onclick="toast('tezlik-2026-08-10.csv yuklab olindi')">⬇ CSV</button></div>
+    <div class="tw"><table>
+      <thead><tr><th>Mukofot</th><th>Sotilgan</th><th class="r">Kunlik tezlik</th><th class="r">To'lishiga</th><th>Baho</th><th></th></tr></thead>
+      <tbody>${VELOCITY.map(v=>{const pct=Math.round(v.sold/v.limit*100);
+        return `<tr><td><span class="thumb" style="width:22px;height:22px;font-size:12px;display:inline-grid;vertical-align:middle">${v.ico}</span>
+          <span class="t-main" style="margin-left:6px">${v.name}</span></td>
+        <td><span class="mini"><i style="width:${pct}%;background:var(--${pct>=100?'warn':'ok'})"></i></span>
+          <span class="num" style="margin-left:6px">${v.sold}/${v.limit}</span></td>
+        <td class="r">${v.perDay.toFixed(1)} <span class="dim3">karta/kun</span></td>
+        <td class="r ${v.tag==='ulgurmaydi'?'dif-err':''}">${v.eta}</td>
+        <td><span class="bdg ${TAG[v.tag][0]}">${TAG[v.tag][1]}</span></td>
+        <td class="r">${v.tag==="ulgurmaydi"?`<button class="btn sm" onclick="event.stopPropagation();toast('Narx pasaytirish taklifi: 6 300 → 4 200 ball')">📐 Narxni tushirish</button>`:""}</td></tr>`}).join("")}</tbody>
+    </table></div>
+    <div class="card-b"><div class="note" style="border-left-color:var(--bad)">
+      <b>2 ta mukofot mavsumga ulgurmaydi</b> — «iPhone 12» (22 kun kerak, 21 kun qoldi) va «Choy serviz»
+      (45 kun). Ular to'lmasa <b>tirajga tushmaydi</b> va karta olganlarga ball qaytarish kerak bo'ladi.
+      Ikki yo'l: narxni tushirish yoki FINAL-48 dan oldin kartalarni bekor qilish.</div></div></div>`;
+}
+
+function viewMukofot(){
+  const head=tabs("mukofot",[["katalog","🎁 Katalog",PRIZES.length],["tezlik","📈 Tezlik",null],["byudjet","💰 Byudjet",null]]);
+  if(SUB.mukofot==="tezlik") return head+viewTezlik();
+  if(SUB.mukofot==="byudjet") return head+viewByudjet();
+  let rows=PRIZES.slice();
+  if(FILTER!=="all") rows=rows.filter(p=>p.stage===FILTER);
+  if(Q) rows=rows.filter(p=>p.name.toLowerCase().includes(Q.toLowerCase()));
+  const cnt=s=>PRIZES.filter(p=>p.stage===s).length;
+  return head+`
+  <div class="card">
+    <div class="card-h"><span class="card-t">Mukofot katalogi</span>
+      <span class="card-sub">${N(rows.length)} qator · ${SEL.size?`<b style="color:var(--brand-ink)">${SEL.size} ta belgilandi</b>`:"qatorni belgilab ommaviy amal qiling"}</span>
+      <div class="spacer row">
+        <input class="inp srch" placeholder="🔍 Mukofot nomi…" value="${Q}" oninput="Q=this.value;render();document.querySelector('.srch').focus()">
+        <button class="btn" onclick="openImport()">📥 Excel'dan yuklash</button>
+        <button class="btn pri" onclick="toast('Yangi mukofot oynasi ochiladi')">＋ Qo'shish</button>
+      </div></div>
+
+    <div class="card-b" style="padding:var(--s-3) var(--s-4)">
+      <div class="chips">
+        <button class="chip" aria-pressed="${FILTER==='all'}" onclick="FILTER='all';render()">Hammasi <b>${PRIZES.length}</b></button>
+        ${Object.entries(STAGE).map(([k,v])=>`<button class="chip" aria-pressed="${FILTER===k}" onclick="FILTER='${k}';render()">${v[0]} <b>${cnt(k)}</b></button>`).join("")}
+      </div>
+    </div>
+
+    ${SEL.size?`<div class="card-b" style="padding:var(--s-2) var(--s-4);background:var(--brand-soft);border-block:1px solid var(--brand-line)">
+      <div class="row"><b style="font-size:var(--fs-12);color:var(--brand-ink)">${SEL.size} ta mukofot belgilandi</b>
+        <button class="btn sm" onclick="bulk('navbatga surildi')">📋 Navbatga sur</button>
+        <button class="btn sm" onclick="bulk('vitrinaga chiqarildi')">🟢 Vitrinaga chiqar</button>
+        <button class="btn sm" onclick="bulk('narxi qayta hisoblandi')">🧮 Narxni qayta hisobla</button>
+        <button class="btn sm dgr" onclick="bulk('yashirildi')">🙈 Yashir</button>
+        <button class="btn sm ghost spacer" onclick="SEL.clear();render()">Bekor</button></div></div>`:""}
+
+    <div class="tw"><table>
+      <thead><tr><th style="width:30px"></th><th>Mukofot</th><th class="r">Real narx</th><th class="r">Ball</th>
+        <th>Sotilgan</th><th class="r">Qoplash</th><th>Qo'riq</th><th>Holat</th><th></th></tr></thead>
+      <tbody>${rows.map(p=>{
+        const pct=p.limit?Math.round(p.sold/p.limit*100):0;
+        const som=Number(p.som.replace(/\s/g,""));
+        const cover=(p.limit*p.price*1)/som;
+        const guard=p.sold>=Math.ceil(p.limit*.6);
+        return `<tr class="${SEL.has(p.key)?'sel':''}" onclick="openPrize('${p.key}')">
+          <td onclick="event.stopPropagation();togSel('${p.key}')"><input type="checkbox" ${SEL.has(p.key)?"checked":""} style="accent-color:var(--brand)"></td>
+          <td><div class="row" style="gap:var(--s-2);flex-wrap:nowrap">
+            <span class="thumb">${p.photo?p.ico:"＋"}</span>
+            <span><span class="t-main">${p.name}</span>
+              <div class="t-sub">${p.photo?"rasm bor":'<span class="dif-err">rasm yo\'q</span>'} · ${p.limit} o'rin</div></span></div></td>
+          <td class="r">${p.som}</td><td class="r t-coin">${N(p.price)}</td>
+          <td><span class="mini"><i style="width:${pct}%;background:var(--${pct>=100?'warn':'ok'})"></i></span>
+            <span class="num" style="margin-left:6px">${p.sold}/${p.limit}</span></td>
+          <td class="r ${cover>=3?'dif-add':'dif-err'}">${cover.toFixed(1)}×</td>
+          <td>${p.stage==="queued"?'<span class="dim3">—</span>':guard?'<span class="bdg ok">tirajda</span>':'<span class="bdg bad">yetmaydi</span>'}</td>
+          <td><span class="bdg ${STAGE[p.stage][1]}">${STAGE[p.stage][0]}</span></td>
+          <td class="r"><span class="dim3">Ochish →</span></td></tr>`}).join("")}</tbody>
+    </table></div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><span class="card-t">Rasm yuklash</span>
+      <span class="card-sub">5 ta mukofotda rasm yo'q</span></div>
+      <div class="card-b"><div class="drop" id="drop" onclick="toast('Fayl tanlash oynasi ochiladi')">
+        <b>Rasmlarni shu yerga tashlang</b>
+        Bir vaqtda 50 tagacha · nomi bo'yicha mukofotga <b>o'zi biriktiriladi</b><br>
+        <span class="dim3">yoki bosib tanlang · JPG/PNG/HEIC · avtomatik kvadrat va siqiladi</span></div>
+        <div class="note" style="margin-top:var(--s-3)">Hozir rasm faqat <b>tashqi havola</b> bilan qo'yiladi va
+        server uni har safar o'sha saytdan yuklaydi — sayt o'chsa vitrina bo'shab qoladi. Yuklangan rasm
+        Telegram'da saqlanadi, ya'ni <b>abadiy</b> va tez.</div></div></div>
+
+    <div class="card"><div class="card-h"><span class="card-t">Katalog tarixi</span>
+      <span class="card-sub">har yozuvdan oldin nusxa olinadi</span></div>
+      <div class="card-b col">
+        ${[["10 avg 09:12","iPhone 12 narxi 5 600 → 6 300","Ega"],
+           ["10 avg 09:11","4 ta mukofot navbatga surildi","Ega"],
+           ["9 avg 16:40","12 ta mukofot Excel'dan yuklandi","Ega"],
+           ["8 avg 11:20","«Choy serviz» o'rni 20 → 12","Ega"]]
+          .map(a=>`<div class="row" style="justify-content:space-between;gap:var(--s-3)">
+            <span style="font-size:var(--fs-12)"><span class="dim3 mono">${a[0]}</span> &nbsp;${a[1]} <span class="dim3">· ${a[2]}</span></span>
+            <button class="btn sm ghost" onclick="toast('Shu holatga qaytarildi — katalog tiklandi','warn')">↩ Qaytarish</button></div>`).join("")}
+        <div class="note">Har qanday xato <b>bitta bosishda</b> orqaga qaytadi. Hozir bunday imkoniyat yo'q —
+        noto'g'ri narx yozilsa qo'lda qidirib tuzatiladi.</div>
+      </div></div>
+  </div>`;
+}
+function togSel(k){ SEL.has(k)?SEL.delete(k):SEL.add(k); render(); }
+function bulk(w){ toast(`${SEL.size} ta mukofot ${w} · audit jurnaliga yozildi`); SEL.clear(); render(); }
+
+function openPrize(k){
+  const p=PRIZES.find(x=>x.key===k); if(!p) return;
+  const som=Number(p.som.replace(/\s/g,""));
+  const drw=document.getElementById("drw");
+  drw.innerHTML=`
+    <div class="drw-h"><div class="thumb" style="width:38px;height:38px;font-size:20px">${p.ico}</div>
+      <div style="flex:1"><div style="font-weight:var(--fw-bold);font-size:var(--fs-16)">${p.name}</div>
+        <div class="dim">${p.som} so'm · <span class="bdg ${STAGE[p.stage][1]}">${STAGE[p.stage][0]}</span></div></div>
+      <button class="btn sm ghost" onclick="closeAll()">✕</button></div>
+    <div class="drw-b">
+      <div class="drop" onclick="toast('Rasm yuklandi va Telegram\\'da saqlandi')">
+        <b>${p.photo?"Rasmni almashtirish":"Rasm yuklash"}</b>Tashlang yoki bosing</div>
+
+      <div><div class="sec-t">Asosiy</div>
+        <div class="col" style="gap:var(--s-2)">
+          <div class="row"><span class="dim" style="width:110px">Nomi</span><input class="inp" value="${p.name}"></div>
+          <div class="row"><span class="dim" style="width:110px">Real narxi</span><input class="inp" value="${p.som}"></div>
+          <div class="row"><span class="dim" style="width:110px">Karta bahosi</span><input class="inp" value="${p.price}" style="max-width:110px"><span class="dim3">ball</span></div>
+          <div class="row"><span class="dim" style="width:110px">O'rinlar</span><input class="inp" value="${p.limit}" style="max-width:110px"><span class="dim3">sotilgan: ${p.sold}</span></div>
+        </div></div>
+
+      <div><div class="sec-t">Narx maslahatchisi — bitta manba</div>
+        <div class="note" style="border-left-color:var(--brand)">
+          Hozirgi holat: <b>${((p.limit*p.price)/som).toFixed(1)}× qoplash</b> ${((p.limit*p.price)/som)>=3?"✓ kafolat bajarilgan":"— kerak 3.0×"}<br>
+          Bitta karta ≈ <b>${Math.round(p.price/35)} safarlik mehnat</b> · <b>${(p.price/1050).toFixed(1)} oyda</b> yetadi ·
+          imkoniyat <b>1/${p.limit}</b><br>
+          <span class="dim3">Hozir bu hisob panelda IKKI xil formuladan chiqadi va ikki xil «to'g'ri narx» beradi —
+          yangi panelda bitta.</span></div>
+        <div class="row" style="margin-top:var(--s-2)">
+          <button class="btn sm" onclick="toast('Tavsiya qo‘yildi: 3 oy · 3 600 ball · 39 o‘rin')">📐 3 oyda yetsin</button>
+          <button class="btn sm" onclick="toast('Tavsiya qo‘yildi: 6 oy · 6 300 ball · 42 o‘rin')">📐 6 oyda</button>
+          <button class="btn sm" onclick="toast('Tavsiya qo‘yildi: 10 oy · 9 000 ball · 45 o‘rin')">📐 10 oyda</button></div></div>
+
+      <div><div class="sec-t">Kim karta olgan (${p.sold})</div>
+        <div class="tw"><table><thead><tr><th>№</th><th>Egasi</th><th>Olingan</th></tr></thead>
+        <tbody>${CARDS.slice(0,4).map((c,i)=>`<tr><td class="mono">№${c.no}</td><td>${c.owner}</td><td class="t-sub">${c.at}</td></tr>`).join("")}</tbody></table></div></div>
+    </div>
+    <div class="drw-f">
+      <button class="btn pri" onclick="toast('«${p.name}» saqlandi · audit jurnaliga yozildi')">Saqlash</button>
+      <button class="btn" onclick="toast('Navbatga surildi — mijoz endi ko‘rmaydi','warn')">📋 Navbatga</button>
+      <button class="btn dgr" onclick="toast('${p.sold} ta karta bekor qilindi, ball egalariga qaytdi','warn')">♻️ Kartalarni bekor qil</button>
+    </div>`;
+  drw.classList.add("on"); document.getElementById("scrim").classList.add("on");
+}
+
+/* ── IMPORT SEHRGARI ────────────────────────────────────────────────────── */
+let IMP_STEP=1;
+const IMP_SAMPLE=`Velosiped Desna\t1 250 000\t🚲
+Quloqchin JBL\t560 000\t🎧
+Qo'l soati Casio\t420 000\t⌚
+Maktab sumkasi\t95 000\t🎒
+Choy serviz 12 kishilik\t145 000\t🍵
+Sartarosh mashinkasi\tnarx yo'q\t✂️`;
+function openImport(){ IMP_STEP=1; renderImport(); document.getElementById("mdl").classList.add("on"); }
+function closeMdl(){ document.getElementById("mdl").classList.remove("on"); }
+function renderImport(){
+  const steps=["Ma'lumot","Ustunlar","Ko'rib chiqish","Qo'llash"];
+  const head=`<div class="step">${steps.map((s,i)=>`
+    <span class="step-i ${IMP_STEP===i+1?'on':IMP_STEP>i+1?'done':''}"><b>${IMP_STEP>i+1?'✓':i+1}</b>${s}</span>
+    ${i<3?'<span class="step-d"></span>':''}`).join("")}
+    <button class="btn sm ghost spacer" onclick="closeMdl()">✕</button></div>`;
+  let body="";
+  if(IMP_STEP===1) body=`<div class="card-b col">
+    <div class="drop" onclick="toast('Fayl tanlash oynasi — .csv / .xlsx')"><b>Excel faylini tashlang</b>
+      yoki Excel'dan nusxalab pastga qo'ying · .csv · .xlsx</div>
+    <textarea class="inp" rows="7">${IMP_SAMPLE}</textarea>
+    <div class="dim3">6 ta satr o'qildi · birinchi satr sarlavha emas deb belgilandi</div></div>
+    <div class="drw-f"><button class="btn pri spacer" onclick="IMP_STEP=2;renderImport()">Davom →</button></div>`;
+  if(IMP_STEP===2) body=`<div class="card-b col">
+    <div class="dim">Qaysi ustun nima ekanini tanlang — bir marta, keyingi safar eslab qoladi.</div>
+    <div class="tw"><table><thead><tr><th>Ustun</th><th>Namuna</th><th>Bu nima?</th></tr></thead><tbody>
+      ${[["A","Velosiped Desna","nom"],["B","1 250 000","narx"],["C","🚲","emoji"]].map(c=>`<tr>
+        <td class="mono">${c[0]}</td><td class="t-sub">${c[1]}</td>
+        <td><select class="inp" style="max-width:180px">
+          <option ${c[2]==="nom"?"selected":""}>Mukofot nomi</option>
+          <option ${c[2]==="narx"?"selected":""}>Real narxi (so'm)</option>
+          <option ${c[2]==="emoji"?"selected":""}>Emoji</option>
+          <option>Rasm havolasi</option><option>Ishlatilmasin</option></select></td></tr>`).join("")}
+    </tbody></table></div>
+    <div class="note">Karta bahosi va o'rinlar soni <b>o'zi hisoblanadi</b> — siz faqat narx yozasiz.
+      Hammasi <b>navbatga</b> tushadi, mijoz darhol ko'rmaydi.</div></div>
+    <div class="drw-f"><button class="btn" onclick="IMP_STEP=1;renderImport()">← Orqaga</button>
+      <button class="btn pri spacer" onclick="IMP_STEP=3;renderImport()">Ko'rib chiqish →</button></div>`;
+  if(IMP_STEP===3){
+    const rows=[["add","🚲 Velosiped Desna","1 250 000","1 400 ball × 30 o'rin","3.4×"],
+      ["add","🎧 Quloqchin JBL","560 000","700 ball × 27 o'rin","3.4×"],
+      ["add","⌚ Qo'l soati Casio","420 000","700 ball × 20 o'rin","3.3×"],
+      ["add","🎒 Maktab sumkasi","95 000","350 ball × 10 o'rin","3.7×"],
+      ["chg","🍵 Choy serviz 12 kishilik","120 000 → 145 000","350 ball × 12 → 15 o'rin","3.6×"],
+      ["err","✂️ Sartarosh mashinkasi","narx o'qilmadi","—","—"]];
+    body=`<div class="card-b col">
+      <div class="row"><span class="bdg ok">4 ta yangi</span><span class="bdg warn">1 tasi o'zgaradi</span>
+        <span class="bdg bad">1 ta xato</span><span class="dim3 spacer">Bosishdan oldin aynan nima bo'lishini ko'rasiz</span></div>
+      <div class="tw"><table><thead><tr><th></th><th>Mukofot</th><th>Narx</th><th>Karta rejasi</th><th class="r">Qoplash</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr>
+        <td>${r[0]==="add"?'<span class="bdg ok">yangi</span>':r[0]==="chg"?'<span class="bdg warn">o\'zgaradi</span>':'<span class="bdg bad">xato</span>'}</td>
+        <td class="${r[0]==="err"?"dif-err":""}">${r[1]}</td>
+        <td class="${r[0]==="chg"?"dif-chg":r[0]==="err"?"dif-err":""}">${r[2]}</td>
+        <td class="t-sub">${r[3]}</td><td class="r">${r[4]}</td></tr>`).join("")}</tbody></table></div>
+      <div class="note" style="border-left-color:var(--bad)"><b>1 ta satr o'tkazib yuboriladi:</b>
+        «Sartarosh mashinkasi» — narx ustunida raqam yo'q («narx yo'q» yozilgan).
+        Xato satr <b>jimgina yo'qolmaydi</b>, shu yerda sanaladi.</div></div>
+      <div class="drw-f"><button class="btn" onclick="IMP_STEP=2;renderImport()">← Orqaga</button>
+        <button class="btn pri spacer" onclick="IMP_STEP=4;renderImport()">5 ta o'zgarishni qo'llash</button></div>`;
+  }
+  if(IMP_STEP===4) body=`<div class="card-b col" style="align-items:center;text-align:center;padding:var(--s-8)">
+    <div style="font-size:38px">✓</div>
+    <div style="font-size:var(--fs-20);font-weight:var(--fw-bold)">4 ta qo'shildi · 1 tasi yangilandi</div>
+    <div class="dim">Hammasi <b>navbatda</b> — mijoz hali ko'rmaydi. Bitta so'rovda, bitta yozuvda bajarildi.</div>
+    <div class="row" style="justify-content:center">
+      <button class="btn" onclick="toast('Import bekor qilindi — katalog avvalgi holatga qaytdi','warn');closeMdl()">↩ Butun importni qaytarish</button>
+      <button class="btn pri" onclick="closeMdl();toast('Katalog yangilandi')">Yopish</button></div></div>`;
+  document.getElementById("mdlC").innerHTML=`<div class="card-h"><span class="card-t">📥 Excel'dan mukofot yuklash</span>
+    <span class="card-sub">100 tagacha · bitta atomik yozuv · qaytarish mumkin</span></div>${head}${body}`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   4. 💳 KARTALAR & TIRAJ
+   ══════════════════════════════════════════════════════════════════════════ */
+function viewKartalar(){
+  let rows=CARDS.slice();
+  if(Q) rows=rows.filter(c=>c.owner.toLowerCase().includes(Q.toLowerCase())||String(c.no)===Q);
+  return `
+  <div class="grid g4">
+    ${[["Chiqarilgan","1 284","joriy mavsumda",""],["To'lgan mukofot","3","tiraj kutmoqda","warn"],
+       ["Muzlatilmagan","🔓","yangi karta qo'shilishi mumkin",""],["Sinov kartasi","7","tirajga kirmaydi",""]]
+      .map(s=>`<div class="stat ${s[3]}"><span class="stat-k">${s[0]}</span><span class="stat-v">${s[1]}</span><span class="stat-s">${s[2]}</span></div>`).join("")}
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span class="card-t">🎬 Mukofot kuni</span>
+      <span class="card-sub">3 ta mukofot tayyor · to'liq ekran rejimida o'tkaziladi</span>
+      <div class="spacer row">
+        <button class="btn" onclick="toast('Ro‘yxat muzlatildi — endi hech kim (siz ham) karta qo‘sha olmaydi','warn')">🔒 Ro'yxatni muzlatish</button>
+        <button class="btn pri" onclick="toast('To‘liq ekran tiraj rejimi ochiladi — katta raqam, bloger uchun')">▶ Tirajni boshlash</button></div></div>
+    <div class="card-b flush">
+      ${[["❄️","Muzlatgich Artel 340L","39/39","4 200 000"],["📺","Televizor Samsung 43\"","34/34","3 600 000"],["🍲","Mikroto'lqinli pech","34/34","900 000"]]
+        .map(p=>`<div class="task ok"><span class="thumb">${p[0]}</span>
+          <span class="task-x"><b>${p[1]}</b> — ${p[2]} karta sotildi · ${p[3]} so'm</span>
+          <span class="bdg ok">tirajga tayyor</span>
+          <button class="btn sm" onclick="toast('${p[1]} — g‘olib kartasi tanlanadi')">Tortish</button></div>`).join("")}
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span class="card-t">Karta reyestri</span>
+      <span class="card-sub">${N(rows.length)} qator · <b style="color:var(--brand-ink)">sana ustuni bilan</b></span>
+      <div class="spacer row">
+        <input class="inp srch" placeholder="🔍 Egasi yoki karta №…" value="${Q}" oninput="Q=this.value;render();document.querySelector('.srch').focus()">
+        <button class="btn sm" onclick="toast('kartalar-2026-08-10.csv yuklab olindi')">⬇ CSV</button></div></div>
+    <div class="tw"><table>
+      <thead><tr><th>Karta №</th><th>Mukofot</th><th>Egasi</th><th>Olingan</th><th>Holat</th></tr></thead>
+      <tbody>${rows.map(c=>{const p=PRIZES.find(x=>x.key===c.prize);
+        return `<tr onclick="openPerson(${c.mid})"><td class="mono t-main">№${c.no}</td>
+        <td>${p.ico} ${p.name}</td><td>${c.owner} <span class="t-sub mono">#${c.mid}</span></td>
+        <td class="t-sub">${c.at}</td>
+        <td>${c.st==="g'olib"?'<span class="bdg ok">🏆 G\'OLIB</span>':c.st==="to'lgan"?'<span class="bdg warn">📦 to\'lgan</span>':'<span class="bdg mute">🎟 tirajda</span>'}</td></tr>`}).join("")}</tbody>
+    </table></div>
+  </div>
+  <div class="note">Hozirgi panelda <b>sana ustuni yo'q</b> — server eksportida maydon tashlab ketilgan
+  (ma'lumot bazada bor). «Kim qachon karta oldi» savoliga hozir javob berib bo'lmaydi.</div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   5. 📸 HIKOYALAR — hikoya-isbot moderatsiyasi (eski StoryModerationCard)
+   ══════════════════════════════════════════════════════════════════════════ */
+function viewHikoya(){
+  return `
+  <div class="grid g4">
+    ${[["Kutmoqda","5","tekshiruv kerak","warn"],["Bugun tasdiqlangan","12","+1 200 ball","ok"],
+       ["Rad etilgan","3","havola ochilmadi",""],["Mavsumda jami","94","yuborgan odam",""]]
+      .map(s=>`<div class="stat ${s[3]}"><span class="stat-k">${s[0]}</span><span class="stat-v">${s[1]}</span><span class="stat-s">${s[2]}</span></div>`).join("")}
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span class="card-t">📸 Tekshiruv navbati</span>
+      <span class="card-sub">havolani oching — hikoya rostdan bormi. Avtomatik tasdiq YO'Q</span>
+      <span class="bdg warn spacer">5 ta kutmoqda</span></div>
+    <div class="card-b flush">
+      ${STORIES.map(s=>`<div class="task ${s.hours>=24?'bad':'warn'}">
+        <div class="ava" style="width:32px;height:32px;font-size:var(--fs-12)">${s.name.slice(0,2).toUpperCase()}</div>
+        <span class="task-x">
+          <b>${s.name}</b> <span class="t-sub mono">#${s.mid}</span>
+          <div class="dim3" style="margin-top:2px">Mavsumda ${s.inSeason} ta tasdiqlangan ·
+            ${s.hours>=24?`<span class="dif-err">${s.hours} soat kutmoqda ⚠</span>`:`${s.hours} soat kutmoqda`}</div>
+        </span>
+        <a class="btn sm" href="https://${s.url}" target="_blank" rel="noreferrer">🔗 Havolani ochish</a>
+        <button class="btn sm pri" onclick="toast('«${s.name}» tasdiqlandi — +100 ball tushdi, mijozga xabar ketdi')">✅ Tasdiqlash</button>
+        <button class="btn sm dgr" onclick="openReject('${s.name}')">❌ Rad</button>
+      </div>`).join("")}
+    </div>
+  </div>
+
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><span class="card-t">Poster matnlari</span>
+      <span class="card-sub">mijoz hikoyasiga qo'yadigan 20 ta variant</span></div>
+      <div class="card-b col">
+        <div class="row">${["«Men BirJoy'da yutdim»","«Taksiga chiqdim — ball yig'dim»","«Muzlatgichga karta oldim»"]
+          .map(t=>`<span class="bdg mute">${t}</span>`).join("")}<span class="dim3">…yana 17 ta</span></div>
+        <div class="note">Matnlar tasodifiy tanlanadi — hamma bir xil poster qo'ymasin.
+          O'zgartirish uchun kod tegishi kerak emas, shu yerdan tahrirlanadi.</div>
+        <button class="btn sm" onclick="toast('Poster matnlari ro‘yxati ochiladi')">✏️ Tahrirlash</button></div></div>
+
+    <div class="card"><div class="card-h"><span class="card-t">Oxirgi qарорlar</span>
+      <span class="card-sub">kim tasdiqladi/rad etdi</span></div>
+      <div class="card-b">
+        <div class="tl">${[["09:22","ok","Nodira Yo'ldosheva — tasdiqlandi","+100"],
+          ["08:41","bad","Sardor A. — rad: «havola ochilmadi»","—"],
+          ["kecha","ok","Jasur To'raev — tasdiqlandi","+100"],
+          ["kecha","bad","Zilola R. — rad: «hikoya topilmadi»","—"]]
+          .map(t=>`<div class="tl-r ${t[1]}"><span class="tl-w">${t[0]}</span>
+            <span class="tl-x">${t[2]}</span><span class="tl-v ${t[3]==="+100"?"dif-add":""}">${t[3]}</span></div>`).join("")}</div></div></div>
+  </div>`;
+}
+function openReject(name){
+  document.getElementById("mdlC").innerHTML=`
+    <div class="card-h"><span class="card-t">Hikoyani rad etish</span>
+      <button class="btn sm ghost spacer" onclick="closeMdl()">✕</button></div>
+    <div class="card-b col">
+      <div class="dim">Sabab <b>aynan shu matn bilan</b> ${name}ga boradi — shuning uchun aniq yozing.</div>
+      <div class="chips">${["Hikoya topilmadi","Havola ochilmadi","Poster ko'rinmayapti","Hikoya o'chirilgan"]
+        .map(r=>`<button class="chip" onclick="document.getElementById('rjI').value='${r}'">${r}</button>`).join("")}</div>
+      <input class="inp" id="rjI" value="Hikoya topilmadi"></div>
+    <div class="drw-f"><button class="btn ghost" onclick="closeMdl()">Bekor</button>
+      <button class="btn dgr spacer" onclick="closeMdl();toast('«${name}» rad etildi — sabab yuborildi','warn')">Rad etish</button></div>`;
+  document.getElementById("mdl").classList.add("on");
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   6. 👑 GASHTAK — guruh nazorati (eski OyinGashtakBlock, 7 amal)
+   ══════════════════════════════════════════════════════════════════════════ */
+function viewGashtak(){
+  let rows=GASHTAK.slice();
+  if(Q) rows=rows.filter(g=>g.name.toLowerCase().includes(Q.toLowerCase())||g.code.toLowerCase().includes(Q.toLowerCase())||g.leader.toLowerCase().includes(Q.toLowerCase()));
+  return `
+  <div class="grid g4">
+    ${[["Faol guruh","4","1 tasi tarqatilgan",""],["Guruhdagi odam","38","o'rtacha 7.8 kishi",""],
+       ["Berilgan ball","56 900","navbat bonuslari","coin"],["Navbat belgilanmagan","1","«Mahalla-7»","warn"]]
+      .map(s=>`<div class="stat ${s[3]}"><span class="stat-k">${s[0]}</span><span class="stat-v">${s[1]}</span><span class="stat-s">${s[2]}</span></div>`).join("")}
+  </div>
+
+  <div class="card">
+    <div class="card-h"><span class="card-t">👑 Gashtak guruhlari</span>
+      <span class="card-sub">${rows.length} ta · guruh chiqarilsa ham o'tgan ball tarixi buzilmaydi</span>
+      <input class="inp srch spacer" placeholder="🔍 Nom, kod yoki boshliq…" value="${Q}" oninput="Q=this.value;render();document.querySelector('.srch').focus()"></div>
+    <div class="tw"><table>
+      <thead><tr><th>Guruh</th><th>Boshliq</th><th class="r">A'zo</th><th class="r">Jami ball</th><th>Bu oy navbat</th><th>Holat</th><th></th></tr></thead>
+      <tbody>${rows.map(g=>`<tr class="${GOPEN===g.code?'sel':''}" onclick="GOPEN=GOPEN===\'${g.code}\'?null:'${g.code}';render()">
+        <td><span class="t-main">${g.name}</span><div class="t-sub mono">${g.code}</div></td>
+        <td>${g.leader} <span class="t-sub mono">#${g.lid}</span></td>
+        <td class="r">${g.n}</td><td class="r t-coin">${N(g.ball)}</td>
+        <td class="${g.turn.includes('belgilanmagan')?'dif-chg':'t-sub'}">${g.turn}</td>
+        <td>${g.dis?'<span class="bdg mute">tarqatilgan</span>':'<span class="bdg ok">faol</span>'}</td>
+        <td class="r"><span class="dim3">${GOPEN===g.code?"Yopish ▲":"Ochish ▼"}</span></td></tr>`).join("")}</tbody>
+    </table></div>
+  </div>
+  ${GOPEN?gashtakDetail(GOPEN):`<div class="note">Guruhni bosing — a'zolari, navbati va boshqaruv
+    tugmalari shu yerda ochiladi (yangi sahifa emas).</div>`}`;
+}
+function gashtakDetail(code){
+  const g=GASHTAK.find(x=>x.code===code); if(!g) return "";
+  return `
+  <div class="card">
+    <div class="card-h"><span class="card-t">${g.name}</span><span class="card-sub mono">${g.code}</span>
+      ${g.dis?'<span class="bdg mute">TARQATILGAN</span>':`<button class="btn sm dgr spacer" onclick="toast('«${g.name}» tarqatildi — ball tarixi saqlandi','warn')">🗑 Tarqatish</button>`}</div>
+
+    <div class="card-b col">
+      <div class="note"><b>🧪 Sinov a'zo qo'shish</b> — jonli sinash uchun, haqiqiy Telegram akkaunt shart emas.
+        Haqiqiy a'zolarga tegmaydi.
+        <div class="row" style="margin-top:var(--s-2)">
+          <input class="inp" placeholder="Ism (masalan «Test 2»)" style="max-width:190px">
+          <input class="inp" placeholder="Boshlang'ich safar" style="max-width:150px">
+          <button class="btn sm" onclick="toast('Sinov a‘zo qo‘shildi')">+ Qo'shish</button>
+          <button class="btn sm ghost" onclick="toast('Sinov a‘zolar tozalandi')">🧹 Sinovlarni tozalash</button></div></div>
+
+      <div class="tw"><table>
+        <thead><tr><th>A'zo</th><th>Telefon</th><th>Qo'shilgan</th><th class="r">Umrbod safar</th><th class="r">Jami ball</th><th></th></tr></thead>
+        <tbody>${GMEMBERS.slice(0,g.n||5).map(m=>`<tr>
+          <td>${m.lead?"👑 ":""}${m.test?"🧪 ":""}<span class="t-main">${m.name}</span> <span class="t-sub mono">#${m.id}</span></td>
+          <td class="t-sub">${m.phone}</td><td class="t-sub">${m.joined}</td>
+          <td class="r">${m.test?`<input class="inp" value="${m.rides}" style="width:64px;height:24px;text-align:right">`:N(m.rides)}</td>
+          <td class="r t-coin">${N(m.ball)}</td>
+          <td class="r">${!m.lead?`<button class="btn sm" onclick="toast('${m.name} guruhdan chiqarildi — o‘tgan ball saqlandi','warn')">Chiqarish</button>`:""}</td></tr>`).join("")}</tbody>
+      </table></div>
+
+      <div class="note"><b>🎯 Navbatni qo'lda belgilash</b> — odatda boshliqning o'zi ilovada qiladi.
+        Bu — nizo yoki xato bosilgan holatlar uchun qolgan yo'l.
+        <div class="row" style="margin-top:var(--s-2)">
+          <input class="inp" value="2026-08" style="max-width:110px">
+          <select class="inp" style="max-width:200px"><option>Odam tanlang…</option>
+            ${GMEMBERS.slice(0,5).map(m=>`<option>${m.name}</option>`).join("")}</select>
+          <input class="inp" placeholder="Sabab / e'lon matni" style="flex:1;min-width:150px">
+          <button class="btn sm pri" onclick="toast('Navbat belgilandi · audit jurnaliga yozildi')">Belgilash</button></div>
+        <div style="margin-top:var(--s-2)"><b>📅 Tarix:</b>
+          <div class="dim3">2026-07: Dilshod (guruh qarori) · 2026-06: Nodira (boshliq belgiladi)</div></div></div>
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   7. 🔮 SIMULYATOR
+   ══════════════════════════════════════════════════════════════════════════ */
+let SIM={ride:35,refer:150,price:1.0};
+function simCalc(){
+  const em = Math.round(486000*(SIM.ride/35)*.55 + 486000*(SIM.refer/150)*.2 + 380000);
+  const cards = Math.round(em/(1200*SIM.price));
+  const cost = Math.round(cards*1200*SIM.price*1*.29);
+  const cover = (cards*1200*SIM.price)/Math.max(1,cost);
+  return {em,cards,cost,cover};
+}
+function viewSim(){
+  const r=simCalc();
+  return `
+  <div class="note" style="border-left-color:var(--brand)">
+    <b>Bu — sizdagi raqamli egizakning paneldagi yuzi.</b> Loyihada allaqachon Monte-Carlo simulyatori bor
+    (<span class="mono">sim/predict.ts</span>, <span class="mono">runArms.ts</span>, 1067'ning iyul bozori bilan kalibrlangan).
+    Hozir u faqat terminalda ishlaydi. Yangi panelda — <b>tugmani surasiz, mavsum oxirigacha nima bo'lishini ko'rasiz.</b></div>
+
+  <div class="grid g2" style="grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr)">
+    <div class="card"><div class="card-h"><span class="card-t">Nima o'zgartiramiz</span>
+      <button class="btn sm ghost spacer" onclick="SIM={ride:35,refer:150,price:1.0};render()">↺ Hozirgi holat</button></div>
+      <div class="card-b">
+        <div class="knob"><div class="knob-k">Safar bali<small>bitta safar uchun necha ball</small>
+          <input type="range" min="0" max="80" step="5" value="${SIM.ride}" oninput="SIM.ride=+this.value;render()"></div>
+          <span class="knob-v">${SIM.ride} <span class="dim3">ball</span></span></div>
+        <div class="knob"><div class="knob-k">Do'st olib kelish<small>do'stning birinchi safaridan</small>
+          <input type="range" min="0" max="400" step="25" value="${SIM.refer}" oninput="SIM.refer=+this.value;render()"></div>
+          <span class="knob-v">${SIM.refer} <span class="dim3">ball</span></span></div>
+        <div class="knob"><div class="knob-k">Karta bahosi<small>butun katalog bo'ylab ko'paytiruvchi</small>
+          <input type="range" min="0.5" max="2" step="0.1" value="${SIM.price}" oninput="SIM.price=+this.value;render()"></div>
+          <span class="knob-v">${SIM.price.toFixed(1)}×</span></div>
+        <div class="row" style="margin-top:var(--s-3)">
+          <button class="btn pri" onclick="toast('1 000 ta mavsum yurgizildi — natija o‘ngda')">▶ 1 000 marta yurgizish</button>
+          <button class="btn" onclick="toast('Bu sozlama «Sozlama» bo‘limiga ko‘chirildi (hali saqlanmadi)')">📋 Panelga ko'chirish</button></div>
+      </div></div>
+
+    <div class="card"><div class="card-h"><span class="card-t">Mavsum oxirida nima bo'ladi</span>
+      <span class="card-sub">1 000 ta yurgizishdan · P10–P90 oralig'i</span></div>
+      <div class="card-b col">
+        <div class="grid g4" style="gap:var(--s-2)">
+          ${[["Berilgan ball",N(r.em),"coin"],["Sotilgan karta",N(r.cards),""],
+             ["Sizga tushadi",(r.cost/1e6).toFixed(1)+"M","bad"],["Qoplash",r.cover.toFixed(1)+"×",r.cover>=3?"ok":"bad"]]
+            .map(s=>`<div class="stat ${s[2]}" style="padding:var(--s-2) var(--s-3)"><span class="stat-k">${s[0]}</span>
+              <span class="stat-v" style="font-size:var(--fs-20)">${s[1]}</span></div>`).join("")}
+        </div>
+        <div><div class="sec-t">Ishonch oralig'i</div>
+          ${[["Ball",18,64],["Karta",26,71],["Xarajat",31,58]].map(q=>`<div class="qt"><span class="dim">${q[0]}</span>
+            <span class="qt-t"><span class="qt-b" style="left:${q[1]}%;right:${100-q[2]}%"></span>
+              <span class="qt-m" style="left:${(q[1]+q[2])/2}%"></span></span></div>`).join("")}
+          <div class="dim3">Chiziq — 80% ehtimollik oralig'i, o'rtadagi belgi — eng ehtimolli natija.</div></div>
+        ${r.cover<3?`<div class="note" style="border-left-color:var(--bad)">
+          <b>⚠ Qoplash 3× dan past.</b> Bu sozlamada har to'lgan mukofot sizga zarar keltiradi.
+          Safar balini kamaytiring yoki karta bahosini oshiring.</div>`:`<div class="note" style="border-left-color:var(--ok)">
+          <b>✓ Kafolat bajarilgan.</b> Har to'lgan mukofot ${r.cover.toFixed(1)}× qoplanadi.</div>`}
+      </div></div>
+  </div>
+
+  <div class="card"><div class="card-h"><span class="card-t">Ikki yo'lni solishtirish</span>
+    <span class="card-sub">A/B — qaysi biri ko'proq safar keltiradi</span></div>
+    <div class="card-b"><div class="vs">
+      <div class="vs-c"><div class="vs-t">A · Hozirgi holat</div>
+        <div class="col" style="gap:5px;font-size:var(--fs-12)">
+          <div class="row" style="justify-content:space-between"><span class="dim">Safar/oy</span><b class="num">1 956</b></div>
+          <div class="row" style="justify-content:space-between"><span class="dim">Ball xarajati</span><b class="num">4.1M</b></div>
+          <div class="row" style="justify-content:space-between"><span class="dim">Bir safar narxi</span><b class="num">2 096</b></div>
+          <div class="row" style="justify-content:space-between"><span class="dim">Qoplash</span><b class="num dif-add">3.2×</b></div></div></div>
+      <div class="vs-c win"><div class="vs-t">B · Safar bali 45 + karta 1.2×</div>
+        <div class="col" style="gap:5px;font-size:var(--fs-12)">
+          <div class="row" style="justify-content:space-between"><span class="dim">Safar/oy</span><b class="num dif-add">2 240 ↑14%</b></div>
+          <div class="row" style="justify-content:space-between"><span class="dim">Ball xarajati</span><b class="num">4.4M</b></div>
+          <div class="row" style="justify-content:space-between"><span class="dim">Bir safar narxi</span><b class="num dif-add">1 964 ↓6%</b></div>
+          <div class="row" style="justify-content:space-between"><span class="dim">Qoplash</span><b class="num dif-add">3.4×</b></div></div></div>
+    </div>
+    <div class="note" style="margin-top:var(--s-3)">B yo'li 1 000 ta yurgizishning <b>780 tasida</b> yutdi.
+      Qolgan 220 tasida farq sezilmadi — <b>zarar chiqqan holat yo'q</b>.</div></div></div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   6. ⚙ SOZLAMA & AUDIT
+   ══════════════════════════════════════════════════════════════════════════ */
+/* 🏅 HOMIY — eski OyinSponsorCard */
+function viewHomiy(){
+  return `
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><span class="card-t">🏅 Mavsum homiysi</span>
+      <span class="card-sub">nomi va logotipi mijoz ekranida va posterda chiqadi</span></div>
+      <div class="card-b col">
+        <div class="row"><span class="dim" style="width:110px">Homiy nomi</span>
+          <input class="inp" value="Artel Kasan"></div>
+        <div class="drop" onclick="toast('Logotip yuklandi')"><b>Logotipni yuklash</b>
+          PNG shaffof fon bilan yaxshiroq · hozir: artel-logo.png</div>
+        <label class="row" style="gap:8px"><input type="checkbox" checked style="accent-color:var(--brand)">
+          <span>Mijoz ekranida ko'rsatilsin</span></label>
+        <div class="note">O'chirilsa BirJoy'ning o'z nomi chiqadi — bo'sh joy qolmaydi.</div>
+        <button class="btn pri" style="align-self:flex-start" onclick="toast('Homiy saqlandi')">Saqlash</button>
+      </div></div>
+    <div class="card"><div class="card-h"><span class="card-t">Qayerda ko'rinadi</span></div>
+      <div class="card-b col">
+        ${[["📱 Mijoz o'yin ekrani","tepada, mukofot ro'yxati ustida"],
+           ["📸 Hikoya posteri","pastki burchakda logotip"],
+           ["🎬 Tiraj studiyasi","to'liq ekran, g'olib e'lon qilinganda"],
+           ["🤖 Bot xabarlari","mukofot yutgani haqidagi xabarda"]]
+          .map(p=>`<div class="row" style="justify-content:space-between"><b style="font-size:var(--fs-12)">${p[0]}</b>
+            <span class="dim3">${p[1]}</span></div>`).join("")}</div></div>
+  </div>`;
+}
+
+/* 🧪 MEN — eski OyinMeBlock */
+function viewMen(){
+  return `
+  <div class="card">
+    <div class="card-h"><span class="card-t">🧪 Men — o'zim o'ynab ko'raman</span>
+      <span class="card-sub">Sarvarxon H. · <span class="mono">#1305</span></span>
+      <button class="btn sm ghost spacer" onclick="toast('Boshqa odam tanlanadi')">✕ Bu men emasman</button></div>
+    <div class="card-b col">
+      <div class="note" style="border-left-color:var(--warn)">
+        Bu yerdagi har harakat <b>REAL</b>: ball ham, karta ham haqiqiy hisobga tushadi va audit jurnaliga yoziladi.
+        Sinov kartalari <b>tirajga kirmaydi</b> (eksportdan chiqariladi), lekin mukofotdagi o'rinni EGALLAYDI —
+        sinovdan keyin tozalab qo'ying.</div>
+      <div class="grid g4">
+        ${[["Ballim","980","coin"],["Yig'ilgan","1 480",""],["Sarflangan","500",""],["Mavsum safarim","7","ok"]]
+          .map(s=>`<div class="stat ${s[2]}"><span class="stat-k">${s[0]}</span><span class="stat-v">${s[1]}</span></div>`).join("")}
+      </div>
+      <div class="row">
+        <button class="btn pri" onclick="toast('+5 000 ball qo‘shildi — yangi balans 5 980')">＋5 000 ball</button>
+        <button class="btn" onclick="toast('+1 000 ball qo‘shildi')">＋1 000 ball</button>
+        <button class="btn dgr" onclick="toast('1 ta sinov kartasi tozalandi — o‘rni mukofotga qaytdi','warn')">🧹 Kartalarimni tozalash (1)</button>
+        <button class="btn ghost" onclick="toast('Mijoz ilovasi ochiladi — siz ko‘radigan ekran')">📱 Mijoz ko'zi bilan ochish</button></div>
+      <div class="tw"><table><thead><tr><th>Karta</th><th>Mukofot</th><th class="r">Baho</th><th>Olingan</th></tr></thead>
+        <tbody><tr><td class="mono">№10469 🧪 SINOV</td><td>🥤 Blender Philips</td>
+          <td class="r t-coin">700</td><td class="t-sub">8 avg 10:22</td></tr></tbody></table></div>
+    </div></div>`;
+}
+
+function viewSozlama(){
+  const head=tabs("sozlama",[["mavsum","📅 Mavsum & ball",null],["audit","🧾 Audit",AUDIT.length],
+    ["homiy","🏅 Homiy",null],["men","🧪 Men",null],["flag","🔴 O'chirish tugmalari",null]]);
+  if(SUB.sozlama==="homiy") return head+viewHomiy();
+  if(SUB.sozlama==="men") return head+viewMen();
+  if(SUB.sozlama==="audit") return head+viewAudit();
+  if(SUB.sozlama==="flag") return head+viewFlag();
+  return head+`
+  <div class="grid g2">
+    <div class="card"><div class="card-h"><span class="card-t">Mavsum</span>
+      <span class="bdg ok">🟢 Ochiq · ${SEASON.daysLeft} kun qoldi</span></div>
+      <div class="card-b col">
+        <div class="row"><span class="dim" style="width:110px">Boshlanishi</span><input class="inp" type="datetime-local" value="2026-08-01T00:00"></div>
+        <div class="row"><span class="dim" style="width:110px">Tugashi</span><input class="inp" type="datetime-local" value="2026-08-31T23:59"></div>
+        <div class="row"><span class="dim" style="width:110px">Nomi</span><input class="inp" value="Avgust mavsumi"></div>
+        <div class="note">Oxirgi <b>48 soatda</b> karta xaridi avtomatik yopiladi — ro'yxat tirajga qotadi. Siz ham istisno emassiz.</div>
+        <div class="row"><button class="btn pri" onclick="toast('Mavsum saqlandi')">Saqlash</button>
+          <button class="btn dgr" onclick="toast('Yangi mavsum — eski yozuvlar arxivga ko‘chdi','warn')">🔄 Yangi mavsum</button></div>
+      </div></div>
+
+    <div class="card"><div class="card-h"><span class="card-t">Ball jadvali</span>
+      <span class="card-sub">har o'zgarish simulyatorga uzatiladi</span></div>
+      <div class="card-b">${KNOBS.map(k=>`<div class="knob">
+        <div class="knob-k">${k.n}<small>${k.s}</small></div>
+        <span class="knob-v"><input class="inp" value="${k.v}" style="width:66px;text-align:right;height:26px"></span></div>`).join("")}
+        <div class="row" style="margin-top:var(--s-3)"><button class="btn pri" onclick="toast('Ball jadvali saqlandi · audit jurnaliga yozildi')">Saqlash</button>
+          <button class="btn" onclick="go('simulyator')">🔮 Avval simulyatorda sinash</button></div></div></div>
+  </div>`;
+}
+
+function viewAudit(){
+  return `
+  <div class="card"><div class="card-h"><span class="card-t">🧾 Audit jurnali</span>
+    <span class="card-sub">kim · qachon · nima → nima. Hozirgi panelda bu <b>umuman yo'q</b>.</span>
+    <button class="btn sm spacer" onclick="toast('audit-2026-08.csv yuklab olindi')">⬇ CSV</button></div>
+    <div class="card-b">${AUDIT.map(a=>`<div class="audit-r">
+      <span class="dim3 mono">${a[0]}</span>
+      <span><b>${a[2]}</b> · ${a[3]}
+        ${a[4]!=="—"?`<br><span class="old">${a[4]}</span> <span class="dif-chg">→ ${a[5]}</span>`:`<br><span class="dif-add">→ ${a[5]}</span>`}
+        <span class="dim3"> · ${a[1]}</span></span></div>`).join("")}</div></div>
+  <div class="note">Hozirgi panelda bu jurnal <b>umuman yo'q</b> — narx kim tomonidan, qachon
+  o'zgartirilgani hech qayerda qolmaydi. Ball tuzatish faqat mijoz jurnalida ko'rinadi.</div>`;
+}
+
+function viewFlag(){
+  return `
+  <div class="card"><div class="card-h"><span class="card-t">O'chirish tugmalari</span>
+    <span class="card-sub">har o'zgarish darhol xabar beradi — jim o'zgarish yo'q</span></div>
+    <div class="card-b flush">
+      ${[["O'yin mavsumi","💰 PUL","Butun o'yin — chipta xaridi + ball konvertatsiyasi",1],
+         ["Gashtak","💰 PUL","Guruh navbat bonusi",1],
+         ["Hikoya-isbot","🎨 Ko'rinish","Story yuborib ball olish",1],
+         ["Kunlik kirish bonusi","🎨 Ko'rinish","Har kun ilovaga kirgani uchun",0]]
+        .map(f=>`<div class="task ${f[3]?'ok':'warn'}"><span class="task-x"><b>${f[0]}</b>
+          <span class="bdg ${f[1][0]==='💰'?'bad':'mute'}" style="margin-left:6px">${f[1]}</span>
+          <div class="dim3">${f[2]}</div></span>
+          <span class="bdg ${f[3]?'ok':'mute'}">${f[3]?'YOQILGAN':"O'CHIQ"}</span>
+          <button class="btn sm ${f[3]?'dgr':''}" onclick="toast('${f[0]} — holat o‘zgardi, adminlarga xabar ketdi','warn')">${f[3]?"O'chirish":"Yoqish"}</button></div>`).join("")}
+    </div></div>`;
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   RENDER
+   ══════════════════════════════════════════════════════════════════════════ */
+function render(){
+  const c=document.getElementById("canvas");
+  c.innerHTML = VIEW==="nazorat"?viewNazorat(): VIEW==="odamlar"?viewOdamlar():
+    VIEW==="mukofot"?viewMukofot(): VIEW==="kartalar"?viewKartalar():
+    VIEW==="hikoya"?viewHikoya(): VIEW==="gashtak"?viewGashtak():
+    VIEW==="simulyator"?viewSim(): viewSozlama();
+}
+function closeAll(){ const d=document.getElementById("drw");
+  d.classList.remove("on"); d.setAttribute("aria-hidden","true");
+  document.getElementById("scrim").classList.remove("on"); }
+function toast(t,tone){ const h=document.getElementById("toasts");
+  const n=el(`<div class="toast ${tone||""}">${t}</div>`); h.appendChild(n);
+  setTimeout(()=>{n.style.opacity="0";n.style.transition="opacity .3s";setTimeout(()=>n.remove(),320)},3400); }
+function toggleTheme(){ const r=document.documentElement;
+  const dark=r.getAttribute("data-theme")!=="light";
+  r.setAttribute("data-theme",dark?"light":"dark");
+  document.getElementById("thBtn").textContent=dark?"◐ Qorong'i":"◐ Yorug'"; }
+
+/* ── ⌘K PALITRA ────────────────────────────────────────────────────────── */
+const CMDS=[
+  ["◎ Nazoratga o'tish","",()=>go("nazorat")],
+  ["◍ Odamlar reytingi","",()=>go("odamlar")],
+  ["⚠ Shubhali odamlarni ko'rsat","63 ta",()=>{go("odamlar");FILTER="risk";render()}],
+  ["🎁 Mukofot katalogi","16 ta",()=>go("mukofot")],
+  ["📥 Excel'dan mukofot yuklash","",()=>{go("mukofot");openImport()}],
+  ["🔮 Simulyator — nima bo'ladi?","",()=>go("simulyator")],
+  ["💳 Kartalar reyestri","1 284",()=>go("kartalar")],
+  ["🎬 Mukofot kunini boshlash","3 tayyor",()=>go("kartalar")],
+  ["🔒 Tirajni muzlatish","xavfli",()=>toast("Ro'yxat muzlatildi — hech kim karta qo'sha olmaydi","warn")],
+  ["📸 Hikoyalarni tekshirish","5 kutmoqda",()=>go("hikoya")],
+  ["👑 Gashtak guruhlari","5 ta",()=>go("gashtak")],
+  ["📜 Faoliyat jurnali","kim qanday ball oldi",()=>{go("odamlar");sub("odamlar","jurnal")}],
+  ["📈 Mukofot tezligi","2 tasi ulgurmaydi",()=>{go("mukofot");sub("mukofot","tezlik")}],
+  ["💰 Byudjet va sovrin rejasi","",()=>{go("mukofot");sub("mukofot","byudjet")}],
+  ["🏅 Homiyni o'zgartirish","",()=>{go("sozlama");sub("sozlama","homiy")}],
+  ["🧪 Men — o'zim sinab ko'raman","",()=>{go("sozlama");sub("sozlama","men")}],
+  ["🧾 Audit jurnali","",()=>{go("sozlama");sub("sozlama","audit")}],
+  ["＋ Dilshod Rasulovga ball qo'shish","#1200",()=>openPerson(1200)],
+];
+function openPal(){ document.getElementById("pal").classList.add("on");
+  const i=document.getElementById("palI"); i.value=""; palList(""); setTimeout(()=>i.focus(),30); }
+function closePal(){ document.getElementById("pal").classList.remove("on"); }
+function palList(q){
+  const r=CMDS.filter(c=>c[0].toLowerCase().includes(q.toLowerCase()));
+  document.getElementById("palL").innerHTML = r.length?r.map((c,i)=>
+    `<div class="pal-r ${i===0?"on":""}" onclick="closePal();(${CMDS.indexOf(c)},CMDS[${CMDS.indexOf(c)}][2])()">
+      ${c[0]}<span class="pal-g">${c[1]}</span></div>`).join("")
+    : `<div class="pal-r" style="color:var(--text-3)">«${q}» bo'yicha buyruq topilmadi</div>`;
+}
+document.getElementById("palI").addEventListener("input",e=>palList(e.target.value));
+document.addEventListener("keydown",e=>{
+  if((e.key==="k"||e.key==="K")&&(e.metaKey||e.ctrlKey)){e.preventDefault();openPal();}
+  else if(e.key==="Escape"){closePal();closeMdl();closeAll();}
+  else if(e.key==="Enter"&&document.getElementById("pal").classList.contains("on")){
+    const f=document.querySelector(".pal-r.on"); if(f) f.click(); }
+});
+
+renderVitals(); renderNav(); render();
+</script>

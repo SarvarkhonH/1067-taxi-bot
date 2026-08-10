@@ -71,6 +71,112 @@ Jami oyin:phoneball: belgilari: 859
 - Boshqa parallel sessiyalarning tugallanmagan ishi (masalan `adminLeaderboard`/`adminVitals`/
   `oyinRiskScore`, hali push qilinmagan) BU commit bilan ARALASHTIRILMADI.
 
+## 🟡 2026-08-10 — O'YIN KONSOLI (to'liq) — READY FOR VERIFICATION
+
+Ega talabi uch bosqichda: «o'yin tabi juda noqulay, butunlay yangi va zamonaviy qil, ma'lumot
+boshqarish va yuklashni osonlashtir» → «kengroq kirib boradigan nazorat» → «bular xohlaganimning
+yarmi, 4x oshir» → «story check qani?» → «bir boshidan qur, hammasini lokal sinab keyin bitta push».
+
+Reja+DoD: `OYIN_ADMIN_V2_PLAN.md` · Prototip: `OYIN_KONSOL_PROTOTIP.html` (ega tasdiqlagan).
+Ega qarorlari: qurilish **v1 (`App.tsx`) ichida** · boshlanish **Odamlar** dan.
+
+### Yangi konsol — 8 modul, `packages/admin/src/oyin/`
+
+| Modul | Nima bor |
+|---|---|
+| ◎ Nazorat | vazifa satrlari · «ball qayerda» voronkasi · 🎯 sig'im ekrani · mavsum ko'rsatkichlari |
+| ◍ Odamlar | **ball reytingi** (9 ustun, saralanadi) · **xavf balli** · 6 kesim · **Odam 360 drawer** · 📜 faoliyat jurnali |
+| 🎁 Mukofotlar | katalog · ommaviy amallar · **📤 rasm yuklash** · **📥 Excel import (3 qadam, farq jadvali)** · 📈 tezlik · 💰 byudjet · **↩ tarix/qaytarish** |
+| 💳 Kartalar & Tiraj | reyestr **sana ustuni bilan** · muzlatish · tiraj · g'olib · topshirish |
+| 📸 Hikoyalar | tekshiruv navbati · havola · tasdiq/rad (sabab bilan) |
+| 👑 Gashtak | guruhlar · a'zolar · chiqarish · tarqatish · sinov a'zo · navbat |
+| 🔮 Reja | proyeksiya (**Monte-Carlo EMAS** — pastga qarang) |
+| ⚙ Sozlama & Audit | mavsum · kelasi mavsum qoralamasi · ball jadvali · **🧾 audit jurnali** · homiy · 🧪 Men |
+
+Qo'shimcha: **vital panel** (6 raqam, 20s, BITTA so'rov) · **⌘K buyruq palitrasi** (16 buyruq).
+
+### Server (10 ta bo'shliq yopildi)
+
+`adminLeaderboard` · `oyinRiskScore` (sof, `shared`) · `oyinAudit.ts` (yangi) · `adminVitals` ·
+`adminBulkUpsertPrizes` · `adminSetPrizePhoto` + `resolvePrizePhoto` · katalog nusxalari
+(`adminListSnapshots`/`adminRestoreSnapshot`) · `drawExport` ga `at` · `adminGet/SetSeasonPlan` ·
+`oyinProject` (sof, `shared`).
+
+8 ta yangi route. **20 ta admin amali audit jurnaliga ulandi (20/20 — teshiksiz).**
+
+### Isbot (buyruq + natija, lokal)
+
+```
+pnpm -r typecheck                    → mening fayllarimda 0 xato
+pnpm --filter @t1067/shared test     → 7 fayl / 140 test yashil (25 tasi yangi)
+pnpm --filter @t1067/admin build     → ✓ built in 1.71s
+tsx src/scripts/simEconomy.ts        → ✅ ≤350/safar BUZILMAS qoida joyida
+tsx src/scripts/simLoyalty.ts        → ✅ S1: HAMMA HOLAT O'TDI
+tsx src/scripts/simGuards.ts         → ✅ HAMMA QO'RIQ JOYIDA
+```
+
+**D0 (eski panel bo'yog'i) — brauzerda o'lchandi:**
+`:root --bg` = `#0a0e17` (eski qiymat, O'ZGARMAGAN) · `.oyinx --bg` = `#080b12` (konsol tokeni).
+Ya'ni konsol tokenlari faqat o'z doirasida ishlaydi. `oyinTokens.test.ts` guard-testi ikki token
+fayli ajralib ketsa CI'ni yiqitadi.
+
+**Brauzerda:** 8 modul ham ochildi, JS xatosi 0. API'siz muhitda har ekran
+«Yuklanmadi: /api/… → 500 ↻ Qayta urinish» ko'rsatdi — ya'ni xato JIM YUTILMAYDI (eski panelda
+ko'p joyda `.catch(() => setRows([]))` bor edi va server yiqilganda «bo'sh ro'yxat» ko'rinardi).
+
+**D1 (inline stil):** yangi fayllarda 7 ta `style={{` — 6 tasi dinamik geometriya
+(diagramma kengligi, skeleton balandligi), 1 tasi izoh matni. Bu DIZAYN_QOIDALARI'dagi yagona
+ruxsat etilgan istisno.
+
+### ⚠️ HALOL CHEGARALAR — nima QILINMADI
+
+1. **«🔮 Reja» — Monte-Carlo EMAS.** Loyihada to'liq raqamli egizak bor
+   (`packages/server/src/sim/`, ~1 500 qator, 1067'ning iyul bozori bilan kalibrlangan), lekin u
+   **git'ga qo'shilmagan** (`git status` → `?? sim/`) va boshqa sessiyaning ishi. Uni ulash uni
+   commit qilishni talab qilardi. Shuning uchun oddiy chiziqli proyeksiya qilindi va ekranda
+   ochiq shunday deb yozildi; har qadami jadvalda ko'rsatiladi. Egizak repoga tushganda ulanadi.
+2. **«Kunlik ball shifti» xavf-signali chizilmadi** — kodda bunday shift YO'Q
+   (`grep dailyCap` → 0), ya'ni raqam o'ylab topilgan bo'lardi.
+3. ~~Ommaviy rasm biriktirish~~ — **QILINDI**: 50 tagacha fayl tashlanadi, fayl NOMI bo'yicha
+   mukofotga o'zi biriktiriladi, navbat bilan yuklanadi (progress ko'rinadi). Mos kelmagan
+   fayllar tasdiq oynasida SANALADI va jimgina o'tkazib yuborilmaydi.
+4. ~~4 ta audit amali ulanmagan~~ — **YOPILDI: 20/20**. `knobs.set` faqat `oyin*` knoblari
+   uchun yoziladi (route butun bonus-iqtisodga umumiy, jurnal begona yozuv bilan to'lmasin).
+5. **Jonli bazada SINALMAGAN** — lokal baza ataylab yopiq (CLAUDE.md). Route'lar jonli
+   ma'lumotda faqat deploy'dan keyin isbotlanadi.
+6. **Eski o'yin tabi O'CHIRILMADI** — `OyinTabLegacy` sifatida turibdi, `OYIN_KONSOL = false`
+   bilan bir qatorda qaytariladi. Ega QABUL bergunча shunday qoladi (R6).
+
+### ✅ Ega so'roviga ko'ra yopilgan 4 ta teshik (2026-08-10, ikkinchi o'tish)
+
+| # | Nima | Qayerda |
+|---|---|---|
+| 1 | **➕ Bitta mukofot qo'shish formasi** — eski panelda bor edi, birinchi o'tishda tushib qolgandi (REGRESSIYA). Ega faqat nom+narx yozadi, karta bahosi va o'rinlar soni `oyinCardPlan` bilan o'zi hisoblanadi; 3/6/10 oy tanlovi bor | `Mukofotlar.tsx` → `AddPrize` |
+| 2 | **`knobs.set` audit** — ball jadvalini kim o'zgartirgani endi jurnalga tushadi | `server.ts` bonus-economy route |
+| 3 | **🧭 Sovrin rejalashtiruvchi** — byudjetni kichik/o'rta/katta darajaga taqsimlash + «nechta kerak / nechta bor». Taqsimot kelasi mavsum qoralamasida saqlanadi | `Mukofotlar.tsx` → `Planner` |
+| 4 | **📤 Ommaviy rasm biriktirish** — 50 tagacha, nom bo'yicha avtomatik moslash | `Mukofotlar.tsx` → `bulkPhotos` |
+
+### ⚠️ ISH-PAPKADA KUTILMAGAN HODISA (ega bilishi kerak)
+
+Ish davomida **boshqa sessiya `git pull` qildi**: HEAD `d75a906a` dan `cc413f1e` ga siljidi
+(2 yangi commit) va avtostash `oyinService.ts` da 4 ta konflikt qoldirdi. Konfliktlar hal qilindi
+va bu **isbotlangan yo'qotishsiz**: `git diff HEAD` faqat 2 qator o'chirilganini ko'rsatadi
+(ikkalasi ham mening `mutateCatalog` tahririm). Stash tomonidagi `markPhoneVerified` NUSXASI va
+eski izohlar tashlandi — upstream'da yangirog'i (`23328f22`) bor. **Ikkala stash tegilmadi**:
+`stash@{0} autostash` va `stash@{1} boshqa sessiya WIP` hali ham ro'yxatda.
+
+### Qolgan isbot (deploy'dan keyin — hali BAJARILMAGAN)
+
+- [ ] Reyting jonli javobi `computeBallMap` bilan mos (top-5 aynan)
+- [ ] Vital panel 20s da BITTA so'rov yuboradi (Network tab)
+- [ ] 100 ta mukofot import — 1 ta POST, farq jadvali, keyin qaytarish
+- [ ] Rasm yuklash → `/api/oyin/prizephoto` 200 → miniappda ko'rinishi
+- [ ] 5 ta amal → audit jurnalida 5 yozuv, eski→yangi bilan
+- [ ] Xavf balli 5 a'zoda qo'lda hisob bilan solishtiriladi
+- [ ] Ega real telefonda QABUL beradi → shundan keyingina eski tab o'chiriladi
+
+---
+
 ## 🟡 2026-08-09 — TAXI: 5 ekran ega maketiga o'tkazildi — READY FOR VERIFICATION
 
 Ega yuborgan dizayn-maket (`ChatGPT Image Aug 8, 2026, 08_08_46 PM.png`) asosida taksi joy-tanlash
