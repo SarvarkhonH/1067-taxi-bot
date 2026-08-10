@@ -191,14 +191,17 @@ function BirJoyMark() {
 // aytiladi). Ikki holat, IKKALASI HAM bir xil balandlikda (`--gl-gift-min` + `.gl-ghead`
 // min-height): (a) ball YO'Q → "BEPUL SOVG'ALAR" taklifi; (b) ball BOR → "Keyingi sovg'a"
 // progressi. Ma'lumot manbalari o'zgarmadi: `oyinState` + `oyinVitrina`.
-function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
+/** `onBall` — yuqoridagi chip uchun ball qiymatini xabar qiladi. Alohida so'rov QILINMAYDI:
+ *  bu karta baribir `oyinState` ni oladi, natijani ota-komponentga uzatadi (ikki marta
+ *  so'rash — bekorga tarmoq va server yuki). */
+function KosonOyinCard({ onNav, onBall }: { onNav: (t: string) => void; onBall?: (n: number) => void }) {
   const [state, setState] = useState<OyinStateResponse | null>(null);
   const [prizes, setPrizes] = useState<OyinPrizeView[] | null>(null);
   const [dead, setDead] = useState(false); // holat so'rovi YIQILDI (tarmoq/server)
   const [bad, setBad] = useState<Set<string>>(new Set());
   useEffect(() => {
     let alive = true;
-    api.oyinState().then((s) => { if (alive) setState(s); }).catch(() => { if (alive) setDead(true); });
+    api.oyinState().then((s) => { if (alive) { setState(s); onBall?.(s.ball ?? 0); } }).catch(() => { if (alive) setDead(true); });
     // ⚠️ Vitrina XATOSI ham "javob keldi" deb belgilanadi (bo'sh ro'yxat bilan): aks holda
     // `prizes` abadiy `null` qolib, quyidagi o'rin-egal plitkalar hech qachon almashmasdi.
     api.oyinVitrina().then((v) => { if (alive) setPrizes(v.prizes); }).catch(() => { if (alive) setPrizes([]); });
@@ -399,6 +402,9 @@ const COMING_SOON_MSG = "🔒 Tez orada! Hozircha Do'kon, Restoran va Taxi'ga fo
 export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onBook: () => void; onNav: (t: string) => void; onBanner?: (msg: string) => void }) {
   const [feed, setFeed] = useState<HomeFeedItem[] | null>(null);
   const [banner, setBanner] = useState<HomeBanner | null>(null);
+  // 🟢 Ball — yuqoridagi chip uchun. Manba: sovg'a-kartaning `oyinState` so'rovi (u baribir
+  // yuklanadi), shu yerga `onBall` orqali uzatiladi. Ikkinchi so'rov QILINMAYDI.
+  const [ball, setBall] = useState(0);
   // 🚨 "Bo'sh" va "yuklanmadi" — IKKI XIL HOLAT. Avval ikkalasi ham `[]` edi va tarmoq
   // uzilganda ekran JIM qolardi: na xato, na qayta-urinish tugmasi.
   const [feedErr, setFeedErr] = useState(false);
@@ -475,18 +481,18 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
           <BirJoyMark />
           <span className="gl-bname">Bir<i>Joy</i></span>
         </div>
-        {/* Balans chiplari — ikkalasi ham hamyonga olib boradi (ikkinchi yo'l).
-            Cashback — ALOHIDA pul turi, shuning uchun alohida chip. Nol bo'lsa chip UMUMAN
-            chizilmaydi: "0 so'm cashback" yangi mijozga hech nima aytmaydi (#7). */}
+        {/* Balans chiplari — IKKI XIL narsa, hech qachon aralashmaydi (Revolut-tanqidi):
+            TANGA (ko'k, yechiladi → hamyon) va BALL (yashil, sovg'aga → o'yin). Ega qarori
+            2026-08-10: cashback o'rniga BALL ko'rsatiladi — cashback tanga ichida ko'rinadi,
+            ball esa sovg'agacha qancha qolganini aytadi, ya'ni uy ekranida foydaliroq.
+            Nol bo'lsa chip baribir chiziladi: "0 ball" yangi mijozga yo'l boshini ko'rsatadi. */}
         <div className="gl-chips">
           <button className="gl-chip" onClick={() => go("wallet")} aria-label={`Tanga balansi: ${num(me.coins)}`}>
-            <span className="ci" aria-hidden="true" />{num(me.coins)}
+            <span className="ci" aria-hidden="true" />{num(me.coins)}<span className="cu">tanga</span>
           </button>
-          {me.stats.points > 0 && (
-            <button className="gl-chip is-cb" onClick={() => go("wallet")} aria-label={`Cashback: ${num(me.stats.points)} so'm`}>
-              <span className="ci" aria-hidden="true" />{num(me.stats.points)}
-            </button>
-          )}
+          <button className="gl-chip is-ball" onClick={() => go("oyin")} aria-label={`Ball: ${num(ball)} — sovg'aga`}>
+            <span className="ci" aria-hidden="true" />{num(ball)}<span className="cu">ball</span>
+          </button>
         </div>
       </header>
 
@@ -509,7 +515,7 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
           statistika bir qatorga siqildi, qadamlar bitta satr, hero matni ixcham) — ya'ni taksi
           va panjara pastda qoladi, lekin bitta qisqa skroll ichida. Bu ATAYLAB qilingan almashuv:
           maket sovg'ani birinchi qo'yadi. Real qurilmada ega tasdiqlashi kerak. */}
-      {f.oyin && <KosonOyinCard onNav={onNav} />}
+      {f.oyin && <KosonOyinCard onNav={onNav} onBall={setBall} />}
 
       {/* Taxi — ASOSIY BIZNES va pastki bardagi FAB olib tashlangach YAGONA chaqirish nuqtasi.
           ⚠️ Yashil nuqta "jonli" degan signal — mashina SONI yoki masofa YOZILMAYDI: bizda
