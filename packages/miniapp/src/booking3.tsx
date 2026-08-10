@@ -1096,7 +1096,16 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         // ko'rardi, server esa NOL bergan bo'lardi (DIZAYN_QOIDALARI #9). Server tomonida bu
         // qo'riq allaqachon bor (`bookingNotifier.ts:429-433`: rideStartedAt yo'q → mukofot yo'q)
         // — mijoz o'sha mantiqni takrorlaydi: safar HAQIQATAN boshlangan bo'lsagina yakun ekrani.
-        const reallyRode = !!activeRef.current.driver && !!activeRef.current.rideStartedAt;
+        // Safar HAQIQATAN bo'ldimi? Ikkita mustaqil dalil — bittasi yetarli:
+        //   · `rideStartedAt` — «started» holati KO'RILGAN bo'lsa
+        //   · `meterPayment > 0` — taksometr ishlagan bo'lsa (safarsiz pul bo'lmaydi)
+        // NEGA IKKITASI: jonli sinovda safar 13:45:27 da boshlanib 13:45:31 da tugadi — ATIGI
+        // 4 SONIYA. Haydovchi tayinlangach ilova har 5 soniyada so'raydi, ya'ni u «started»
+        // oynasini BUTUNLAY o'tkazib yubordi va `rideStartedAt` null qoldi. Faqat o'shanga
+        // tayangan shartim safarni «bo'lmagan» deb hisoblab, egaga «Uzr — mashina topib bera
+        // olmadik» ko'rsatdi — mashina esa 6 soniyada topilgan va safar bo'lgan edi.
+        const reallyRode = !!activeRef.current.driver
+          && (!!activeRef.current.rideStartedAt || (activeRef.current.driver.meterPayment ?? 0) > 0);
         if (reallyRode) {
           setFinishedBid(activeRef.current.id);
           // Yakuniy narxni SHU LAHZADA ushlab qolamiz: `active` null bo'lgach taksometrning
@@ -1105,6 +1114,17 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           setFinishFare(activeRef.current.driver?.meterPayment ?? 0);
           setScreen("finished");
           confetti();
+          haptic();
+        } else if (activeRef.current.driver) {
+          // 🔴 HAYDOVCHI BOR EDI, lekin safar boshlanmadi (bekor qilingan / uzilgan).
+          // Bu «mashina topib bera olmadik» EMAS — mashina TOPILGAN edi. Men bu holatni
+          // xato tarmoqqa yuborib qo'ygandim va ega jonli sinovda ko'rdi: Laziz Shoimov
+          // 6 soniyada qabul qilgan, keyin buyurtma yakunlangan, ekranda esa «Uzr —
+          // mashina topib bera olmadik» chiqqan. Endi halol: qisqa xabar va odatdagi
+          // ekranga qaytish, YOLG'ON UZR YO'Q. Voucher ham berilmaydi — u faqat
+          // haydovchi UMUMAN topilmagan holat uchun.
+          setScreen("pinpick");
+          flashMsg("Buyurtma yakunlandi", 4000);
           haptic();
         } else {
           if (info.waitComp && waitStartRef.current) {
@@ -1122,7 +1142,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // Mini App poll cadence: while SEARCHING poll every 3s so "haydovchi topildi" appears in ~3s
       // (was 12s — the bot card is socket-instant, but the app still polls, so it lagged). Once a
       // driver is assigned, 5s is enough (the moving car is on the map socket).
-      if (alive) timer = setTimeout(tick, a?.driver ? 5_000 : 3_000);
+      // So'rov tezligi: haydovchi topilgach 5s → 3s. Jonli sinov (b68821) ko'rsatdi: butun
+      // safar 2 daqiqa, «started» oynasi esa ATIGI 4 SONIYA edi — 5 soniyalik so'rov uni
+      // o'tkazib yubordi. Holat o'zgarishlari shu qadar tez ketadiki, sekin so'rov bosqichni
+      // butunlay ko'rmay qolishi mumkin. 3s har bosqichni ushlaydi va yuk ham arzimas.
+      if (alive) timer = setTimeout(tick, 3_000);
     };
     tick();
     return () => {
@@ -1212,13 +1236,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // Shahar chegarasi — kas'ning HAQIQIY poligoni, lekin BEZAK EMAS: ingichka, kulrang,
       // uzuq chiziq. U «xizmat shu yergacha» deydi, ko'zni tortmaydi (ega: «bu rangdan
       // foydalanma» — ko'k to'ldirish mahalla ranglariga xalaqit berardi).
-      const area = info.serviceArea ?? [];
-      if (area.length >= 3) {
-        L.polygon(area.map((pt) => [pt.lat, pt.lng] as [number, number]), {
-          color: "#94A3B8", weight: 1.5, opacity: 0.55, dashArray: "6 6",
-          fill: false, interactive: false,
-        }).addTo(g);
-      }
+      // Shahar chegarasi ATAYLAB CHIZILMAYDI (ega, 2026-08-10: «shaharni kulrang chizig'i
+      // kerak emas, uni to'liq yo'qot»). U foyda bermasdi — mijoz baribir shahar ichida,
+      // chiziq esa mahalla ranglarini bo'lib turardi.
       // 🏘 MAHALLALAR — har biri O'Z RANGIDA (ega talabi 2026-08-10: «300 metr diametr turli
       // rangda ... mahala atrofini farqlatib ber»). Rang nomdan hisoblanadi, ya'ni bir xil
       // mahalla har doim bir xil rangda chiqadi (tasodifiy emas, esda qoladi). Diametr ~300 m
