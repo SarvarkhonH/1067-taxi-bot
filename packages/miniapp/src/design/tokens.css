@@ -2283,7 +2283,11 @@ body {
      Qiymat 390px kenglikda blok-blok hisoblab chiqarilgan (pill 28 + bosh 108 + fotolar 68 +
      sanoq 51 + qadamlar 47 + CTA 54 + raqamlar 70 + maslahat 56 + 4 tirqish 56 + padding 36
      ≈ 610) va tor telefonda matn ko'proq qatorga bo'linishi uchun ~10px zaxira qo'shilgan. */
-  --gl-gift-min: 620px;
+  /* ⚠️ 2026-08-10: 620px edi — u 8 bo'limli ESKI karta uchun o'lchangan. Ortiqcha bo'limlar
+     olib tashlangach tarkib ~300px qoldi va pastda ~320px BO'SH KO'K maydon paydo bo'ldi
+     (ega skrinshoti). «Bo'sh xrom yo'q» qoidasi. Endi min-height faqat ikki holat orasidagi
+     sakrashni to'sadi (yangi odam / qaytgan odam), ortiqcha joy YARATMAYDI. */
+  --gl-gift-min: 300px;
 }
 
 /* ── Sahifa + muhit ────────────────────────────────────────────────────────────────────── */
