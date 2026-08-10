@@ -1,5 +1,76 @@
 # PROGRESS
 
+## 🟡 2026-08-10 — O'YIN: telefon-ball cheksiz olish teshigi yopildi + login/streak ball o'chirildi — READY FOR VERIFICATION
+
+Ega da'vosi: «telefoni tasdiqlash orqali cheksiz ball olsa bo'larkan» + kunlik-kirish va
+3-kunlik-streak ball manbalari BEPUL-YO'L bo'lgani uchun butunlay o'chirilsin, faqat REAL
+harakatga bog'liq manbalar qolsin (o'z safari, do'st safari, gashtak, hikoya).
+
+**Ildiz sabab (tasdiqlangan):** `phoneBall` avval `tu.linkedAt` OYNASIGA (730 kunlik rolling
+window) bog'liq edi. `linkedAt` esa admin unlink→relink'da (`adminUsers.ts`) yoki foydalanuvchi
+raqamni qayta ulaganda YANGI sanaga qayta yoziladi — ya'ni HAR safar `oyinPhoneBall` (20) qayta
+hisoblanardi. Xuddi shu naqsh `markHomeScreen(added:false)`da ham bor edi: ekrandan o'chirish
+markerni DELETE qilardi, qayta o'rnatish esa qayta ball berardi (o'rnatib-o'chirib-o'rnatish =
+cheksiz ball).
+
+| # | Nima | Fayl |
+|---|---|---|
+| 1 | `markPhoneVerified()` — umrbod BIR MARTA belgi (`oyin:phoneball:<memberId>`), `linkedAt`dan MUSTAQIL. `markLogin` ichidan chaqiriladi | `oyinService.ts` |
+| 2 | `computeBallMap`: `phoneBall` endi `phoneBallGranted.has(memberId)` dan (marker bormi), `linkedMs`-oyna hisobidan EMAS | `oyinService.ts` |
+| 3 | `markHomeScreen(added:false)` — marker endi O'CHIRILMAYDI (clawback olib tashlandi); bir marta berilgach abadiy turadi | `oyinService.ts` |
+| 4 | `oyinDailyLoginBall` def 1→0, `oyinStreakBall` def 35→0 (label'ga "O'CHIRILGAN" qo'shildi) | `shared/economy.ts` |
+
+### Live-stored qiymatlar ham yangilandi (kod-def yetarli EMAS)
+
+`getBonusEcon()` avval saqlangan `AppState["bonus:econ"]` DB-qiymatini kod-defdan USTUN qo'yadi
+— ya'ni faqat #4ni push qilish YETARLI emas edi. VPS'da alohida skript bilan tekshirildi va
+tuzatildi:
+```
+OLDIN: oyinDailyLoginBall=1  oyinStreakBall=35
+KEYIN: oyinDailyLoginBall=0  oyinStreakBall=0
+```
+
+### Regressiya oldi olindi — 858 ta backfill
+
+`phoneBall` manbai o'zgarishi (oyna → marker) ORQAGA TA'SIR qilardi: 730 kunlik oynada bo'lgan
+HAR BIR jonli telefon-tasdiqlangan a'zo (859 ta) marker yo'qligi sabab birdaniga `phoneBall=0`
+ko'rardi — keyingi ilova ochilishigacha (self-healing, lekin ko'rinadigan ball pasayishi bo'lardi,
+DIZAYN_QOIDALARI #5ga zid: va'da qilingan ball yo'qolmasligi shart). Shu sabab har bir mavjud
+telefon-tasdiqlangan a'zoga marker OLDINDAN yozildi (dry-run → --write, gashtak-ledger backfill
+bilan bir xil naqsh):
+```
+Telefon ulangan a'zolar: 859 → Yangi belgi qo'yiladigan: 858 (1 tasi allaqachon bor edi)
+YOZILDI: 858 ta belgi
+Qayta tekshiruv: Yangi belgi qo'yiladigan: 0
+```
+
+### Isbot (buyruq + natija)
+
+```
+pnpm -r typecheck                              → 4/4 paket toza (shared/miniapp/server/admin)
+git push origin HEAD:main                      → d75a906a..23328f22
+GH Actions CI shield #888                      → Success (shield 45s + deploy 43s)
+curl https://api.birjoy.online/health           → {"ok":true,"mode":"live","bot":true}
+```
+
+**Jonli tekshiruv (3 ta real a'zo, deploy+backfill'dan keyin):**
+```
+memberId=6751 ball=20 breakdown.phone=20
+memberId=7306 ball=20 breakdown.phone=20
+memberId=7011 ball=20 breakdown.phone=20
+Jami oyin:phoneball: belgilari: 859
+```
+
+### Nima QILINMADI (halol chegara)
+
+- Frontend (`oyin.tsx`)ga TEGILMADI — "ekranga o'rnatish" tugmasi/topshirig'i eski holicha
+  qoladi (backend endi ikkinchi marta ball bermaydi, lekin UI hali ham `homeScreenStatus() ===
+  "missed"` bo'lsa tugmani ko'rsatishi mumkin; bu FAQAT ko'rinish, ball xavfi yo'q).
+  `oyin:login:`/`oyin:home:` kun-yozuvi TRACKING sifatida saqlanib qolmoqda (harakatsizlik-
+  qoidasi va faollik hisobiga kerak) — faqat ULARNING BALL QIYMATI 0.
+- Boshqa parallel sessiyalarning tugallanmagan ishi (masalan `adminLeaderboard`/`adminVitals`/
+  `oyinRiskScore`, hali push qilinmagan) BU commit bilan ARALASHTIRILMADI.
+
 ## 🟡 2026-08-09 — TAXI: 5 ekran ega maketiga o'tkazildi — READY FOR VERIFICATION
 
 Ega yuborgan dizayn-maket (`ChatGPT Image Aug 8, 2026, 08_08_46 PM.png`) asosida taksi joy-tanlash
