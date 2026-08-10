@@ -621,11 +621,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // markazi yoki oxirgi manzil) va uning nomi ko'rsatiladi. Aynan shu «lokatsiya eski
   // joyda qotib qolgan» shikoyatining qaytishi bo'lardi.
   const [gpsOk, setGpsOk] = useState(false);
-  // 📏 Oxirgi GPS o'qishining ANIQLIGI (metr). Ega «aniq joylashuvni ololmayapti, 300-400 metr
-  // uzoqni ko'rsatyapti» dedi — bu IKKI XIL muammo bo'lishi mumkin va ular boshqa yechim
-  // talab qiladi: (a) GPS o'zi xato, (b) GPS to'g'ri-yu, eng yaqin KATALOG joyi uzoqda.
-  // Shu songa qarab qaysi biri ekani darhol ko'rinadi.
-  const [gpsAcc, setGpsAcc] = useState<number | null>(null);
+
   const [finishFare, setFinishFare] = useState(0); // safar tugaganda ushlab qolingan taksometr qiymati
   const [stars, setStars] = useState(0);
   const [rateTags, setRateTags] = useState<string[]>([]);
@@ -1405,7 +1401,6 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // biroz suring» deb TESKARISINI aytardi (mustaqil audit topdi). 35 m — quyidagi
       // xabarning o'zi «yaxshi» deb hisoblaydigan chegara, shuni ishlatamiz.
       setGpsOk(accuracy <= GOOD_FIX_M);
-      setGpsAcc(Math.round(accuracy));
       // 📍 Joy nomini GPS nuqtasining O'ZIDAN so'raymiz, xaritaning `moveend` ini KUTMASDAN.
       // Sabab (ega: «gps aniqlashi juda xato», 2026-08-09): nom ilgari faqat xarita ko'chib
       // bo'lgach, `map.getCenter()` dan hisoblanardi. `setView` ANIMATSIYALI — agar animatsiya
@@ -2168,8 +2163,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                     {pinBusy
                       ? "Joylashuv aniqlanmoqda…"
                       : !gpsOk
-                        ? (gpsAcc !== null ? `GPS aniqligi ~${gpsAcc} m — juda past` : "Joylashuvingiz aniqlanmadi — tekshiring")
-                        : `Eng yaqin nom${pinDistKm !== null ? ` — ${Math.round(pinDistKm * 1000)} m narida` : ""}. Aniqroq bo'lsa xaritadan belgilang`}
+                        ? "Joylashuvingiz aniqlanmadi — tekshiring"
+                        : "Eng yaqin nom shu — aniqroq bo'lsa xaritadan belgilang"}
                     {!pinBusy && (
                       !gpsOk
                         ? <button className="b3-p2-fixloc" onClick={() => { haptic(); void locateMe(); }}>Aniqlash</button>
