@@ -570,14 +570,14 @@ export function cloudSet(key: string, value: string): void {
 
 // ── 📸 Telegram hikoyasi (story) — Bot API 7.8+ ───────────────────────────────
 /** Hikoyaga qo'yiladigan rasm. Telegram uni O'ZI yuklab oladi, shuning uchun URL ochiq HTTPS
- *  bo'lishi shart. Mavjud taklif-posteri (853×1280, tik format) ayni maqsadga to'g'ri keladi —
- *  yangi asset yasalmadi. Origin ish vaqtida olinadi: ilova qaysi domendan ochilgan bo'lsa,
- *  rasm ham o'sha yerda (bitta Vercel deploy). */
+ *  bo'lishi shart. Origin ish vaqtida olinadi: ilova qaysi domendan ochilgan bo'lsa, rasm ham
+ *  o'sha yerda. `?v=` — poster o'zgarganda (masalan 2026-08-07 redizayni) klient/Telegram eski
+ *  keshlangan rasmni emas, yangisini olishi uchun; boshqa URL'lardagi `v=` bilan bir xil naqsh. */
 function storyMediaUrl(): string {
   try {
-    return new URL("/invite-poster.jpg", location.origin).href;
+    return new URL("/invite-poster.jpg?v=5", location.origin).href;
   } catch {
-    return "https://app.birjoy.online/invite-poster.jpg";
+    return "https://app.birjoy.online/invite-poster.jpg?v=5";
   }
 }
 

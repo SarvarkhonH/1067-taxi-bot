@@ -213,7 +213,7 @@ export async function setFeature(name: FeatureName, on: boolean): Promise<void> 
 // at every QABUL / intentional off); boot logs the effective state and ALERTS on any mismatch —
 // it never auto-flips (an intentional off must stay off until this list is edited).
 export const EXPECTED_ON: FeatureName[] = [
-  "wheel", "items", "transfers", "push", "recruit", "booking3",
+  "wheel", "items", "transfers", "push", "booking3",
   // 🚕 Taksi joy-tanlash redizayni — ega QABUL berdi va jonlida yoqildi (2026-08-10):
   //   `pickup2`   — yangi olib-ketish oqimi (A tartibi: javob birinchi)
   //   `pickup2lt` — yorug' ko'rinish (ega maketidagi oq dunyo)
@@ -234,12 +234,11 @@ export const EXPECTED_ON: FeatureName[] = [
   // nazarda tutadi, ya'ni home.tsx'ga bog'liq emas.
   // "baraban" (safar-tugash spin) — 2026-08-07 da ega buyrug'i bilan BUTUNLAY o'chirildi
   // ("vazifasini bajardi, kerak emas"). Ro'yxatga ATAYLAB qo'shilmadi: off qolishi kerak.
-  "komissiya", "promo", "qarz", "refstaged", "drvstaged", "drvrecruit",
-  "welcomebonus", // 🎁 2026-07-17 da ega o'chirgan edi ("o'chirganman"), LEKIN 2026-07-22 13:44 da
-             // QAYTA YOQILGAN (jonli AppState qatorining updatedAt'i) va shundan beri ishlayapti —
-             // 2026-07-26 dagi "welcome 5000 ko'chmaydigan" himoyasi ham aynan shu yoqiq bo'lgani
-             // uchun yozilgan. Ro'yxatdagi eski "intentionally OFF" izohi jonli holatga ZID edi;
-             // shu sababli qayta kiritildi (2026-07-27 audit) — DB reset bo'lsa jimgina o'chmasin.
+  "komissiya", "promo", "qarz",
+  // "recruit", "welcomebonus", "refstaged", "drvstaged", "drvrecruit" — barcha referral/
+  // welcome-bonus mexanikalari OFF (jonli AppState updatedAt: welcomebonus 2026-08-02,
+  // qolgan to'rttasi 2026-08-03 — bittalab, DB reset emas). Ro'yxatga ATAYLAB qo'shilmadi:
+  // off qolishi kerak. Qayta yoqilganda shu yerga qaytariladi (setFlag.ts <nom> on).
   // "garage" (+ mahalla, tolqin, carupgrade) — 2026-07-02 10:15 da BITTA to'plamda ataylab
   // o'chirilgan (minimalizm-strip). Ro'yxatga ATAYLAB qo'shilmadi: ular off qolishi kerak.
   // "intercity" — owner intentionally OFF 2026-07-23 ("shaharlararo bu keyinchalik qilinadigan
