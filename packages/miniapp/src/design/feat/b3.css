@@ -1073,3 +1073,45 @@
 .b3-screen.b3-p2-lt .b3-help { background:#FFFFFF; color:#0B0C10;
   box-shadow:0 3px 14px rgba(11,12,16,.18); }
 .b3-screen.b3-p2-lt .b3-help svg { color:#0A76FA; }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   🔠 ENG KICHIK SHRIFT KO'TARILDI (pickup2) — «orqaga qaytish» yozuvlari 10.5–12.5px edi,
+   qahramon nom esa 29px. Ya'ni ekrandagi eng MUHIM narsa eng katta, lekin xato qilgan odamni
+   QUTQARADIGAN yozuvlar (Qayta urinish · O'zgartirish · Xaritadan · harf-relsi) eng kichik edi —
+   auditoriya esa keksaroq va ko'pincha zo'rg'a savodli. Bu tartib teskari.
+   Qoida: BOSILADIGAN yozuv ≥14px, o'qiladigan yordamchi yozuv ≥13.5px.
+   Bitta joyda turadi va faylning OXIRIDA — shunda yuqoridagi «maket bo'yicha o'lchangan»
+   bloklardan ustun bo'ladi va nima o'zgartirilgani bitta ro'yxatda ko'rinadi.
+   ⚠️ HAMMA selektor `b3-p2-*` — ya'ni FAQAT pickup2 ostida chiziladi; bayroq OFF yo'li tegilmagan.
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+/* — bosiladigan (≥14px) — */
+.b3-p2-cta { font-size:15.5px; }
+.b3-p2-alt .lb { font-size:14px; }
+.b3-p2-fixloc { font-size:14.5px; }
+.b3-p2-conf-change { font-size:15px; }
+.b3-p2-conf-extra button { font-size:14.5px; }
+.b3-p2-tab { font-size:14.5px; }
+.b3-p2-ghost { font-size:14.5px; }
+.b3-p2-tile { font-size:14px; }
+.b3-p2-ic { font-size:14px; }
+.b3-p2-maprow .q { font-size:13.5px; }
+.b3-p2-tag { font-size:13px; }
+/* Harf-relsi ATAYLAB 13px: u ~25 ta harfni ro'yxat balandligiga sig'dirishi kerak
+   (14px da harflar ustma-ust tushardi). Buning o'rniga BARMOQ nishoni kengaytirildi:
+   22 → 26px, ya'ni bosish osonlashdi, matn esa 10.5px dan 13px ga chiqdi. */
+.b3-p2-rail { width:26px; }
+.b3-p2-rail button { width:26px; font-size:13px; }
+.b3-p2-idxwrap .b3-p2-all { padding-right:30px; }
+/* — o'qiladigan yordamchi (≥13.5px) — */
+.b3-p2-eyebrow, .b3-p2-ok, .b3-p2-drv-sub, .b3-p2-plate,
+.b3-p2-fin-coin .k, .b3-p2-fin-rate .k { font-size:14px; }
+.b3-p2-hint, .b3-p2-conf-note, .b3-p2-conf-lbl, .b3-p2-pinlbl,
+.b3-p2-stat .k, .b3-p2-meter .k, .b3-p2-lbl, .b3-p2-hd { font-size:13.5px; }
+.b3-p2-letter { font-size:13px; }
+/* Safar ekranidagi UMUMIY (pickup2 ga xos bo'lmagan) sinflar — shuning uchun `.b3-p2-ride`
+   ichida SCOPE qilinadi: bayroq OFF yo'lidagi bir xil sinflar 11–13px holicha qoladi.
+   «Qabul · Yo'lda · Yetib keldi · Safarda» 11px edi — safar ekranining butun holat-tarixi. */
+.b3-p2-ride .b3-tl-step { font-size:13px; }
+.b3-p2-ride .b3-collapse-btn { font-size:14px; }
+.b3-p2-ride .b3-mini-expand { font-size:13.5px; }
+.b3-p2-ride .b3-ride-mini-status { font-size:14px; }
