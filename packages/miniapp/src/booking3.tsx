@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, RIDE_EMISSION_CAP, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
+import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
@@ -1434,10 +1434,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" opacity=".55" aria-hidden="true">
         <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
       </svg>
+      {/* `autoFocus` OLIB TASHLANDI: u klaviaturani darhol ochib, «odatdagi/oxirgi» qatorlarni
+          va atrofdagi joylar ro'yxatini YOPIB qo'yardi — ya'ni YOZMAYDIGAN odam (yarmi) faqat
+          klaviatura ko'rardi. Endi maydon bosilganda ochiladi, ro'yxat esa darhol ko'rinadi. */}
       <input
         placeholder={showAll && sortedAll.length ? `${sortedAll.length} joy ichidan qidiring` : "Joy nomini yozing"}
         aria-label="Joy qidirish"
-        autoFocus
         value={q}
         onChange={(e) => void search(e.target.value)}
       />
@@ -1814,22 +1816,28 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                   </svg>
                   {locSure ? "Siz shu yerdasiz" : "Shu yerdanmi?"}
                 </div>
-                {pinBusy || !pinNear
-                  ? (
-                    /* ⏳ Ega (2026-08-10): «pastgi bar yuklanishi qiyin bo'lib turadi, manzil
-                       qidirayotgan bo'ladi». Kulrang to'rtburchak nima bo'layotganini AYTMAYDI —
-                       odam ilova qotib qolgan deb o'ylaydi. Endi aylanuvchi lupa + halol matn:
-                       nima kutayotganini biladi va kutish qisqaroq tuyuladi. */
-                    <div className="b3-p2-seeking">
-                      <span className="b3-p2-seek-ico" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
-                          <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
-                        </svg>
-                      </span>
-                      <span className="b3-p2-seek-txt">Joyingizni aniqlayapmiz…</span>
-                    </div>
-                  )
-                  : <div className="b3-p2-place">{pinNear}</div>}
+                {/* ⏳ Kutish holati FAQAT haqiqatan so'rov ketayotganda (`pinBusy`). Ilgari shart
+                    `pinBusy || !pinNear` edi — ya'ni so'rov XATO bilan tugasa ham lupa ABADIY
+                    aylanardi va ilova «ishlayapman» deb yolg'on aytardi (mustaqil dizayn-auditi
+                    topdi). Endi uch holat aniq ajratilgan: kutyapman · topolmadim (qayta urinish
+                    tugmasi bilan) · topdim. */}
+                {pinBusy ? (
+                  <div className="b3-p2-seeking">
+                    <span className="b3-p2-seek-ico" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                        <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
+                      </svg>
+                    </span>
+                    <span className="b3-p2-seek-txt">Joyingizni aniqlayapmiz…</span>
+                  </div>
+                ) : pinNear ? (
+                  <div className="b3-p2-place">{pinNear}</div>
+                ) : (
+                  <div className="b3-p2-seeking">
+                    <span className="b3-p2-seek-txt b3-p2-seek-fail">Joy nomi topilmadi</span>
+                    <button className="b3-p2-fixloc" onClick={() => { haptic(); void locateMe(); }}>Qayta urinish</button>
+                  </div>
+                )}
                 <div className="b3-p2-city">Koson</div>
                 {/* ✓ belgisi FAQAT haqiqiy GPS bo'lganda. Aks holda halol ogohlantirish +
                     tuzatish yo'li (qoida #14: yozuv harakat aytsa — bosadigan joy bo'lsin). */}
@@ -1953,7 +1961,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             <button onClick={() => { haptic(); setScreen("schedule"); }}>Keyinroqqa</button>
             <button onClick={() => { haptic(); void loadFamily(); setScreen("family"); }}>Oila uchun</button>
           </div>
-          <button className="b3-p2-conf-cancel" onClick={() => { haptic(); setScreen("map"); }}>Bekor qilish</button>
+          {/* ⛔ «Bekor qilish» OLIB TASHLANDI: u hech narsani bekor qilmasdi — sarlavhadagi
+              «O'zgartirish» bilan AYNAN bir xil ish qilardi (`setScreen("map")`). Chiqmoqchi
+              bo'lgan odam 150 ta joy ro'yxatiga tushib, yanada chuqurroq ketardi. Bitta
+              narsadan bitta dona (minimalizm qarori). */}
         </div>
       )}
 
@@ -2154,8 +2165,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           {pickup2 && info.cashbackPerRide > 0 && (
             <div className="b3-p2-fin-coin">
               <div className="k">Tanga mukofotingiz</div>
-              <div className="v">{formatNumber(RIDE_EMISSION_CAP)} tangagacha cashback</div>
-              <div className="s">Bu safardan: +{formatNumber(info.cashbackPerRide)} 🪙</div>
+              {/* BITTA raqam. Ilgari ostida «Bu safardan: +N» ham turardi — u safardan OLDIN
+                  olingan statik qiymat edi va serverdagi haqiqiy grant undan farq qilishi mumkin
+                  (qisqa safar 0 beradi, ≤350 clamp kesadi). Ikki raqam yonma-yon turgani esa
+                  chegarani "yetishmovchilik" qilib ko'rsatardi (DIZAYN_QOIDALARI #9). */}
+              <div className="v">{formatNumber(CASHBACK_HEADLINE_MAX)} tangagacha cashback</div>
             </div>
           )}
           {me.streak?.current ? <div className="b3-finish-streak">🔥 {me.streak.current} kun streak — davom eting!</div> : null}

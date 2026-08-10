@@ -28,7 +28,7 @@
 // tarmoqda birinchi ochilishni bo'g'ardi; CSS varianti ~8 KB. `prefers-reduced-motion` da
 // harakat to'xtaydi, MAZMUN qoladi (har karta yakuniy holatida ko'rinadi).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatNumber, RIDE_EMISSION_CAP, type BookingInfoResponse } from "@t1067/shared";
+import { formatNumber, CASHBACK_HEADLINE_MAX, type BookingInfoResponse } from "@t1067/shared";
 import { haptic } from "./telegram";
 import "./design/feat/story.css"; // story ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -226,7 +226,7 @@ function body(id: CardId, info: BookingInfoResponse, cashback: number) {
       // bu matn hech qachon to'lanmaydigan summa va'da qilmaydi (DIZAYN_QOIDALARI #9).
       return (
         <>
-          Har safardan <b>{formatNumber(RIDE_EMISSION_CAP)} tangagacha</b> cashback qaytadi —
+          Har safardan <b>{formatNumber(CASHBACK_HEADLINE_MAX)} tangagacha</b> cashback qaytadi —
           safar uzunligi va darajangizga qarab. <b>1 tanga = 1 so'm</b>: keyingi safarda
           ishlatasiz yoki so'mga yechib olasiz.
         </>
@@ -402,7 +402,7 @@ function StageTanga({ amount }: { amount: number }) {
       <span className="st-coin c">🪙</span>
       <div className="st-wal">
         <div className="lb">Har safardan</div>
-        <div className="vl">{formatNumber(RIDE_EMISSION_CAP)} 🪙 gacha</div>
+        <div className="vl">{formatNumber(CASHBACK_HEADLINE_MAX)} 🪙 gacha</div>
       </div>
     </div>
   );

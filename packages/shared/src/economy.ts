@@ -81,6 +81,21 @@ export const DRIVER_TIER_REBATE: Record<string, number> = { Bronza: 0, Kumush: 5
 // COMBINE over budget — the clamp cuts the excess at grant time.
 export const RIDE_EMISSION_CAP = 350;
 
+/**
+ * 📣 MARKETING SHIFTI — reklama matnlarida aytiladigan YUQORI chegara ("N gacha cashback").
+ *
+ * Bu `RIDE_EMISSION_CAP` (=350) BILAN BIR XIL EMAS va uni almashtirmaydi. 350 — faqat
+ * safar-cashback yo'lining qat'iy clamp'i (`bookingId` bo'yicha indekslangan). Mijoz bir
+ * safardan oladigan JAMI tanga esa bundan katta bo'lishi mumkin, chunki alohida byudjetlar bor:
+ *   · `waitcomp` — kutish kompensatsiyasi, ATAYLAB 350 clamp'idan TASHQARIDA (o'z kunlik byudjeti)
+ *   · `promo`    — ega haftada 1-2 marta yoqadigan aksiya kampaniyalari
+ *   · `baraban`  — safardan keyingi g'ildirak sovrini
+ * Ega qarori (2026-08-10): reklama matni shu jamining yuqori chegarasini aytadi. «GACHA» so'zi
+ * shart — odatiy safarda summa ancha kichik bo'ladi, 2000 faqat aksiya haftalarida chiqadi.
+ * Matnlarda RAQAM QATTIQ YOZILMAYDI: hamma joy shu konstantadan o'qiydi.
+ */
+export const CASHBACK_HEADLINE_MAX = 2000;
+
 // 🚕 PAID-OUT GATE: a CLIENT must be a real taxi user before any tanga can LEAVE their account —
 // i.e. withdraw (cash-out) AND P2P value-out (transfer / tip / fare). The welcome sovg'a is theirs
 // to SPEND in-app immediately (shop/market/e'lon stay open), but it can't be cashed or handed to
