@@ -643,6 +643,15 @@
   .b3-screen.b3-p2-lt .b3-p2-pincard { background: #FFFFFF; }
 }
 
+/* ⬜ YORUG' REJIMDA SKELETONLAR KO'RINMASDI. `Skeleton` qorong'i mavzu ranglaridan quriladi
+   (och-kulrang shimmer qora fonda). Oq varaqda ular OQ ustiga OQ bo'lib chiqardi — ega
+   ilovaga kirganda 4-5 soniya BO'M-BO'SH oq quti ko'rardi va ilova qotgan deb o'ylardi.
+   Endi yorug' fon uchun ko'rinadigan kulrang + shimmer. */
+.b3-screen.b3-p2-lt .d-skel {
+  background: linear-gradient(90deg, #EDEFF3 25%, #E2E6EC 37%, #EDEFF3 63%);
+  background-size: 400% 100%;
+}
+
 /* Odamcha varaq ochiq bo'lganda xaritaning KO'RINADIGAN qismiga ko'tariladi (varaq pastki
    ~55% ni yopadi, ya'ni ochiq maydonning o'rtasi ~26%). Xarita rejimida markazda qoladi. */
 .b3-centerpin.b3-centerpin-up { top: 26%; }

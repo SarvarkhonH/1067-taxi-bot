@@ -1159,7 +1159,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     if (!map.current) return;
     if (!auto) haptic();
     setLocating(true);
-    flashMsg("📍 Joylashuv aniqlanmoqda…", 16000);
+    // pickup2 da bu suzuvchi xabar CHIZILMAYDI: javob kartasining O'ZI «Joyingizni
+    // aniqlayapmiz…» deb aylanuvchi lupa bilan aytib turibdi. Ikkalasi birga — bir xil
+    // gapni ikki joyda takrorlash, ustiga bu 16 SONIYA osilib turardi va odam uni
+    // eskirgan xabar deb o'ylardi (ega jonli sinovda ko'rsatdi).
+    if (!pickup2) flashMsg("📍 Joylashuv aniqlanmoqda…", 16000);
 
     // Aniqlikni RAQAM bilan aytamiz. Ilgari faqat «aniqlik past» derdi — mijoz ham, biz ham
     // xato 50 metrmi yoki 800 metrmi, bila olmasdik. Endi ekranning o'zi diagnostika beradi.
@@ -1196,15 +1200,25 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // olib, yaxshirog'ini umuman so'ramasdik. Endi ikkalasi PARALLEL yuguradi va G'OLIB
     // ANIQLIK bo'yicha tanlanadi. Brauzer yo'li allaqachon `maximumAge: 0` bilan ishlaydi,
     // ya'ni keshdagi eski fix HECH QACHON qabul qilinmaydi.
+    // ⚠️ PARALLEL EMAS, BOSQICHMA-BOSQICH. Men avval ikkalasini `Promise.all` bilan bir vaqtda
+    // yugurtirgandim («hamma usulni ol») — natijada brauzer geolokatsiyasi HAR SAFAR chaqirilib,
+    // Android Telegram HAR SAFAR «Allow BirJoy to access your location?» so'rardi (ega jonli
+    // sinovda ko'rsatdi). Telegram LocationManager'ning ruxsati SAQLANADI, brauzerniki esa
+    // WebView'da har ochilishda qaytadan so'raladi. Shuning uchun:
+    //   1) Telegram'dan so'raymiz (jim, ruxsat allaqachon berilgan bo'lsa so'ramaydi)
+    //   2) faqat u YO'Q / RAD ETILGAN / QO'POL bo'lsa brauzerga o'tamiz
+    // Ya'ni yaxshi Telegram-fix bo'lsa brauzer API'siga UMUMAN tegilmaydi → so'rov chiqmaydi.
     const hasTg = tgHasLocationManager();
-    const [tgRes, brRes] = await Promise.all([
-      hasTg ? tgGetLocation().catch(() => null) : Promise.resolve(null),
-      browserBestFix(9000).catch(() => null), // 9s — sekin GPS ham ulgursin
-    ]);
+    const tgRes = hasTg ? await tgGetLocation().catch(() => null) : null;
+    const tgFix = tgRes && "lat" in tgRes ? { lat: tgRes.lat, lng: tgRes.lng, acc: tgRes.accuracy } : null;
+
+    let brFix: { lat: number; lng: number; acc: number } | null = null;
+    if (!tgFix || tgFix.acc > GOOD_FIX_M) {
+      const brRes = await browserBestFix(9000).catch(() => null);
+      if (brRes) brFix = { lat: brRes.coords.latitude, lng: brRes.coords.longitude, acc: brRes.coords.accuracy };
+    }
     setLocating(false);
 
-    const tgFix = tgRes && "lat" in tgRes ? { lat: tgRes.lat, lng: tgRes.lng, acc: tgRes.accuracy } : null;
-    const brFix = brRes ? { lat: brRes.coords.latitude, lng: brRes.coords.longitude, acc: brRes.coords.accuracy } : null;
     // Eng TIG'IZ o'qish yutadi. Ikkalasi ham bo'lsa — kichik `acc` (metrdagi xato) g'olib.
     const best = tgFix && brFix ? (brFix.acc < tgFix.acc ? brFix : tgFix) : (brFix ?? tgFix);
 
