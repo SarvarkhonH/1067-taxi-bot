@@ -322,53 +322,21 @@ function KosonOyinCard({ onNav, onBall }: { onNav: (t: string) => void; onBall?:
             </span>
           )}
 
-          <span className="gl-cd">
-            <span className="gl-cd-ic"><GlIcon n={final48 ? "lock" : "cal"} size={22} /></span>
-            <span className="gl-cd-tx">
-              <small>{final48 ? "MUKOFOT KUNIGA" : upcoming ? "DASTUR BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small>
-              <b>{cd.text}</b>
-            </span>
-            {state.prizeCount > 0 && (
-              <span className="gl-gbadge">{num(state.prizeCount)} ta real sovg'a</span>
-            )}
-          </span>
         </button>
 
-        {/* 4 qadam — "bepul" so'zi qanday ishlashini DARHOL tushuntiradi (aks holda
-            "bepul chipta" va'dasi o'yin ekranidagi ball talabiga zid ko'rinadi). */}
-        <div className="gl-steps">
-          {(["Safar qil", "Ball yig'", "Karta ol", "Sovg'a ol"] as const).map((tx, i) => (
-            <div key={tx} className="gl-step">
-              <span className="gl-step-n">{i + 1}</span>
-              <span className="gl-step-tx">{tx}</span>
-            </div>
-          ))}
-        </div>
-
-        {/* CTA UCH holatli: mavsum boshlanmagan / oxirgi 48 soat (chipta yopiq) / ochiq.
-            Avval ikki holat edi va final-48 "BEPUL CHIPTA OLISH" ga tushib qolardi. */}
+        {/* ⛔ 2026-08-10 — EGA QARORI: uy-kartadan ORTIQCHA MA'LUMOT OLIB TASHLANDI
+            («nimaga juda ko'p malumotlar, bunga kelishmagan ediku»). Kelishuv: sovg'a-karta =
+            rasm + nom + progress + BITTA tugma. Olib tashlanganlar va yangi joyi:
+              · 4 qadam (Safar qil → Sovg'a ol)  → «Sovg'a» ekrani (u yerda o'rgatish joyi)
+              · «KARTALAR 2 / 1 815 · 0.1%»      → ADMIN metrikasi. Mijozga «bu yerda hech kim
+                yo'q» deb turadi — 3 dizayn-hakam aynan shuni ishonch-qotili deb belgiladi
+              · Tiraj sanoq-vaqti + «N ta real sovg'a» → «Sovg'a» ekrani sarlavhasida
+              · Kunlik maslahat → «Sovg'a» ekrani
+            Uy — eshik, ombor emas: bitta qarash, bitta qadam. */}
         <button className="gl-cta" onClick={goOyin}>
           <GlIcon n={final48 || upcoming ? "gift" : "arrow"} size={19} />
           <span>{final48 || upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL KARTA OLISH"}</span>
         </button>
-
-        {/* UMUMIY raqamlar (ijtimoiy isbot), mijozning shaxsiy balli EMAS. */}
-        <div className="gl-stats">
-          <div className="gl-stat-k">
-            KARTALAR <b>{num(sold)}</b> / {num(cap)}
-            <span className="gl-pct">{pct.toFixed(1)}%</span>
-          </div>
-          <div className="gl-sbar"><span style={{ width: `${pct}%` }} /></div>
-          <div className="gl-stat-s">Har karta — 1 imkoniyat. Ko'proq karta, ko'proq imkoniyat!</div>
-        </div>
-
-        {/* 💡 KUNLIK MASLAHAT — uy ekrani birinchi ko'riladigan joy, shuning uchun maslahat
-            SHU YERDA ham turadi (ega talabi 2026-08-04). Kun bo'yicha, hammaga bir xil.
-            ⛔ Qizil/miltillash YO'Q — maslahat shoshilinch emas. */}
-        <div className="gl-hint">
-          <span aria-hidden="true">{dailyHint.icon}</span>
-          <span>{dailyHint.text}</span>
-        </div>
       </div>
     </div>
   );
