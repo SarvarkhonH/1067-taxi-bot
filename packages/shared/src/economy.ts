@@ -300,7 +300,10 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   //
   // Karta darvozasi (`no_ride`: ≥1 real safar) baribir kuchda — bepul ball yig'ilsa ham,
   // safarsiz odam kartaga AYLANTIRA olmaydi.
-  { key: "oyinDailyLoginBall", label: "🎮 Kunlik kirish — ball (bepul yo'l)", def: 1, min: 0, max: 100, step: 1, group: "Koson O'yini" },
+  // ⚠️ 1 → 0 (ega qarori 2026-08-07). Bepul yo'lning oxirgi qolgan qismi — ilovani ochish
+  // safarsiz ham ball berardi. Endi FAQAT real harakatga bog'liq manbalar qoladi (o'z safari,
+  // do'st safari, gashtak, hikoya).
+  { key: "oyinDailyLoginBall", label: "🎮 Kunlik kirish — ball (bepul yo'l, O'CHIRILGAN)", def: 0, min: 0, max: 100, step: 1, group: "Koson O'yini" },
   { key: "oyinShareBall", label: "🎮 Ulashish — ball (bepul yo'l)", def: 0, min: 0, max: 200, step: 1, group: "Koson O'yini" },
   { key: "oyinStoryProofBall", label: "🎮 Hikoya joylash (admin tasdig'i) — ball (bepul yo'l)", def: 100, min: 0, max: 2000, step: 10, group: "Koson O'yini" },
   // 🎯 Kunlik topshiriq (har kuni random, server tekshiradi) va 🏠 doimiy topshiriq.
@@ -354,8 +357,9 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // qo'shil → yangi navbat oyi ol, takrorlana beradi. Chiqish/chiqarilish/tarqatilishdan keyin
   // shuncha kun HECH qaysi guruhga (yangisini tuzishga ham) qo'shilib bo'lmaydi.
   { key: "oyinGashtakRejoinCooldownDays", label: "🤝 Gashtak — qayta qo'shilish sovutish kuni", def: 30, min: 0, max: 180, step: 1, group: "Koson O'yini" },
-  // ⚠️ Zanjir endi SAFAR kunlari bo'yicha (avval ilova ochish sanalardi — safarsiz 500 ball/oy).
-  { key: "oyinStreakBall", label: "🔥 3 kunlik SAFAR zanjiri — bonus ball", def: 35, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
+  // ⚠️ 35 → 0 (ega qarori 2026-08-07). Zanjir SAFAR kunlariga bog'langan bo'lsa ham, baribir
+  // bepul yo'l qatlami edi (safar balli allaqachon bor, zanjir ustiga qo'shimcha berardi).
+  { key: "oyinStreakBall", label: "🔥 3 kunlik SAFAR zanjiri — bonus ball (O'CHIRILGAN)", def: 0, min: 0, max: 1000, step: 10, group: "Koson O'yini" },
   // ⚖️ Adolat qo'rig'i: do'st-safari 40 ga chiqqach, ko'p do'stli odam bitta sovrinning BARCHA
   // chiptasini sotib olishi mumkin edi. Pul xavfi yo'q (seasonClose 500 tanga bilan cheklaydi),
   // lekin tiraj adolati buzilardi — bitta odam butun sovrinni egallab olardi.

@@ -301,7 +301,7 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   const fromWeek = weekKey(from);
   const toWeek = weekKey(to);
 
-  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjRows, gashtakLedgerRows] = await Promise.all([
+  const [rideCounts, rideDayRows, referrals, telegramUsers, ticketRows, loginRows, shareRows, questRows, homeRows, sprintWinRows, storyRows, adjRows, gashtakLedgerRows, phoneBallRows] = await Promise.all([
     // 1) YAGONA DB-darajasidagi sana filtri — katta jadval va indeksi bor (@@index([createdAt])).
     prisma.rideReward.groupBy({ by: ["memberId"], _count: { _all: true }, where: { createdAt: { gte: from, lte: to } } }),
     // 1b) ⚠️ Zanjir uchun SAFAR KUNLARI. Avval zanjir `oyin:login:` (ILOVA OCHISH) bo'yicha edi —
@@ -335,6 +335,10 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     //    RideReward kabi: har yozuv REAL safar tasdiqlanganda bir marta yozilgan, keyin
     //    o'zgarmaydi (guruh tarkibi keyinroq o'zgarsa ham).
     prisma.gashtakReward.groupBy({ by: ["memberId"], _sum: { amount: true }, where: { createdAt: { gte: from, lte: to } } }),
+    // 📱 Telefon tasdiqlangan — BIR MARTALIK belgi (`markPhoneVerified`). Avval `linkedAt`
+    //    oynasi asosida edi: admin unlink→relink qilsa (yoki foydalanuvchi raqamni qayta ulasa)
+    //    `linkedAt` yangilanardi va ball CHEKSIZ qayta yig'ilardi. Endi umrbod bitta marta.
+    prisma.appState.findMany({ where: { key: { startsWith: "oyin:phoneball:" } } }) as Promise<AppStateRow[]>,
   ]);
 
   // Nomi ATAYLAB "season…" — endi ikki vazifa bajaradi (o'z safari + referee safari), kelajakda
@@ -440,6 +444,14 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     jamoaByMember.set(row.memberId, row._sum.amount ?? 0);
   }
 
+  // 📱 Telefon-ball — umrbod bitta marta belgi, `linkedAt` oynasidan MUSTAQIL (ega qarori
+  // 2026-08-10: `linkedAt` admin unlink→relink'da qayta yozilishi cheksiz ball eshigi edi).
+  const phoneBallGranted = new Set<number>();
+  for (const row of phoneBallRows) {
+    const memberId = Number(row.key.slice("oyin:phoneball:".length));
+    if (Number.isFinite(memberId)) phoneBallGranted.add(memberId);
+  }
+
   // 🛠 Admin tuzatishi — musbat ham, manfiy ham bo'lishi mumkin.
   const adjustByMember = new Map<number, number>();
   for (const row of adjRows) {
@@ -502,9 +514,9 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     const rides = seasonRideCountByMember.get(memberId) ?? 0;
     // Birinchi-safar bonusi = MAVSUMNING birinchi safari (har mavsum yangi start — ega qarori).
     const ridesBall = rides > 0 ? (econ.oyinFirstRideBall ?? 0) + (econ.oyinRideBall ?? 0) * (rides - 1) : 0;
-    // `linkedAt` NULL = ustun to'ldirilishidan oldin ulangan, ya'ni ta'rifan mavsumgacha → bonus yo'q.
-    const linkedMs = tu.linkedAt ? tu.linkedAt.getTime() : null;
-    const phoneBall = tu.phone && linkedMs !== null && linkedMs >= fromMs && linkedMs <= toMs ? (econ.oyinPhoneBall ?? 0) : 0;
+    // 📱 Umrbod bitta marta — `markPhoneVerified` yozgan belgidan, `linkedAt` oynasidan EMAS
+    // (raqamni qayta ulash/admin unlink-relink endi ballni qayta bermaydi).
+    const phoneBall = phoneBallGranted.has(memberId) ? (econ.oyinPhoneBall ?? 0) : 0;
     const refer = referBonusByTelegramId.get(tu.id) ?? { join: 0, milestone: 0, rides: 0 };
     const referJoinBall = refer.join * (econ.oyinReferJoinBall ?? 0);
     const referFirstBall = refer.milestone * (econ.oyinReferFirstRideBall ?? 0);
@@ -1637,24 +1649,33 @@ async function markDay(prefix: "oyin:login:" | "oyin:share:" | "oyin:quest:" | "
   invalidateBallCache();
   return true;
 }
+/** 📱 Telefon tasdiqlangan — UMRBOD BIR MARTA belgi (`oyin:phoneball:<memberId>`). Marker
+ *  qo'yilgach hech qachon o'chirilmaydi/qaytadan berilmaydi — admin unlink→relink yoki
+ *  raqamni qayta ulash `linkedAt`ni yangilasa ham ball ikkinchi marta berilmaydi (ega qarori
+ *  2026-08-10: avval `linkedAt` oynasiga bog'liq edi va bu CHEKSIZ ball eshigi edi). */
+async function markPhoneVerified(memberId: number): Promise<void> {
+  const key = `oyin:phoneball:${memberId}`;
+  const already = await prisma.appState.findUnique({ where: { key } });
+  if (already) return;
+  const tu = await prisma.telegramUser.findUnique({ where: { memberId }, select: { phone: true } });
+  if (!tu?.phone) return;
+  await prisma.appState.create({ data: { key, value: "1" } }).catch(() => undefined); // P2002 poyga — beparvo
+  invalidateBallCache();
+}
 export async function markLogin(memberId: number, preview = false): Promise<void> {
   if (!preview && !(await featureOn("oyin"))) return;
   await markDay("oyin:login:", memberId).catch(() => undefined);
+  await markPhoneVerified(memberId).catch(() => undefined);
 }
 /** 🏠 Ilova telefon ekraniga o'rnatildi. Telegram'ning `homeScreenAdded` HODISASI yoki
  *  `checkHomeScreenStatus() === "added"` javobidan keyin chaqiriladi — mijoz shunchaki
  *  tugmani bosgani YETARLI EMAS.
- *  ⚠️ Halol eslatma: tasdiq MIJOZ tomonida bo'ladi, ya'ni texnik odam route'ni to'g'ridan
- *  chaqira oladi. Shuning uchun mukofot MAVSUMDA BIR MARTA (real xarajat ~750 so'm) va
- *  `added:false` kelsa belgi OLIB TASHLANADI (o'chirib tashlagan odam ballni saqlab qolmaydi). */
+ *  ⚠️ UMRBOD BIR MARTA (ega qarori 2026-08-10): avval `added:false` kelsa belgi OLIB
+ *  TASHLANARDI (o'rnatib-o'chirib-qayta-o'rnatib ballni qayta yig'ish imkoni bor edi). Endi
+ *  marker qo'yilgach hech qachon o'chmaydi/qaytadan so'ralmaydi — bitta marta, umrbod. */
 export async function markHomeScreen(memberId: number, added: boolean, preview = false): Promise<{ ok: boolean }> {
   if (!preview && !(await featureOn("oyin"))) return { ok: false };
-  const key = `oyin:home:${memberId}`;
-  if (!added) {
-    await prisma.appState.deleteMany({ where: { key } });
-    invalidateBallCache();
-    return { ok: true };
-  }
+  if (!added) return { ok: true };
   const ok = await markDay("oyin:home:", memberId);
   return { ok };
 }
