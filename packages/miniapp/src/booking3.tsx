@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
+import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, RIDE_EMISSION_CAP, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
 import { api } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
@@ -1463,13 +1463,24 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             ? <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
             : "←"}
         </button>
-        <div className="b3-stats">
-          <span>🪙 {formatNumber(me.coins)}</span>
-          {me.streak?.current ? <span>🔥 {me.streak.current}</span> : null}
-        </div>
-        {/* 📖 story'ni QAYTA ochish — flag OFF bo'lsa tugma umuman chizilmaydi (jim tugma yo'q, qoida #14) */}
+        {/* 🪙/🔥 ATAYLAB YO'Q (ega, 2026-08-10: «tepada hamma joydan tangi olib tashla olov ni ham»).
+            Taksi ekranida odamning yagona ishi — mashina chaqirish. Balans va zanjir bu ishga
+            aloqasiz, e'tiborni bo'ladi va tepani band qiladi. Ular Hamyon/Uy ekranida qoladi. */}
+        {!pickup2 && (
+          <div className="b3-stats">
+            <span>🪙 {formatNumber(me.coins)}</span>
+            {me.streak?.current ? <span>🔥 {me.streak.current}</span> : null}
+          </div>
+        )}
+        {/* ❓ story'ni QAYTA ochish. Flag OFF bo'lsa umuman chizilmaydi (jim tugma yo'q, qoida #14) */}
         {me.flags?.taxistory && (
-          <button className="b3-help" onClick={() => { haptic(); setStory(true); }} aria-label="Taksi qanday chaqiriladi" title="Qanday ishlaydi?">?</button>
+          <button className="b3-help" onClick={() => { haptic(); setStory(true); }} aria-label="Taksi qanday chaqiriladi" title="Qanday ishlaydi?">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="9.2" />
+              <path d="M9.3 9.2a2.8 2.8 0 0 1 5.4.9c0 1.9-2.7 2.3-2.7 4" />
+              <circle cx="12" cy="17.4" r="1.1" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
         )}
       </div>
 
@@ -1520,15 +1531,23 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           {/* pickup2 da chizilmaydi: pastdagi karta allaqachon «Siz shu yerdasiz — 5-Maktab» deb
               turibdi, xarita rejimida esa «Tanlangan joy» deydi. Ikkovi bir xil narsani aytadi. */}
           {!pickup2 && <div className={`b3-pin-callout${walking ? " hide" : ""}`} aria-hidden="true">📍 Mashina shu yerga keladi</div>}
-          <button className={`b3-myloc${locating ? " locating" : ""}`} onClick={() => void locateMe()} aria-label="Joylashuvni yuborish" title="Joylashuvim">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="6.5" />
-              <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
-              <line x1="12" y1="1.8" x2="12" y2="4.6" />
-              <line x1="12" y1="19.4" x2="12" y2="22.2" />
-              <line x1="1.8" y1="12" x2="4.6" y2="12" />
-              <line x1="19.4" y1="12" x2="22.2" y2="12" />
-            </svg>
+          <button className={`b3-myloc${locating ? " locating" : ""}`} onClick={() => void locateMe()} aria-label="Joylashuvimni aniqlash" title="Joylashuvimni aniqlash">
+            {pickup2 ? (
+              /* Maketdagi TO'LDIRILGAN strelka — «meni shu yerda top» belgisi. Ingichka
+                 nishon (crosshair) odamga nima qilishini aytmasdi (ega e'tirozi). */
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M21.4 2.6a1 1 0 0 0-1.1-.2L2.9 9.9a1 1 0 0 0 .1 1.9l7.2 2.3 2.3 7.2a1 1 0 0 0 1.9.1l7.5-17.4a1 1 0 0 0-.5-1.4z" />
+              </svg>
+            ) : (
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="6.5" />
+                <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+                <line x1="12" y1="1.8" x2="12" y2="4.6" />
+                <line x1="12" y1="19.4" x2="12" y2="22.2" />
+                <line x1="1.8" y1="12" x2="4.6" y2="12" />
+                <line x1="19.4" y1="12" x2="22.2" y2="12" />
+              </svg>
+            )}
           </button>
           {/* «Joylashuvim» yozuvi pickup2 da chizilmaydi: maketda nishonning yonida matn yo'q,
               belgi o'zi tushunarli. `aria-label` tugmada qolgani uchun ekran-o'quvchi baribir aytadi. */}
@@ -1796,7 +1815,20 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                   {locSure ? "Siz shu yerdasiz" : "Shu yerdanmi?"}
                 </div>
                 {pinBusy || !pinNear
-                  ? <Skeleton h={33} w="70%" className="b3-p2-nameskel" />
+                  ? (
+                    /* ⏳ Ega (2026-08-10): «pastgi bar yuklanishi qiyin bo'lib turadi, manzil
+                       qidirayotgan bo'ladi». Kulrang to'rtburchak nima bo'layotganini AYTMAYDI —
+                       odam ilova qotib qolgan deb o'ylaydi. Endi aylanuvchi lupa + halol matn:
+                       nima kutayotganini biladi va kutish qisqaroq tuyuladi. */
+                    <div className="b3-p2-seeking">
+                      <span className="b3-p2-seek-ico" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                          <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
+                        </svg>
+                      </span>
+                      <span className="b3-p2-seek-txt">Joyingizni aniqlayapmiz…</span>
+                    </div>
+                  )
                   : <div className="b3-p2-place">{pinNear}</div>}
                 <div className="b3-p2-city">Koson</div>
                 {/* ✓ belgisi FAQAT haqiqiy GPS bo'lganda. Aks holda halol ogohlantirish +
@@ -2033,7 +2065,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                       {active.etaMin ? <div className="b3-p2-stat"><div className="k">Yetib keladi</div><div className="v">~{active.etaMin} daqiqa</div></div> : null}
                     </div>
                   )}
-                  {active.status === "started" ? <InTripExtras rideStartedAt={active.rideStartedAt ?? null} /> : null}
+                  {/* 🎡 Baraban ATAYLAB YO'Q (ega, 2026-08-10: «bu barabani olib tashla»).
+                      Safar ekranida asosiy ish — haydovchini kuzatish; o'yin tugmasi yashil
+                      rangni asosiy harakat bilan bo'lishib olardi va e'tiborni bo'lardi.
+                      Eski oqimda (pickup2 OFF) u o'z joyida qoladi. */}
                   <div className="b3-p2-acts">
                     {active.driver.phone ? (
                       <a className="b3-p2-act b3-p2-act-call" href={`tel:${active.driver.phone}`}>
@@ -2111,10 +2146,16 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <div className="v">{formatNumber(finishFare)}<span>so'm</span></div>
             </div>
           )}
+          {/* 💰 «+50 tanga» emas — ega (2026-08-10): kichik aniq son mukofotni ARZON ko'rsatadi.
+              Endi YUQORI CHEGARA aytiladi. Raqam qattiq yozilmaydi: `RIDE_EMISSION_CAP` — safar
+              uchun tizimning HAQIQIY chegarasi (CLAUDE.md buzilmas qoidasi), ya'ni matn hech
+              qachon to'lanmaydigan summa va'da qilmaydi (DIZAYN_QOIDALARI #9). Chegara
+              o'zgarsa matn ham o'zi o'zgaradi. */}
           {pickup2 && info.cashbackPerRide > 0 && (
             <div className="b3-p2-fin-coin">
               <div className="k">Tanga mukofotingiz</div>
-              <div className="v">⭐ +{formatNumber(info.cashbackPerRide)} 🪙</div>
+              <div className="v">{formatNumber(RIDE_EMISSION_CAP)} tangagacha cashback</div>
+              <div className="s">Bu safardan: +{formatNumber(info.cashbackPerRide)} 🪙</div>
             </div>
           )}
           {me.streak?.current ? <div className="b3-finish-streak">🔥 {me.streak.current} kun streak — davom eting!</div> : null}

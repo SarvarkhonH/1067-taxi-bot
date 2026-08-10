@@ -28,7 +28,7 @@
 // tarmoqda birinchi ochilishni bo'g'ardi; CSS varianti ~8 KB. `prefers-reduced-motion` da
 // harakat to'xtaydi, MAZMUN qoladi (har karta yakuniy holatida ko'rinadi).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { formatNumber, type BookingInfoResponse } from "@t1067/shared";
+import { formatNumber, RIDE_EMISSION_CAP, type BookingInfoResponse } from "@t1067/shared";
 import { haptic } from "./telegram";
 import "./design/feat/story.css"; // story ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -221,10 +221,14 @@ function body(id: CardId, info: BookingInfoResponse, cashback: number) {
     case "bekor":
       return "Xato bosdingizmi yoki rejangiz o'zgardimi — bir tap bilan bekor qilasiz. Jarima yo'q, to'lov yo'q. Shuning uchun bemalol sinab ko'ring.";
     case "tanga":
+      // Ega (2026-08-10): kichik aniq son («+50 tanga») mukofotni arzon ko'rsatadi — YUQORI
+      // CHEGARA aytilsin. `RIDE_EMISSION_CAP` — tizimning haqiqiy safar-chegarasi, ya'ni
+      // bu matn hech qachon to'lanmaydigan summa va'da qilmaydi (DIZAYN_QOIDALARI #9).
       return (
         <>
-          Safar tugagach hamyoningizga <b>{formatNumber(cashback)} tanga</b> tushadi.{" "}
-          <b>1 tanga = 1 so'm</b> — keyingi safarda ishlatasiz yoki so'mga yechib olasiz.
+          Har safardan <b>{formatNumber(RIDE_EMISSION_CAP)} tangagacha</b> cashback qaytadi —
+          safar uzunligi va darajangizga qarab. <b>1 tanga = 1 so'm</b>: keyingi safarda
+          ishlatasiz yoki so'mga yechib olasiz.
         </>
       );
   }
@@ -397,8 +401,8 @@ function StageTanga({ amount }: { amount: number }) {
       <span className="st-coin b">🪙</span>
       <span className="st-coin c">🪙</span>
       <div className="st-wal">
-        <div className="lb">Hamyoningizga tushdi</div>
-        <div className="vl">+{formatNumber(amount)} 🪙</div>
+        <div className="lb">Har safardan</div>
+        <div className="vl">{formatNumber(RIDE_EMISSION_CAP)} 🪙 gacha</div>
       </div>
     </div>
   );
