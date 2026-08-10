@@ -228,6 +228,16 @@ const KIND_GLYPH: Record<ReturnType<typeof placeKind>, string> = {
 // ── 🗺 Xarita bezagi: katalog joylari + mahalla shar'lari (pickup2) ──────────────────────────
 // Ega tanlovi (2026-08-10, "C" varianti): xaritada HAM zona-soyalari, HAM joy belgilari bo'lsin.
 //
+// 🏘 Mahalla nomidan BARQAROR rang — bir xil mahalla har doim bir xil rangda (tasodifiy emas,
+// shuning uchun odam «pushti mahalla» deb eslab qoladi). Palitra joy-turi ranglaridan olingan,
+// ya'ni ilova bir xil rang tilida gapiradi.
+const DISTRICT_RE = /mahalla|qishloq|guzar/i;
+const DISTRICT_COLORS = ["#0A76FA", "#01A95E", "#FBB307", "#7241EA", "#F2496B", "#0E9F8E", "#FE7E00", "#64748B"];
+function districtColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return DISTRICT_COLORS[h % DISTRICT_COLORS.length] as string;
+}
 function escHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
@@ -1195,12 +1205,26 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // Yo'q ma'lumotni o'ylab topgandan ko'ra, bor ma'lumotni chizamiz (qoida #7).
     if (!zoneLayer.current) {
       const g = L.layerGroup();
+      // Shahar chegarasi — kas'ning HAQIQIY poligoni, lekin BEZAK EMAS: ingichka, kulrang,
+      // uzuq chiziq. U «xizmat shu yergacha» deydi, ko'zni tortmaydi (ega: «bu rangdan
+      // foydalanma» — ko'k to'ldirish mahalla ranglariga xalaqit berardi).
       const area = info.serviceArea ?? [];
       if (area.length >= 3) {
         L.polygon(area.map((pt) => [pt.lat, pt.lng] as [number, number]), {
-          color: "#0A76FA", weight: 1.5, opacity: 0.35,
-          fillColor: "#0A76FA", fillOpacity: 0.05, interactive: false,
+          color: "#94A3B8", weight: 1.5, opacity: 0.55, dashArray: "6 6",
+          fill: false, interactive: false,
         }).addTo(g);
+      }
+      // 🏘 MAHALLALAR — har biri O'Z RANGIDA (ega talabi 2026-08-10: «300 metr diametr turli
+      // rangda ... mahala atrofini farqlatib ber»). Rang nomdan hisoblanadi, ya'ni bir xil
+      // mahalla har doim bir xil rangda chiqadi (tasodifiy emas, esda qoladi). Diametr ~300 m
+      // = 150 m radius. Chegara CHIZILMAYDI — bizda haqiqiy mahalla poligoni yo'q, faqat
+      // nuqta bor; yumshoq rang-dog'i «shu atrofda» deydi, «chegara aynan shu yerda» demaydi.
+      for (const z of allPlaces ?? []) {
+        if (!DISTRICT_RE.test(z.name) || typeof z.lat !== "number" || typeof z.lng !== "number") continue;
+        const c = districtColor(z.name);
+        L.circle([z.lat, z.lng], { radius: 150, stroke: false, fillColor: c, fillOpacity: 0.14, interactive: false }).addTo(g);
+        L.circle([z.lat, z.lng], { radius: 92, stroke: false, fillColor: c, fillOpacity: 0.10, interactive: false }).addTo(g);
       }
       g.addTo(m);
       zoneLayer.current = g;
