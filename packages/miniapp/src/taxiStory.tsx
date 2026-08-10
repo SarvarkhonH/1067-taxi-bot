@@ -104,6 +104,7 @@ export function TaxiStory({ info, onClose }: Props) {
   // ulgurmagan odam ekranni ushlab turadi, qo'yib yuborsa davom etadi. Instagram/WhatsApp
   // odati — o'rgatishga hojat yo'q, odamlar buni allaqachon biladi.
   const [held, setHeld] = useState(false);
+  const pressAt = useRef(0); // bosish boshlangan vaqt — «ushlash» ni «tegish» dan ajratadi
 
   // avtomatik o'tish — oxirgi kartada TO'XTAYDI (odam o'zi yopadi yoki chaqirishga o'tadi)
   useEffect(() => {
@@ -148,16 +149,27 @@ export function TaxiStory({ info, onClose }: Props) {
       {/* Bosish zonalari — chap 38% orqaga, o'ng 62% oldinga (story odati).
           `pointerdown` da ushlab-turish boshlanadi, `pointerup`/`pointercancel`/`pointerleave`
           da tugaydi. Bosib-qo'yib yuborish (oddiy tap) ham ishlaydi: `onClick` alohida keladi. */}
+      {/* ⚠️ USHLAB TURISH va TAP bitta elementda. Barmoq qo'yib yuborilganda brauzer `click`
+          ni HAR DOIM yuboradi — bosish qancha davom etganidan qat'i nazar. Ya'ni «ushlab
+          turib o'qiyman» degan odam qo'lini olishi bilan karta baribir o'tib ketardi, ya'ni
+          tuzatish AMALDA ISHLAMASDI (mustaqil audit topdi). Endi bosish DAVOMIYLIGI
+          o'lchanadi: 250 ms dan uzun bo'lsa bu «o'qish uchun ushlash» deb qabul qilinadi va
+          karta o'tkazilmaydi; qisqa tegish esa odatdagidek o'tkazadi. */}
       {(["prev", "next"] as const).map((side) => (
         <button
           key={side}
           className={`st-zone ${side}`}
           aria-label={side === "prev" ? "Orqaga" : "Keyingisi"}
-          onPointerDown={() => setHeld(true)}
+          onPointerDown={() => { pressAt.current = Date.now(); setHeld(true); }}
           onPointerUp={() => setHeld(false)}
-          onPointerCancel={() => setHeld(false)}
-          onPointerLeave={() => setHeld(false)}
-          onClick={() => go(side === "prev" ? -1 : 1)}
+          onPointerCancel={() => { pressAt.current = 0; setHeld(false); }}
+          onPointerLeave={() => { pressAt.current = 0; setHeld(false); }}
+          onClick={() => {
+            const heldMs = pressAt.current ? Date.now() - pressAt.current : 0;
+            pressAt.current = 0;
+            if (heldMs > 250) return; // uzoq ushladi — o'qiyotgan edi, kartani o'tkazmaymiz
+            go(side === "prev" ? -1 : 1);
+          }}
         />
       ))}
 

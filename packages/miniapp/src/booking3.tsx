@@ -967,7 +967,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         .catch(() => { if (alive && seq === snapSeq.current) setPinBusy(false); });
     };
     const onMove = () => { setWalking(false); if (deb) clearTimeout(deb); deb = setTimeout(snap, 450); };
-    const onStart = () => setWalking(true); // dragging → the traveler walks
+    const onStart = () => {
+      setWalking(true); // dragging → the traveler walks
+      // Xaritani QO'LDA surish — bu endi GPS aytgan joy EMAS. Ilgari `gpsOk` bir marta
+      // yoqilgach hech qachon o'chmasdi: odam uyda ruxsat berib, keyin xaritani 3 km
+      // narigi mahallaga sursa ham karta «Siz shu yerdasiz» deb turaverardi (audit topdi).
+      setGpsOk(false);
+    };
     m.on("movestart", onStart);
     m.on("moveend", onMove);
     // pickup2 only: label wherever the map already sits, without waiting for a move. The usual path
@@ -1003,12 +1009,19 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // side) → honest apology screen ("failed") with the next-ride voucher estimate. DISPLAY only:
       // the voucher itself was recorded by the bot sweep; the Mini App never grants.
       if (!a && activeRef.current) {
-        if (activeRef.current.driver) {
+        // 🔴 kas buyurtmani faol ro'yxatdan HAM tugaganda, HAM BEKOR QILINGANDA olib tashlaydi.
+        // Ilgari bu yerda faqat «haydovchi bor edimi» tekshirilardi — natijada haydovchi qabul
+        // qilib, keyin BEKOR QILSA ham mijoz konfetti, «Safar tugadi» va tanga va'dasini
+        // ko'rardi, server esa NOL bergan bo'lardi (DIZAYN_QOIDALARI #9). Server tomonida bu
+        // qo'riq allaqachon bor (`bookingNotifier.ts:429-433`: rideStartedAt yo'q → mukofot yo'q)
+        // — mijoz o'sha mantiqni takrorlaydi: safar HAQIQATAN boshlangan bo'lsagina yakun ekrani.
+        const reallyRode = !!activeRef.current.driver && !!activeRef.current.rideStartedAt;
+        if (reallyRode) {
           setFinishedBid(activeRef.current.id);
           // Yakuniy narxni SHU LAHZADA ushlab qolamiz: `active` null bo'lgach taksometrning
           // oxirgi qiymati yo'qoladi va yakun ekrani narxsiz qolardi. Qiymat yo'q bo'lsa
           // 0 qoladi va karta narx blokini UMUMAN chizmaydi (DIZAYN_QOIDALARI #7).
-          setFinishFare(activeRef.current.driver.meterPayment ?? 0);
+          setFinishFare(activeRef.current.driver?.meterPayment ?? 0);
           setScreen("finished");
           confetti();
           haptic();
@@ -1131,6 +1144,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       );
     });
 
+  /** Shu chegaradan tig'iz fix «Siz shu yerdasiz» deyishga haq beradi (metr). */
+  const GOOD_FIX_M = 35;
+
   const locateMe = async (auto = false) => {
     if (!map.current) return;
     if (!auto) haptic();
@@ -1140,7 +1156,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // Aniqlikni RAQAM bilan aytamiz. Ilgari faqat «aniqlik past» derdi — mijoz ham, biz ham
     // xato 50 metrmi yoki 800 metrmi, bila olmasdik. Endi ekranning o'zi diagnostika beradi.
     const apply = (lat: number, lng: number, accuracy: number) => {
-      setGpsOk(true); // haqiqiy fix keldi — endi «Siz shu yerdasiz» deyishga haqimiz bor
+      // ⚠️ HAR QANDAY fix emas — faqat TIG'IZ fix «Siz shu yerdasiz» deyishga haq beradi.
+      // Ilgari 800 m aniqlikdagi uyacha-nuqtasi ham `gpsOk = true` qilardi va karta
+      // «✓ Siz shu yerdasiz» derdi, o'sha paytda pastdagi xabar «Aniqlik ~800 m — pinni
+      // biroz suring» deb TESKARISINI aytardi (mustaqil audit topdi). 35 m — quyidagi
+      // xabarning o'zi «yaxshi» deb hisoblaydigan chegara, shuni ishlatamiz.
+      setGpsOk(accuracy <= GOOD_FIX_M);
       // 📍 Joy nomini GPS nuqtasining O'ZIDAN so'raymiz, xaritaning `moveend` ini KUTMASDAN.
       // Sabab (ega: «gps aniqlashi juda xato», 2026-08-09): nom ilgari faqat xarita ko'chib
       // bo'lgach, `map.getCenter()` dan hisoblanardi. `setView` ANIMATSIYALI — agar animatsiya
@@ -1305,6 +1326,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       setMsg("⚠️ Bekor qilinmadi — qayta urinib ko'ring");
       return;
     }
+    // Bekor qilingach BUTUN faol-safar holati tozalanadi. Ilgari faqat ekran almashardi va
+    // `activeRef.current` eski haydovchi bilan qolib ketardi — keyingi buyurtmada birinchi
+    // so'rov `null` qaytarsa o'sha eskirgan qiymat «safar tugadi» deb hisoblanardi va OLDINGI,
+    // BEKOR QILINGAN safarning taksometri ko'rsatilardi. (`rebook()` buni to'g'ri qilardi.)
+    activeRef.current = null;
+    setActive(null);
+    setFinishedBid(null);
+    waitStartRef.current = null;
     setScreen("pinpick");
     setMsg(null);
   };
@@ -1344,15 +1373,19 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     pinPt && pinAddr && typeof pinAddr.lat === "number" && typeof pinAddr.lng === "number"
       ? haversineKm(pinPt, { lat: pinAddr.lat, lng: pinAddr.lng })
       : null;
-  const pinExact = pinDistKm !== null && pinDistKm <= 0.2; // 200 m — «shu yerdasiz» deyish chegarasi
-  const pinNear = pinAddr && pinDistKm !== null ? (pinExact ? pinAddr.name : `${pinAddr.name} yaqinida`) : null;
+  // Chegara va hedge-so'z pickup2 ga BOG'LIQ: eski oqim AYNAN avvalgidek qoladi (150 m,
+  // «X yaqini») — mustaqil audit bu ikkisi bayroq-OFF yo'liga sizib ketganini topdi.
+  const pinExact = pinDistKm !== null && pinDistKm <= (pickup2 ? 0.2 : 0.15);
+  const pinNear = pinAddr && pinDistKm !== null
+    ? (pinExact ? pinAddr.name : `${pinAddr.name} ${pickup2 ? "yaqinida" : "yaqini"}`)
+    : null;
   // Ishonchli holat FAQAT ikkalasi ham to'g'ri bo'lganda: haqiqiy GPS fix + yaqin katalog joyi.
   const locSure = gpsOk && pinExact;
   // 👆 Tortgich (grip) — barmoq bilan pastga tortsa yig'iladi, tepaga tortsa ochiladi.
   // Ega e'tirozi (2026-08-09): «barmoq bilan mini barni tushurib ko'tarishni to'g'irlab qo'y» —
   // ilgari faqat BOSISH ishlardi, tortish umuman yo'q edi. 40px — tasodifiy siljishdan ajratuvchi
   // chegara; undan kichigi oddiy bosish deb qabul qilinadi (ikkala usul ham ishlaydi).
-  const gripDrag = (onDown: (() => void) | null, onUp: (() => void) | null) => {
+  const gripDrag = (onDown: (() => void) | null, onUp: (() => void) | null, onToggle?: () => (() => void) | null) => {
     let startY: number | null = null;
     const DIST = 40;
     return {
@@ -1361,9 +1394,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         if (startY === null) return;
         const dy = e.clientY - startY;
         startY = null;
-        if (dy > DIST) { haptic(); onDown?.(); return; }
-        if (dy < -DIST) { haptic(); onUp?.(); return; }
-        haptic(); (onDown ?? onUp)?.(); // qisqa harakat = oddiy bosish
+        if (dy > DIST && onDown) { haptic(); onDown(); return; }
+        if (dy < -DIST && onUp) { haptic(); onUp(); return; }
+        // Qisqa tegish = ALMASHTIRISH. Ilgari `(onDown ?? onUp)` edi — ikkala callback ham
+        // berilgan varaqda tap HAR DOIM yig'ardi, ya'ni yig'ilgan panelni tap bilan qayta
+        // OCHIB bo'lmasdi (aria-label esa «Panelni ochish» deb turardi). Endi holatga qarab
+        // teskarisi chaqiriladi. Mos callback bo'lmasa — jim, bekorga tebranish yo'q.
+        const toggle = onToggle?.();
+        if (toggle) { haptic(); toggle(); }
       },
       onPointerCancel: () => { startY = null; },
     };
@@ -1759,7 +1797,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
              returns when you stop. Detected place + quick chips + the single confirm CTA. ── */}
       {screen === "pinpick" && (!pickup2 || p2min) && (
         <div className={`b3-pinbar${walking ? " dragging" : ""}${pickup2 ? ` b3-p2-pincard${lite}` : ""}`}>
-          <div className="b3-grip b3-grip-tap" {...(pickup2 ? gripDrag(null, () => setP2min(false)) : {})} />
+          <div className="b3-grip b3-grip-tap" {...(pickup2 ? gripDrag(null, () => setP2min(false), () => () => setP2min(false)) : {})} />
           {pickup2 ? (
             /* Maketdagi pin kartasi: binafsha «Tanlangan joy» → katta nom → shahar → yashil tugma.
                Nom pin surilganda jonli yangilanadi (eng yaqin katalog joyi, server uni buyurtmada
@@ -1795,7 +1833,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
              actions in both — only the order changes, so the owner can compare them on a real phone. ── */}
       {screen === "pinpick" && pickup2 && !p2min && (
         <div className={`b3-p2bar${walking ? " dragging" : ""}${lite}`}>
-          <div className="b3-grip b3-grip-tap" {...gripDrag(() => setP2min(true), null)} />
+          <div className="b3-grip b3-grip-tap" {...gripDrag(() => setP2min(true), null, () => () => setP2min(true))} />
           {layoutB ? (
             <button className="b3-p2-answer-row" disabled={!pinPt || pinBusy} onClick={confirmPin}>
               <span className="b3-p2-ico">📍</span>
@@ -1950,7 +1988,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           </div>
           <div className="b3-p2-conf-note">
             Aniq summa safar oxirida chiqadi. To'lovni haydovchiga naqd yoki karta bilan berasiz.
-            {freeDrivers > 0 ? ` Yaqin atrofda ${freeDrivers} ta bo'sh mashina.` : ""}
+            {/* 🔢 SANOQ ATAYLAB AYTILMAYDI. `freeDrivers` — `Math.max(server, GHOST_FREE+GHOST_RIDES)`,
+                ya'ni kamida 11 ga MAJBURAN ko'tarilgan. Xaritadagi bezak-mashinalar zichlik uchun
+                ongli qaror, lekin YOZILGAN SON — bu DA'VO: mijoz «11 ta bo'sh mashina» o'qib,
+                keyin «mashina topib bera olmadik» ekranini ko'rsa, ilova raqamlariga ishonmay
+                qoladi (DIZAYN_QOIDALARI #7). Sanoqsiz, halol jumla qoldi. */}
+            {freeDrivers > 0 ? " Yaqin atrofda bo'sh mashinalar bor." : ""}
           </div>
 
           <button className="b3-p2-cta" disabled={busy} onClick={call}>
@@ -2008,6 +2051,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             {...gripDrag(
               () => { if (active?.driver) setRideMin(true); else setSearchMin(true); },
               () => { if (active?.driver) setRideMin(false); else setSearchMin(false); },
+              () => {
+                const min = active?.driver ? rideMin : searchMin;
+                return () => { if (active?.driver) setRideMin(!min); else setSearchMin(!min); };
+              },
             )}
           />
           {!active?.driver && searchMin ? (
@@ -2149,7 +2196,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         <div className={`b3-sheet b3-finish${pickup2 ? ` b3-p2-ride${lite}` : ""}`}>
           <div className="b3-grip" />
           <div className="b3-finish-emoji">🏁</div>
-          <div className="b3-sheet-title tac">Safar tugadi</div>
+          <div className="b3-sheet-title tac">{pickup2 ? "Safar tugadi" : "Safaringiz yakunlandi — rahmat!"}</div>
           {/* Maketdagi yakun bloklari: KATTA narx → tanga mukofoti → baho. Har biri faqat REAL
               ma'lumot bo'lsa chiziladi (narx 0 bo'lsa blok yo'q, cashback 0 bo'lsa blok yo'q). */}
           {pickup2 && finishFare > 0 && (
