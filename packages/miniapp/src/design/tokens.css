@@ -372,9 +372,13 @@ body {
   background: radial-gradient(circle at 50% 40%, rgba(34, 197, 94, 0.28), rgba(34, 197, 94, 0.06) 70%, transparent);
   box-shadow: 0 0 18px rgba(34, 197, 94, 0.3);
 }
-.tab.active { color: var(--gl-green-tx); }
-.tab.active span { filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.55)); }
-.tab.active svg { filter: drop-shadow(0 0 8px rgba(34, 197, 94, 0.55)); }
+/* ⚠️ 2026-08-10 REGRESSIYA VA TUZATISH: avval bu yerda `var(--gl-green-tx)` turardi — u
+   YORUG' temada `#0F7A38` (to'q yashil), chunki u OQ FONDAGI MATN uchun. Menyu foni esa
+   HAR DOIM to'q (`.tabbar` gradienti) → faol tab ko'rinmay qoldi, ega "barni yarmi olib
+   tashlangandek" dedi. Menyu uchun rang FONGA qarab tanlanadi, temaga emas: yorqin yashil. */
+.tab.active { color: #4ADE80; }
+.tab.active span { filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.55)); }
+.tab.active svg { filter: drop-shadow(0 0 8px rgba(74, 222, 128, 0.55)); }
 /* ASOSIY TUGMA — chuqurroq gradient + glow + sheen */
 .btn-primary, .d-btn:not(.ghost):not(.danger) {
   background: linear-gradient(165deg, #ffd060, var(--brand) 45%, #ff8f00) !important;
