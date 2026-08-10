@@ -71,7 +71,7 @@ Jami oyin:phoneball: belgilari: 859
 - Boshqa parallel sessiyalarning tugallanmagan ishi (masalan `adminLeaderboard`/`adminVitals`/
   `oyinRiskScore`, hali push qilinmagan) BU commit bilan ARALASHTIRILMADI.
 
-## 🟡 2026-08-10 — O'YIN KONSOLI (to'liq) — READY FOR VERIFICATION
+## 🟢 2026-08-10 — O'YIN KONSOLI — JONLI (`67703c6f`) · EGA TEKSHIRUVINI KUTMOQDA
 
 Ega talabi uch bosqichda: «o'yin tabi juda noqulay, butunlay yangi va zamonaviy qil, ma'lumot
 boshqarish va yuklashni osonlashtir» → «kengroq kirib boradigan nazorat» → «bular xohlaganimning
@@ -165,15 +165,34 @@ va bu **isbotlangan yo'qotishsiz**: `git diff HEAD` faqat 2 qator o'chirilganini
 eski izohlar tashlandi — upstream'da yangirog'i (`23328f22`) bor. **Ikkala stash tegilmadi**:
 `stash@{0} autostash` va `stash@{1} boshqa sessiya WIP` hali ham ro'yxatda.
 
-### Qolgan isbot (deploy'dan keyin — hali BAJARILMAGAN)
+### ✅ JONLI ISBOT (deploy 2026-08-10, commit `67703c6f`)
 
-- [ ] Reyting jonli javobi `computeBallMap` bilan mos (top-5 aynan)
-- [ ] Vital panel 20s da BITTA so'rov yuboradi (Network tab)
-- [ ] 100 ta mukofot import — 1 ta POST, farq jadvali, keyin qaytarish
-- [ ] Rasm yuklash → `/api/oyin/prizephoto` 200 → miniappda ko'rinishi
-- [ ] 5 ta amal → audit jurnalida 5 yozuv, eski→yangi bilan
-- [ ] Xavf balli 5 a'zoda qo'lda hisob bilan solishtiriladi
-- [ ] Ega real telefonda QABUL beradi → shundan keyingina eski tab o'chiriladi
+```
+https://api.birjoy.online/health            → {"ok":true,"mode":"live","bot":true}
+jonli bundle: assets/index-DTEcrAS9.js      → oyinx ✓ · oy-vital ✓ · «Ball bo'yicha reyting» ✓
+                                              «Excel'dan yuklash» ✓ · «Audit jurnali» ✓ ·
+                                              Gashtak ✓ · Hikoyalar ✓ · «Ommaviy rasm» ✓
+GET /api/admin/oyin/leaderboard             → 403 (mavjud, token so'raydi — 404 EMAS)
+GET /api/admin/oyin/vitals                  → 403
+GET /api/admin/oyin/audit                   → 403
+GET /api/admin/oyin/catalog/snapshots       → 403
+GET /api/admin/oyin/season/plan             → 403
+```
+
+Ya'ni: kod jonli, route'lar ro'yxatda, bot ishlayapti.
+
+### Qolgan isbot — EGA QILADI (token talab qiladi, men bajara olmayman)
+
+Quyidagilar admin-token talab qiladi — ega panelni ochib tekshiradi:
+
+- [ ] Vital panelda 6 raqam to'g'ri ko'rinishi
+- [ ] Reyting ochilishi, ustunlar saralanishi, CSV chiqishi
+- [ ] Bitta odamni bosib «Odam 360» ochilishi (ball tarkibi + kartalar + tuzatish tarixi)
+- [ ] ➕ bitta mukofot qo'shish · 📥 Excel import (farq jadvali) · ↩ qaytarish
+- [ ] 📤 rasm yuklash → miniappda ko'rinishi
+- [ ] Bir necha amal bajarib 🧾 audit jurnalida ko'rinishini tekshirish
+- [ ] **Real telefonda ishlashi**
+- [ ] **QABUL** → shundan keyingina eski `OyinTabLegacy` o'chiriladi
 
 ---
 
