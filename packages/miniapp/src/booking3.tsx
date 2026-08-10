@@ -1131,9 +1131,6 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       );
     });
 
-  /** Telegram'ning bitta o'qishi shu chegaradan yomon bo'lsa — brauzer GPS bilan toraytiramiz. */
-  const COARSE_M = 50;
-
   const locateMe = async (auto = false) => {
     if (!map.current) return;
     if (!auto) haptic();
@@ -1163,35 +1160,37 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // prompt often never appears → "allow" never lands). Prefer the NATIVE LocationManager (Bot API
     // 8.0+), which drives Telegram's own permission flow and can deep-link to settings when denied.
     // Fall back to the browser API for older clients / real browsers.
-    if (tgHasLocationManager()) {
-      const r = await tgGetLocation();
-      if ("lat" in r) {
-        apply(r.lat, r.lng, r.accuracy);
-        // ⚠️ Telegram BIR MARTA o'qiydi va bu ko'pincha tarmoq/uyacha nuqtasi — yuzlab metr xato
-        // bo'lishi mumkin («pin qimirladi, lekin noto'g'ri joy» shikoyati aynan shu edi). Brauzer
-        // yo'lidagi toraytirish bu yerda YO'Q edi. Endi aniqlik past bo'lsa toraytiramiz va faqat
-        // HAQIQATDAN yaxshiroq o'qish kelsa pinni ko'chiramiz — aks holda Telegram nuqtasi qoladi.
-        if (r.accuracy > COARSE_M) {
-          const b = await browserBestFix(6000);
-          if (b && b.coords.accuracy < r.accuracy) apply(b.coords.latitude, b.coords.longitude, b.coords.accuracy);
-        }
-        setLocating(false);
-        return;
-      }
-      setLocating(false);
-      if (r.error === "denied") {
-        flashMsg(auto ? "📍 Joylashuv yopiq — pinni qo'lda suring yoki 📍 ni bosing" : "📍 Joylashuvga ruxsat berilmagan — sozlamalardan yoqing", 6000);
-        if (!auto) tgOpenLocationSettings(); // deep-link so the user can re-grant in one tap
-      } else {
-        flashMsg("📍 Joylashuvni aniqlab bo'lmadi — qo'lda belgilang", 6000);
-      }
+    // 🛰 HAMMA USUL BIR VAQTDA (ega, 2026-08-10: «hamma usularni ol, aniqroq qil»).
+    // Ilgari KETMA-KET edi: avval Telegram LocationManager, u javob bersa BO'LDI — brauzer
+    // yo'li faqat u yiqilganda ishlardi. Telegram esa ko'pincha BIR MARTA o'qiydi va uyacha/
+    // Wi-Fi nuqtasini beradi (yuzlab metr xato, ba'zan eskirgan) — biz o'sha yomon qiymatni
+    // olib, yaxshirog'ini umuman so'ramasdik. Endi ikkalasi PARALLEL yuguradi va G'OLIB
+    // ANIQLIK bo'yicha tanlanadi. Brauzer yo'li allaqachon `maximumAge: 0` bilan ishlaydi,
+    // ya'ni keshdagi eski fix HECH QACHON qabul qilinmaydi.
+    const hasTg = tgHasLocationManager();
+    const [tgRes, brRes] = await Promise.all([
+      hasTg ? tgGetLocation().catch(() => null) : Promise.resolve(null),
+      browserBestFix(9000).catch(() => null), // 9s — sekin GPS ham ulgursin
+    ]);
+    setLocating(false);
+
+    const tgFix = tgRes && "lat" in tgRes ? { lat: tgRes.lat, lng: tgRes.lng, acc: tgRes.accuracy } : null;
+    const brFix = brRes ? { lat: brRes.coords.latitude, lng: brRes.coords.longitude, acc: brRes.coords.accuracy } : null;
+    // Eng TIG'IZ o'qish yutadi. Ikkalasi ham bo'lsa — kichik `acc` (metrdagi xato) g'olib.
+    const best = tgFix && brFix ? (brFix.acc < tgFix.acc ? brFix : tgFix) : (brFix ?? tgFix);
+
+    if (best) {
+      apply(best.lat, best.lng, best.acc);
       return;
     }
-
-    const b = await browserBestFix(7000);
-    setLocating(false);
-    if (b) apply(b.coords.latitude, b.coords.longitude, b.coords.accuracy);
-    else flashMsg("📍 Joylashuvni aniqlab bo'lmadi — ruxsat bering yoki qo'lda belgilang", 6000);
+    // Ikkalasi ham bermadi — sababni ANIQ aytamiz (rad etilganmi yoki topilmadimi).
+    const denied = tgRes && !("lat" in tgRes) && tgRes.error === "denied";
+    if (denied) {
+      flashMsg(auto ? "📍 Joylashuv yopiq — pinni qo'lda suring yoki 📍 ni bosing" : "📍 Joylashuvga ruxsat berilmagan — sozlamalardan yoqing", 6000);
+      if (!auto) tgOpenLocationSettings(); // deep-link so the user can re-grant in one tap
+    } else {
+      flashMsg("📍 Joylashuvni aniqlab bo'lmadi — qo'lda belgilang", 6000);
+    }
   };
 
   // 📍 OCHILGANDA O'ZI ANIQLASH (feature:autoloc). Ilgari GPS FAQAT 📍 tugmasi bosilganda
