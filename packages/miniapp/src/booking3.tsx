@@ -1192,7 +1192,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       if (zoneLayer.current) { zoneLayer.current.remove(); zoneLayer.current = null; }
     };
     const places = allPlaces ?? [];
-    const on = pickup2 && !!m && places.length > 0 && !active && (screen === "pinpick" || screen === "map");
+    // Mahalla ranglari SAFAR PAYTIDA ham qoladi (ega: «xarita bo'sh, mahala chegaralari va
+    // ranglari yo'q»). Ilgari `!active` sharti bor edi — safar boshlanishi bilan butun
+    // bezak o'chib, xarita bo'm-bo'sh kulrang bo'lib qolardi. Zonalar VEKTOR (surishda JS
+    // ishlamaydi), shuning uchun ular qolaveradi; joy BELGILARI esa safarda chizilmaydi —
+    // u paytda odam mashinani kuzatadi, joy tanlamaydi.
+    const on = pickup2 && !!m && places.length > 0 && (screen === "pinpick" || screen === "map" || screen === "searching");
     if (!on || !m) { wipe(); return; }
 
     // 🗺 HUDUD — endi O'YLAB TOPILGAN doiralar emas, kas1067 ning HAQIQIY shahar chegarasi.
@@ -1232,6 +1237,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
     const sync = () => {
       if (!map.current) return;
+      // Safar ketayotganda joy BELGILARI chizilmaydi — odam mashinani kuzatadi, joy tanlamaydi.
+      // Mahalla RANGLARI esa qoladi (yuqorida, zona qatlamida) — xarita bo'm-bo'sh bo'lib qolmaydi.
+      if (screen === "searching") { for (const [, e] of placeMarkers.current) e.mk.remove(); placeMarkers.current.clear(); return; }
       const zoom = m.getZoom();
       const limit = zoom >= 16 ? 18 : zoom >= 15 ? 30 : 0;
       const withLabel = zoom >= 16;
