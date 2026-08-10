@@ -487,15 +487,37 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [plateZoom, setPlateZoom] = useState(false); // mashina raqamini bosib haydovchi kartochkasini KATTA ko'rish
   const [plateClosing, setPlateClosing] = useState(false); // exit animatsiyasi davom etayotganini ushlab turadi
   const autoShownForBooking = useRef<number | null>(null); // har bookingga bitta marta avtomatik ochish
+  const arrivedShownFor = useRef<number | null>(null); // pickup2: KELGANDA bir marta ochish
+  const [plateArrived, setPlateArrived] = useState(false); // kartochka «keldi» sababi bilan ochildimi
   const closePlate = (): void => {
     haptic();
     setPlateClosing(true);
-    setTimeout(() => { setPlateZoom(false); setPlateClosing(false); }, 260); // animatsiya yakuni
+    setTimeout(() => { setPlateZoom(false); setPlateClosing(false); setPlateArrived(false); }, 260); // animatsiya yakuni
   };
-  // 🎉 Haydovchi QABUL qildi (driver maydoni paydo bo'ldi) — popup AVTOMATIK ochiladi, success haptik,
-  // 5 soniyadan keyin silliq pastga yopiladi. "Bosish kerakligini hamma bilmaydi" — to'g'ridan-to'g'ri
-  // ko'rsatamiz. Har buyurtma uchun bitta marta (booking id ref bilan), takrorlanmaydi.
+  // 🚕 pickup2: RAQAM KARTOCHKASI «MASHINA KELDI» LAHZASIDA OCHILADI, qabul qilinganda EMAS.
+  // Ega mantiqi (2026-08-10): kartochkaning yagona vazifasi — YO'L CHETIDA TURGAN odam kelgan
+  // mashinani tanib olishi. Qabul lahzasida mashina o'rtacha 4 daqiqa narida bo'ladi va odam
+  // hali telefonga qarab o'tiribdi — o'sha paytdagi katta oyna butun safar ekranini bekorga
+  // yopadi (qabul quvonchini `justFound` pop'i allaqachon aytadi). Kelganda esa aksincha:
+  // ekranga qaramay, ko'chaga qarab turgan odamga eng kerakli narsa — KATTA RAQAM.
+  // AVTO-YOPILISH ATAYLAB YO'Q: 5 soniya raqamni topib, solishtirib ulgurish uchun kam;
+  // odam o'zi «Yopish» bosadi yoki tashqariga tegadi. Timersiz ⇒ yuqoridagi StrictMode
+  // taymer-tuzog'i bu yo'lda umuman paydo bo'lmaydi.
   useEffect(() => {
+    if (!pickup2) return;
+    const bid = active?.id;
+    if (!bid || !active?.driver?.carNumber) return;
+    if (active.status !== "arrived") return;
+    if (arrivedShownFor.current === bid) return;
+    arrivedShownFor.current = bid;
+    hapticSuccess();
+    setPlateArrived(true);
+    setPlateZoom(true);
+  }, [pickup2, active?.id, active?.driver?.carNumber, active?.status]);
+  // 🎉 ESKI OQIM (pickup2 OFF) — o'zgarmagan: haydovchi QABUL qilganda popup avtomatik ochiladi,
+  // success haptik, 5 soniyadan keyin silliq yopiladi. Bu shox bir pikselga ham tegilmadi.
+  useEffect(() => {
+    if (pickup2) return; // yangi oqimda ochilish yuqoridagi «keldi» effektida
     const bid = active?.id;
     const car = active?.driver?.carNumber;
     if (!bid || !car) return;
@@ -517,7 +539,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     }, 5000);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active?.id, active?.driver?.carNumber]);
+  }, [pickup2, active?.id, active?.driver?.carNumber]);
   const activeRef = useRef<ActiveBookingView | null>(info.active ?? null); // E7: detect active→null finish
   const [finishedBid, setFinishedBid] = useState<number | null>(null); // E7: the just-finished ride
   // 🪙 Jonli qidiruv: when THIS search began (client-side, display only — the server times the real
@@ -2433,8 +2455,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
           ? (d.photoUrl.startsWith("http") ? d.photoUrl : (import.meta.env.VITE_API_URL as string || "") + d.photoUrl)
           : null;
         return (
-          <div className={`b3-plate-zoom${plateClosing ? " closing" : ""}`} onClick={closePlate} role="dialog" aria-label="Haydovchi ma'lumotlari">
-            <div className="b3-driver-card" onClick={(e) => e.stopPropagation()}>
+          <div className={`b3-plate-zoom${plateClosing ? " closing" : ""}`} onClick={closePlate} role="dialog" aria-label={plateArrived ? "Mashina yetib keldi" : "Haydovchi ma'lumotlari"}>
+            <div className={`b3-driver-card${plateArrived ? " b3-dc-arrived" : ""}`} onClick={(e) => e.stopPropagation()}>
+              {/* Kelgan lahzada kartochka BOSHQA ish qiladi: u endi «haydovchi kim» emas,
+                  «qaysi mashinaga o'tiraman» savoliga javob. Shuning uchun tepada aniq
+                  ko'rsatma turadi — pastdagi raqam esa allaqachon ekrandagi eng katta narsa. */}
+              {plateArrived && <div className="b3-dc-arrivedhd">🚕 Mashinangiz yetib keldi<span>Shu raqamni qidiring</span></div>}
               <div className="b3-dc-avatar">
                 {photoSrc ? (
                   <img src={photoSrc} alt={d.fullName || "Haydovchi"} className="b3-dc-avatar-img" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
