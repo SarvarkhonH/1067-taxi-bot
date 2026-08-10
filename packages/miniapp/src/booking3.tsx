@@ -231,7 +231,6 @@ const KIND_GLYPH: Record<ReturnType<typeof placeKind>, string> = {
 // 🏘 Mahalla nomidan BARQAROR rang — bir xil mahalla har doim bir xil rangda (tasodifiy emas,
 // shuning uchun odam «pushti mahalla» deb eslab qoladi). Palitra joy-turi ranglaridan olingan,
 // ya'ni ilova bir xil rang tilida gapiradi.
-const DISTRICT_RE = /mahalla|qishloq|guzar/i;
 const DISTRICT_COLORS = ["#0A76FA", "#01A95E", "#FBB307", "#7241EA", "#F2496B", "#0E9F8E", "#FE7E00", "#64748B"];
 function districtColor(name: string): string {
   let h = 0;
@@ -1225,11 +1224,17 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // mahalla har doim bir xil rangda chiqadi (tasodifiy emas, esda qoladi). Diametr ~300 m
       // = 150 m radius. Chegara CHIZILMAYDI — bizda haqiqiy mahalla poligoni yo'q, faqat
       // nuqta bor; yumshoq rang-dog'i «shu atrofda» deydi, «chegara aynan shu yerda» demaydi.
+      // Ega (2026-08-10): «joy adresslari umuman ajratilmagan-ku, o'z ranglarida aniq 300
+      // metrdan qilib». Ilgari FAQAT mahalla/qishloq nomlariga doira chizilardi — ya'ni
+      // katalogning 150 joyidan atigi 5-6 tasi ajralib turardi. Endi HAR katalog joyi o'z
+      // rang-doirasiga ega: xarita nomlangan hududlarga bo'linadi va odam «men qaysi joydaman»
+      // degan savolga xaritaga qarabgina javob topadi.
       for (const z of allPlaces ?? []) {
-        if (!DISTRICT_RE.test(z.name) || typeof z.lat !== "number" || typeof z.lng !== "number") continue;
-        const c = districtColor(z.name);
-        L.circle([z.lat, z.lng], { radius: 150, stroke: false, fillColor: c, fillOpacity: 0.14, interactive: false }).addTo(g);
-        L.circle([z.lat, z.lng], { radius: 92, stroke: false, fillColor: c, fillOpacity: 0.10, interactive: false }).addTo(g);
+        if (typeof z.lat !== "number" || typeof z.lng !== "number") continue;
+        L.circle([z.lat, z.lng], {
+          radius: 150,                       // 300 m DIAMETR (ega aniq shu sonni aytdi)
+          stroke: false, fillColor: districtColor(z.name), fillOpacity: 0.13, interactive: false,
+        }).addTo(g);
       }
       g.addTo(m);
       zoneLayer.current = g;

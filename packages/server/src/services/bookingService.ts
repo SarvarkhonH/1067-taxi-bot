@@ -12,6 +12,7 @@ import {
   type FareQuote,
   type GeoPt,
   type SavedAddressView,
+  placeKind,
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { env } from "../env";
@@ -182,17 +183,28 @@ export async function nearestAddressFor(memberId: number, lat: number, lng: numb
 export async function nearestCatalogAddress(lat: number, lng: number): Promise<{ addr: SavedAddressView; km: number } | null> {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   const cat = await getDataSource().getAllAddresses().catch(() => [] as SavedAddressView[]);
-  let best: SavedAddressView | null = null;
-  let bestKm = Infinity;
+  const near: { a: SavedAddressView; km: number }[] = [];
   for (const a of cat) {
     if (a.lat == null || a.lng == null) continue;
     const km = haversineKm({ lat, lng }, { lat: a.lat, lng: a.lng });
-    if (km < bestKm) {
-      bestKm = km;
-      best = { id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge };
-    }
+    near.push({ a: { id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge }, km });
   }
-  return best ? { addr: best, km: bestKm } : null;
+  if (near.length === 0) return null;
+  near.sort((x, y) => x.km - y.km);
+  const first = near[0]!;
+
+  // 🏷 ENG YAQIN ≠ ENG FOYDALI. Katalogda maktab/bozor/mahalla bilan bir qatorda mayda savdo
+  // nuqtalari ham bor («QAZILI XOTDOG», «KOMIL QASSOB», «ESABOY»). Faqat masofa bo'yicha
+  // tanlaganda 40 m dagi xotdog do'koni 120 m dagi «5-MAKTAB»ni yutardi va mijozga
+  // «sizning manzilingiz: QAZILI XOTDOG» deb ko'rsatardi (ega jonli sinovda ko'rdi).
+  // Haydovchi esa maktabni BILADI, xotdog do'konini bilmasligi mumkin — ya'ni bu nom
+  // dispetcherlik uchun ham yomonroq.
+  // Yechim: eng yaqindan +150 m ichidagi nomzodlar orasidan TANIQLI orientir afzal ko'riladi.
+  // Faqat shu oraliqda — ya'ni sezilarli darajada uzoqroq joy hech qachon tanlanmaydi.
+  const LANDMARK = new Set(["school", "bazaar", "mahalla", "gov", "mosque", "transit", "park", "health"]);
+  const better = near.find((n) => n.km <= first.km + 0.15 && LANDMARK.has(placeKind(n.a.name)));
+  const pick = better ?? first;
+  return { addr: pick.a, km: pick.km };
 }
 
 /** Human label for a map pin: nearest catalog place, with a "yaqini" suffix when the pin is a few
