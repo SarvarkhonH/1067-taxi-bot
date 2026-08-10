@@ -1,6 +1,6 @@
 # PROGRESS
 
-## 🟡 2026-08-11 — BALL ENDI MAVSUM BILAN YONADI (ega qarori) — TEKSHIRUVGA TAYYOR
+## 🟢 2026-08-11 — BALL ENDI MAVSUM BILAN YONADI — JONLI (`aa2850c6`) · EGA TEKSHIRUVINI KUTMOQDA
 
 Ega konsoldagi yangi reytingni ochib so'radi: «nega hali hech nima boshlanmay hammada ball bor
 allaqachon?». Sabab topildi va ega yangi qoida berdi:
@@ -63,8 +63,15 @@ Ikkala `deploy` ishi bir vaqtda VPS'ga SSH bilan kirdi va **meniki yiqildi**:
 ```
 
 `shield` ning HAMMA qadami o'tdi (typecheck · 157 test · 3 sim) — muammo faqat SSH qadamida.
-Keyingi deploy `main` ning eng so'nggi holatini tortadi, ya'ni bu o'zgarish ham chiqqan
-bo'lishi KERAK, lekin tashqaridan isbotlab bo'lmadi → alohida deploy chaqirildi.
+**Yechim:** `aa2850c6` bilan alohida deploy chaqirildi va u **to'liq yashil** o'tdi
+(`shield=success`, `deploy=success`). U `main` ning eng so'nggi holatini tortgani uchun
+ball-mavsum o'zgarishi ham jonli chiqdi.
+
+```
+GET /health                       → {"ok":true,"mode":"live","bot":true}
+GET /api/admin/oyin/{leaderboard,vitals,audit} → 403 (mavjud, token so'raydi)
+admin.birjoy.online               → 200
+```
 
 **Tizimli xulosa:** `ci.yml` dagi `deploy` ishida `concurrency` guruhi YO'Q. Ikki push ketma-ket
 kelsa deploylar poygaga tushadi va biri yiqiladi. Tuzatish — alohida kichik ish (V-NEXT).
