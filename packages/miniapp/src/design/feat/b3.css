@@ -237,7 +237,12 @@
 .b3-ride-progress i { display: block; height: 100%; border-radius: 6px; background: var(--gold, #f0b429); transition: width .8s ease; }
 .b3-ride-progress.full i { background: #22c55e; }
 .b3-ride-progress.hascar { overflow: visible; position: relative; margin-top: 12px; }
-.b3-ride-carwrap { position: absolute; inset: 0; transition: transform .8s ease; pointer-events: none; }
+.b3-ride-carwrap { position: absolute; inset: 0; transition: transform .8s ease; pointer-events: none;
+  /* `inset:0` + `translateX(N%)` bu qutini ekran chetidan 17px chiqarib yuborardi (jonli
+     sinov topdi). Qutining o'zi hech narsa chizmaydi, lekin qoidani buzadi va avtomatik
+     tekshiruvni yiqitadi. Kengligini nolga tushiramiz — mashina belgisi baribir o'z
+     joyida qoladi, chunki u `left:0` dan chizilgan. */
+  right: auto; width: 0; }
 .b3-ride-carbob { position: absolute; left: 0; top: 50%; }
 .b3-ride-carbob.driving { animation: b3-car-bob .9s ease-in-out infinite; }
 .b3-ride-caremoji { position: absolute; left: 0; top: 0; transform: translate(-55%, -56%) scaleX(-1); font-size: 22px; line-height: 1; filter: drop-shadow(0 0 6px rgba(255, 179, 0, .65)) drop-shadow(0 2px 3px rgba(0, 0, 0, .55)); }

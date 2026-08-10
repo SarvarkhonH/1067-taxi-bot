@@ -105,3 +105,16 @@ describe("fuzzyFilter — unli xatosiga chidamlilik (zaxira bosqich)", () => {
     expect(fuzzyFilter("zzzz", CATALOG)).toEqual([]);
   });
 });
+
+// Jonli sinov «bzor» (harf tushib qolgan) topilmasligini ko'rsatdi. Bu BILIB TURIB shunday:
+// uni topadigan yagona arzon usul (subsequence) «banisa» → «OBRON BALNITSA» ni ham topadi,
+// ya'ni algoritm taxmin qila boshlaydi va taksi noto'g'ri manzilga ketadi (yuqoridagi test).
+// Quyidagi testlar shu CHEGARANI muhrlaydi — kimdir uni kengaytirsa, sabab bilan qilsin.
+describe("fuzzyFilter — ataylab qo'yilgan chegara", () => {
+  it("harf TUSHIB QOLGAN yozuvni topmaydi (taxmin qilmaslik uchun)", () => {
+    expect(fuzzyFilter("bzor", CATALOG)).toEqual([]);
+  });
+  it("unli ALMASHGAN yozuvni esa topadi — bu xavfsiz", () => {
+    expect(fuzzyFilter("bazo", CATALOG)).toHaveLength(3);
+  });
+});

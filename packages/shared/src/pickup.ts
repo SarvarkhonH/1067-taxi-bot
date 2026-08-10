@@ -86,5 +86,15 @@ export function fuzzyFilter(q: string, list: SavedAddressView[]): SavedAddressVi
     return scored.map((x) => x.a);
   };
   const strict = pass(f, (s) => s);
-  return strict.length > 0 ? strict : pass(devowel(f), devowel);
+  if (strict.length > 0) return strict;
+  const blind = pass(devowel(f), devowel);
+  // ⛔ 3-BOSQICH (harf tushib qolgan yozuv, «bzor» → «bozor») ATAYLAB QO'SHILMADI.
+  // Sinab ko'rildi: ketma-ketlik (subsequence) tekshiruvi «bzor» ni topadi, LEKIN o'sha
+  // bilan «banisa» → «OBRON BALNITSA» ni ham topadi — ya'ni ALGORITM TAXMIN QILA BOSHLAYDI.
+  // `addressAlias.ts:7` va shu fayldagi test aniq aytadi: taxmin qilingan moslik HAQIQIY
+  // taksini NOTO'G'RI manzilga yuboradi. Qulaylik uchun bu xavfni olmaymiz.
+  // To'g'ri yechim — botda allaqachon bor KURATSIYA QILINGAN alias jadvalini (bot/booking.ts:13)
+  // Mini App'ga ham ulash: u taxmin qilmaydi, odam yozgan variantlarni bilib turadi.
+  // Bu alohida, ongli tiket.
+  return blind;
 }

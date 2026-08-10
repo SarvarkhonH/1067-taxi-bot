@@ -499,10 +499,18 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const bid = active?.id;
     const car = active?.driver?.carNumber;
     if (!bid || !car) return;
-    if (autoShownForBooking.current === bid) return;
-    autoShownForBooking.current = bid;
-    hapticSuccess();
-    setPlateZoom(true);
+    // ⚠️ AVTO-YOPILISH TAYMERI QO'RIQDAN OLDIN qo'yiladi. Ilgari `if (already) return;` taymerdan
+    // OLDIN turardi: React ikki marta chaqirganda (StrictMode) birinchi o'tish taymerni qo'yardi,
+    // tozalash uni o'chirardi, ikkinchi o'tish esa qo'riqdan qaytib YANGI taymer qo'ymasdi —
+    // natijada oyna butun safar ekranini yopib abadiy ochiq qolardi (jonli sinov: 14 soniyadan
+    // keyin ham turardi). Endi taymer har doim qo'yiladi, qo'riq faqat haptik/ochishni bir
+    // martalik qiladi.
+    const firstTime = autoShownForBooking.current !== bid;
+    if (firstTime) {
+      autoShownForBooking.current = bid;
+      hapticSuccess();
+      setPlateZoom(true);
+    }
     const t = setTimeout(() => {
       setPlateClosing(true);
       setTimeout(() => { setPlateZoom(false); setPlateClosing(false); }, 260);
@@ -2088,7 +2096,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               {/* one obvious tap to lower the panel and watch the car on the map */}
               <button className="b3-collapse-btn" onClick={() => { haptic(); setRideMin(true); }}>▾ Kichraytirish · xaritani ko'rish</button>
               <div className={`b3-search-title${active.status === "arrived" ? " b3-arrived" : ""}`}>
-                {active.status === "arrived" ? "🚕 Haydovchi yetib keldi — chiqing!" : "✅ Haydovchi qabul qildi"}
+                {/* Uch holat — uch xil sarlavha. Ilgari faqat `arrived` tekshirilardi, ya'ni safar
+                    KETAYOTGANDA ham «Haydovchi qabul qildi» deb turardi (jonli sinov topdi):
+                    hisoblagich ishlab turibdi-yu, sarlavha 10 daqiqa oldingi holatni aytadi. */}
+                {active.status === "arrived"
+                  ? "🚕 Haydovchi yetib keldi — chiqing!"
+                  : active.status === "started"
+                    ? "🚕 Safardasiz — yaxshi yo'l!"
+                    : "✅ Haydovchi qabul qildi"}
               </div>
               {active.status !== "started" && (
                 <RideProgress pct={approachPct} full={active.status === "arrived"} className="mt8" />
