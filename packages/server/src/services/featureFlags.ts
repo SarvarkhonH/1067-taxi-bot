@@ -214,6 +214,14 @@ export async function setFeature(name: FeatureName, on: boolean): Promise<void> 
 // it never auto-flips (an intentional off must stay off until this list is edited).
 export const EXPECTED_ON: FeatureName[] = [
   "wheel", "items", "transfers", "push", "recruit", "booking3",
+  // 🚕 Taksi joy-tanlash redizayni — ega QABUL berdi va jonlida yoqildi (2026-08-10):
+  //   `pickup2`   — yangi olib-ketish oqimi (A tartibi: javob birinchi)
+  //   `pickup2lt` — yorug' ko'rinish (ega maketidagi oq dunyo)
+  //   `taxistory` — 6 kartali o'rgatuvchi story (birinchi ochilishda bir marta)
+  // `pickup2b` (B tartibi) ATAYLAB YO'Q: ega A ni tanladi, B faqat solishtirish uchun
+  // qurilgandi va endi ishlatilmaydi. Tezkor orqaga qaytarish: setFlag.ts pickup2 off →
+  // eski oqim AYNAN qaytadi (flag-OFF yo'li har commit'da tekshirilgan).
+  "pickup2", "pickup2lt", "taxistory",
   // "gap" (gashtak) va "plus" (obuna) — 2026-08-07 da ega buyrug'i bilan o'chirildi ("kerak emas,
   // vazifasini bajardi"/"to'liq yuqot"). Ro'yxatga ATAYLAB qo'shilmadi: off qolishi kerak.
   // livinghome 2026-07-29 da BUTUNLAY olib tashlandi (TOZALASH_DOD.md Blok A1): bayroq nomi,
