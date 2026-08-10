@@ -2131,3 +2131,493 @@ body {
   font-size: 12px; line-height: 1.5; text-align: left;
 }
 .nh-oyin-hint > span:first-child { font-size: 15px; line-height: 1.25; flex-shrink: 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════════
+   🫧 UY — LIQUID GLASS (ega maketi 2026-08-10, `birjoy-glass.html`) — `gl-*` nom fazosi.
+   Falsafa: RANG MUHITDA, panelda emas. Ko'k/yashil endi orqa fondagi xira yog'dularda
+   (`.gl-amb`) yashaydi; panellar esa yoki SHISHA (chip + sovg'a paneli), yoki QATTIQ yuza.
+   ⚠️ NEGA YANGI NOM FAZOSI (`gl-`), eski `nh-` ustiga yozilmadi: `.nh-oyin*` ni mehmon-teaser
+   (`design/oyinTeaser.tsx`) va `.nh-view/.nh-sh/.nh-invite/.nh-skel` ni `profile.tsx` baham
+   ko'radi — ularni qayta bo'yash uy bilan bog'liq bo'lmagan ikki ekranni buzardi (teaser
+   skeletoni 474px o'lchovga qulflangan). Shuning uchun uy o'z tilida gapiradi, qolgani tegilmadi.
+   ── QOIDALAR (maketdagi xatolar SHU YERDA tuzatilgan) ─────────────────────────────────────
+   1. Eng kichik matn 11px (maketda 8.5/9px bor edi — telefonda o'qilmaydi).
+   2. Yashil MATN = --gl-green-tx (#0F7A38 yorug'da, 5.4:1). #16A34A faqat FON/ikonka uchun —
+      u oq fonda 3.19:1, ya'ni matn sifatida AA'dan yiqiladi. Oq-ustida-yashil CTA ham
+      shu sababdan to'qroq (#15803D → oq matn 5.1:1).
+   3. `backdrop-filter` JAMI 3 joyda: (a) `.gl-chip`, (b) `.gl-gift`, (c) pastki menyu
+      (`.nh-app .tabbar`, yuqorida allaqachon bor). Qolgan hamma karta QATTIQ yuza —
+      shishani ko'paytirish eski Androidda kadrni yeydi. Har ikkalasiga `@supports not`
+      zaxirasi bor (qattiq fon), ya'ni qo'llab-quvvatlamaydigan WebView'da matn o'qiladi.
+   4. Yog'dular `position: fixed` — skroll konteyneridan TASHQARIDA, skrollda ketmaydi.
+   5. O'lchamlar: bitta gutter (--gl-gutter), 4 ta radius (lg/md/sm/pill), font-weight
+      faqat 400/600/700/900.
+   ═══════════════════════════════════════════════════════════════════════════════════════════ */
+:root, :root[data-theme="dark"] {
+  --gl-page: #0A1220;
+  --gl-card: #101A28;
+  --gl-card-2: #182335;
+  --gl-ink: #E8EFF8;
+  --gl-ink-2: #C6D2E2;
+  --gl-dim: #93A4BA;
+  --gl-line: rgba(255, 255, 255, .10);
+  --gl-blue: #6FB0FF;
+  --gl-blue-deep: #9CC3FF;
+  --gl-green: #22C55E;
+  --gl-green-tx: #4ADE80;
+  --gl-glass: rgba(22, 32, 48, .55);
+  --gl-glass-bd: rgba(255, 255, 255, .14);
+  --gl-glass-solid: #16202F;
+  --gl-glass-spec: rgba(255, 255, 255, .12);
+  --gl-shadow: 0 6px 24px rgba(0, 0, 0, .38);
+  --gl-shadow-lift: 0 14px 34px rgba(0, 0, 0, .46);
+  --gl-focus: #8AB4FF;
+  --gl-orb-1: rgba(37, 99, 235, .34);
+  --gl-orb-2: rgba(34, 197, 94, .24);
+  --gl-orb-3: rgba(20, 166, 122, .20);
+  --gl-orb-4: rgba(37, 99, 235, .20);
+  --gl-fill-blue: rgba(111, 176, 255, .14);
+  --gl-fill-green: rgba(34, 197, 94, .16);
+  --gl-ph: linear-gradient(150deg, rgba(111, 176, 255, .22), rgba(34, 197, 94, .18));
+}
+:root[data-theme="light"] {
+  --gl-page: #EEF3F9;
+  --gl-card: #FFFFFF;
+  --gl-card-2: #F2F6FC;
+  --gl-ink: #0F172A;
+  --gl-ink-2: #334155;
+  --gl-dim: #54637A;
+  --gl-line: rgba(15, 23, 42, .10);
+  --gl-blue: #2563EB;
+  --gl-blue-deep: #173A8A;
+  --gl-green: #16A34A;
+  --gl-green-tx: #0F7A38;
+  --gl-glass: rgba(255, 255, 255, .58);
+  --gl-glass-bd: rgba(255, 255, 255, .72);
+  --gl-glass-solid: #F5F9FE;
+  --gl-glass-spec: rgba(255, 255, 255, .85);
+  --gl-shadow: 0 6px 24px rgba(20, 40, 80, .08);
+  --gl-shadow-lift: 0 14px 34px rgba(20, 40, 80, .14);
+  --gl-focus: #173A8A;
+  --gl-orb-1: rgba(37, 99, 235, .30);
+  --gl-orb-2: rgba(34, 197, 94, .28);
+  --gl-orb-3: rgba(20, 166, 122, .22);
+  --gl-orb-4: rgba(37, 99, 235, .20);
+  --gl-fill-blue: rgba(37, 99, 235, .10);
+  --gl-fill-green: rgba(22, 163, 74, .12);
+  --gl-ph: linear-gradient(150deg, rgba(37, 99, 235, .14), rgba(34, 197, 94, .14));
+}
+:root[data-theme="vibrant"] {
+  --gl-page: #12082A;
+  --gl-card: #1E1442;
+  --gl-card-2: #281A54;
+  --gl-ink: #F6F2FF;
+  --gl-ink-2: #DBD0F5;
+  --gl-dim: #B3A6D6;
+  --gl-line: rgba(255, 255, 255, .12);
+  --gl-blue: #A5B8FF;
+  --gl-blue-deep: #C4B5FD;
+  --gl-green: #22C55E;
+  --gl-green-tx: #6EE7A8;
+  --gl-glass: rgba(40, 26, 84, .55);
+  --gl-glass-bd: rgba(255, 255, 255, .16);
+  --gl-glass-solid: #281A54;
+  --gl-glass-spec: rgba(255, 255, 255, .14);
+  --gl-shadow: 0 6px 24px rgba(20, 5, 50, .5);
+  --gl-shadow-lift: 0 14px 34px rgba(168, 85, 247, .3);
+  --gl-focus: #C4B5FD;
+  --gl-orb-1: rgba(139, 92, 246, .34);
+  --gl-orb-2: rgba(34, 197, 94, .22);
+  --gl-orb-3: rgba(236, 72, 153, .22);
+  --gl-orb-4: rgba(99, 102, 241, .24);
+  --gl-fill-blue: rgba(165, 184, 255, .14);
+  --gl-fill-green: rgba(34, 197, 94, .16);
+  --gl-ph: linear-gradient(150deg, rgba(165, 184, 255, .22), rgba(236, 72, 153, .18));
+}
+/* Mavzudan MUSTAQIL konstantalar: sovg'a paneli sahifadagi YAGONA to'q yuza — u light/dark/
+   vibrant'da BIR XIL ko'rinadi (ierarxiya mavzuga qarab o'zgarmasligi kerak). */
+:root {
+  --gl-gift-a: rgba(23, 58, 138, .86);
+  --gl-gift-b: rgba(14, 35, 80, .90);
+  --gl-gift-solid: #153372;
+  --gl-gift-bd: rgba(255, 255, 255, .22);
+  --gl-gift-fill: rgba(255, 255, 255, .10);
+  --gl-gift-fill-2: rgba(255, 255, 255, .16);
+  --gl-gift-spec: rgba(255, 255, 255, .24);
+  --gl-gift-glow: rgba(74, 222, 128, .40);
+  --gl-on-gift: #FFFFFF;
+  --gl-on-gift-2: #C7D6EE;
+  --gl-mint: #A7F3D0;
+  --gl-mint-2: #86EFAC;
+  --gl-cta-grad: linear-gradient(135deg, #1B9A4B, #15803D);
+  --gl-cta-ink: #FFFFFF;
+  --gl-cta-shadow: 0 6px 18px rgba(15, 122, 56, .34);
+  /* Logotip (∞) gradienti — SVG `<stop>` lari CSS orqali bo'yaladi, inline hex EMAS. */
+  --gl-logo-1: #1E40AF;
+  --gl-logo-2: #2563EB;
+  --gl-logo-3: #14A67A;
+  --gl-logo-4: #22C55E;
+  /* Bitta gutter + 4 ta radius (DIZAYN_QOIDALARI: o'lchamlar sanoqli bo'lsin). */
+  --gl-gutter: 14px;
+  --gl-r-lg: 22px;
+  --gl-r-md: 16px;
+  --gl-r-sm: 12px;
+  --gl-r-pill: 999px;
+  /* ⚠️ SKELETON ↔ REAL KARTA BALANDLIGI — YAGONA MANBA. Avvalgi kodda skeleton `height: 554`
+     deb QO'LDA yozilgan edi: karta tarkibi o'zgarsa raqam jimgina eskirardi va yuklanganda
+     sahifa sakrardi (#11). Endi ikkalasi ham shu bitta tokenni o'qiydi — ular ta'rif bo'yicha
+     bir xil. Panel ichidagi o'zgaruvchan matn bloklariga ham min-height berilgan (`.gl-ghead`),
+     shuning uchun IKKALA holat (ball yo'q / ball bor) ham bir xil balandlikda.
+     Qiymat 390px kenglikda blok-blok hisoblab chiqarilgan (pill 28 + bosh 108 + fotolar 68 +
+     sanoq 51 + qadamlar 47 + CTA 54 + raqamlar 70 + maslahat 56 + 4 tirqish 56 + padding 36
+     ≈ 610) va tor telefonda matn ko'proq qatorga bo'linishi uchun ~10px zaxira qo'shilgan. */
+  --gl-gift-min: 620px;
+}
+
+/* ── Sahifa + muhit ────────────────────────────────────────────────────────────────────── */
+.gl-view {
+  position: relative;
+  min-height: 100%;
+  color: var(--gl-ink);
+  background: var(--gl-page);
+  /* `.content` bergan 16px yon va (4px + safe-top) tepa paddingini bekor qilamiz — fon
+     status-bar tagigacha cho'ziladi, kontent esa xavfsiz zonadan boshlanadi. */
+  margin: calc(-4px - var(--safe-top)) -16px 0;
+  padding: calc(var(--safe-top) + 10px) 16px calc(24px + var(--safe-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: var(--gl-gutter);
+}
+/* Yog'dular: `fixed` — skroll qilinadigan qatlamdan TASHQARIDA, shuning uchun skrollda
+   ekrandan chiqib ketmaydi (maket xatosi #6). `overflow:hidden` ularni ekran ichida ushlaydi. */
+.gl-amb { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
+.gl-orb { position: absolute; border-radius: 50%; filter: blur(52px); }
+.gl-orb.o1 { width: 300px; height: 300px; top: -90px; left: -90px; background: var(--gl-orb-1); }
+.gl-orb.o2 { width: 280px; height: 280px; top: 40px; right: -110px; background: var(--gl-orb-2); }
+.gl-orb.o3 { width: 260px; height: 260px; top: 50%; left: -80px; background: var(--gl-orb-3); }
+.gl-orb.o4 { width: 240px; height: 240px; bottom: -60px; right: -70px; background: var(--gl-orb-4); }
+.gl-view > *:not(.gl-amb) { position: relative; z-index: 1; }
+
+/* ── Yuqori satr: ∞ logotip + BirJoy + chiplar ─────────────────────────────────────────── */
+.gl-top { display: flex; align-items: center; gap: 10px; }
+.gl-brand { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.gl-logo { width: 34px; height: 21px; flex: 0 0 auto; }
+.gl-logo .s1 { stop-color: var(--gl-logo-1); }
+.gl-logo .s2 { stop-color: var(--gl-logo-2); }
+.gl-logo .s3 { stop-color: var(--gl-logo-3); }
+.gl-logo .s4 { stop-color: var(--gl-logo-4); }
+.gl-bname { font-size: 18px; font-weight: 900; letter-spacing: -.03em; color: var(--gl-blue-deep); }
+.gl-bname i { font-style: normal; color: var(--gl-green-tx); }
+.gl-chips { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+/* 🫧 SHISHA #1 — chiplar. */
+.gl-chip {
+  display: inline-flex; align-items: center; gap: 7px; min-height: 48px; padding: 0 14px;
+  border-radius: var(--gl-r-pill); border: 1px solid var(--gl-glass-bd);
+  background: var(--gl-glass);
+  backdrop-filter: blur(22px) saturate(180%); -webkit-backdrop-filter: blur(22px) saturate(180%);
+  box-shadow: 0 4px 16px rgba(20, 40, 80, .10), inset 0 1px 0 var(--gl-glass-spec);
+  color: var(--gl-ink); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.gl-chip .ci { width: 15px; height: 15px; border-radius: 50%; flex: 0 0 auto;
+  background: linear-gradient(135deg, var(--gl-logo-2), var(--gl-logo-4)); }
+.gl-chip.is-cb { color: var(--gl-green-tx); }
+.gl-chip.is-cb .ci { background: var(--gl-green); }
+
+/* ── Salomlashuv ───────────────────────────────────────────────────────────────────────── */
+.gl-hi { display: flex; align-items: center; gap: 10px; }
+.gl-hi-t { min-width: 0; flex: 1; }
+.gl-hi-a { font-size: 20px; font-weight: 700; letter-spacing: -.02em; color: var(--gl-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gl-hi-b { font-size: 13px; color: var(--gl-dim); margin-top: 2px; }
+.gl-wal {
+  flex: 0 0 auto; min-height: 48px; padding: 0 16px; border-radius: var(--gl-r-pill);
+  border: 1px solid var(--gl-line); background: var(--gl-card); color: var(--gl-ink);
+  font-size: 13px; font-weight: 700; cursor: pointer; box-shadow: var(--gl-shadow);
+}
+
+/* ── 🎁 SOVG'A — sahifadagi YAGONA to'q panel (shisha #2) ──────────────────────────────── */
+.gl-gift {
+  position: relative; overflow: hidden; border-radius: var(--gl-r-lg);
+  min-height: var(--gl-gift-min);
+  background: linear-gradient(150deg, var(--gl-gift-a), var(--gl-gift-b));
+  backdrop-filter: blur(24px) saturate(180%); -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid var(--gl-gift-bd);
+  box-shadow: var(--gl-shadow-lift), inset 0 1px 0 var(--gl-gift-spec);
+}
+.gl-gift-spec { position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+  background: linear-gradient(180deg, var(--gl-gift-spec), rgba(255, 255, 255, 0) 34%); }
+.gl-gift-glow { position: absolute; width: 200px; height: 200px; border-radius: 50%; top: -70px; right: -60px;
+  pointer-events: none; filter: blur(24px);
+  background: radial-gradient(circle, var(--gl-gift-glow), transparent 68%); }
+.gl-gift-in { position: relative; padding: 18px; display: flex; flex-direction: column; gap: var(--gl-gutter); }
+/* Poster maydonining O'ZI ham bosiladi (o'yinga ikkinchi yo'l) — pastdagi CTA bilan bir xil
+   `goOyin` ni chaqiradi. Tugma ichida faqat `span` lar: ichma-ich `button` HTML'da xato. */
+.gl-gift-tap {
+  display: flex; flex-direction: column; align-items: stretch; gap: var(--gl-gutter);
+  width: 100%; padding: 0; border: 0; background: none; text-align: left; cursor: pointer;
+  color: var(--gl-on-gift);
+}
+.gl-pill {
+  align-self: flex-start; display: inline-flex; align-items: center; border-radius: var(--gl-r-pill);
+  padding: 5px 12px; font-size: 11px; font-weight: 700; letter-spacing: .06em; color: var(--gl-mint);
+  background: var(--gl-gift-fill-2); border: 1px solid var(--gl-gift-bd);
+}
+/* ⬇️ IKKI HOLAT SHU BLOKDA almashadi (yangi odam / qaytgan odam). min-height ikkalasini
+   BIR XIL balandlikda ushlaydi — aks holda vitrina kech kelganda sahifa sakrardi. */
+.gl-ghead { min-height: 108px; display: flex; flex-direction: column; justify-content: center; }
+.gl-gh { font-size: 30px; font-weight: 900; letter-spacing: -.03em; line-height: .98; color: var(--gl-on-gift); }
+.gl-gh b { display: block; font-weight: 900; color: var(--gl-mint-2); }
+.gl-gsub { font-size: 13px; color: var(--gl-on-gift-2); margin-top: 8px; line-height: 1.4; }
+.gl-gsub b { color: var(--gl-mint-2); font-weight: 700; }
+/* Qaytgan odam: keyingi sovg'a + progress */
+.gl-prog { border-radius: var(--gl-r-md); padding: 13px; background: var(--gl-gift-fill);
+  border: 1px solid var(--gl-gift-bd); }
+.gl-prog-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.gl-prog-im { width: 52px; height: 52px; border-radius: var(--gl-r-sm); flex: 0 0 auto; overflow: hidden;
+  background: var(--gl-gift-fill-2); border: 1px solid var(--gl-gift-bd); }
+.gl-prog-im img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gl-prog-t { flex: 1; min-width: 0; }
+.gl-prog-k { font-size: 11px; font-weight: 700; color: var(--gl-on-gift-2); }
+.gl-prog-v { font-size: 16px; font-weight: 700; color: var(--gl-on-gift); letter-spacing: -.02em; margin-top: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gl-bar { height: 9px; border-radius: var(--gl-r-pill); background: rgba(0, 0, 0, .26); overflow: hidden; }
+.gl-bar i { display: block; height: 100%; border-radius: var(--gl-r-pill);
+  background: linear-gradient(90deg, var(--gl-green), var(--gl-mint-2)); transition: width .5s ease; }
+.gl-bar-m { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11px;
+  color: var(--gl-on-gift-2); font-variant-numeric: tabular-nums; }
+.gl-bar-m b { color: var(--gl-mint-2); font-weight: 700; }
+/* Sovrin fotolari — REAL rasm bo'lsa `img`, bo'lmasa GRADIENT blok + nom (emoji EMAS). */
+.gl-shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+.gl-shot { position: relative; height: 68px; border-radius: var(--gl-r-sm); overflow: hidden;
+  background: var(--gl-gift-fill); border: 1px solid var(--gl-gift-bd);
+  box-shadow: inset 0 1px 0 var(--gl-gift-spec); }
+.gl-shot img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.gl-shot-ph { position: absolute; inset: 0; display: flex; align-items: flex-end; padding: 5px;
+  background: linear-gradient(150deg, rgba(167, 243, 208, .28), rgba(255, 255, 255, .08));
+  font-size: 11px; font-weight: 600; line-height: 1.15; color: var(--gl-on-gift);
+  overflow: hidden; }
+/* Sanoq + sovrin soni */
+.gl-cd { display: flex; align-items: center; gap: 10px; border-radius: var(--gl-r-md); padding: 10px 12px;
+  background: var(--gl-gift-fill); border: 1px solid var(--gl-gift-bd); }
+.gl-cd-ic { flex: 0 0 auto; display: flex; color: var(--gl-mint); }
+.gl-cd-tx { display: flex; flex-direction: column; line-height: 1.2; min-width: 0; }
+.gl-cd-tx small { font-size: 11px; font-weight: 700; letter-spacing: .05em; color: var(--gl-on-gift-2); }
+.gl-cd-tx b { font-size: 15px; font-weight: 900; color: var(--gl-on-gift); }
+.gl-gbadge { margin-left: auto; flex: 0 0 auto; font-size: 11px; font-weight: 700; white-space: nowrap;
+  padding: 6px 11px; border-radius: var(--gl-r-pill); color: var(--gl-blue-deep); background: var(--gl-on-gift); }
+/* 4 qadam */
+.gl-steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.gl-step { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.gl-step-n { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 900; color: var(--gl-on-gift);
+  background: var(--gl-gift-fill-2); border: 1px solid var(--gl-gift-bd); }
+.gl-step-tx { font-size: 11px; font-weight: 600; color: var(--gl-on-gift-2); text-align: center; line-height: 1.2;
+  max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* CTA — oq matn AA'dan o'tishi uchun yashil to'qroq (5.1:1). */
+.gl-cta {
+  display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%;
+  min-height: 54px; padding: 0 16px; border-radius: var(--gl-r-md);
+  border: 1px solid var(--gl-gift-bd); background: var(--gl-cta-grad); color: var(--gl-cta-ink);
+  font-size: 16px; font-weight: 700; letter-spacing: -.01em; cursor: pointer;
+  box-shadow: var(--gl-cta-shadow), inset 0 1px 0 var(--gl-gift-spec);
+}
+.gl-cta:disabled { opacity: .62; filter: saturate(.7); cursor: default; }
+/* Umumiy raqamlar (ijtimoiy isbot) — shaxsiy ball EMAS. Ataylab BITTA ixcham blok: eski
+   ikki-ustunli panel 114px yer olardi va sovg'a kartasini shunchalik cho'zardiki, taksi
+   qatori ekrandan tushib ketardi. Barcha raqamlar saqlandi (tarqatilgan / jami / foiz). */
+.gl-stats { border-radius: var(--gl-r-md); padding: 12px; background: var(--gl-gift-fill);
+  border: 1px solid var(--gl-gift-bd); }
+.gl-stat-k { display: flex; align-items: baseline; gap: 8px; font-size: 11px; font-weight: 700;
+  letter-spacing: .04em; color: var(--gl-on-gift-2); }
+.gl-stat-k b { font-size: 15px; font-weight: 900; color: var(--gl-on-gift); font-variant-numeric: tabular-nums; }
+.gl-pct { margin-left: auto; font-size: 11px; font-weight: 700; color: var(--gl-mint-2);
+  font-variant-numeric: tabular-nums; }
+.gl-sbar { height: 6px; border-radius: var(--gl-r-pill); background: rgba(0, 0, 0, .26); margin-top: 8px; overflow: hidden; }
+.gl-sbar span { display: block; height: 100%; border-radius: var(--gl-r-pill);
+  background: linear-gradient(90deg, var(--gl-green), var(--gl-mint-2)); transition: width .5s ease; }
+.gl-stat-s { font-size: 11px; color: var(--gl-on-gift-2); margin-top: 8px; line-height: 1.35; }
+.gl-hint { display: flex; align-items: flex-start; gap: 8px; border-radius: var(--gl-r-sm); padding: 10px 11px;
+  background: var(--gl-gift-fill); color: var(--gl-on-gift-2); font-size: 12px; line-height: 1.5; }
+.gl-hint > span:first-child { font-size: 15px; line-height: 1.25; flex-shrink: 0; }
+
+/* ── 🚖 Taksi (qattiq yuza — shisha emas) ──────────────────────────────────────────────── */
+.gl-taxi {
+  display: flex; align-items: center; gap: 13px; width: 100%; min-height: 48px; padding: 14px 15px;
+  border-radius: var(--gl-r-lg); border: 1px solid var(--gl-line); background: var(--gl-card);
+  box-shadow: var(--gl-shadow); text-align: left; cursor: pointer; color: var(--gl-ink);
+}
+.gl-taxi-ic { width: 44px; height: 44px; border-radius: var(--gl-r-md); flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--gl-fill-blue); color: var(--gl-blue); }
+.gl-taxi-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.gl-taxi-a { font-size: 16px; font-weight: 700; letter-spacing: -.02em; }
+.gl-taxi-b { display: flex; align-items: center; gap: 6px; margin-top: 3px; font-size: 12px; color: var(--gl-dim); }
+.gl-dot { width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto; background: var(--gl-green);
+  box-shadow: 0 0 0 4px var(--gl-fill-green); }
+.gl-taxi-go { width: 36px; height: 36px; border-radius: var(--gl-r-sm); flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--gl-cta-grad); color: var(--gl-cta-ink);
+  border: 1px solid var(--gl-gift-bd); box-shadow: var(--gl-cta-shadow); }
+
+/* ── Bo'lim sarlavhasi ─────────────────────────────────────────────────────────────────── */
+.gl-sh { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.gl-sh .t { font-size: 16px; font-weight: 700; letter-spacing: -.015em; color: var(--gl-ink); }
+.gl-sh .t small { display: block; font-size: 12px; font-weight: 400; color: var(--gl-dim); margin-top: 2px; }
+.gl-sh .all { margin-left: auto; min-height: 48px; padding: 0 6px; border: 0; background: none;
+  font-size: 13px; font-weight: 700; color: var(--gl-green-tx); cursor: pointer; }
+
+/* ── «Kosonda» — xizmat kataklari ─────────────────────────────────────────────────────── */
+.gl-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--gl-gutter); }
+.gl-tile { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 48px;
+  padding: 13px 4px 11px; border-radius: var(--gl-r-md); border: 1px solid var(--gl-line);
+  background: var(--gl-card); box-shadow: var(--gl-shadow); cursor: pointer; }
+.gl-tile-ic { position: relative; width: 38px; height: 38px; border-radius: 50%; flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--gl-fill-blue); color: var(--gl-blue); }
+.gl-tile.gf .gl-tile-ic { background: var(--gl-fill-green); color: var(--gl-green-tx); }
+.gl-tile-lb { font-size: 11px; font-weight: 600; color: var(--gl-ink-2); text-align: center; line-height: 1.2;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gl-tile-img { width: 26px; height: 26px; border-radius: 8px; object-fit: contain; }
+.gl-tile.locked { opacity: .8; }
+.gl-tile.locked .gl-tile-lb { font-style: italic; }
+.gl-soon { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; color: var(--gl-ink);
+  background: var(--gl-card-2); border: 1px solid var(--gl-line); }
+
+/* ── Tavsiya banneri ──────────────────────────────────────────────────────────────────── */
+.gl-promo { position: relative; overflow: hidden; width: 100%; height: 150px; display: flex; align-items: flex-end;
+  padding: 16px; border-radius: var(--gl-r-lg); border: 1px solid var(--gl-line);
+  background: var(--gl-card-2); cursor: pointer; text-align: left; }
+.gl-promo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gl-promo::after { content: ""; position: absolute; inset: 0;
+  background: linear-gradient(75deg, rgba(0, 0, 0, .82), rgba(0, 0, 0, .1) 75%); }
+.gl-promo-c { position: relative; z-index: 1; min-width: 0; }
+.gl-promo .tag { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 10px;
+  border-radius: var(--gl-r-pill); background: var(--gl-on-gift); color: var(--gl-blue-deep); }
+.gl-promo h3 { font-size: 19px; font-weight: 700; margin-top: 8px; color: var(--gl-on-gift);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.gl-promo p { font-size: 13px; color: var(--gl-on-gift-2); margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Tavsiya panjarasi (bento) ────────────────────────────────────────────────────────── */
+.gl-bento { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gl-gutter); }
+.gl-bc { display: flex; flex-direction: column; overflow: hidden; padding: 0; text-align: left;
+  min-height: 48px; border-radius: var(--gl-r-md); border: 1px solid var(--gl-line);
+  background: var(--gl-card); box-shadow: var(--gl-shadow); cursor: pointer; }
+.gl-bc.tall { grid-row: span 2; }
+.gl-bc .im { position: relative; flex: 1; min-height: 100px; overflow: hidden; background: var(--gl-card-2); }
+.gl-bc.tall .im { min-height: 168px; }
+.gl-bc .im img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+/* Rasm YO'Q → gradient blok (emoji EMAS: emoji mahsulot haqida hech nima aytmaydi). */
+.gl-ph { position: absolute; inset: 0; background: var(--gl-ph); }
+.gl-tg { position: absolute; left: 9px; top: 9px; z-index: 1; font-size: 11px; font-weight: 700;
+  padding: 4px 9px; border-radius: var(--gl-r-pill); color: var(--gl-on-gift); background: rgba(0, 0, 0, .55); }
+.gl-tg.hot { background: rgba(185, 28, 28, .92); }
+.gl-tg.dc { left: auto; right: 9px; background: rgba(15, 122, 56, .95); }
+.gl-bb { padding: 10px 12px 12px; }
+.gl-bb .nm { font-size: 14px; font-weight: 600; color: var(--gl-ink); line-height: 1.25;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.gl-bb .mt { font-size: 12px; color: var(--gl-dim); margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gl-bb .mt b { color: var(--gl-ink-2); font-weight: 700; }
+.gl-bb .pr { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 9px; }
+.gl-bb .price { font-size: 14px; font-weight: 700; color: var(--gl-green-tx); font-variant-numeric: tabular-nums; }
+.gl-bb .price s { color: var(--gl-dim); font-weight: 400; margin-right: 5px; }
+.gl-bb .add { flex: 0 0 auto; display: flex; align-items: center; justify-content: center;
+  width: 29px; height: 29px; border-radius: 9px; background: var(--gl-fill-green); color: var(--gl-green-tx);
+  font-size: 17px; font-weight: 700; }
+
+/* ── Xato holati ──────────────────────────────────────────────────────────────────────── */
+.gl-err { display: flex; align-items: center; gap: 11px; padding: 13px 14px; border-radius: var(--gl-r-md);
+  border: 1px solid var(--gl-line); background: var(--gl-card); }
+.gl-err .ei { flex: 0 0 auto; display: flex; color: var(--gl-dim); }
+.gl-err .et { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; color: var(--gl-dim); line-height: 1.4; }
+.gl-err .eb { flex: 0 0 auto; min-height: 48px; padding: 0 17px; border: 0; border-radius: var(--gl-r-pill);
+  font-size: 13px; font-weight: 700; background: var(--gl-cta-grad); color: var(--gl-cta-ink); cursor: pointer; }
+
+/* ── Ustalar / e'lonlar / do'st-taklif ────────────────────────────────────────────────── */
+.gl-urow { display: flex; gap: var(--gl-gutter); overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px;
+  -webkit-overflow-scrolling: touch; }
+.gl-urow::-webkit-scrollbar { display: none; }
+.gl-ust { flex: 0 0 150px; display: flex; flex-direction: column; overflow: hidden; padding: 0; text-align: left;
+  border-radius: var(--gl-r-md); border: 1px solid var(--gl-line); background: var(--gl-card);
+  box-shadow: var(--gl-shadow); cursor: pointer; }
+.gl-ust-im { position: relative; height: 88px; overflow: hidden; background: var(--gl-card-2);
+  display: flex; align-items: center; justify-content: center; }
+.gl-ust-im img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.gl-ust-em { font-size: 32px; }
+.gl-ust-insp { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 13px;
+  background: rgba(0, 0, 0, .55); }
+.gl-ust-b { padding: 10px 12px 12px; }
+.gl-ust-b .un { font-size: 14px; font-weight: 600; color: var(--gl-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gl-ust-b .um { font-size: 12px; color: var(--gl-dim); margin-top: 2px; }
+.gl-ust-b .ur { font-size: 12px; font-weight: 700; color: var(--gl-ink-2); margin-top: 6px; }
+.gl-ust-b .ur.new { color: var(--gl-green-tx); }
+.gl-elist { overflow: hidden; border-radius: var(--gl-r-md); border: 1px solid var(--gl-line);
+  background: var(--gl-card); box-shadow: var(--gl-shadow); }
+.gl-erow { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 13px 14px;
+  text-align: left; background: none; border: 0; border-bottom: 1px solid var(--gl-line); cursor: pointer; }
+.gl-erow:last-child { border-bottom: 0; }
+.gl-eic { width: 40px; height: 40px; border-radius: var(--gl-r-sm); flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--gl-fill-blue); color: var(--gl-blue); }
+.gl-et { flex: 1; min-width: 0; }
+.gl-et .a { font-size: 14px; font-weight: 600; color: var(--gl-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gl-et .b { font-size: 12px; color: var(--gl-dim); margin-top: 2px; }
+.gl-ep { flex: 0 0 auto; font-size: 13px; font-weight: 700; color: var(--gl-green-tx); white-space: nowrap; }
+.gl-invite { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 15px;
+  text-align: left; border-radius: var(--gl-r-lg); border: 1px solid var(--gl-line);
+  background: var(--gl-card); box-shadow: var(--gl-shadow); cursor: pointer; color: var(--gl-ink); }
+.gl-invite .ii { width: 42px; height: 42px; border-radius: var(--gl-r-sm); flex: 0 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--gl-fill-green); color: var(--gl-green-tx); }
+.gl-invite-t { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.gl-invite b { font-size: 14px; font-weight: 700; }
+.gl-invite small { display: block; font-size: 12px; color: var(--gl-dim); margin-top: 2px; }
+.gl-invite .ar { margin-left: auto; flex: 0 0 auto; display: flex; color: var(--gl-green-tx); }
+
+/* ── Skeletonlar — REAL layoutning nusxasi, o'lchamlar shu yerda (inline stil emas) ───── */
+.gl-sk-gift { min-height: var(--gl-gift-min); border-radius: var(--gl-r-lg); }
+.gl-sk-im { min-height: 168px; }
+.gl-sk-l1 { height: 14px; margin-bottom: 6px; }
+.gl-sk-l2 { height: 11px; width: 60%; }
+.gl-sk-l3 { height: 11px; width: 50%; }
+
+/* ── ⚡ Bosish javobi + klaviatura fokusi (DIZAYN_QOIDALARI #15) ───────────────────────── */
+.gl-chip, .gl-wal, .gl-gift-tap, .gl-cta, .gl-taxi, .gl-tile, .gl-sh .all, .gl-promo, .gl-bc,
+.gl-err .eb, .gl-ust, .gl-erow, .gl-invite { transition: transform var(--dur-press, .12s) ease; }
+.gl-chip:active, .gl-wal:active, .gl-gift-tap:active, .gl-cta:active, .gl-taxi:active, .gl-tile:active,
+.gl-sh .all:active, .gl-promo:active, .gl-bc:active, .gl-err .eb:active, .gl-ust:active,
+.gl-erow:active, .gl-invite:active { transform: scale(.975); }
+.gl-cta:disabled:active { transform: none; }
+.gl-chip:focus-visible, .gl-wal:focus-visible, .gl-gift-tap:focus-visible, .gl-cta:focus-visible,
+.gl-taxi:focus-visible, .gl-tile:focus-visible, .gl-sh .all:focus-visible, .gl-promo:focus-visible,
+.gl-bc:focus-visible, .gl-err .eb:focus-visible, .gl-ust:focus-visible, .gl-erow:focus-visible,
+.gl-invite:focus-visible { outline: 2px solid var(--gl-focus); outline-offset: 2px; }
+
+/* ── 🛟 SHISHASIZ ZAXIRA: `backdrop-filter` yo'q WebView'da shaffof panel = O'QILMAYDIGAN
+   matn. Shu ikki joyda (chip + sovg'a) fon QATTIQ rangga tushadi. ─────────────────────── */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .gl-chip { background: var(--gl-glass-solid); }
+  .gl-gift { background: var(--gl-gift-solid); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gl-chip, .gl-wal, .gl-gift-tap, .gl-cta, .gl-taxi, .gl-tile, .gl-sh .all, .gl-promo, .gl-bc,
+  .gl-err .eb, .gl-ust, .gl-erow, .gl-invite { transition: none; }
+  .gl-chip:active, .gl-wal:active, .gl-gift-tap:active, .gl-cta:active, .gl-taxi:active, .gl-tile:active,
+  .gl-sh .all:active, .gl-promo:active, .gl-bc:active, .gl-err .eb:active, .gl-ust:active,
+  .gl-erow:active, .gl-invite:active { transform: none; }
+  .gl-bar i, .gl-sbar span { transition: none; }
+}
+/* Tor telefon (320px): 4 ustunli katak-panjara siqilib ketmasin — 4 ta qoladi, lekin
+   gutter kichrayadi (bitta joyda, faqat shu chegara ostida). */
+@media (max-width: 359px) {
+  .gl-tiles, .gl-bento { gap: 10px; }
+  .gl-shots { gap: 7px; }
+  /* 320px'da brend + ikki chip bitta satrga sig'sin (o'lchandi: 12px padding bilan 8px zaxira) */
+  .gl-chip { padding: 0 12px; gap: 6px; }
+}

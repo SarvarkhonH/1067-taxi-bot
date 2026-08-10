@@ -1,6 +1,9 @@
 // 🏠 "Uy" — the taxi-first home tab (default). Light + leaflet-free; the LivingHome map
 // version is the flag-gated upgrade. Greeting + balance + taxi CTA + Bugun + quick tiles.
 // NewUyView (feature "newhome", UY_REDESIGN Bosqich 1) = the premium super-app home below.
+// 🫧 2026-08-10 — LIQUID GLASS redizayni (ega maketi `birjoy-glass.html`): ko'rinish butunlay
+// yangilandi (`gl-*` klasslari, tokens.css), MANTIQ esa TEGILMADI — o'sha so'rovlar, o'sha
+// holatlar (loading/error/empty), o'sha `onNav/onBook/onBanner` chaqiruvlari, o'sha xato-matni.
 import { useEffect, useState } from "react";
 import type { ClassifiedCard, HomeBanner, HomeFeedItem, MeResponse, OyinPrizeView, OyinStateResponse, SavedAddressView, ServiceListingCard } from "@t1067/shared";
 import { INSP_TIER_EMOJI, INSP_TIER_LABEL, OYIN_FINAL_LOCK_MS, oyinHintOf } from "@t1067/shared";
@@ -32,10 +35,162 @@ export function seasonCountdown(iso: string | null, upcoming: boolean): { has: b
   return { has: true, text, leftMs: left };
 }
 
-// 🎮 Koson O'yini — uy-ekran HERO kartasi (feature "oyin", ega redizayni 2026-08-02: "katta va
-// chiroyli preview kerak"). "Bugungi tavsiya" banneri o'rnini oladi (uy renderida f.oyin bilan
-// mask qilinadi). Katta sovrin-rasmlari real vitrina'dan (admin qo'ygan foto, emoji-fallback);
-// "Sovrinlarni ko'rish" o'yin ekranini to'g'ridan-to'g'ri vitrina tabida ochadi (localStorage flag).
+// ═══════════════════════════════════════════════════════════════════════════
+// ✒️ Chiziqli ikonkalar — emoji O'RNIGA (maketdagi til). Emoji har qurilmada boshqacha
+// chiziladi va rangini o'zi tanlaydi; SVG esa `currentColor` ni oladi, ya'ni tokenlar
+// boshqaradi. Ikonkalar SHU YERDA (uy'ga xos), umumiy `icons.tsx` tab-bar uchun qoladi.
+// ═══════════════════════════════════════════════════════════════════════════
+function GlIcon({ n, size = 20 }: { n: string; size?: number }) {
+  const p = {
+    width: size,
+    height: size,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    "aria-hidden": true,
+  };
+  switch (n) {
+    case "gift":
+      return (
+        <svg {...p}>
+          <rect x="3" y="8" width="18" height="13" rx="2" />
+          <path d="M12 8v13M3 12h18" />
+          <path d="M12 8s-1.5-4-4-4a2.5 2.5 0 0 0 0 5M12 8s1.5-4 4-4a2.5 2.5 0 0 1 0 5" />
+        </svg>
+      );
+    case "car":
+      return (
+        <svg {...p}>
+          <path d="M5 17h14M6 17l-1-6 2-4h10l2 4-1 6M8 11h8" />
+          <circle cx="7.5" cy="17.5" r="1.5" />
+          <circle cx="16.5" cy="17.5" r="1.5" />
+        </svg>
+      );
+    case "bag":
+      return (
+        <svg {...p}>
+          <path d="M4 7h16l-1.2 11.2a2 2 0 0 1-2 1.8H7.2a2 2 0 0 1-2-1.8L4 7z" />
+          <path d="M9 7V5a3 3 0 0 1 6 0v2" />
+        </svg>
+      );
+    case "food":
+      return (
+        <svg {...p}>
+          <path d="M4 4v7a3 3 0 0 0 3 3v6M7 4v6M10 4v6M17 4c-1.5 2-2 4-2 6a2 2 0 0 0 2 2h2V4h-2zM18 12v8" />
+        </svg>
+      );
+    case "board":
+      return (
+        <svg {...p}>
+          <rect x="3" y="5" width="18" height="15" rx="2" />
+          <path d="M7 10h10M7 14h6M8 3v3M16 3v3" />
+        </svg>
+      );
+    case "route":
+      return (
+        <svg {...p}>
+          <path d="M5 19h5a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h6" />
+          <circle cx="5" cy="19" r="1.7" />
+          <circle cx="18" cy="7" r="2" />
+        </svg>
+      );
+    case "tools":
+      return (
+        <svg {...p}>
+          <path d="M15.5 3.5a5 5 0 0 0-6 6.6l-6 6a1.5 1.5 0 0 0 2.1 2.1l6-6a5 5 0 0 0 6.6-6l-3 3-2.7-2.7 3-3z" />
+        </svg>
+      );
+    case "spark":
+      return (
+        <svg {...p}>
+          <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z" />
+          <path d="M18.5 15l.6 1.9 1.9.6-1.9.6-.6 1.9-.6-1.9-1.9-.6 1.9-.6z" />
+        </svg>
+      );
+    case "dots":
+      return (
+        <svg {...p}>
+          <circle cx="5" cy="12" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="19" cy="12" r="1.5" />
+        </svg>
+      );
+    case "chev":
+      return (
+        <svg {...p}>
+          <path d="M9 5l7 7-7 7" />
+        </svg>
+      );
+    case "arrow":
+      return (
+        <svg {...p}>
+          <path d="M5 12h14M13 6l6 6-6 6" />
+        </svg>
+      );
+    case "cal":
+      return (
+        <svg {...p}>
+          <rect x="3" y="5" width="18" height="16" rx="2" />
+          <path d="M3 10h18M8 3v4M16 3v4" />
+        </svg>
+      );
+    case "lock":
+      return (
+        <svg {...p}>
+          <rect x="5" y="11" width="14" height="9" rx="2" />
+          <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </svg>
+      );
+    case "users":
+      return (
+        <svg {...p}>
+          <circle cx="9" cy="8" r="3.2" />
+          <path d="M3.5 19a5.5 5.5 0 0 1 11 0M16 6.5a3 3 0 0 1 0 5M17 19a5.5 5.5 0 0 0-2.5-4.5" />
+        </svg>
+      );
+    case "signal":
+      return (
+        <svg {...p}>
+          <path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5.5 5.5 0 0 1 7 0" />
+          <circle cx="12" cy="19.5" r="1.1" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
+/** ∞ BirJoy belgisi — ko'k→yashil gradient. Ranglar `<stop>` larga CSS orqali beriladi
+ *  (`.gl-logo .s1…s4`), shuning uchun bu faylda birorta ham hex kod yo'q. */
+function BirJoyMark() {
+  return (
+    <svg className="gl-logo" viewBox="0 0 120 72" aria-hidden="true">
+      <defs>
+        <linearGradient id="gl-mark" x1="0" y1="0" x2="1" y2="0">
+          <stop className="s1" offset="0%" />
+          <stop className="s2" offset="38%" />
+          <stop className="s3" offset="62%" />
+          <stop className="s4" offset="100%" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M30 36C30 16 54 16 60 36C66 56 90 56 90 36C90 16 66 16 60 36C54 56 30 56 30 36Z"
+        fill="none"
+        stroke="url(#gl-mark)"
+        strokeWidth="13"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+// 🎮 Koson O'yini — uy-ekran SOVG'A paneli: sahifadagi YAGONA to'q yuza (ierarxiya shu bilan
+// aytiladi). Ikki holat, IKKALASI HAM bir xil balandlikda (`--gl-gift-min` + `.gl-ghead`
+// min-height): (a) ball YO'Q → "BEPUL SOVG'ALAR" taklifi; (b) ball BOR → "Keyingi sovg'a"
+// progressi. Ma'lumot manbalari o'zgarmadi: `oyinState` + `oyinVitrina`.
 function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   const [state, setState] = useState<OyinStateResponse | null>(null);
   const [prizes, setPrizes] = useState<OyinPrizeView[] | null>(null);
@@ -56,10 +211,11 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   // `null` qolib, 554px'lik shimmer-skeleton ekranda MANGU turardi (internet uzilganda uy
   // sahifasining yarmi "yuklanyapti" holatida qotib qolardi). O'yinga ikkinchi yo'l — rail.
   if (dead) return null;
-  // Skeleton balandligi real kartaga TENG — aks holda yuklanganda sahifa sakraydi.
-  if (!state) return <div className="nh-oyin"><div className="nh-skel" style={{ height: 554, borderRadius: 22 }} /></div>;
+  // Skeleton balandligi real panelga TENG — ikkalasi ham `--gl-gift-min` tokenini o'qiydi,
+  // shuning uchun ular jimgina bir-biridan uzoqlashib qololmaydi (avval qo'lda 554px edi).
+  if (!state) return <div className="nh-skel gl-sk-gift" />;
   if (!state.season.configured || state.season.phase === "ended") return null;
-  // Sovrin yo'q bo'lsa karta CHIZILMAYDI: "BEPUL SOVG'ALAR" deb chaqirib, ichida hech narsa
+  // Sovrin yo'q bo'lsa panel CHIZILMAYDI: "BEPUL SOVG'ALAR" deb chaqirib, ichida hech narsa
   // bo'lmasligi — yolg'on va'da. Ayni paytda bu balandlik o'zgarishini ham yo'q qiladi.
   if (state.prizeCount <= 0) return null;
 
@@ -75,8 +231,9 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   const dailyHint = oyinHintOf(new Date(Date.now() + 5 * 3600_000).toISOString().slice(0, 10));
 
   // Sovrin plitkalari — eng qimmatidan 4 tasi. Rasmi bor bo'lsa REAL rasm (DIZAYN_QOIDALARI
-  // #10), yo'q/buzuq bo'lsa RANGLI plitka + emoji. Sovrin qatordan TUSHIRILMAYDI: aks holda
-  // karta balandligi o'zgarib skeleton bilan mos kelmay qoladi va sahifa sakraydi (#11).
+  // #10), yo'q/buzuq bo'lsa GRADIENT blok + sovrin NOMI (emoji EMAS: emoji jismoniy narsani
+  // ko'rsatmaydi). Sovrin qatordan TUSHIRILMAYDI: aks holda panel balandligi o'zgarib
+  // skeleton bilan mos kelmay qoladi va sahifa sakraydi (#11).
   const shots = (prizes ?? []).slice().sort((a, b) => b.price - a.price).slice(0, 4);
   // ⚠️ IKKI SO'ROV, IKKI VAQT: `oyinState` va `oyinVitrina` alohida keladi. Holat birinchi
   // kelganda sovrin qatori BO'SH bo'lardi (80px past karta) va vitrina kelgach sahifa
@@ -85,99 +242,130 @@ function KosonOyinCard({ onNav }: { onNav: (t: string) => void }) {
   // birinchi chizishdan oxirgisigacha BIR XIL.
   const shotCount = prizes === null ? Math.min(4, state.prizeCount) : shots.length;
 
-  // Progress — UMUMIY (shaxsiy ball EMAS). Nol-bo'linish qo'riqlangan.
+  // Progress — UMUMIY (ijtimoiy isbot). Nol-bo'linish qo'riqlangan.
   const cap = Math.max(0, state.capacityTotal);
   const sold = Math.max(0, Math.min(state.soldTotal, cap));
   const pct = cap > 0 ? Math.min(100, (sold / cap) * 100) : 0;
 
+  // 🎯 QAYTGAN ODAM holati: balli bor VA maqsad-sovrin aniq. Maqsad — mijoz TANLAGANI
+  // (`goalPrizeKey`), tanlamagan bo'lsa eng arzoni. Sovrin ro'yxati hali kelmagan bo'lsa
+  // (`prizes === null`) holat (a) da qoladi va vitrina kelgach almashadi — balandlik bir xil
+  // bo'lgani uchun bu almashuvda sahifa sakramaydi.
+  const catalog = prizes ?? [];
+  const cheapest = catalog.length > 0 ? (catalog.slice().sort((a, b) => a.price - b.price)[0] ?? null) : null;
+  const goal = (state.goalPrizeKey ? catalog.find((p) => p.key === state.goalPrizeKey) ?? null : null) ?? cheapest;
+  const need = goal ? Math.max(0, goal.price - state.ball) : 0;
+  const goalPct = goal && goal.price > 0 ? Math.min(100, Math.max(0, (state.ball / goal.price) * 100)) : 0;
+  const rideBall = state.hints.rideBall;
+  // "N safar qoldi" — FAQAT safar bali musbat bo'lsa hisoblanadi (knob 0 ga tushsa bo'lish
+  // Infinity berardi). Aks holda halol qolgan-ball aytiladi; qarz yo'q bo'lsa — tayyorlik.
+  const ridesLeft = need > 0 && Number.isFinite(rideBall) && rideBall > 0 ? Math.ceil(need / rideBall) : 0;
+  const goalMeta = ridesLeft > 0 ? `${ridesLeft} safar qoldi` : need > 0 ? `${num(need)} ball qoldi` : "Chipta olishga tayyor";
+  const returning = state.ball > 0 && goal !== null;
+
   return (
-    <div className="nh-oyin">
-      <button className="nh-oyin-hero" onClick={goOyin} aria-label="Sodiqlik dasturini ochish">
-        <span className="nh-oyin-conf" aria-hidden="true" />
-        <span className="nh-oyin-gift" aria-hidden="true">🎁</span>
-        <span className="nh-oyin-h1">BEPUL</span>
-        <span className="nh-oyin-h2">SOVG'ALAR</span>
-        {/* ⚠️ Matnlar QASDAN qisqa: eng tor telefonda ham bitta satrga sig'ishi kerak —
-            ikkinchi satrga o'tsa karta balandligi 554px'dan oshib skeleton bilan mos kelmay
-            qoladi va sahifa sakraydi (#11). O'LCHANDI: 320/360/375/390/412/428 kengliklarda
-            VA oltita fazada (active · upcoming · final48 · daqiqa · sanasiz · o'rin-egal
-            plitkalar) — 36 ta kombinatsiyaning HAMMASIDA 553.88px. */}
-        <span className="nh-oyin-lead">
-          {final48
-            ? <>Karta olish yopildi — <b>mukofot yaqin!</b></>
-            : <>Bepul karta olib, <b>sovg'alar</b> egasi bo'ling!</>}
-        </span>
+    <div className="gl-gift">
+      <span className="gl-gift-spec" aria-hidden="true" />
+      <span className="gl-gift-glow" aria-hidden="true" />
+      <div className="gl-gift-in">
+        <button className="gl-gift-tap" onClick={goOyin} aria-label="Sodiqlik dasturini ochish">
+          <span className="gl-pill">{returning ? "SIZNING SOVG'ANGIZ" : "SOVG'ALAR O'YINI"}</span>
 
-        <span className="nh-oyin-cd">
-          <span className="nh-oyin-cd-ic" aria-hidden="true">{final48 ? "🔒" : "📅"}</span>
-          <span className="nh-oyin-cd-tx">
-            <small>{final48 ? "MUKOFOT KUNIGA" : upcoming ? "DASTUR BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small>
-            <b>{cd.text}</b>
-          </span>
-        </span>
-
-        {shotCount > 0 && (
-          <span className="nh-oyin-shots">
-            {prizes === null
-              ? Array.from({ length: shotCount }, (_, i) => (
-                <span key={`ph${i}`} className="nh-oyin-shot"><span className="nh-oyin-shot-em">🎁</span></span>
-              ))
-              : shots.map((p) => (
-                <span key={p.key} className="nh-oyin-shot">
-                  {p.photoUrl && !bad.has(p.key)
-                    ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => setBad((b) => new Set(b).add(p.key))} />
-                    : <span className="nh-oyin-shot-em">{p.icon}</span>}
+          <span className="gl-ghead">
+            {returning && goal ? (
+              <span className="gl-prog">
+                <span className="gl-prog-row">
+                  <span className="gl-prog-im">
+                    {goal.photoUrl && !bad.has(goal.key)
+                      ? <img src={goal.photoUrl} alt="" loading="lazy" onError={() => setBad((b) => new Set(b).add(goal.key))} />
+                      : <span className="gl-shot-ph" />}
+                  </span>
+                  <span className="gl-prog-t">
+                    <span className="gl-prog-k">Keyingi sovg'a</span>
+                    <span className="gl-prog-v">{goal.name}</span>
+                  </span>
                 </span>
-              ))}
+                <span className="gl-bar"><i style={{ width: `${goalPct}%` }} /></span>
+                <span className="gl-bar-m">
+                  <span>{num(state.ball)} / {num(goal.price)} ball</span>
+                  <b>{goalMeta}</b>
+                </span>
+              </span>
+            ) : (
+              <>
+                <span className="gl-gh">BEPUL<b>SOVG'ALAR</b></span>
+                <span className="gl-gsub">
+                  {final48
+                    ? <>Karta olish yopildi — <b>mukofot yaqin!</b></>
+                    : <>Bepul karta olib, <b>sovg'alar</b> egasi bo'ling!</>}
+                </span>
+              </>
+            )}
           </span>
-        )}
 
-        {state.prizeCount > 0 && (
-          <span className="nh-oyin-badge">⭐ {state.prizeCount} TA REAL SOVG'A</span>
-        )}
-      </button>
+          {shotCount > 0 && (
+            <span className="gl-shots">
+              {prizes === null
+                ? Array.from({ length: shotCount }, (_, i) => (
+                  <span key={`ph${i}`} className="gl-shot"><span className="gl-shot-ph" /></span>
+                ))
+                : shots.map((p) => (
+                  <span key={p.key} className="gl-shot">
+                    {p.photoUrl && !bad.has(p.key)
+                      ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => setBad((b) => new Set(b).add(p.key))} />
+                      : <span className="gl-shot-ph">{p.name}</span>}
+                  </span>
+                ))}
+            </span>
+          )}
 
-      {/* Oq panel — UMUMIY raqamlar (ijtimoiy isbot), mijozning shaxsiy balli EMAS. */}
-      <div className="nh-oyin-stats">
-        <div className="nh-oyin-stat">
-          <div className="nh-oyin-stat-k">🎟 KARTALAR SONI</div>
-          <div className="nh-oyin-stat-v"><b>{num(sold)}</b> <span>/ {num(cap)}</span></div>
-          <div className="nh-oyin-stat-s">tarqatildi</div>
-          <div className="nh-oyin-bar"><span style={{ width: `${pct}%` }} /></div>
-          <div className="nh-oyin-pct">{pct.toFixed(1)}%</div>
+          <span className="gl-cd">
+            <span className="gl-cd-ic"><GlIcon n={final48 ? "lock" : "cal"} size={22} /></span>
+            <span className="gl-cd-tx">
+              <small>{final48 ? "MUKOFOT KUNIGA" : upcoming ? "DASTUR BOSHLANISHIGA" : "SOVG'ALAR TOPSHIRILISHIGA"}</small>
+              <b>{cd.text}</b>
+            </span>
+            {state.prizeCount > 0 && (
+              <span className="gl-gbadge">{num(state.prizeCount)} ta real sovg'a</span>
+            )}
+          </span>
+        </button>
+
+        {/* 4 qadam — "bepul" so'zi qanday ishlashini DARHOL tushuntiradi (aks holda
+            "bepul chipta" va'dasi o'yin ekranidagi ball talabiga zid ko'rinadi). */}
+        <div className="gl-steps">
+          {(["Safar qil", "Ball yig'", "Karta ol", "Sovg'a ol"] as const).map((tx, i) => (
+            <div key={tx} className="gl-step">
+              <span className="gl-step-n">{i + 1}</span>
+              <span className="gl-step-tx">{tx}</span>
+            </div>
+          ))}
         </div>
-        <div className="nh-oyin-stat is-side">
-          <div className="nh-oyin-stat-k">🎟 Har karta</div>
-          <div className="nh-oyin-stat-v2">1 imkoniyat!</div>
-          <div className="nh-oyin-stat-s">Ko'proq karta — ko'proq imkoniyat!</div>
-        </div>
-      </div>
 
-      {/* CTA UCH holatli: mavsum boshlanmagan / oxirgi 48 soat (chipta yopiq) / ochiq.
-          Avval ikki holat edi va final-48 "BEPUL CHIPTA OLISH" ga tushib qolardi. */}
-      <button className="nh-oyin-cta" onClick={goOyin}>
-        <span className="nh-oyin-cta-ic" aria-hidden="true">{final48 || upcoming ? "🎁" : "🎟"}</span>
-        <span>{final48 || upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL KARTA OLISH"}</span>
-        <span className="nh-oyin-cta-go" aria-hidden="true">›</span>
-      </button>
+        {/* CTA UCH holatli: mavsum boshlanmagan / oxirgi 48 soat (chipta yopiq) / ochiq.
+            Avval ikki holat edi va final-48 "BEPUL CHIPTA OLISH" ga tushib qolardi. */}
+        <button className="gl-cta" onClick={goOyin}>
+          <GlIcon n={final48 || upcoming ? "gift" : "arrow"} size={19} />
+          <span>{final48 || upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL KARTA OLISH"}</span>
+        </button>
 
-      {/* 💡 KUNLIK MASLAHAT — uy ekrani birinchi ko'riladigan joy, shuning uchun maslahat
-          SHU YERDA ham turadi (ega talabi 2026-08-04). Kun bo'yicha, hammaga bir xil.
-          ⛔ Qizil/miltillash YO'Q — pastdagi izohga qarang (oyk.css `.oyk-hint`). */}
-      <div className="nh-oyin-hint">
-        <span aria-hidden="true">{dailyHint.icon}</span>
-        <span>{dailyHint.text}</span>
-      </div>
-
-      {/* 4 qadam — "bepul" so'zi qanday ishlashini DARHOL tushuntiradi (aks holda
-          "bepul chipta" va'dasi o'yin ekranidagi ball talabiga zid ko'rinadi). */}
-      <div className="nh-oyin-steps">
-        {([["🚕", "Safar qil"], ["⭐", "Ball yig'"], ["🎟", "Karta ol"], ["🎁", "Sovg'a ol"]] as const).map(([em, tx], i) => (
-          <div key={tx} className="nh-oyin-step">
-            <span className="nh-oyin-step-em">{em}</span>
-            <span className="nh-oyin-step-tx">{i + 1}. {tx}</span>
+        {/* UMUMIY raqamlar (ijtimoiy isbot), mijozning shaxsiy balli EMAS. */}
+        <div className="gl-stats">
+          <div className="gl-stat-k">
+            KARTALAR <b>{num(sold)}</b> / {num(cap)}
+            <span className="gl-pct">{pct.toFixed(1)}%</span>
           </div>
-        ))}
+          <div className="gl-sbar"><span style={{ width: `${pct}%` }} /></div>
+          <div className="gl-stat-s">Har karta — 1 imkoniyat. Ko'proq karta, ko'proq imkoniyat!</div>
+        </div>
+
+        {/* 💡 KUNLIK MASLAHAT — uy ekrani birinchi ko'riladigan joy, shuning uchun maslahat
+            SHU YERDA ham turadi (ega talabi 2026-08-04). Kun bo'yicha, hammaga bir xil.
+            ⛔ Qizil/miltillash YO'Q — maslahat shoshilinch emas. */}
+        <div className="gl-hint">
+          <span aria-hidden="true">{dailyHint.icon}</span>
+          <span>{dailyHint.text}</span>
+        </div>
       </div>
     </div>
   );
@@ -251,119 +439,153 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
   }, []);
 
   const rail = [
-    // 🎮 O'yin rail'da ham bor — IKKINCHI yo'l (DIZAYN_QOIDALARI #4: har bo'limga kamida ikki
-    // kirish). Bu ayniqsa MUHIM: poster kartasi tarmoq xatosida umuman chizilmaydi, o'shanda
-    // o'yinga yagona yo'l shu ikonka bo'lib qoladi.
-    { on: !!f.oyin, ic: "nh-i-g", em: "🎮", lb: "Dastur", nav: "oyin", locked: false },
-    { on: !!f.shop, ic: "nh-i-b", em: "🏪", lb: "Do'kon", nav: "dokon", locked: false },
-    { on: !!f.restoran, ic: "nh-i-o", em: "🍽", lb: "Restoran", nav: "restoran", locked: false },
-    // 🎀 Ravella — hamkor-brend (ega qarori 2026-07-27): rail'da KICHIK tugma, ikonkasi emoji emas,
+    // 🎮 O'yin panjarada ham bor — IKKINCHI yo'l (DIZAYN_QOIDALARI #4: har bo'limga kamida ikki
+    // kirish). Bu ayniqsa MUHIM: sovg'a paneli tarmoq xatosida umuman chizilmaydi, o'shanda
+    // o'yinga yagona yo'l shu katak bo'lib qoladi.
+    { on: !!f.oyin, ico: "gift", lb: "Sovg'a", nav: "oyin", locked: false },
+    { on: !!f.shop, ico: "bag", lb: "Do'kon", nav: "dokon", locked: false },
+    { on: !!f.restoran, ico: "food", lb: "Restoran", nav: "restoran", locked: false },
+    // 🎀 Ravella — hamkor-brend (ega qarori 2026-07-27): panjarada KICHIK tugma, ikonkasi
     // brend logotipi. Do'kon/Restoran'dan keyin turadi — u alohida xizmat turi, ular ichida emas.
-    { on: !!f.ravella, ic: "nh-i-r", em: "🎀", img: "/ravella/logo-mark.png", lb: "Ravella", nav: "ravella", locked: false },
-    { on: !!f.intercity, ic: "nh-i-t", em: "🚐", lb: "Yo'l", nav: "yol", locked: false },
-    { on: !!f.xizmatlar, ic: "nh-i-v", em: "🔧", lb: "Xizmat", nav: "xizmat", locked: FOCUS_MODE },
-    { on: !!f.elonlar, ic: "nh-i-p", em: "📋", lb: "E'lon", nav: "elonlar", locked: FOCUS_MODE },
-    { on: true, ic: "nh-i-g", em: "🎁", lb: "Bonus", nav: "play", locked: false },
+    { on: !!f.ravella, ico: "spark", img: "/ravella/logo-mark.png", lb: "Ravella", nav: "ravella", locked: false },
+    { on: !!f.intercity, ico: "route", lb: "Yo'l", nav: "yol", locked: false },
+    { on: !!f.xizmatlar, ico: "tools", lb: "Xizmat", nav: "xizmat", locked: FOCUS_MODE },
+    { on: !!f.elonlar, ico: "board", lb: "E'lon", nav: "elonlar", locked: FOCUS_MODE },
+    { on: true, ico: "spark", lb: "Bonus", nav: "play", locked: false },
   ].filter((r) => r.on);
 
   const go = (t: string) => { haptic(); onNav(t); };
   const tapRail = (r: (typeof rail)[number]) => (r.locked ? onBanner?.(COMING_SOON_MSG) : go(r.nav));
   const badgeLabel = (b?: string) => (b === "top" ? "🔥 TOP" : b === "new" ? "Yangi" : b === "disc" ? "Chegirma" : "");
+  // Ism — birinchi so'z (to'liq ism uch bo'lakli bo'lishi mumkin, salomlashuvga uzun).
+  const firstName = (me.member.fullName || "").trim().split(/\s+/)[0] ?? "";
 
   return (
-    <div className="nh-view">
-      {/* Minimalizm (ega qarori 2026-07-26): bosh sahifadan brend-satri, tanga-tugmasi va
-          qidiruv olib tashlandi. Brend global topbar'da ham yo'q — balans faqat quyidagi
-          hamyon kartasida (bitta joyda), qidiruvga do'kon/restoran tablari orqali boriladi. */}
-      <div className="nh-wallet">
-        <div className="wrow">
-          <div>
-            <div className="k">🪙 Tanga balansi</div>
-            <div className="b">{num(me.coins)}</div>
-            {/* Cashback — ALOHIDA pul turi, shuning uchun alohida "pill". Nol bo'lsa satr
-                UMUMAN chizilmaydi: "0 so'm cashback" yangi mijozga hech nima aytmaydi,
-                faqat kartani to'ldiradi (DIZAYN_QOIDALARI #7). */}
-            {me.stats.points > 0 && <div className="cb">🚕 {num(me.stats.points)} so'm cashback</div>}
-          </div>
-          {/* ⚠️ Yangi mijozda yechadigan hech narsa YO'Q — unga "Yechish" deb va'da qilish
-              yolg'on tugma (#14/#8): bosadi, hamyonda 0 turadi. Shu holatda tugma o'z nomi
-              bilan "Hamyon" bo'ladi — bir xil ekran, halol yozuv. */}
-          <button className="yc" onClick={() => go("wallet")}>
-            {me.coins > 0 || me.stats.points > 0 ? "Yechish →" : "Hamyon →"}
-          </button>
-        </div>
+    <div className="gl-view">
+      {/* 🌈 Rang MUHITDA yashaydi, panelda emas. `fixed` — skrollda ketmaydi. */}
+      <div className="gl-amb" aria-hidden="true">
+        <span className="gl-orb o1" />
+        <span className="gl-orb o2" />
+        <span className="gl-orb o3" />
+        <span className="gl-orb o4" />
       </div>
 
-      {/* Taxi-kartasi (ega tuzatishi 2026-07-26): pastki bardagi FAB olib tashlangach bu YAGONA
-          chaqirish nuqtasi — minimalizm bosqichida xato o'chirilgan edi, qaytarildi. */}
-      <button className="nh-taxi" onClick={() => { haptic(); onBook(); }}>
-        <span className="i">🚖</span>
-        <span><b>Taxi chaqirish</b><small>Bir tap bilan — yaqin mashina</small></span>
-        <span className="go">→</span>
-      </button>
-
-      {/* ⚠️ TARTIB (o'lchab tuzatildi 2026-08-03): rail AVVAL o'yin kartasidan KEYIN turardi.
-          390×844 (iPhone 14) da o'lchandi — rail'ning yuqori chekkasi y=761, suzuvchi pastki
-          menyu esa y=760 dan boshlanadi: ya'ni 9 ta xizmat ikonkasidan ekranga 0 PIKSEL
-          tushardi. 554px'lik o'yin posteri ularni butunlay itarib yuborgan edi. Endi rail
-          taksidan keyin, poster undan keyin: poster hamon ekranning ~85%ini egallaydi va
-          "BEPUL CHIPTA OLISH" tugmasi ham menyudan yuqorida qoladi. */}
-      {(rail.length > 0) && (
-        <div className="nh-rail">
-          {rail.map((r) => (
-            <button key={r.nav} className={`nh-svc${r.locked ? " locked" : ""}`} onClick={() => tapRail(r)}>
-              <span className={`ic ${r.ic}`}>
-                {"img" in r && r.img && !badIc.has(r.nav)
-                  ? <img className="nh-brand-ic" src={r.img} alt="" onError={() => setBadIc((s) => new Set(s).add(r.nav))} />
-                  : r.em}
-                {r.locked && <span className="soon-bd" aria-hidden="true">🔒</span>}
-              </span>
-              <span className="lb">{r.lb}</span>
-            </button>
-          ))}
-          <button className="nh-svc" onClick={() => { haptic(); setHub(true); }}>
-            <span className="ic nh-i-all">⋯</span><span className="lb">Barchasi</span>
-          </button>
+      <header className="gl-top">
+        <div className="gl-brand">
+          <BirJoyMark />
+          <span className="gl-bname">Bir<i>Joy</i></span>
         </div>
-      )}
+        {/* Balans chiplari — ikkalasi ham hamyonga olib boradi (ikkinchi yo'l).
+            Cashback — ALOHIDA pul turi, shuning uchun alohida chip. Nol bo'lsa chip UMUMAN
+            chizilmaydi: "0 so'm cashback" yangi mijozga hech nima aytmaydi (#7). */}
+        <div className="gl-chips">
+          <button className="gl-chip" onClick={() => go("wallet")} aria-label={`Tanga balansi: ${num(me.coins)}`}>
+            <span className="ci" aria-hidden="true" />{num(me.coins)}
+          </button>
+          {me.stats.points > 0 && (
+            <button className="gl-chip is-cb" onClick={() => go("wallet")} aria-label={`Cashback: ${num(me.stats.points)} so'm`}>
+              <span className="ci" aria-hidden="true" />{num(me.stats.points)}
+            </button>
+          )}
+        </div>
+      </header>
 
+      <div className="gl-hi">
+        <div className="gl-hi-t">
+          <div className="gl-hi-a">{firstName ? `Salom, ${firstName}` : "Salom!"}</div>
+          <div className="gl-hi-b">Bir shahar. Ko'plab xizmatlar.</div>
+        </div>
+        {/* ⚠️ Yangi mijozda yechadigan hech narsa YO'Q — unga "Yechish" deb va'da qilish
+            yolg'on tugma (#14/#8): bosadi, hamyonda 0 turadi. Shu holatda tugma o'z nomi
+            bilan "Hamyon" bo'ladi — bir xil ekran, halol yozuv. */}
+        <button className="gl-wal" onClick={() => go("wallet")}>
+          {me.coins > 0 || me.stats.points > 0 ? "Yechish →" : "Hamyon →"}
+        </button>
+      </div>
+
+      {/* 🎁 SOVG'A — sahifadagi yagona to'q panel, taksidan OLDIN (ega maketi 2026-08-10).
+          ⚠️ TARIX: 2026-08-03 da poster taksidan KEYIN qo'yilgan edi, chunki u 800px'ga yaqin
+          bo'lib xizmat panjarasini ekrandan itarib yuborardi. Yangi panel ~620px (`--gl-gift-min`:
+          statistika bir qatorga siqildi, qadamlar bitta satr, hero matni ixcham) — ya'ni taksi
+          va panjara pastda qoladi, lekin bitta qisqa skroll ichida. Bu ATAYLAB qilingan almashuv:
+          maket sovg'ani birinchi qo'yadi. Real qurilmada ega tasdiqlashi kerak. */}
       {f.oyin && <KosonOyinCard onNav={onNav} />}
 
+      {/* Taxi — ASOSIY BIZNES va pastki bardagi FAB olib tashlangach YAGONA chaqirish nuqtasi.
+          ⚠️ Yashil nuqta "jonli" degan signal — mashina SONI yoki masofa YOZILMAYDI: bizda
+          jonli haydovchi-sanog'i yo'q, uni to'qish yolg'on bo'lardi. */}
+      <button className="gl-taxi" onClick={() => { haptic(); onBook(); }}>
+        <span className="gl-taxi-ic"><GlIcon n="car" size={22} /></span>
+        <span className="gl-taxi-t">
+          <span className="gl-taxi-a">Taxi chaqirish</span>
+          <span className="gl-taxi-b"><span className="gl-dot" aria-hidden="true" />Bir tap bilan — yaqin mashina</span>
+        </span>
+        <span className="gl-taxi-go" aria-hidden="true"><GlIcon n="chev" size={18} /></span>
+      </button>
+
+      {rail.length > 0 && (
+        <>
+          <div className="gl-sh"><div className="t">Kosonda</div></div>
+          <div className="gl-tiles">
+            {rail.map((r) => (
+              <button
+                key={r.nav}
+                className={`gl-tile${r.nav === "oyin" ? " gf" : ""}${r.locked ? " locked" : ""}`}
+                onClick={() => tapRail(r)}
+              >
+                <span className="gl-tile-ic">
+                  {"img" in r && r.img && !badIc.has(r.nav)
+                    ? <img className="gl-tile-img" src={r.img} alt="" onError={() => setBadIc((s) => new Set(s).add(r.nav))} />
+                    : <GlIcon n={r.ico} />}
+                  {r.locked && <span className="gl-soon" aria-hidden="true"><GlIcon n="lock" size={11} /></span>}
+                </span>
+                <span className="gl-tile-lb">{r.lb}</span>
+              </button>
+            ))}
+            <button className="gl-tile" onClick={() => { haptic(); setHub(true); }}>
+              <span className="gl-tile-ic"><GlIcon n="dots" /></span>
+              <span className="gl-tile-lb">Barchasi</span>
+            </button>
+          </div>
+        </>
+      )}
+
       {/* "Bugungi tavsiya" banneri o'yin yoniq bo'lganda chiqmaydi (ega qarori 2026-08-02) —
-          o'rnini yuqoridagi Koson hero-kartasi oladi; o'yin o'chirilsa banner avvalgidek qaytadi. */}
+          o'rnini yuqoridagi sovg'a paneli oladi; o'yin o'chirilsa banner avvalgidek qaytadi. */}
       {banner && !f.oyin && (
         <>
-          <div className="nh-sh"><div className="t">🔥 Bugungi tavsiya</div></div>
-          <button className="nh-promo" onClick={() => go(banner.target)}>
+          <div className="gl-sh"><div className="t">🔥 Bugungi tavsiya</div></div>
+          <button className="gl-promo" onClick={() => go(banner.target)}>
             <img src={apiUrl(banner.imageUrl)} alt="" loading="lazy" decoding="async" onError={(e) => ((e.target as HTMLImageElement).style.display = "none")} />
-            <div className="pc"><span className="tag">{banner.badge ?? "Tavsiya"}</span><h3>{banner.title}</h3>{banner.subtitle && <p>{banner.subtitle}</p>}</div>
+            <div className="gl-promo-c"><span className="tag">{banner.badge ?? "Tavsiya"}</span><h3>{banner.title}</h3>{banner.subtitle && <p>{banner.subtitle}</p>}</div>
           </button>
         </>
       )}
 
       {feed === null ? (
         <>
-          <div className="nh-sh"><div className="t">Sizga tavsiya</div></div>
-          <div className="nh-bento">
-            <div className="nh-bc tall"><div className="im nh-skel" style={{ minHeight: 168 }} /><div className="nh-bb"><div className="nh-skel" style={{ height: 14, marginBottom: 6 }} /><div className="nh-skel" style={{ height: 11, width: "60%" }} /></div></div>
-            {[0, 1].map((i) => <div key={i} className="nh-bc"><div className="im nh-skel" /><div className="nh-bb"><div className="nh-skel" style={{ height: 14, marginBottom: 6 }} /><div className="nh-skel" style={{ height: 11, width: "50%" }} /></div></div>)}
+          <div className="gl-sh"><div className="t">Sizga tavsiya</div></div>
+          <div className="gl-bento">
+            <div className="gl-bc tall"><div className="im nh-skel gl-sk-im" /><div className="gl-bb"><div className="nh-skel gl-sk-l1" /><div className="nh-skel gl-sk-l2" /></div></div>
+            {[0, 1].map((i) => <div key={i} className="gl-bc"><div className="im nh-skel" /><div className="gl-bb"><div className="nh-skel gl-sk-l1" /><div className="nh-skel gl-sk-l3" /></div></div>)}
           </div>
         </>
       ) : feed.length > 0 ? (
         <>
-          <div className="nh-sh"><div className="t">Sizga tavsiya<small>🍽 Eng yaxshilari</small></div><button className="all" onClick={() => setHub(true)}>Barchasi</button></div>
-          <div className="nh-bento">
+          <div className="gl-sh"><div className="t">Sizga tavsiya<small>🍽 Eng yaxshilari</small></div><button className="all" onClick={() => setHub(true)}>Barchasi</button></div>
+          <div className="gl-bento">
             {feed.map((it, i) => (
-              <button key={it.kind + it.id} className={`nh-bc${i === 0 ? " tall" : ""}`} onClick={() => go(it.target)}>
+              <button key={it.kind + it.id} className={`gl-bc${i === 0 ? " tall" : ""}`} onClick={() => go(it.target)}>
                 <div className="im">
-                  {it.photoUrl ? <img src={apiUrl(it.photoUrl)} alt="" loading="lazy" decoding="async" onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")} /> : <span style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40 }}>{it.kind === "product" ? "🛍" : "🍽"}</span>}
-                  {it.badge && <span className={`nh-tg${it.badge === "top" ? " hot" : it.badge === "disc" ? " dc" : ""}`}>{badgeLabel(it.badge)}</span>}
+                  {/* Rasm yo'q → GRADIENT blok (emoji EMAS: emoji taom/mahsulotni ko'rsatmaydi). */}
+                  {it.photoUrl ? <img src={apiUrl(it.photoUrl)} alt="" loading="lazy" decoding="async" onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")} /> : <span className="gl-ph" />}
+                  {it.badge && <span className={`gl-tg${it.badge === "top" ? " hot" : it.badge === "disc" ? " dc" : ""}`}>{badgeLabel(it.badge)}</span>}
                 </div>
-                <div className="nh-bb">
+                <div className="gl-bb">
                   <div className="nm">{it.name}</div>
                   <div className="mt">{it.sub}{it.rating ? <> · <b>{it.rating.toFixed(1)}★</b></> : null}</div>
                   <div className="pr">
-                    <span className="price">{it.priceLabel ? <>{it.oldPriceLabel ? <s style={{ color: "var(--nh-dim2)", fontWeight: 500, marginRight: 5 }}>{it.oldPriceLabel}</s> : null}{it.priceLabel}</> : "Buyurtma"}</span>
+                    <span className="price">{it.priceLabel ? <>{it.oldPriceLabel ? <s>{it.oldPriceLabel}</s> : null}{it.priceLabel}</> : "Buyurtma"}</span>
                     <span className="add">{it.kind === "product" ? "+" : "→"}</span>
                   </div>
                 </div>
@@ -374,8 +596,8 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
       ) : feedErr ? (
         // Tarmoq/server yiqildi — "tavsiya yo'q" EMAS, "yuklanmadi". Farqi muhim: birinchisida
         // odam kutadi, ikkinchisida qayta uradi. Tugma bor, chunki yozuv harakat va'da qiladi (#14).
-        <div className="nh-err">
-          <span className="ei" aria-hidden="true">📡</span>
+        <div className="gl-err">
+          <span className="ei" aria-hidden="true"><GlIcon n="signal" size={22} /></span>
           <span className="et">Tavsiyalar yuklanmadi — internet aloqasini tekshiring.</span>
           <button className="eb" onClick={() => { haptic(); loadFeed(); }}>Qayta</button>
         </div>
@@ -383,19 +605,19 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
 
       {!FOCUS_MODE && f.xizmatlar && ustas !== null && ustas.length > 0 && (
         <>
-          <div className="nh-sh"><div className="t">🔧 Xizmatlar<small>Yaqin atrofdagi ustalar</small></div><button className="all" onClick={() => go("xizmat")}>Barchasi</button></div>
-          <div className="nh-urow">
+          <div className="gl-sh"><div className="t">🔧 Xizmatlar<small>Yaqin atrofdagi ustalar</small></div><button className="all" onClick={() => go("xizmat")}>Barchasi</button></div>
+          <div className="gl-urow">
             {ustas.map((u) => (
-              <button key={u.id} className="nh-ust" onClick={() => go("xizmat")}>
-                <div className="nh-ust-im">
+              <button key={u.id} className="gl-ust" onClick={() => go("xizmat")}>
+                <div className="gl-ust-im">
                   {u.hasPhoto ? (
                     <img src={apiUrl(`/api/services/photo/${u.id}?s=1`)} alt="" loading="lazy" decoding="async" onError={(e) => ((e.target as HTMLImageElement).style.opacity = "0")} />
                   ) : (
-                    <span className="nh-ust-em">{u.categoryEmoji || "🔧"}</span>
+                    <span className="gl-ust-em">{u.categoryEmoji || "🔧"}</span>
                   )}
-                  {u.inspTier && <span className="nh-ust-insp" title={`BirJoy tekshiruvi: ${INSP_TIER_LABEL[u.inspTier]}`}>{INSP_TIER_EMOJI[u.inspTier]}</span>}
+                  {u.inspTier && <span className="gl-ust-insp" title={`BirJoy tekshiruvi: ${INSP_TIER_LABEL[u.inspTier]}`}>{INSP_TIER_EMOJI[u.inspTier]}</span>}
                 </div>
-                <div className="nh-ust-b">
+                <div className="gl-ust-b">
                   <div className="un">{u.name}</div>
                   <div className="um">{u.categoryName}</div>
                   {u.reviewCount > 0 ? <div className="ur">⭐ {u.avgRating.toFixed(1)} ({u.reviewCount})</div> : <div className="ur new">🆕 Yangi</div>}
@@ -408,27 +630,27 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
 
       {!FOCUS_MODE && f.elonlar && elons !== null && elons.length > 0 && (
         <>
-          <div className="nh-sh"><div className="t">📋 E'lonlar<small>Mahalladagi so'nggilari</small></div><button className="all" onClick={() => go("elonlar")}>Barchasi</button></div>
-          <div className="nh-elist">
+          <div className="gl-sh"><div className="t">📋 E'lonlar<small>Mahalladagi so'nggilari</small></div><button className="all" onClick={() => go("elonlar")}>Barchasi</button></div>
+          <div className="gl-elist">
             {elons.map((a) => (
-              <button key={a.id} className="nh-erow" onClick={() => go("elonlar")}>
-                <div className="nh-eic">📋</div>
-                <div className="nh-et"><div className="a">{a.title}</div><div className="b">{a.subtype} · {timeAgo(a.createdAt)}</div></div>
-                <div className="nh-ep">{a.priceSom ? `${num(a.priceSom)} so'm` : "Kelishiladi"}</div>
+              <button key={a.id} className="gl-erow" onClick={() => go("elonlar")}>
+                <div className="gl-eic"><GlIcon n="board" /></div>
+                <div className="gl-et"><div className="a">{a.title}</div><div className="b">{a.subtype} · {timeAgo(a.createdAt)}</div></div>
+                <div className="gl-ep">{a.priceSom ? `${num(a.priceSom)} so'm` : "Kelishiladi"}</div>
               </button>
             ))}
           </div>
         </>
       )}
 
-      {/* O'yin yoniqda bu karta chiqmaydi: yuqoridagi o'yin-hero'si allaqachon do'st chaqiradi va
+      {/* O'yin yoniqda bu karta chiqmaydi: yuqoridagi sovg'a paneli allaqachon do'st chaqiradi va
           kuchliroq sabab bilan ("do'sting yursa senga ball tushadi"). Ikkita bir xil CTA —
           ikkalasi ham zaiflashadi. O'yin o'chsa karta avvalgidek qaytadi. */}
       {!f.oyin && (
-        <button className="nh-invite" onClick={() => go("invite")}>
-          <span className="ii">👥</span>
-          <span><b>Do'stni chaqir — pul ishla</b><small>Har do'st uchun bonus · birinchi safar bepul</small></span>
-          <span className="ar">→</span>
+        <button className="gl-invite" onClick={() => go("invite")}>
+          <span className="ii"><GlIcon n="users" size={22} /></span>
+          <span className="gl-invite-t"><b>Do'stni chaqir — pul ishla</b><small>Har do'st uchun bonus · birinchi safar bepul</small></span>
+          <span className="ar" aria-hidden="true"><GlIcon n="arrow" /></span>
         </button>
       )}
 
