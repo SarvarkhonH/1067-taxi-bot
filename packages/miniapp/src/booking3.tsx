@@ -1921,6 +1921,15 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               {/* Uchta ZAXIRA yo'l — targ'ib qilinmaydi, lekin har biri to'liq ishlaydi.
                   98% odam yuqoridagi yashil tugma bilan tugatadi (taxi-pickup-reality). */}
               <div className="b3-p2-hint">Boshqa joydan chaqirmoqchimisiz?</div>
+              {/* ⭐ ODATDAGI/OXIRGI joylar zaxira tugmalardan YUQORIDA. Odam har kuni bir xil
+                  joydan chaqiradi — bu unga BITTA tap beradi, qidiruv yoki xarita esa 3-4 tap
+                  oladi. Ilgari ular pastda, tugmalardan keyin turardi va ko'pchilik ko'rmasdi. */}
+              {(info.quickPickup || recents.length > 0) && (
+                <div className="b3-p2-list b3-p2-quick">
+                  {info.quickPickup && placeRow(info.quickPickup, "odatdagi")}
+                  {recents.slice(0, 2).map((a) => placeRow(a, "oxirgi"))}
+                </div>
+              )}
               <div className="b3-p2-alts">
                 <button className="b3-p2-alt" onClick={() => { haptic(); setScreen("map"); }}>
                   <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="var(--p2-blue)" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" /></svg>
@@ -1953,12 +1962,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <div className="b3-p2-grid">{[0, 1, 2, 3].map((i) => <Skeleton key={i} h={76} className="b3-p2-tileskel" />)}</div>
             )
           ) : (
-            (info.quickPickup || recents.length > 0) && (
-              <div className="b3-p2-list">
-                {info.quickPickup && placeRow(info.quickPickup, "odatdagi")}
-                {recents.slice(0, 2).map((a) => placeRow(a, "oxirgi"))}
-              </div>
-            )
+            null
           )}
           {/* A tartibida bu yo'l yuqoridagi «Xaritadan» kattakchasida bor — ikkinchi marta
               takrorlanmaydi (bitta narsadan bitta dona, minimalizm qarori 2026-07-26). */}
