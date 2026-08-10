@@ -61,12 +61,13 @@ ILGARILAMAYDI. Shu sabab bir marta «`zoomIn()` ishlamayapti» deb noto'g'ri xul
 shu sabab pin kartasi «40px chetga chiqqan» bo'lib ko'ringandi (`d-up` animatsiyasi 40px da
 qotgan). Kelgusi o'lchovlarda: transform/animationName ni birinchi tekshirish kerak.
 
-**QOLDI:** `pickup2` · `pickup2b` · `pickup2lt` · `taxistory` — hammasi **DARK** (`DEFAULT_OFF`),
-jonli mijoz uchun bugungi ekran AYNAN o'zgarishsiz. Ega `#pickupdemo` da real telefonda ko'rib
-(a) A yoki B, (b) yorug' yoki qorong'i tanlaydi → yutqazganlarining kodi o'chiriladi → mustaqil
-tekshiruv (R4) → QABUL → `EXPECTED_ON`. Ko'rish uchun VPS'ga deploy kerak (repo'da deploy
-workflow'i YO'Q — `.github/workflows/` da faqat `ci.yml` va `health.yml`; deploy qo'lda:
-`ssh` → `bash /opt/app/deploy/deploy.sh`).
+**~~QOLDI~~ → HAL BO'LDI (2026-08-10):** ega real telefonda ko'rdi, A tartibini va YORUG'
+ko'rinishni tanladi, so'ng «bayroqlarni yoqib qo'y, doim default qil» dedi. `pickup2` ·
+`pickup2lt` · `taxistory` JONLIDA **ON** va `EXPECTED_ON`ga yozildi (commit `52750c60`).
+`pickup2b` (B tartibi) yoqilmadi — uning kodi hali o'chirilmagan, alohida tozalash tiketi.
+⚠️ Shu bandning eski matni «repo'da deploy workflow'i YO'Q» degan XATO da'voni o'z ichiga
+olgan edi: deploy `ci.yml:66-82` ichida, `main`ga push → shield yashil → SSH → `deploy.sh`
+avtomatik. Qo'lda deploy SHART EMAS (CLAUDE.md ga ham yozildi).
 
 ---
 
@@ -123,10 +124,8 @@ Yulduzcha (sevimli joylar) va Poppins shrifti — ega RAD ETDI.
   tartibi) → endi so'ndiriladi; (2) `go()` eski `i`ni o'qib, tez ketma-ket ikki tapni bittaga
   aylantirardi → funksional yangilanishga o'tkazildi (isbot: 2 tap = 2 qadam).
 
-**QOLDI:** flag `taxistory` **DARK** (`DEFAULT_OFF`) — ega real telefonda QABUL bermaguncha
-yoqilmaydi (CLAUDE.md R6), `EXPECTED_ON`ga QABUL'dan KEYIN qo'shiladi. Mustaqil tekshiruv (R4) ham
-QABUL'dan oldin. Joy tanlash ekranlarining yangi dizayni (maketga sodiq, o'lchangan palitra) —
-KEYINGI qadam, hali qurilmagan.
+**~~QOLDI~~ → HAL BO'LDI (2026-08-10):** `taxistory` ega QABULidan keyin JONLIDA **ON** va
+`EXPECTED_ON`da (`52750c60`). Joy tanlash ekranlarining yangi dizayni ham qurildi va yoqildi.
 
 ---
 
@@ -5986,9 +5985,11 @@ kech(shiftEnd'dan keyin)`, ikkalasi ham bitta 4-soatlik xavfsizlik-chegarasi bil
 
 ### 2026-08-10 — 🚕 TAKSI: xarita bezagi · kelgan-mashina kartochkasi · 1067 · shrift
 
-**Holat: ready for verification — ega hali real telefonda KO'RMAGAN. Bayroqlar (`pickup2`,
-`pickup2lt`, `taxistory`) JONLIDA HAMON OFF; hech qanday bayroq yoqilmadi. 4 ta commit
-LOKALDA — `main`ga PUSH QILINMADI (ega qoidasi: har push oldidan aniq tasdiq).**
+**Holat: owner-accepted (2026-08-10 kechqurun). Ega real telefonda ko'rdi, jonli buyurtma
+bilan sinaldi, topilgan nuqsonlar tuzatildi va so'ng «bayroqlarni yoqib qo'y» dedi. Bayroqlar
+JONLIDA ON. Batafsil yakun — shu faylning ENG OXIRIDAGI band.**
+_(Bu satr yozilgan paytdagi holat «ready for verification, hammasi OFF, 4 commit lokalda» edi;
+keyin ega tasdiqladi, push bo'ldi va bayroqlar yoqildi — R7 bo'yicha tuzatib yozildi.)_
 
 **1-qism — ega so'ragan 11 ta talab TEKSHIRILDI (kodga va jonli brauzerga qarshi, commit
 xabarlariga emas). 11/11 bajarilgan.** Isbotlar: baraban `pickup2` shoxida umuman
@@ -6033,3 +6034,45 @@ xarita belgilari/zonalari yo'q · `.b3-tl-step` hamon 11px.
   kod + konstanta + story kartasidagi bir xil matn orqali tekshirildi (demo'da o'sha
   ekranga chiqish uchun haqiqiy safar tugashi kerak). VPS'da `prisma db push` SHART EMAS
   (sxema o'zgarmadi).
+
+### 2026-08-10 (yakun) — 🚕 YANGI TAKSI CHAQIRISH ENDI **DEFAULT** — ega QABUL berdi
+
+**Holat: owner-accepted.** Ega buyrug'i: «bayroqlarni yoqib qo'y, yangi taxi chaqirishni endi
+doim default qil». Bajarildi va isbotlandi.
+
+**Yoqilgan bayroqlar (jonli bazada, `setFlag.ts` bilan — har biri adminlarga alert yubordi):**
+
+| bayroq | jonli holat | ma'nosi |
+|---|---|---|
+| `pickup2` | **on** | yangi olib-ketish oqimi, **A tartibi** (javob birinchi) |
+| `pickup2lt` | **on** | yorug' ko'rinish (ega maketidagi oq dunyo) |
+| `taxistory` | **on** | 6 kartali o'rgatuvchi story, birinchi ochilishda bir marta |
+| `pickup2b` | qator YO'Q → **off** | B tartibi — ega A ni tanladi, ataylab yoqilmadi |
+
+Isbot (jonli DB dan o'qildi, kod da'vosi emas):
+`feature:pickup2 = on` · `feature:pickup2lt = on` · `feature:taxistory = on` · `feature:pickup2b` qatori yo'q.
+
+**«Doim» qismi — `EXPECTED_ON` (commit `52750c60`).** Bayroq faqat DB qatorida yashaydi: baza
+qayta tiklansa ega QABUL bergan funksiya JIMGINA o'chib qolardi. Endi uchtasi ham
+`featureFlags.ts` dagi `EXPECTED_ON` ro'yxatida — bot ishga tushganda holatni solishtiradi va
+farq bo'lsa ALERT beradi.
+
+**Tezkor orqaga qaytarish (deploy KERAK EMAS, 30 soniyada kuchga kiradi):**
+`setFlag.ts pickup2 off` → eski oqim AYNAN qaytadi.
+
+**DA'VO ↔ HAQIQAT (R5) — bugungi ish bo'yicha:**
+
+| element | kodda? | jonli? | isbot | gap |
+|---|---|---|---|---|
+| Yangi joy-tanlash varag'i (A) | ha | **ha** | `feature:pickup2=on` DB | — |
+| Yorug' ko'rinish | ha | **ha** | `feature:pickup2lt=on` DB | — |
+| O'rgatuvchi story | ha | **ha** | `feature:taxistory=on` DB | — |
+| Har joyga ~300 m rangli hudud | ha | **ha** | `edc1bcf3`, jonli bundle | — |
+| Orientir afzalligi (QAZILI XOTDOG bug) | ha | **ha** | `landmark.test.ts` + `edc1bcf3` | — |
+| «Uzr — mashina topib bera olmadik» yolg'oni | tuzatildi | **ha** | `402e8ef1` | — |
+| B tartibi (`pickup2b`) kodi | **hali turibdi** | off | — | **GAP: o'lik kod, tozalash kerak** |
+| kas katalogidagi 33 bo'shliq (300-400 m xato) | — | — | VPS o'lchovi | **GAP: alohida tiket, ertaga** |
+| kas API xatolari (`setClientName`, `byFilter`) | — | — | VPS loglari | **GAP: alohida tiket, ertaga** |
+
+**Ochiq qolgan 3 gap ataylab ochiq** — ular ega bugun so'ragan ishning ichida emas, lekin
+yashirilmayapti (R8: qisman = qisman deb aytiladi).
