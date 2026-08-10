@@ -1003,6 +1003,36 @@
   background:var(--p2-field); color:var(--p2-ink); font:inherit; font-size:15.5px; font-weight:700;
   cursor:pointer; }
 
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   🗺 XARITADAGI KATALOG BELGISI — rangi joy TURIDAN (ro'yxatdagi `.b3-p2-kico` bilan bir xil til).
+   ⚠️ Ranglar SHU YERDA aniq yozilgan, `var(--p2-*)` ORQALI EMAS: o'sha o'zgaruvchilar faqat
+   varaqlarda (`.b3-p2bar` va h.k.) e'lon qilingan, xarita qatlamida ular BO'SH bo'lardi va belgi
+   shaffof chiqardi — b3.css:538 dagi ogohlantirish aynan shu tuzoq haqida.
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+.b3-pmk { position:relative; width:22px; height:22px; cursor:pointer; }
+.b3-pmk i { position:absolute; inset:0; border-radius:50%; display:grid; place-items:center;
+  color:#fff; box-shadow:0 1px 4px rgba(11,12,16,.38), 0 0 0 2px rgba(255,255,255,.85);
+  transition:transform .12s var(--ease-out); }
+.b3-pmk i svg { width:12px; height:12px; }
+.b3-pmk:active i { transform:scale(.88); }
+/* Nom — faqat yaqin masshtabda. 13px: xarita yozuvi uchun odatdagi 11px keksa/kam savodli
+   auditoriya uchun juda kichik edi (shu commit'dagi umumiy "eng kichik shrift" tuzatishi). */
+.b3-pmk b { position:absolute; left:27px; top:50%; transform:translateY(-50%); max-width:108px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; font-weight:700;
+  letter-spacing:-.01em; padding:2px 7px; border-radius:7px; color:#0B0C10;
+  background:rgba(255,255,255,.93); box-shadow:0 1px 5px rgba(11,12,16,.20); }
+/* Qorong'i skinda xarita teskari filtrda, belgilar esa emas — yozuv o'z qorong'i tabletkasida. */
+.b3-screen:not(.b3-p2-lt) .b3-pmk b { color:#EAF0FA; background:rgba(14,20,32,.88);
+  box-shadow:0 1px 5px rgba(0,0,0,.5); }
+/* Rang DOIRAGA (`i`) qo'yiladi, tashqi o'ramga emas — aks holda dumaloq belgi ortida rangli
+   KVADRAT chiqardi (o'ram `border-radius` siz). Brauzerda aynan shu topildi. */
+.pk-school i{background:#F2496B}   .pk-bazaar i{background:#0A76FA}
+.pk-park i{background:#01A95E}     .pk-mahalla i{background:#FBB307}
+.pk-gov i{background:#7241EA}      .pk-food i{background:#FE7E00}
+.pk-health i{background:#EF4444}   .pk-mosque i{background:#0E9F8E}
+.pk-transit i{background:#64748B}  .pk-other i{background:#94A3B8}
+@media (prefers-reduced-motion: reduce) { .b3-pmk i { transition:none; } }
+
 /* 🚕 «Mashinangiz yetib keldi» — kartochka KELGAN lahzada ochilganda (pickup2). Bu ekranga
    qaramay ko'chaga qarab turgan odam uchun: bitta buyruq + bitta ulkan raqam. Haydovchining
    reyting-yorlig'i («Eng yaxshi haydovchilardan») bu lahzada e'tiborni bo'ladi — yashiriladi;

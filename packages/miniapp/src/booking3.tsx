@@ -225,6 +225,45 @@ const KIND_GLYPH: Record<ReturnType<typeof placeKind>, string> = {
   food: "M8.1 2v7.2a2.4 2.4 0 0 1-1.5 2.2V22H4.4V11.4A2.4 2.4 0 0 1 2.9 9.2V2h1.6v6.4h1.2V2h1.6v6.4h1.2V2h1.6zM17 2c2.2 0 3.4 2.2 3.4 5.6 0 2.6-.8 4.4-2.2 5.1V22h-2.3V2H17z",
   other: "M12 2a7 7 0 0 0-7 7c0 5.2 7 13 7 13s7-7.8 7-13a7 7 0 0 0-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z",
 };
+// ── 🗺 Xarita bezagi: katalog joylari + mahalla shar'lari (pickup2) ──────────────────────────
+// Ega tanlovi (2026-08-10, "C" varianti): xaritada HAM zona-soyalari, HAM joy belgilari bo'lsin.
+//
+// ⚠️ HALOLLIK CHEGARASI (DIZAYN_QOIDALARI #7): bizda mahallalarning HAQIQIY CHEGARASI YO'Q —
+// na kas'da, na bizda poligon bor, faqat NUQTA bor (mahalla nomli katalog joyi o'z koordinatasi
+// bilan). Shuning uchun zona QAT'IY CHIZIQ bilan chizilmaydi va NOMLANMAYDI: u yumshoq, chetsiz
+// rang-dog'i, ya'ni "shu atrofda" deydi, "chegara aynan shu yerdan o'tadi" DEMAYDI. Radius ham
+// o'ylab topilmaydi — qo'shni mahalla nuqtasigacha bo'lgan masofaning yarmi (220–650 m orasida
+// qisiladi), ya'ni zichroq joyda kichik, chekkada kattaroq bo'ladi.
+const DISTRICT_RE = /mahalla|qishloq/i;
+function districtZones(places: SavedAddressView[]): { lat: number; lng: number; km: number }[] {
+  const pts = places
+    .filter((p) => DISTRICT_RE.test(p.name) && typeof p.lat === "number" && typeof p.lng === "number")
+    .map((p) => ({ lat: p.lat as number, lng: p.lng as number }));
+  return pts.map((p) => {
+    let near = Infinity;
+    for (const q of pts) {
+      if (q === p) continue;
+      const d = haversineKm(p, q);
+      if (d < near) near = d;
+    }
+    return { ...p, km: Number.isFinite(near) ? Math.min(0.65, Math.max(0.22, near / 2)) : 0.35 };
+  });
+}
+function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+/** Katalog joyining xaritadagi belgisi: rangi TURIDAN (ro'yxatdagi `b3-p2-kico` bilan bir xil til,
+ *  ya'ni bir marta o'rgangan odam ikkinchi joyda o'qimasdan taniydi). Nom faqat yaqin masshtabda. */
+function placeMarkIcon(name: string, withLabel: boolean): L.DivIcon {
+  const k = placeKind(name);
+  return L.divIcon({
+    className: "",
+    html: `<div class="b3-pmk pk-${k}"><i><svg viewBox="0 0 24 24" fill="currentColor"><path d="${KIND_GLYPH[k]}"/></svg></i>${withLabel ? `<b>${escHtml(name)}</b>` : ""}</div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
+}
+
 // mirror of server RATING_TAGS (bookingPlus) — kept in sync manually (shared has no DTO for it)
 const RIDE_TAGS = ["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"];
 
@@ -684,6 +723,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // dropping it lets tiles paint + tileload fire. THIS was the "Xarita ko'rinmadi" blank.
       L.tileLayer(TILE_URL, { subdomains: TILE_SUBDOMAINS, maxZoom: 20 }).addTo(m);
       map.current = m;
+      // 🔧 QA tutqichi — FAQAT `pnpm dev` da. Sabab: brauzer-panelida kadrlar chizilmasa
+      // Leaflet'ning masshtab animatsiyasi `transitionend` ni kutib QOTIB QOLADI, ya'ni
+      // `setZoom(16)` amalda bajarilmaydi va masshtabga bog'liq narsalarni (xaritadagi joy
+      // belgilari) tekshirib bo'lmaydi — bu ikkinchi marta yo'lni to'sdi. Vite `import.meta.env.DEV`
+      // ni ishlab chiqarish yig'ilishida `false` ga almashtiradi, ya'ni bu shox bundle'ga TUSHMAYDI.
+      if (import.meta.env.DEV) (window as unknown as { __b3map?: L.Map }).__b3map = m;
       setMapReady(true); // signal the pinpick drag effect that the map now exists
       // Robust, RECOVERABLE load detection. The Telegram WebView often never fires the tile `load`
       // event (Leaflet's leaflet-tile-loaded class depends on it too), so we check the image DATA
@@ -1110,6 +1155,101 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     void api.bookingPlaces().then((r) => { if (alive) setAllPlaces(r); }).catch(() => { if (alive) setAllPlaces([]); });
     return () => { alive = false; };
   }, [pickup2, allPlaces, screen]);
+
+  // ── 🗺 Katalog joylari XARITADA (ega tanlovi "C": zonalar + belgilar) ─────────────────────
+  // Belgini bosish ro'yxat qatorini bosish bilan AYNAN bir xil ishlaydi (`choose`) — ikki xil
+  // yo'l, bitta natija.
+  //
+  // ARZON ANDROID QO'RIG'I (uchta qulf, hammasi shu yerda):
+  //   1) MASSHTAB: ≥16 da nomli belgi (18 tagacha), 15 da faqat nuqta (30 tagacha), 15 dan
+  //      pastda UMUMAN yo'q — u yerda zona-soyalari gapiradi. Ya'ni DOM'da hech qachon 30 tadan
+  //      ortiq qo'shimcha belgi bo'lmaydi (katalogda ~150 ta bor — hammasini chizish qotirardi).
+  //   2) KO'RINISH MAYDONI: faqat ekrandagi joylar, markazga yaqinligi bo'yicha saralab kesiladi.
+  //   3) MOSLASH (reconcile): belgilar `id` bo'yicha saqlanadi va surilganda qayta yaratilmaydi —
+  //      mashina-pinlarida o'rganilgan saboq (40 remove + 40 create har tikda WebView'ni qotirardi).
+  // Zonalar — vektor (bitta SVG qatlami), surish/masshtabda brauzerning o'zi ko'chiradi, JS ishi yo'q.
+  //
+  // QAYERDA CHIZILMAYDI: safar ketayotganda (`active`) va tasdiq/yakun ekranlarida — u yerda
+  // xaritaning yagona vazifasi MASHINANI ko'rsatish, belgilar e'tiborni tortib olardi.
+  // 👻 Bezak-mashinalar va odamlarga (GHOST_*) BU YERDA HECH NARSA QILINMAYDI — ega ularni
+  // atayin qoldirishni so'ragan; ular o'z ref'lari bilan mustaqil yashaydi.
+  const chooseRef = useRef(choose);
+  chooseRef.current = choose;
+  const placeMarkers = useRef<Map<number, { mk: L.Marker; lbl: boolean }>>(new Map());
+  const zoneLayer = useRef<L.LayerGroup | null>(null);
+  useEffect(() => {
+    const m = map.current;
+    const wipe = () => {
+      for (const [, e] of placeMarkers.current) e.mk.remove();
+      placeMarkers.current.clear();
+      if (zoneLayer.current) { zoneLayer.current.remove(); zoneLayer.current = null; }
+    };
+    const places = allPlaces ?? [];
+    const on = pickup2 && !!m && places.length > 0 && !active && (screen === "pinpick" || screen === "map");
+    if (!on || !m) { wipe(); return; }
+
+    if (!zoneLayer.current) {
+      const g = L.layerGroup();
+      for (const z of districtZones(places)) {
+        // Ikkita ustma-ust doira = chetsiz o'tish tuyg'usi (qattiq chegara chizmasdan).
+        L.circle([z.lat, z.lng], { radius: z.km * 1000, stroke: false, fillColor: "#0A76FA", fillOpacity: 0.04, interactive: false }).addTo(g);
+        L.circle([z.lat, z.lng], { radius: z.km * 620, stroke: false, fillColor: "#0A76FA", fillOpacity: 0.05, interactive: false }).addTo(g);
+      }
+      g.addTo(m);
+      zoneLayer.current = g;
+    }
+
+    const sync = () => {
+      if (!map.current) return;
+      const zoom = m.getZoom();
+      const limit = zoom >= 16 ? 18 : zoom >= 15 ? 30 : 0;
+      const withLabel = zoom >= 16;
+      const b = m.getBounds();
+      const c = m.getCenter();
+      const shown = limit === 0
+        ? []
+        : places
+            .filter((a) => typeof a.lat === "number" && typeof a.lng === "number" && b.contains([a.lat, a.lng] as L.LatLngTuple))
+            .map((a) => ({ a, d: haversineKm({ lat: c.lat, lng: c.lng }, { lat: a.lat as number, lng: a.lng as number }) }))
+            .sort((x, y) => x.d - y.d)
+            .slice(0, limit)
+            .map((x) => x.a);
+      const seen = new Set<number>();
+      for (const a of shown) {
+        seen.add(a.id);
+        const e = placeMarkers.current.get(a.id);
+        if (e) {
+          if (e.lbl !== withLabel) { e.mk.setIcon(placeMarkIcon(a.name, withLabel)); e.lbl = withLabel; }
+          continue;
+        }
+        const mk = L.marker([a.lat as number, a.lng as number], {
+          icon: placeMarkIcon(a.name, withLabel),
+          zIndexOffset: -300, // pin · haydovchi · mashinalar HAR DOIM ustida — belgi ular bilan raqobatlashmaydi
+          keyboard: false,
+          title: a.name,
+        });
+        mk.on("click", () => chooseRef.current(a));
+        mk.addTo(m);
+        placeMarkers.current.set(a.id, { mk, lbl: withLabel });
+      }
+      for (const [id, e] of placeMarkers.current) {
+        if (!seen.has(id)) { e.mk.remove(); placeMarkers.current.delete(id); }
+      }
+    };
+
+    let deb: ReturnType<typeof setTimeout> | undefined;
+    const onMove = () => { if (deb) clearTimeout(deb); deb = setTimeout(sync, 180); };
+    sync();
+    m.on("moveend", onMove);
+    m.on("zoomend", onMove);
+    return () => {
+      if (deb) clearTimeout(deb);
+      m.off("moveend", onMove);
+      m.off("zoomend", onMove);
+      wipe();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pickup2, allPlaces, mapReady, screen, !active]);
 
   // 🎤 one utterance → the search box. The browser does the recognition; we make no network call.
   const listenOnce = (): void => {
