@@ -110,18 +110,28 @@ CI qalqoni lokal: `shared test` 140/140 · `simEconomy` 238.3 ≤ 350 · `simLoy
 
 | element | kodda? | jonli? | isbot | gap |
 |---|---|---|---|---|
-| Sovg'a nomi katta | ha | **yo'q** | brauzer o'lchovi 21.08px | push kutilyapti |
-| «N safar qoldi» yashil qalin | ha | yo'q | 13px/900 rgb(134,239,172) | push kutilyapti |
-| CTA 90px / 18px / 2 qator | ha | yo'q | o'lchov | push kutilyapti |
-| Progress bar ko'rinadi | ha | yo'q | 0×0 → 10×10 | push kutilyapti |
-| Qaytgan holatda 4 foto yo'q | ha | yo'q | kod `!returning &&` | push kutilyapti |
-| Karta sakramaydi | ha | yo'q | 1px (avval 36px) | push kutilyapti |
-| G'olib qatori | ha | **KO'RINMAYDI** | `lastWinner=null` — bayonnoma yo'q | **GAP: birinchi REAL tirajdan keyin o'zi yonadi** |
+Jonli isbot `app.birjoy.online` dan O'QILDI (kod da'vosi emas). Chiqqan CSS bundle nomi
+`index-BU7rQsg-.css` — lokal o'lchov qilingan build bilan AYNI BIR XIL hash, ya'ni o'lchangan
+kod = mijoz oladigan kod.
+
+| element | kodda? | jonli? | isbot | gap |
+|---|---|---|---|---|
+| Sovg'a nomi katta | ha | **ha** | jonli CSS: `gl-prizename: clamp(21px,5.4vw,24px)` | — |
+| «N safar qoldi» yashil qalin | ha | **ha** | 13px/900 rgb(134,239,172) | — |
+| CTA 90px / 18px / 2 qator | ha | **ha** | jonli CSS: `min-height:90px;font-size:18px;font-weight:800` | — |
+| Progress bar ko'rinadi | ha | **ha** | jonli CSS: `gl-bar{display:block;height:10px…}` (avval 0×0) | — |
+| CTA matni holatga qarab | ha | **ha** | jonli JS: «Sovg'ani olishga davom eting» + «Bepul karta olish» | — |
+| Qaytgan holatda 4 foto yo'q | ha | **ha** | jonli bundle `957852ac` | — |
+| Karta sakramaydi | ha | **ha** | o'lchov 1px (avval 36px); jonli `gl-prog-sk` bundle'da | — |
+| Server `lastWinner` maydoni | ha | **kuzatilmadi** | `/api/oyin/state` auth talab qiladi — JSON javobi ko'rilmadi | **GAP: kod jonli (build+deploy yashil), lekin javob o'z ko'zim bilan ko'rilmadi** |
+| G'olib qatori | ha | **KO'RINMAYDI** | `lastWinner=null` — bayonnoma yo'q | **GAP: birinchi REAL tirajdan keyin o'zi yonadi, deploy kerak emas** |
 | Yangi odam kartasi ↔ skeleton | — | — | 55px farq | **GAP: ONGLI kelishuv — bo'sh ko'k maydon > kichik sakrash** |
 | `src/sim/config/arms.ts` typecheck xatosi | — | — | `git ls-files` bo'sh = kuzatilmagan | **GAP: boshqa sessiyaning lokal ishi, CI'ga tushmaydi, tegilmadi** |
 
-**Holat: ready for verification.** Ega real telefonda ko'rib QABUL berishi kerak (R6).
-Ochiq 3 gap ataylab ochiq va yashirilmayapti (R8).
+**Holat: owner-accepted** (2026-08-11, ega real telefonda ko'rdi — R6).
+Ochiq 4 gap ataylab ochiq va yashirilmayapti (R8): ulardan ikkitasi (g'olib qatori, `lastWinner`
+javobi) BIRINCHI REAL TIRAJDA o'z-o'zidan yopiladi — o'shanda qator jonli ko'rinsa, ikkalasi ham
+bir vaqtda isbotlangan bo'ladi.
 
 ## 🟡 2026-08-10 — O'YIN: telefon-ball cheksiz olish teshigi yopildi + login/streak ball o'chirildi — READY FOR VERIFICATION
 
