@@ -264,7 +264,13 @@ function KosonOyinCard({ onNav, onBall }: { onNav: (t: string) => void; onBall?:
   // Infinity berardi). Aks holda halol qolgan-ball aytiladi; qarz yo'q bo'lsa — tayyorlik.
   const ridesLeft = need > 0 && Number.isFinite(rideBall) && rideBall > 0 ? Math.ceil(need / rideBall) : 0;
   const goalMeta = ridesLeft > 0 ? `${ridesLeft} safar qoldi` : need > 0 ? `${num(need)} ball qoldi` : "Chipta olishga tayyor";
-  const returning = state.ball > 0 && goal !== null;
+  // 🎯 QAYTGAN ODAM = BALL BOR. Avval `&& goal !== null` ham shart edi — ya'ni holat sovrin
+  // ro'yxati (ikkinchi so'rov) kelgunicha NOMA'LUM bo'lib turardi va ballik mijoz avval YANGI
+  // ODAM kartasini (katta "BEPUL SOVG'ALAR" + 4 foto) ko'rib, vitrina kelgach karta ~55px
+  // SAKRARDI. `ball` esa BIRINCHI javobda keladi — demak holat birinchi chizishdayoq aniq.
+  // Sovrin kelgunicha progress-blokda o'rin-egal shimmer turadi (xuddi sovrin fotolari kabi):
+  // soxta nom/narx YOZILMAYDI, faqat yuklanish ko'rsatiladi.
+  const returning = state.ball > 0;
 
   return (
     <div className="gl-gift">
@@ -275,23 +281,29 @@ function KosonOyinCard({ onNav, onBall }: { onNav: (t: string) => void; onBall?:
           <span className="gl-pill">{returning ? "SIZNING SOVG'ANGIZ" : "SOVG'ALAR O'YINI"}</span>
 
           <span className="gl-ghead">
-            {returning && goal ? (
+            {returning ? (
               <span className="gl-prog">
                 <span className="gl-prog-row">
                   <span className="gl-prog-im">
-                    {goal.photoUrl && !bad.has(goal.key)
+                    {goal?.photoUrl && !bad.has(goal.key)
                       ? <img src={goal.photoUrl} alt="" loading="lazy" onError={() => setBad((b) => new Set(b).add(goal.key))} />
                       : <span className="gl-shot-ph" />}
                   </span>
                   <span className="gl-prog-t">
                     <span className="gl-prog-k">Keyingi sovg'a</span>
-                    <span className="gl-prog-v">{goal.name}</span>
+                    {/* Sovrin hali kelmagan bo'lsa NOM O'RNIGA shimmer — o'rin-egal matn ("Sovg'a",
+                        "—") yozish mijozga YOLG'ON nom ko'rsatish bo'lardi. Balandligi real nom
+                        qatoriga teng, shuning uchun kelganda sakramaydi. */}
+                    {goal
+                      ? <span className="gl-prog-v">{goal.name}</span>
+                      : <span className="nh-skel gl-prog-sk" aria-label="Sovg'a yuklanmoqda" />}
                   </span>
                 </span>
                 <span className="gl-bar"><i style={{ width: `${goalPct}%` }} /></span>
                 <span className="gl-bar-m">
-                  <span>{num(state.ball)} / {num(goal.price)} ball</span>
-                  <b>{goalMeta}</b>
+                  {/* Narx noma'lum bo'lsa faqat O'Z balli aytiladi — "23 744 / NaN ball" chiqmaydi. */}
+                  <span>{goal ? <>{num(state.ball)} / {num(goal.price)} ball</> : <>{num(state.ball)} ball</>}</span>
+                  {goal && <b>{goalMeta}</b>}
                 </span>
               </span>
             ) : (
@@ -306,7 +318,11 @@ function KosonOyinCard({ onNav, onBall }: { onNav: (t: string) => void; onBall?:
             )}
           </span>
 
-          {shotCount > 0 && (
+          {/* 📸 Sovrin fotolari — FAQAT YANGI ODAMGA (ega maketi). Qaytgan odam nimani yig'ayotganini
+              allaqachon biladi: uning maqsadi progress-blokda katta rasm+nom bilan turibdi, ostiga
+              yana 4 ta boshqa sovrin qo'yish diqqatni maqsaddan CHALG'ITADI va kartani cho'zadi.
+              Yangi odam uchun esa aksincha — u hali hech narsa tanlamagan, vitrina uni chaqiradi. */}
+          {!returning && shotCount > 0 && (
             <span className="gl-shots">
               {prizes === null
                 ? Array.from({ length: shotCount }, (_, i) => (
@@ -333,10 +349,38 @@ function KosonOyinCard({ onNav, onBall }: { onNav: (t: string) => void; onBall?:
               · Tiraj sanoq-vaqti + «N ta real sovg'a» → «Sovg'a» ekrani sarlavhasida
               · Kunlik maslahat → «Sovg'a» ekrani
             Uy — eshik, ombor emas: bitta qarash, bitta qadam. */}
+        {/* CTA matni HOLATNI aytadi. Avval qaytgan odamga ham "BEPUL KARTA OLISH" deyilardi —
+            23 744 balli, maqsadi tanlangan mijozga u BOSHIDAN boshlashni taklif qilardi, holbuki
+            u yo'lning yarmida. Maketdagi matn davomiylikni aytadi. Bosh harflar ham olib tashlandi
+            (maket): 18px'lik ikki qatorli CAPS baqiradi va o'qilishi yomonlashadi. */}
         <button className="gl-cta" onClick={goOyin}>
-          <GlIcon n={final48 || upcoming ? "gift" : "arrow"} size={19} />
-          <span>{final48 || upcoming ? "SOVG'ALARNI KO'RISH" : "BEPUL KARTA OLISH"}</span>
+          <GlIcon n={final48 || upcoming ? "gift" : "arrow"} size={21} />
+          <span>
+            {final48 || upcoming
+              ? "Sovg'alarni ko'rish"
+              : returning ? "Sovg'ani olishga davom eting" : "Bepul karta olish"}
+          </span>
         </button>
+
+        {/* 🏆 OXIRGI REAL G'OLIB — bitta ijtimoiy-isbot qatori (ega maketi). `lastWinner` server
+            BAYONNOMASIDAN keladi (`oyin:winner:*`), namuna EMAS. Bayonnoma yo'q bo'lsa server
+            `null` qaytaradi va qator UMUMAN chizilmaydi — "hali g'olib yo'q" deb yozib, kartani
+            "bu yerda hech kim yutmagan" degan xabarga aylantirish eng yomon variant bo'lardi.
+            Mahalla ixtiyoriy: a'zo tanlamagan bo'lsa faqat ism qoladi. */}
+        {state.lastWinner && (
+          <div className="gl-win">
+            <span className="gl-win-av" aria-hidden="true">{state.lastWinner.name.trim().charAt(0).toUpperCase() || "•"}</span>
+            <span className="gl-win-t">
+              <span className="gl-win-1">
+                <b>{state.lastWinner.name}</b>
+                {state.lastWinner.mahalla ? ` · ${state.lastWinner.mahalla}` : ""} — {state.lastWinner.prizeName} yutdi
+              </span>
+              <span className="gl-win-2">
+                {[timeAgo(state.lastWinner.drawnAt), `${state.lastWinner.no}-chi g'olib`].filter(Boolean).join(" · ")}
+              </span>
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -24,6 +24,7 @@ const MOCK_STATE: OyinStateResponse = {
   hints: { referComboBall: 175, rideBall: 35, firstRideBall: 100, phoneBall: 20, loginBall: 1, shareBall: 0, referJoinBall: 0, referFirstRideBall: 175, referRideBall: 10, streakBall: 35, storyBall: 100, maxPerPrize: 3 },
   today: { login: true, rides: 1, shared: false, referJoined: false },
   live: { name: "Aziz", ball: 175 },
+  lastWinner: { name: "Jasur aka", mahalla: "3-mahalla", prizeName: "Mikroto'lqinli pech", drawnAt: "2026-08-08T12:00:00+05:00", no: 4 },
   week: { streak: 2, target: 3, bonusBall: 35, done: false },
   season: { configured: true, phase: "active", label: "Avgust", startIso: "2026-08-01T00:00:00+05:00", endIso: "2026-09-15T00:00:00+05:00" },
   story: {

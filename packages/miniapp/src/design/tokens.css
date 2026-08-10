@@ -2287,7 +2287,25 @@ body {
      olib tashlangach tarkib ~300px qoldi va pastda ~320px BO'SH KO'K maydon paydo bo'ldi
      (ega skrinshoti). «Bo'sh xrom yo'q» qoidasi. Endi min-height faqat ikki holat orasidagi
      sakrashni to'sadi (yangi odam / qaytgan odam), ortiqcha joy YARATMAYDI. */
-  --gl-gift-min: 300px;
+  /* ⚠️ 2026-08-10 (ikkinchi o'lchov, ega maketi): 300px real kartadan KICHIK edi — skeleton 300,
+     karta ~336 → yuklanganda sahifa jimgina 36px sakrardi. Yangi tipografiyadan keyin uchta real
+     balandlik bor:
+       · qaytgan odam, g'olibsiz (BUGUNGI HAQIQAT): 36 padding + 25 pill + 14 + 134 progress
+         + 14 + 90 CTA                                                          ≈ 313
+       · qaytgan odam, g'olib qatori bilan: + 14 + 34                            ≈ 361
+       · yangi odam: 36 + 25 + 14 + 108 sarlavha + 14 + 68 fotolar + 14 + 90     ≈ 369
+     Token ATAYLAB eng KICHIGIga qo'yilgan. Sabab: min-height tarkibdan katta bo'lsa BO'SH KO'K
+     MAYDON paydo bo'ladi — ega buni ikki marta qaytardi va bu ko'rinadigan xato. Skeletonning
+     real kartadan bir oz kalta bo'lishi esa ko'rinmas (bir martalik kichik siljish). Ya'ni:
+     bo'sh xrom > kichik sakrash. */
+  --gl-gift-min: 314px;
+  /* 🎁 Sovg'a NOMI — kartaning sarlavhasi. Maket 441px kenglikda 24px bilan chizilgan (= 5.4vw).
+     Qotirilgan 24px 390px'lik telefonda maketning O'Z misolini kesardi: brauzer o'lchovi —
+     "Mikroto'lqinli pech" 234px joy so'raydi, quti esa 221px, natija «Mikroto'lqinli p...».
+     Mijozga sovg'a nomini YARIM ko'rsatish — kartaning butun maqsadini yo'qotadi. Shuning uchun
+     o'lcham maketning NISBATI bo'yicha o'sadi: 390px'da ~21px (sig'adi), 441px+ da maketdagi 24px.
+     Skeleton shimmer ham shu o'zgaruvchini o'qiydi — balandliklar ta'rif bo'yicha teng qoladi. */
+  --gl-prizename: clamp(21px, 5.4vw, 24px);
 }
 
 /* ── Sahifa + muhit ────────────────────────────────────────────────────────────────────── */
@@ -2410,19 +2428,42 @@ body {
 .gl-prog { border-radius: var(--gl-r-md); padding: 13px; background: var(--gl-gift-fill);
   border: 1px solid var(--gl-gift-bd); }
 .gl-prog-row { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.gl-prog-im { width: 52px; height: 52px; border-radius: var(--gl-r-sm); flex: 0 0 auto; overflow: hidden;
+.gl-prog-im { width: 60px; height: 60px; border-radius: var(--gl-r-sm); flex: 0 0 auto; overflow: hidden;
   background: var(--gl-gift-fill-2); border: 1px solid var(--gl-gift-bd); }
 .gl-prog-im img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .gl-prog-t { flex: 1; min-width: 0; }
-.gl-prog-k { font-size: 11px; font-weight: 700; color: var(--gl-on-gift-2); }
-.gl-prog-v { font-size: 16px; font-weight: 700; color: var(--gl-on-gift); letter-spacing: -.02em; margin-top: 2px;
+/* ⚠️ `display: block` MAJBURIY. Bu `<span>` lar `.gl-prog-t` (oddiy blok) ichida — ya'ni ular
+   INLINE bo'lib qolardi, va inline qutida `overflow`/`text-overflow` ISHLAMAYDI: uzun sovg'a nomi
+   ellipsis bilan kesilmay kartadan CHIQIB ketardi (o'lchov: 620px matn 320px kartada). Nom 16px
+   bo'lganida bu kamdan-kam ko'zga tashlanardi, 24px da esa deyarli har uzun nomda. Label ham blok:
+   aks holda ikkalasi bitta satrga oqib, faqat "sig'madi" degan sabab bilan ajralib turardi. */
+.gl-prog-k { display: block; font-size: 11px; font-weight: 700; color: var(--gl-on-gift-2); }
+/* ⬆️ 2026-08-10 (ega maketi): 16px edi — qaytgan odam holati YANGI odam holatidagi 30px'lik
+   "BEPUL SOVG'ALAR" ga nisbatan JIM chiqardi va ega aynan shuni ko'rsatdi (ballik hisobda katta
+   sarlavha umuman ko'rinmasdi). Endi sovg'a NOMI kartaning sarlavhasi. `nowrap`+ellipsis saqlanadi:
+   uzun nom ikkinchi qatorga tushsa blok balandligi o'zgarib skeleton bilan mos kelmay qolardi. */
+.gl-prog-v { display: block; font-size: var(--gl-prizename); font-weight: 900; color: var(--gl-on-gift); letter-spacing: -.02em;
+  line-height: 1.1; margin-top: 3px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gl-bar { height: 9px; border-radius: var(--gl-r-pill); background: rgba(0, 0, 0, .26); overflow: hidden; }
+/* Sovrin ro'yxati kelgunicha nom o'rnidagi shimmer. Balandligi REAL nom qatoridan HISOBLANADI
+   (nom o'lchami × line-height) — qo'lda yozilgan raqam emas, shuning uchun shrift o'zgarsa ham
+   ikkalasi bir xil qoladi va sovrin kelganda blok sakramaydi. Fon `nh-skel` ning yorug' uy-fonidan
+   TO'Q panelga moslashtiriladi, aks holda ko'k kartada oq dog' bo'lib turadi. */
+.gl-prog-sk { display: block; width: 64%; height: calc(var(--gl-prizename) * 1.1); margin-top: 3px;
+  border-radius: 8px; background: var(--gl-gift-fill-2); }
+/* 🚨 JONLI BUG (2026-08-10 brauzer o'lchovi): `display` berilmagan edi va bu ham `<span>` — INLINE
+   qutida `height` UMUMAN qo'llanmaydi. O'lchov: `.gl-bar` = 0×0, ichidagi `<i>` balandligi 0px.
+   Ya'ni maqsad-chizig'i mijoz ekranida HECH QACHON chizilmagan (9px davrida ham): qaytgan odam o'z
+   taraqqiyotini ko'rmagan, faqat quruq raqam ko'rgan. Kartaning "juda jim" chiqishining bir sababi. */
+.gl-bar { display: block; height: 10px; border-radius: var(--gl-r-pill); background: rgba(0, 0, 0, .26); overflow: hidden; }
 .gl-bar i { display: block; height: 100%; border-radius: var(--gl-r-pill);
   background: linear-gradient(90deg, var(--gl-green), var(--gl-mint-2)); transition: width .5s ease; }
-.gl-bar-m { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11px;
-  color: var(--gl-on-gift-2); font-variant-numeric: tabular-nums; }
-.gl-bar-m b { color: var(--gl-mint-2); font-weight: 700; }
+.gl-bar-m { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 8px;
+  font-size: 13px; color: var(--gl-on-gift-2); font-variant-numeric: tabular-nums; }
+/* «3 safar qoldi» — kartadagi YAGONA yashil raqamli va'da, shuning uchun ball hisobidan qalinroq.
+   Ikkalasi ham 13px (maket): o'lcham emas, RANG va QALINLIK ajratadi — aks holda ikki xil o'lcham
+   qatorni qiyshaytiradi. */
+.gl-bar-m b { color: var(--gl-mint-2); font-weight: 900; }
 /* Sovrin fotolari — REAL rasm bo'lsa `img`, bo'lmasa GRADIENT blok + nom (emoji EMAS). */
 .gl-shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
 .gl-shot { position: relative; height: 68px; border-radius: var(--gl-r-sm); overflow: hidden;
@@ -2450,15 +2491,35 @@ body {
   background: var(--gl-gift-fill-2); border: 1px solid var(--gl-gift-bd); }
 .gl-step-tx { font-size: 11px; font-weight: 600; color: var(--gl-on-gift-2); text-align: center; line-height: 1.2;
   max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* CTA — oq matn AA'dan o'tishi uchun yashil to'qroq (5.1:1). */
+/* CTA — oq matn AA'dan o'tishi uchun yashil to'qroq (5.1:1).
+   ⬆️ 2026-08-10 (ega maketi): 54px/16px edi. Kartada endi BITTA harakat qoladi (ortiqcha ma'lumot
+   kesilgan), shuning uchun u ekrandagi eng katta bosiladigan narsa bo'lishi kerak — maketda ~90px
+   va matn ikki qatorga tushadi. `line-height`+`padding` shu sababli: matn o'ralganda tugma
+   BALANDLIGI o'zgarmasin (min-height uni ushlab turadi, uzun matn esa o'sib ketmasin). */
 .gl-cta {
-  display: flex; align-items: center; justify-content: center; gap: 9px; width: 100%;
-  min-height: 54px; padding: 0 16px; border-radius: var(--gl-r-md);
+  display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%;
+  min-height: 90px; padding: 14px 18px; border-radius: var(--gl-r-md);
   border: 1px solid var(--gl-gift-bd); background: var(--gl-cta-grad); color: var(--gl-cta-ink);
-  font-size: 16px; font-weight: 700; letter-spacing: -.01em; cursor: pointer;
+  font-size: 18px; font-weight: 800; letter-spacing: -.01em; line-height: 1.25; text-align: center;
+  cursor: pointer;
   box-shadow: var(--gl-cta-shadow), inset 0 1px 0 var(--gl-gift-spec);
 }
 .gl-cta:disabled { opacity: .62; filter: saturate(.7); cursor: default; }
+/* 🏆 OXIRGI REAL G'OLIB — CTA ostidagi bitta ijtimoiy-isbot qatori (ega maketi). Qator FAQAT
+   server real bayonnoma qaytarganda chiziladi (`lastWinner !== null`); soxta/namuna g'olib YO'Q.
+   Bu kecha kesilgan «KARTALAR 2 / 1 815 · 0.1%» ning TESKARISI: u "bu yerda hech kim yo'q" deb
+   turardi, bu esa "qo'shni yutdi" deydi. */
+.gl-win { display: flex; align-items: center; gap: 11px; }
+.gl-win-av { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800; color: var(--gl-on-gift);
+  background: var(--gl-gift-fill-2); border: 1px solid var(--gl-gift-bd); }
+.gl-win-t { min-width: 0; }
+.gl-win-t span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  line-height: 1.35; color: var(--gl-on-gift-2); }
+.gl-win-1 { font-size: 13px; }
+.gl-win-1 b { color: var(--gl-on-gift); font-weight: 800; }
+.gl-win-2 { font-size: 12px; }
 /* Umumiy raqamlar (ijtimoiy isbot) — shaxsiy ball EMAS. Ataylab BITTA ixcham blok: eski
    ikki-ustunli panel 114px yer olardi va sovg'a kartasini shunchalik cho'zardiki, taksi
    qatori ekrandan tushib ketardi. Barcha raqamlar saqlandi (tarqatilgan / jami / foiz). */

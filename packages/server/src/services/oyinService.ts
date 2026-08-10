@@ -841,6 +841,34 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     if (referrer) live = { name: referrer.name, ball: econ.oyinReferJoinBall ?? 0 };
   }
 
+  // 🏆 OXIRGI REAL G'OLIB — uy-kartasidagi ijtimoiy-isbot qatori. Bayonnoma yozilmagan bo'lsa
+  // `null` qaytadi va klient qatorni UMUMAN chizmaydi (soxta g'olib taqiq). Bugungi kunda jonli
+  // bazada birorta `oyin:winner:*` qatori yo'q — ya'ni qator birinchi REAL tirajdan keyin o'zi
+  // yonadi, alohida deploy kerak emas.
+  // Narx: `getWinners()` — `appState` PK prefiksi bo'yicha diapazon-skani, N juda kichik (mavsumda
+  // bir necha sovrin). Mahalla so'rovlari FAQAT g'olib bor bo'lganda ketadi, ya'ni hozir 0 ta
+  // qo'shimcha so'rov.
+  let lastWinner: OyinStateResponse["lastWinner"] = null;
+  const winners = await getWinners(); // yangidan eskiga saralangan
+  const topWinner = winners[0];
+  if (topWinner) {
+    // `no` — g'olibning UMUMIY tartibi ("4-chi g'olib"). Ro'yxat kamayish tartibida, shuning uchun
+    // eng yangisining tartibi = jami soni.
+    let mahalla: string | null = null;
+    const wm = await prisma.member.findUnique({ where: { id: topWinner.memberId }, select: { mahallaId: true } });
+    if (wm?.mahallaId) {
+      const mh = await prisma.mahalla.findUnique({ where: { id: wm.mahallaId }, select: { name: true } });
+      mahalla = mh?.name ?? null;
+    }
+    lastWinner = {
+      name: topWinner.name,
+      mahalla,
+      prizeName: topWinner.prizeName,
+      drawnAt: topWinner.drawnAt,
+      no: winners.length,
+    };
+  }
+
   return {
     ball: breakdown.ball,
     breakdown,
@@ -862,6 +890,7 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
     },
     today,
     live,
+    lastWinner,
     week,
     story: storyState,
     ticketCount,

@@ -923,6 +923,14 @@ export interface OyinStateResponse {
   // 🔴 JONLI lenta: bugungi eng so'nggi do'st-taklif voqeasi (butun populyatsiya bo'ylab) — ijtimoiy
   // isbot. null = bugun hali hech kim do'st qo'shmadi.
   live: { name: string; ball: number } | null;
+  // 🏆 OXIRGI REAL G'OLIB — uy-kartasidagi bitta ijtimoiy-isbot qatori ("Jasur aka · 3-mahalla —
+  // pech yutdi · 2 kun oldin · 4-chi g'olib"). Manba — BAYONNOMA (`oyin:winner:*`), ya'ni ega
+  // qo'lda yozgan real tiraj natijasi; taxmin yoki namuna EMAS.
+  // ⚠️ `null` = hali birorta tiraj o'tkazilmagan. Bu holatda mijoz kartasida qator UMUMAN
+  // chizilmaydi — bo'sh/soxta g'olib ko'rsatish taqiq (DIZAYN_QOIDALARI: prototip elementi
+  // ma'lumotsiz jo'natilmaydi). `mahalla` ham ixtiyoriy: a'zo mahallasini tanlamagan bo'lsa
+  // qatorda faqat ism turadi, "undefined-mahalla" emas.
+  lastWinner: { name: string; mahalla: string | null; prizeName: string; drawnAt: string; no: number } | null;
   // 🔥 Haftalik vazifa (prototipdagi "3 kunlik zanjir" bloki). Yangi saqlash YO'Q — zanjir mavjud
   // `oyin:login:<memberId>` kun-ro'yxatidan ketma-ket kunlarni sanash bilan chiqadi.
   week: { streak: number; target: number; bonusBall: number; done: boolean };

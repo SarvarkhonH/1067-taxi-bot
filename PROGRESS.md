@@ -1,5 +1,63 @@
 # PROGRESS
 
+## 🟡 2026-08-10 — UY SOVG'A-KARTASI ega maketiga keltirildi + 2 ta jonli bug — READY FOR VERIFICATION
+
+Ega maket yubordi («shu ideal dizayn») va uch narsani so'radi: qaytgan odam holati baland ovozli
+bo'lsin · CTA kattaroq · pill matni maketga mos. Maketni o'lchaganda yana uchtasi chiqdi (maketda
+bor, kodda yo'q edi), va brauzer o'lchovi IKKI JONLI BUG ni ochdi.
+
+### 🚨 O'lchov ochgan ikki jonli bug (ikkalasi ham eski, bu sessiyaning aybi EMAS)
+
+| bug | o'lchov isboti | sabab | tuzatish |
+|---|---|---|---|
+| **Progress bar mijoz ekranida hech qachon chizilmagan** | `.gl-bar` = **0×0**, ichidagi `<i>` balandligi 0px | `.gl-bar` — `display` berilmagan `<span>`, ya'ni INLINE; inline qutida `height` qo'llanmaydi | `display: block` |
+| **Uzun sovg'a nomi kartadan chiqib ketardi** | uzun nom **620px**, quti 320px; `text-overflow` ishlamagan | `.gl-prog-v`/`.gl-prog-k` ham inline — inline qutida `overflow`/`text-overflow` qo'llanmaydi | `display: block` |
+
+Birinchisi kartaning «juda jim» ko'rinishining bir sababi: qaytgan odam o'z taraqqiyotini
+KO'RMAGAN, faqat quruq raqam ko'rgan. Maketda esa yashil chiziq bor.
+
+### O'zgarishlar
+
+| # | Nima | Fayl |
+|---|---|---|
+| 1 | Sovg'a nomi 16px → `--gl-prizename` (maket nisbati: 390px'da ~21px, 441px+ da 24px) | `tokens.css` |
+| 2 | Rasm 52→60px · bar 9→10px · «N safar qoldi» 11→13px/900 yashil | `tokens.css` |
+| 3 | CTA 54→90px, 16→18px/800, ikki qatorga ruxsat, matn holatga qarab | `tokens.css` + `uy.tsx` |
+| 4 | Qaytgan holatda 4 sovrin fotosi CHIQMAYDI (maket) | `uy.tsx` |
+| 5 | G'olib qatori — `lastWinner` API + `.gl-win` bloki | `oyin.ts` + `oyinService.ts` + `uy.tsx` |
+| 6 | `returning = ball > 0` (avval sovrin ro'yxatini kutardi → karta 55px sakrardi) | `uy.tsx` |
+| 7 | `--gl-gift-min` 300→314px (300 real kartadan kichik edi → skeleton 36px sakrardi) | `tokens.css` |
+
+### Isbot — brauzerda REAL chiqqan CSS bilan o'lchandi (390px viewport)
+
+```
+nom 21.08px/900 · kesilmadi · bir qator      bar 10px (fill 10px)      rasm 60px
+«3 safar qoldi» 13px/900 rgb(134,239,172)    CTA 90px · 18px/800 · 2 qator
+uzun nom: ellipsis ishladi, bir qator        shimmer 23px == nom 23px
+skeleton 314 ↔ qaytgan odam 315  → sakrash 1px
+sovrin yuklanmoqda 314 ↔ yuklandi 315 → sakrash 1px
+```
+
+CI qalqoni lokal: `shared test` 140/140 · `simEconomy` 238.3 ≤ 350 · `simLoyalty` S1 o'tdi ·
+`simGuards` o'tdi · `typecheck` (shared/miniapp/admin/server) — o'zgargan fayllarda 0 xato.
+
+### DA'VO ↔ HAQIQAT (R5)
+
+| element | kodda? | jonli? | isbot | gap |
+|---|---|---|---|---|
+| Sovg'a nomi katta | ha | **yo'q** | brauzer o'lchovi 21.08px | push kutilyapti |
+| «N safar qoldi» yashil qalin | ha | yo'q | 13px/900 rgb(134,239,172) | push kutilyapti |
+| CTA 90px / 18px / 2 qator | ha | yo'q | o'lchov | push kutilyapti |
+| Progress bar ko'rinadi | ha | yo'q | 0×0 → 10×10 | push kutilyapti |
+| Qaytgan holatda 4 foto yo'q | ha | yo'q | kod `!returning &&` | push kutilyapti |
+| Karta sakramaydi | ha | yo'q | 1px (avval 36px) | push kutilyapti |
+| G'olib qatori | ha | **KO'RINMAYDI** | `lastWinner=null` — bayonnoma yo'q | **GAP: birinchi REAL tirajdan keyin o'zi yonadi** |
+| Yangi odam kartasi ↔ skeleton | — | — | 55px farq | **GAP: ONGLI kelishuv — bo'sh ko'k maydon > kichik sakrash** |
+| `src/sim/config/arms.ts` typecheck xatosi | — | — | `git ls-files` bo'sh = kuzatilmagan | **GAP: boshqa sessiyaning lokal ishi, CI'ga tushmaydi, tegilmadi** |
+
+**Holat: ready for verification.** Ega real telefonda ko'rib QABUL berishi kerak (R6).
+Ochiq 3 gap ataylab ochiq va yashirilmayapti (R8).
+
 ## 🟡 2026-08-10 — O'YIN: telefon-ball cheksiz olish teshigi yopildi + login/streak ball o'chirildi — READY FOR VERIFICATION
 
 Ega da'vosi: «telefoni tasdiqlash orqali cheksiz ball olsa bo'larkan» + kunlik-kirish va
