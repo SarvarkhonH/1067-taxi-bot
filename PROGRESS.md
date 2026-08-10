@@ -5983,3 +5983,53 @@ kech(shiftEnd'dan keyin)`, ikkalasi ham bitta 4-soatlik xavfsizlik-chegarasi bil
   typecheck server+admin toza.
 - Deploy'dan keyin: Elbekning avvalgi kunlari `recomputeSession` bilan qayta hisoblanadi
   (pul faqat OSHADI — hech kim kam olmaydi; ega buni ongli ravishda so'radi).
+
+### 2026-08-10 — 🚕 TAKSI: xarita bezagi · kelgan-mashina kartochkasi · 1067 · shrift
+
+**Holat: ready for verification — ega hali real telefonda KO'RMAGAN. Bayroqlar (`pickup2`,
+`pickup2lt`, `taxistory`) JONLIDA HAMON OFF; hech qanday bayroq yoqilmadi. 4 ta commit
+LOKALDA — `main`ga PUSH QILINMADI (ega qoidasi: har push oldidan aniq tasdiq).**
+
+**1-qism — ega so'ragan 11 ta talab TEKSHIRILDI (kodga va jonli brauzerga qarshi, commit
+xabarlariga emas). 11/11 bajarilgan.** Isbotlar: baraban `pickup2` shoxida umuman
+chizilmaydi (`booking3.tsx:2338` izoh, `InTripExtras` faqat `:2374` eski shoxda) · 🪙/🔥
+`:1710` `{!pickup2 && …}` · «?» 44×44 dumaloq (o'lchandi) · GPS 52×52 dumaloq · cashback
+matni ikkala joyda `CASHBACK_HEADLINE_MAX` dan (`booking3.tsx:2435`, `taxiStory.tsx:241`;
+jonli render «2 000 tangagacha») · story 9.5s (jonli `animationDuration`) va 400ms bosish
+kartani O'TKAZMADI, chiziq `paused` bo'ldi · odamcha varaq ustida ko'rinadi (y 147–211,
+varaq 262 dan boshlanadi) · varaq `backdrop-filter: blur(30px) saturate(1.9)` · barmoq
+bilan pastga tortish yig'di, tepaga tortish ochdi · surish/qidiruvga kirib-chiqishda
+geolokatsiya NOL marta so'raldi (faqat 📍 bosilganda 1 marta) · yuklanishda aylanuvchi
+lupa + «Joyingizni aniqlayapmiz…».
+
+**2-qism — qurilgani:**
+- **`3299e76c` «1067 ga qo'ng'iroq»** — dispetcher raqami `/api/booking/info` ga qo'shildi
+  (`BookingInfoResponse.dispatcherPhone`, kas `getCompanyInfo`dan). Qidiruv varag'ida
+  (bekor tugmasidan yuqorida) va «topilmadi» ekranida, ko'k-yumshoq (yashil EMAS). Raqam
+  yo'q bo'lsa tugma chizilmaydi. `#pickupdemo` ga «qidiruv» va «yetib keldi» holatlari
+  qo'shildi, `key` dan `ride` olib tashlandi (endi O'TISHLAR ko'rinadi).
+- **`2a41e994` raqam kartochkasi KELGANDA** — ilgari haydovchi qabul qilganda (~4 daqiqa
+  erta) ochilardi. Endi `status === "arrived"`, avto-yopilishsiz, sarlavha «Shu raqamni
+  qidiring», reyting-yorlig'i yashirin. Eski shox `if (pickup2) return;` bilan ajratildi.
+- **`834342ab` xarita bezagi (ega tanlovi «C»)** — katalog joylari rangli belgi bo'lib
+  chiziladi (rang = `placeKind`), bosilishi `choose(a)` bilan ro'yxat qatori bilan AYNAN
+  bir xil; ustiga mahalla-nuqtalari atrofida yumshoq, CHETSIZ va NOMSIZ zona-soyalari.
+  ⚠️ Haqiqiy mahalla CHEGARASI hech qayerda yo'q (faqat nuqta bor) — shuning uchun soxta
+  chegara chizilmadi. Qo'riqlar: masshtab ≥16 → ≤18 nomli belgi, 15 → ≤30 nuqta, <15 → yo'q;
+  faqat ko'rinish maydoni; `id` bo'yicha moslash. Safar/tasdiq ekranlarida umuman yo'q.
+  GHOST_* bezaklariga TEGILMADI (tekshirildi: 11 mashina + 8 odamcha joyida).
+- **`7bb7937f` shrift poli** — bosiladigan yozuv ≥14px, yordamchi ≥13.5px. Ikki ongli
+  istisno izohda (harf-relsi 13px + nishon 26px; «odatdagi/oxirgi» 13px).
+
+**Bayroq OFF regressiyasi ALOHIDA tekshirildi** (`#pickupdemo` → «Eski ko'rinish»):
+🪙/🔥 turibdi · kartochka hamon QABUL lahzasida ochiladi · dispetcher tugmasi yo'q ·
+xarita belgilari/zonalari yo'q · `.b3-tl-step` hamon 11px.
+
+- Isbot: `pnpm -r typecheck` (shared/miniapp/admin toza; server'da FAQAT `src/sim/**` —
+  u git'da yo'q, CI ko'rmaydi), `pnpm --filter @t1067/shared test` → 113/113,
+  `pnpm --filter @t1067/miniapp build` yashil, DEV-tutqich jonli bundle'da YO'Q
+  (`grep -c __b3map dist/assets/booking3-*.js` → 0).
+- **QAMRALMAGAN:** yakun ekranidagi «2 000 tangagacha» bloki JONLI render bilan emas,
+  kod + konstanta + story kartasidagi bir xil matn orqali tekshirildi (demo'da o'sha
+  ekranga chiqish uchun haqiqiy safar tugashi kerak). VPS'da `prisma db push` SHART EMAS
+  (sxema o'zgarmadi).
