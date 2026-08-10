@@ -26,7 +26,13 @@ const at = (i: number): SavedAddressView => PLACES[i] as SavedAddressView;
 
 const INFO: BookingInfoResponse = {
   clientName: "Sarvarxon",
-  serviceArea: [],
+  // Demo uchun soxta shahar chegarasi (jonlida bu kas `api/cityBorders` dan keladi).
+  // Demo mock bo'lgani uchun bu yerda taxminiy ko'pburchak — jonli qiymat bilan chalkashmasin.
+  serviceArea: [
+    { lat: 39.0620, lng: 65.5560 }, { lat: 39.0640, lng: 65.6010 },
+    { lat: 39.0380, lng: 65.6150 }, { lat: 39.0180, lng: 65.5930 },
+    { lat: 39.0210, lng: 65.5580 }, { lat: 39.0420, lng: 65.5450 },
+  ],
   center: { lat: 39.0458, lng: 65.58 },
   savedAddresses: [at(2), at(5), at(8)],
   cars: [],

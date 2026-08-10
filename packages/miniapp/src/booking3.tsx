@@ -228,27 +228,6 @@ const KIND_GLYPH: Record<ReturnType<typeof placeKind>, string> = {
 // ── 🗺 Xarita bezagi: katalog joylari + mahalla shar'lari (pickup2) ──────────────────────────
 // Ega tanlovi (2026-08-10, "C" varianti): xaritada HAM zona-soyalari, HAM joy belgilari bo'lsin.
 //
-// ⚠️ HALOLLIK CHEGARASI (DIZAYN_QOIDALARI #7): bizda mahallalarning HAQIQIY CHEGARASI YO'Q —
-// na kas'da, na bizda poligon bor, faqat NUQTA bor (mahalla nomli katalog joyi o'z koordinatasi
-// bilan). Shuning uchun zona QAT'IY CHIZIQ bilan chizilmaydi va NOMLANMAYDI: u yumshoq, chetsiz
-// rang-dog'i, ya'ni "shu atrofda" deydi, "chegara aynan shu yerdan o'tadi" DEMAYDI. Radius ham
-// o'ylab topilmaydi — qo'shni mahalla nuqtasigacha bo'lgan masofaning yarmi (220–650 m orasida
-// qisiladi), ya'ni zichroq joyda kichik, chekkada kattaroq bo'ladi.
-const DISTRICT_RE = /mahalla|qishloq/i;
-function districtZones(places: SavedAddressView[]): { lat: number; lng: number; km: number }[] {
-  const pts = places
-    .filter((p) => DISTRICT_RE.test(p.name) && typeof p.lat === "number" && typeof p.lng === "number")
-    .map((p) => ({ lat: p.lat as number, lng: p.lng as number }));
-  return pts.map((p) => {
-    let near = Infinity;
-    for (const q of pts) {
-      if (q === p) continue;
-      const d = haversineKm(p, q);
-      if (d < near) near = d;
-    }
-    return { ...p, km: Number.isFinite(near) ? Math.min(0.65, Math.max(0.22, near / 2)) : 0.35 };
-  });
-}
 function escHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
@@ -445,11 +424,29 @@ function MapSkeleton({ lite = "" }: { lite?: string }) {
       <div className="b3-map" ref={skelMap} style={{ background: "var(--surface)" }}>
         <div className="b3-radar-dim" />
       </div>
-      <div className="b3-sheet">
-        <Skeleton h={18} w="55%" />
-        <div className="mt8"><Skeleton h={44} /></div>
-        <div className="mt8 row g8"><Skeleton h={36} w="33%" /><Skeleton h={36} w="33%" /></div>
-      </div>
+      {/* ⏳ TO'LIQ EKRANLI KUTISH (ega talabi 2026-08-10: «to'liq ekranda sizni aniqlayapmiz
+          degan»). Ilgari bu yerda uchta kulrang to'rtburchak turardi — yorug' varaqda ular
+          oq ustiga oq bo'lib KO'RINMASDI ham, ya'ni odam 4-5 soniya BO'M-BO'SH oq quti
+          ko'rardi va ilova qotgan deb o'ylardi. Endi butun ekranni egallaydi va NIMA
+          bo'layotganini AYTADI. Skeleton emas — chunki bu yerda kutilayotgan narsa bitta
+          va uni so'z bilan aytish kulrang to'rtburchakdan tushunarliroq. */}
+      {lite ? (
+        <div className="b3-boot">
+          <span className="b3-boot-ico" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+              <circle cx="11" cy="11" r="7" /><path d="M20 20l-3.6-3.6" />
+            </svg>
+          </span>
+          <div className="b3-boot-t">Sizni aniqlayapmiz…</div>
+          <div className="b3-boot-s">Eng yaqin joyni topamiz — bir necha soniya</div>
+        </div>
+      ) : (
+        <div className="b3-sheet">
+          <Skeleton h={18} w="55%" />
+          <div className="mt8"><Skeleton h={44} /></div>
+          <div className="mt8 row g8"><Skeleton h={36} w="33%" /><Skeleton h={36} w="33%" /></div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1188,12 +1185,22 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const on = pickup2 && !!m && places.length > 0 && !active && (screen === "pinpick" || screen === "map");
     if (!on || !m) { wipe(); return; }
 
+    // 🗺 HUDUD — endi O'YLAB TOPILGAN doiralar emas, kas1067 ning HAQIQIY shahar chegarasi.
+    // Ega eslatdi: «kas1067 driver/mijoz appida bor edi mantiqi». Izlanishda topildi:
+    // kas'da `api/cityBorders` endpoint'i bor, serverimiz uni ALLAQACHON oladi
+    // (`kas/client.ts getServiceArea`, 10 daq kesh) va `info.serviceArea` bo'lib keladi;
+    // ESKI taksi ekrani uni chizadi ham (`booking.tsx:227`), yangisi esa ishlatmasdi.
+    // Ilgari bu yerda mahalla nuqtalari atrofiga radial soyalar chizilardi — ular
+    // TAXMIN edi (kas'da ham, bizda ham mahalla POLIGONI yo'q, faqat nuqtalar).
+    // Yo'q ma'lumotni o'ylab topgandan ko'ra, bor ma'lumotni chizamiz (qoida #7).
     if (!zoneLayer.current) {
       const g = L.layerGroup();
-      for (const z of districtZones(places)) {
-        // Ikkita ustma-ust doira = chetsiz o'tish tuyg'usi (qattiq chegara chizmasdan).
-        L.circle([z.lat, z.lng], { radius: z.km * 1000, stroke: false, fillColor: "#0A76FA", fillOpacity: 0.04, interactive: false }).addTo(g);
-        L.circle([z.lat, z.lng], { radius: z.km * 620, stroke: false, fillColor: "#0A76FA", fillOpacity: 0.05, interactive: false }).addTo(g);
+      const area = info.serviceArea ?? [];
+      if (area.length >= 3) {
+        L.polygon(area.map((pt) => [pt.lat, pt.lng] as [number, number]), {
+          color: "#0A76FA", weight: 1.5, opacity: 0.35,
+          fillColor: "#0A76FA", fillOpacity: 0.05, interactive: false,
+        }).addTo(g);
       }
       g.addTo(m);
       zoneLayer.current = g;

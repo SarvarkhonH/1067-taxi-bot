@@ -643,6 +643,18 @@
   .b3-screen.b3-p2-lt .b3-p2-pincard { background: #FFFFFF; }
 }
 
+/* ⏳ TO'LIQ EKRANLI KUTISH — ilova ochilgandan `/api/booking/info` kelguncha (4-5 soniya).
+   Xarita ostida ko'rinib turadi, ustida yarim shaffof oq parda + aylanuvchi lupa + matn. */
+.b3-boot { position:absolute; inset:0; z-index:8; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:10px; text-align:center; padding:32px;
+  background:rgba(255,255,255,.72); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
+.b3-boot-ico { width:64px; height:64px; border-radius:50%; display:grid; place-items:center;
+  color:#0A76FA; background:rgba(10,118,250,.12); animation:b3seek 1.6s cubic-bezier(.45,0,.55,1) infinite; }
+.b3-boot-ico svg { width:30px; height:30px; }
+.b3-boot-t { font-size:21px; font-weight:800; letter-spacing:-.02em; color:#0B0C10; margin-top:4px; }
+.b3-boot-s { font-size:14px; color:#7E8190; max-width:250px; line-height:1.4; }
+@media (prefers-reduced-motion: reduce) { .b3-boot-ico { animation:none; } }
+
 /* ⬜ YORUG' REJIMDA SKELETONLAR KO'RINMASDI. `Skeleton` qorong'i mavzu ranglaridan quriladi
    (och-kulrang shimmer qora fonda). Oq varaqda ular OQ ustiga OQ bo'lib chiqardi — ega
    ilovaga kirganda 4-5 soniya BO'M-BO'SH oq quti ko'rardi va ilova qotgan deb o'ylardi.
