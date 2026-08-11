@@ -9,23 +9,26 @@ import { useMemo, useState } from "react";
 import type { OyinAuditEntry, OyinSeasonView } from "@t1067/shared";
 import { OYIN_AUDIT_ACTIONS } from "@t1067/shared";
 import { adminApi } from "../api";
+import type { OyinView } from "./Konsol";
 import { csvName, downloadCsv } from "../lib/csv";
 import { ago, dt, num } from "../lib/fmt";
 import { Badge, Btn, Card, Chip, ErrBox, Note, Skeleton, Stat, Table, useLoad, useToast } from "./ui";
 
-type Sub = "mavsum" | "ball" | "audit" | "homiy" | "men";
+type Sub = "ishga" | "mavsum" | "ball" | "audit" | "homiy" | "men";
 
-export function Sozlama({ onChanged }: { onChanged: () => void }) {
-  const [sub, setSub] = useState<Sub>("mavsum");
+export function Sozlama({ onChanged, onGo }: { onChanged: () => void; onGo: (v: OyinView) => void }) {
+  const [sub, setSub] = useState<Sub>("ishga");
   return (
     <>
       <div className="oy-chips">
+        <Chip on={sub === "ishga"} onClick={() => setSub("ishga")}>🚦 Ishga tushirish</Chip>
         <Chip on={sub === "mavsum"} onClick={() => setSub("mavsum")}>📅 Mavsum</Chip>
         <Chip on={sub === "ball"} onClick={() => setSub("ball")}>🎚 Ball jadvali</Chip>
         <Chip on={sub === "audit"} onClick={() => setSub("audit")}>🧾 Audit jurnali</Chip>
         <Chip on={sub === "homiy"} onClick={() => setSub("homiy")}>🏅 Homiy</Chip>
         <Chip on={sub === "men"} onClick={() => setSub("men")}>🧪 Men</Chip>
       </div>
+      {sub === "ishga" && <Ishga onGo={onGo} onChanged={onChanged} />}
       {sub === "mavsum" && <Mavsum onChanged={onChanged} />}
       {sub === "ball" && <Ball />}
       {sub === "audit" && <Audit />}
@@ -387,6 +390,143 @@ function Men() {
           </Card>
         </>
       )}
+    </>
+  );
+}
+
+/* ── 🚦 ISHGA TUSHIRISH ────────────────────────────────────────────────────────────────────── */
+// Ega savoli (2026-08-11): «hammasi tayyormi o'yinni boshlashga yoki hali bormi?».
+//
+// Bu ekran shu savolga JONLI javob beradi va oxirida yagona tugmani ko'rsatadi. Avval
+// `oyin` bayrog'i faqat eski «Amallar» tabida edi — ya'ni butun boshqaruv konsolda, lekin
+// eng muhim tugma boshqa joyda edi.
+//
+// ⚠️ Ro'yxat TO'SIQLARNI ko'rsatadi, lekin tugmani BLOKLAMAYDI: ega o'z tizimining egasi,
+// «men bilaman, baribir yoqaman» deyish huquqi bor. Faqat nima bo'lishini AYTADI.
+interface Gate { ok: boolean; title: string; detail: string; go?: OyinView }
+
+function Ishga({ onGo, onChanged }: { onGo: (v: OyinView) => void; onChanged: () => void }) {
+  const toast = useToast();
+  const st = useLoad(async () => {
+    const [vitals, features, catalog] = await Promise.all([
+      adminApi.oyinVitals(),
+      adminApi.features().then((r) => r.features),
+      adminApi.oyinCatalog().then((r) => r.prizes),
+    ]);
+    return { vitals, features, catalog };
+  }, []);
+  const [busy, setBusy] = useState(false);
+
+  if (st.err) return <ErrBox err={st.err} onRetry={st.reload} />;
+  if (!st.data) return <Card title="🚦 Ishga tushirish"><Skeleton rows={6} /></Card>;
+
+  const { vitals, features, catalog } = st.data;
+  const on = features.find((f) => f.name === "oyin")?.on ?? false;
+  const open = catalog.filter((p) => p.active && p.queued !== true);
+  const withPhoto = open.filter((p) => p.photoFileId || p.photoUrl).length;
+
+  const gates: Gate[] = [
+    {
+      ok: vitals.seasonPhase === "active" || vitals.seasonPhase === "upcoming",
+      title: "Mavsum sanalari kiritilgan",
+      detail: vitals.seasonPhase === "unset"
+        ? "Sana yo'q — o'yin yoqilsa ham BUTUNLAY yopiq turadi, hech kim ball yig'a olmaydi."
+        : vitals.seasonPhase === "ended" ? "Mavsum yakunlangan — yangi sana kerak."
+        : `Mavsum ${vitals.seasonPhase === "active" ? "ochiq" : "boshlanishini kutmoqda"}.`,
+      go: "sozlama",
+    },
+    {
+      ok: open.length > 0,
+      title: "Vitrinada mukofot bor",
+      detail: open.length === 0
+        ? "Ochiq mukofot yo'q — mijoz ball yig'adi-yu, sarflaydigan narsa topmaydi."
+        : `${open.length} ta mukofot ochiq.`,
+      go: "mukofot",
+    },
+    {
+      ok: open.length === 0 || withPhoto === open.length,
+      title: "Har mukofotda rasm bor",
+      detail: withPhoto === open.length
+        ? "Hammasida rasm bor."
+        : `${open.length - withPhoto} tasida rasm yo'q — mijoz nima yutishini KO'RMAYDI (jismoniy narsa = real rasm).`,
+      go: "mukofot",
+    },
+    {
+      ok: vitals.capacityHealthy,
+      title: "Sig'im yetarli (3×)",
+      detail: vitals.capacityHealthy
+        ? `Sig'im ${vitals.capacityRatio.toFixed(1)}× — yetarli.`
+        : `Sig'im ${vitals.capacityRatio.toFixed(1)}× — xalqdagi ball sarflanadigan joyga sig'maydi. Navbatdan mukofot oching.`,
+      go: "nazorat",
+    },
+    {
+      ok: !vitals.overBudget,
+      title: "Byudjet ichida",
+      detail: vitals.overBudget ? "Katalog byudjetdan oshgan." : "Byudjet ichidasiz.",
+      go: "mukofot",
+    },
+    {
+      ok: !vitals.frozen,
+      title: "Tiraj muzlatilmagan",
+      detail: vitals.frozen ? "Tiraj MUZLATILGAN — hech kim karta ola olmaydi." : "Tiraj ochiq.",
+      go: "kartalar",
+    },
+  ];
+  const blocked = gates.filter((g) => !g.ok);
+
+  const toggle = (): void => {
+    const next = !on;
+    const warn = next
+      ? `O'YIN MIJOZLARGA OCHILSINMI?\n\n${blocked.length > 0 ? `⚠️ ${blocked.length} ta to'siq bor:\n${blocked.map((g) => `· ${g.title}`).join("\n")}\n\n` : ""}Ochilgach mijozlar ball yig'ishni va karta olishni boshlaydi.\nAdminlarga xabar boradi.\n\nDavom etasizmi?`
+      : `O'YIN MIJOZLARDAN YOPILSINMI?\n\nIlovada o'yin ekrani YO'QOLADI va karta xaridi to'xtaydi.\nYig'ilgan ball va olingan kartalar SAQLANADI.\nAdminlarga xabar boradi.\n\nDavom etasizmi?`;
+    if (!window.confirm(warn)) return;
+    setBusy(true);
+    void adminApi.setFeature("oyin", next)
+      .then(() => { toast(next ? "🎮 O'yin MIJOZLARGA OCHILDI" : "⛔ O'yin yopildi", next ? "ok" : "warn"); st.reload(); onChanged(); })
+      .catch((e: unknown) => toast(e instanceof Error ? e.message : "Bajarilmadi", "bad"))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <>
+      <Card
+        title={on ? "🟢 O'yin MIJOZLARGA OCHIQ" : "⛔ O'yin yopiq — mijozlar ko'rmaydi"}
+        sub={on ? "ilovada o'yin ekrani ko'rinadi, karta sotilyapti" : "kod jonli, lekin mijoz uchun o'chirilgan"}
+        head={
+          <span className="oy-spacer">
+            <Btn variant={on ? "dgr" : "pri"} disabled={busy} onClick={toggle}>
+              {busy ? "⏳…" : on ? "⛔ O'yinni yopish" : "🎮 O'yinni ochish"}
+            </Btn>
+          </span>
+        }
+      >
+        {blocked.length > 0 ? (
+          <Note tone="warn">
+            <b>{blocked.length} ta to'siq bor.</b> Tugma baribir ishlaydi — bu sizning tizimingiz.
+            Lekin shu holda ochilsa mijoz nimani ko'rishini pastdagi ro'yxat aytadi.
+          </Note>
+        ) : (
+          <Note tone="ok"><b>Hamma shart bajarilgan</b> — ochsangiz bo'ladi.</Note>
+        )}
+      </Card>
+
+      <Card title="Ishga tushirish ro'yxati" sub={`${gates.length - blocked.length}/${gates.length} tayyor`} flush>
+        {gates.map((g) => (
+          <div key={g.title} className={g.ok ? "oy-task oy-task-ok" : "oy-task oy-task-warn"}>
+            <span className="oy-task-x">
+              <b>{g.ok ? "✓" : "✗"} {g.title}</b>
+              <div className="oy-dim3">{g.detail}</div>
+            </span>
+            {!g.ok && g.go && <Btn sm onClick={() => onGo(g.go as OyinView)}>Tuzatish →</Btn>}
+          </div>
+        ))}
+      </Card>
+
+      <Note>
+        Bayroq o'zgarishi HAR DOIM adminlarga Telegram xabar yuboradi — jim yoqish/o'chirish
+        loyihada taqiq (bir marta <code>welcomebonus</code> jimgina o'chirilgan va hech kim
+        bilmay qolgan edi).
+      </Note>
     </>
   );
 }

@@ -390,15 +390,10 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     referBonusByTelegramId.set(r.referrerId, cur);
   }
 
-  // ⏳ OXIRGI HARAKAT — harakatsizlik qoidasi shundan hisoblanadi (S8). Harakat = safar,
-  // karta xaridi yoki ilovaga kirish. Bittasi ham 6 oy ichida bo'lsa balans TIRIK qoladi.
-  const lastActivityByMember = new Map<number, number>();
-  const touch = (memberId: number, ms: number): void => {
-    if (!Number.isFinite(ms) || ms <= 0) return;
-    const cur = lastActivityByMember.get(memberId) ?? 0;
-    if (ms > cur) lastActivityByMember.set(memberId, ms);
-  };
-  for (const r of rideDayRows) touch(r.memberId, r.createdAt.getTime());
+  // ⛔ `lastActivityByMember`/`touch()` OLIB TASHLANDI (2026-08-11). Ular FAQAT harakatsizlik
+  // qoidasini boqardi; qoida ball mavsum-doirali bo'lgach o'chirildi, ya'ni xarita hech kim
+  // o'qimaydigan bo'lib qoldi. Har `computeBallMap` da 5 ta tsikl bo'yicha behuda ishlardi va
+  // «bu nima uchun kerak?» degan savolni tug'dirardi.
   // 🔴 S8-7 (nazoratchi 2026-08-04): avval FAQAT safar · kirish · karta sanalardi. Ya'ni
   // har kuni hikoya yuklaydigan, vazifa bajaradigan, ulashadigan yoki do'stlari yuradigan
   // mijoz "harakatsiz" deb belgilanib 6 oydan keyin BUTUN ballini yo'qotardi — hech qanday
@@ -408,7 +403,6 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
       const memberId = Number(row.key.slice(prefix.length));
       if (!Number.isFinite(memberId)) continue;
       const last = parseDayList(row.value).sort().at(-1);
-      if (last) touch(memberId, Date.parse(`${last}T00:00:00+05:00`));
     }
   };
   touchDays(loginRows, "oyin:login:");
@@ -416,7 +410,6 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   touchDays(questRows, "oyin:quest:");
   touchDays(homeRows, "oyin:home:");
   // Telefon ulash — bir martalik, lekin HARAKAT: raqam ulab miniapp ochmagan odam jazolanmasin.
-  for (const tu of telegramUsers) if (tu.memberId && tu.linkedAt) touch(tu.memberId, tu.linkedAt.getTime());
 
   // ⚠️ `spent` endi DAVRGA KESILMAYDI (S8): karta abadiy bo'lgani uchun uning narxi ham abadiy
   // hisobda qoladi. Ikkalasi bir xil umr ko'radi — aks holda balans asossiz siljiydi.
@@ -433,7 +426,6 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     let sum = 0;
     for (const t of tickets) {
       const ms = Date.parse(t.ts);
-      touch(memberId, ms);
       // `ts` buzuq bo'lsa HISOBGA OLINADI: tashlash = sarflangan ball qaytishi = ekspluatatsiya.
       if (!Number.isFinite(ms) || ms >= fromMs) sum += t.priceAtPurchase || 0;
     }
@@ -3606,17 +3598,24 @@ function weekKeyToISO(wk: string): string {
 
 export async function getActivity(filters: OyinActivityFilter): Promise<OyinActivityResponse> {
   const [econ, season] = await Promise.all([getBonusEcon(), getSeason()]);
-  void season; // (mavsum endi oynani belgilamaydi — pastdagi izohga qarang)
-  // 🟡 S8-8 (nazoratchi 2026-08-04): oyna MAVSUM edi, `computeBallMap` esa 24 OYLIK siljiydigan
-  // oynaga o'tgan (S8). Ya'ni admin faoliyat jadvali va reyting IKKI XIL davrni sanardi va
-  // raqamlar hech qachon to'g'ri kelmasdi — bu funksiyaning O'Z izohi "jadval reyting bilan
-  // kelishishi SHART" deb yozilgan bo'lsa ham. Endi oyna `computeBallMap` bilan AYNAN bir xil:
-  // `[hozir − BALL_DATA_WINDOW_MS, hozir]`. Ikkalasi bitta konstantadan oziqlanadi, ya'ni
-  // kelajakda ajralib keta olmaydi.
+  // 🟡 S8-8 (nazoratchi 2026-08-04) va uning DAVOMI (2026-08-11):
+  //
+  // Qoida: bu jadval `computeBallMap` bilan AYNAN BIR XIL oynadan o'qishi SHART. Aks holda
+  // jurnalda ball-beruvchi voqea ko'rinadi-yu, balansda u yo'q bo'ladi — ega buni darhol
+  // sezadi («ball berilyapti, lekin yozilmagan»).
+  //
+  // 2026-08-04 da oyna 24 oyga surilgan edi, chunki `computeBallMap` ham o'sha oynada edi.
+  // 2026-08-11 da ega qarori bilan ball MAVSUM bilan yonadigan bo'ldi va `computeBallMap`
+  // mavsum oynasiga qaytdi — bu funksiya esa 24 oyda QOLIB KETDI. Natijada ikkalasi yana
+  // ajraldi. Endi oyna AYNAN o'sha manbadan: `season.startMs`/`season.endMs`.
   const nowActMs = Date.now();
   const ballScoped = filters.scope !== "all";
-  const fromMs = filters.from ? Date.parse(filters.from) : ballScoped ? nowActMs - BALL_DATA_WINDOW_MS : -Infinity;
-  const toMs = filters.to ? Date.parse(filters.to) : ballScoped ? nowActMs : Infinity;
+  // Mavsum sozlanmagan bo'lsa `computeBallMap` bo'sh xarita qaytaradi — jurnal ham bo'sh
+  // bo'lishi kerak, aks holda "ball bor" degan taassurot berardi.
+  const seasonFrom = season.startMs ?? nowActMs - BALL_DATA_WINDOW_MS;
+  const seasonTo = season.endMs != null ? Math.min(nowActMs, season.endMs) : nowActMs;
+  const fromMs = filters.from ? Date.parse(filters.from) : ballScoped ? seasonFrom : -Infinity;
+  const toMs = filters.to ? Date.parse(filters.to) : ballScoped ? seasonTo : Infinity;
   // ⚠️ login/share qatorlari UTC yarim tuni bilan yoziladi (pastda), ball esa TOSHKENT kunini
   // sanaydi — 5 soatlik farq chegarada jadvalni reytingdan ajratib yuborardi. Shu sababli
   // ular kun-SATRI bo'yicha alohida filtrlanadi — `computeBallMap` dagi `countDays` kabi.

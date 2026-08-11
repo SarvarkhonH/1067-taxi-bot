@@ -100,7 +100,7 @@ export function Konsol() {
         {view === "hikoya" && <Hikoyalar onChanged={() => vitals.reload()} />}
         {view === "gashtak" && <Gashtak />}
         {view === "reja" && <Reja />}
-        {view === "sozlama" && <Sozlama onChanged={() => vitals.reload()} />}
+        {view === "sozlama" && <Sozlama onChanged={() => vitals.reload()} onGo={go} />}
 
         <Palette open={palOpen} onClose={() => setPalOpen(false)} onGo={go} />
       </div>

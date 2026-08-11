@@ -108,6 +108,26 @@ describe("computeBallMap — oyna invarianti (jim regressiya qo'rig'i)", () => {
   });
 });
 
+describe("jurnal va balans BIR XIL oynadan o'qiydi (ega 2026-08-11 da topgan bug)", () => {
+  // Ega shikoyati: «hozir menga ball berilyapti, lekin yozilmagan ballarga».
+  // Sabab: `computeBallMap` mavsum oynasiga o'tdi, `getActivity` esa 24 oyda qoldi —
+  // jurnalda voqea bor, balansda yo'q. Ikkalasi AJRALIB KETA OLMASLIGI kerak.
+  const act = code.slice(code.indexOf("export async function getActivity"));
+  const body = act.slice(0, act.indexOf("\nexport ", 1));
+
+  it("`getActivity` oynasi MAVSUMDAN olinadi", () => {
+    expect(body).toMatch(/season\.startMs/);
+    expect(body).toMatch(/season\.endMs/);
+  });
+
+  it("`getActivity` 24 oylik oynani TO'G'RIDAN-TO'G'RI standart qilib olmaydi", () => {
+    // `BALL_DATA_WINDOW_MS` faqat ZAXIRA sifatida (mavsum sanasi yo'q holat) ishlatilishi mumkin —
+    // ya'ni u har doim `season.startMs ??` dan KEYIN kelishi shart.
+    const uses = [...body.matchAll(/BALL_DATA_WINDOW_MS/g)].length;
+    if (uses > 0) expect(body).toMatch(/season\.startMs \?\? [^;]*BALL_DATA_WINDOW_MS/);
+  });
+});
+
 describe("karta abadiy — ega qoidasi buzilmagan", () => {
   it("chipta va sotilgan-hisoblagich arxivlanmaydi (to'lmagan mukofot keyingi mavsumga o'tadi)", () => {
     // ⚠️ Ro'yxat `];` bilan tugaydi, `] as const` bilan EMAS — noto'g'ri kesish keyingi

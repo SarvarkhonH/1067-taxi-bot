@@ -1,5 +1,54 @@
 # PROGRESS
 
+## 🔴 2026-08-11 — MENING REGRESSIYAM: jurnal va balans ajralib ketdi (ega topdi) — TUZATILDI
+
+Ega jonli tizimda topdi: **«hozir menga ball berilyapti, lekin yozilmagan ballarga»**.
+
+**Sabab — bugungi o'zgarishim.** `computeBallMap` ni mavsum oynasiga o'tkazdim, lekin
+`getActivity` (faoliyat jurnali) **24 oylik oynada QOLIB KETDI**. Natijada jurnal ball-beruvchi
+voqealarni ko'rsatardi, balans esa ularni sanamasdi — ikkisi hech qachon to'g'ri kelmasdi.
+
+Achinarlisi: `getActivity` ning O'Z izohi buni oldindan aytgan edi — «ikkalasi bitta
+konstantadan oziqlanadi, ya'ni kelajakda ajralib keta olmaydi». Men konstantani almashtirdim,
+lekin ikkinchi joyni yangilamadim va **qo'riq-test yo'q edi**.
+
+**Tuzatildi:** `getActivity` oynasi endi `season.startMs`/`season.endMs` dan
+(`BALL_DATA_WINDOW_MS` faqat mavsum sanasi yo'q holat uchun zaxira).
+
+**Qo'riq qo'shildi (2 ta test):** `getActivity` mavsumdan o'qishi va 24 oylik oynani
+to'g'ridan-to'g'ri standart qilib olmasligi tekshiriladi. Endi bu jimgina qayta ajralolmaydi.
+
+### Shu commitda yana
+
+| Nima | Tafsilot |
+|---|---|
+| **🚦 Ishga tushirish ekrani** | ⚙ Sozlama → yangi bo'lim: 6 shartli tekshiruv ro'yxati (mavsum · mukofot · rasm · sig'im · byudjet · muzlatish) + yagona «🎮 O'yinni ochish» tugmasi. Avval `oyin` bayrog'i faqat eski «Amallar» tabida edi — butun boshqaruv konsolda, eng muhim tugma boshqa joyda. To'siqlar OGOHLANTIRADI, lekin bloklamaydi |
+| **O'lik kod tozalandi** | `lastActivityByMember`/`touch()` — harakatsizlik qoidasini o'chirganimda ular qolib ketgan edi: 5 ta tsikl hech kim o'qimaydigan xaritani to'ldirardi |
+
+### «Qayta-qayta share contact» — tekshirildi, teshik YO'Q
+
+Ega savoli bo'yicha uch qatlam tekshirildi: `markPhoneVerified` bir martalik
+(`if (already) return`) · `linkedAt` endi ball bermaydi (kecha `23328f22` da yopilgan) ·
+`welcome_join:<memberId>` idempotent · `Referral.refereeId` **@unique**. Ya'ni teshik REAL edi,
+lekin mening ishimdan OLDIN yopilgan; bugungi o'zgarish uni saqlab qoldi.
+
+### Isbot
+
+```
+pnpm --filter @t1067/shared test   → 8 fayl / 159 test yashil (2 tasi yangi qo'riq)
+pnpm -r typecheck                  → toza
+pnpm --filter @t1067/admin build   → ok
+simEconomy / simLoyalty / simGuards → uchalasi yashil
+```
+
+### Saboq (takrorlanmasin)
+
+Bitta invariant IKKI joyda yashasa, uni faqat izoh ushlab turolmaydi. Endi ikkalasida ham
+qo'riq-test bor. Kelasi safar ball manbasiga tegilganda: `computeBallMap` + `getActivity` —
+**har doim juftlikda**.
+
+---
+
 ## 🟢 2026-08-11 — BALL ENDI MAVSUM BILAN YONADI — JONLI (`aa2850c6`) · EGA TEKSHIRUVINI KUTMOQDA
 
 Ega konsoldagi yangi reytingni ochib so'radi: «nega hali hech nima boshlanmay hammada ball bor
