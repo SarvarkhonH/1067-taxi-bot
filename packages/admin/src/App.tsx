@@ -6843,7 +6843,12 @@ function OyinSeasonSettingsCard() {
             ⛔ Kartalar, sotilgan-hisoblagichlar, ball va bayonnomalar <b>TEGILMAYDI</b> — ular abadiy.
             (2026-08-04: avval bu tugma ball manbalarini arxivlab, kartalarni qoldirardi — natijada
             mijozda ko'rinmaydigan qarz qolardi va yangi safarlari bekorga ketardi.)
-            Ball 24 oyda o'zi eskiradi va 6 oy harakatsizlikda o'zi nolga tushadi — qo'lda tozalash shart emas.<br />
+            {/* 🔴 O1 — TUZATILDI (2026-08-12). Bu qator EGAGA yolg'on aytardi: «ball o'zi
+                nolga tushadi» — aslida bunday avto-so'nish YO'Q. Ball mavsum oynasidan
+                hisoblanadi va mavsum tugagach FAQAT yangi mavsum ochilganda yangilanadi —
+                ega yangi mavsum ochmasa, ball muzlagan holda ko'rinishda qolaveradi. */}
+            Ball MAVSUM oynasidan hisoblanadi — o'zi eskirmaydi. Mavsum tugagach yangi
+            mavsum ochilmaguncha eski ball ekranda muzlagan holda qoladi.<br />
             🔒 <b>FINAL-48</b> — tugashiga 48 soat qolganda karta xaridi avtomatik yopiladi (ro'yxat tirajga qotadi). Yuqoridagi holat satri buni aytadi.
           </p>
         </div>

@@ -1585,6 +1585,25 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { getVitrina } = await import("../services/oyinService");
     res.json(await getVitrina(memberId));
   });
+  // 🎟 Sovg'aning BARCHA kartalari — panjara shundan chiziladi (ega talabi 2026-08-12).
+  // Bo'sh o'rinlar ham qaytadi: mijoz «qaysi raqam bo'sh» ni ko'rib O'ZI tanlaydi.
+  app.get("/api/oyin/prize/:key/cards", requireUser, rateLimit(60), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    const { getPrizeCards } = await import("../services/oyinService");
+    const r = await getPrizeCards(String(req.params.key ?? ""), memberId);
+    if (!r) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(r);
+  });
+  // 🔎 Bitta karta sahifasi. Ega ANIQ so'radi: «birovni kartasiga kirib ko'rish imkoniyati
+  // kerak» — shuning uchun bu BOSHQA odamning kartasini ham ochadi. Javobda faqat ochiq
+  // ma'lumot: raqam, sovg'a, Telegram ismi, sana, holat. Telefon/familiya/`memberId` YO'Q.
+  app.get("/api/oyin/card/:gno", requireUser, rateLimit(60), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    const { getCardDetail } = await import("../services/oyinService");
+    const r = await getCardDetail(Number(req.params.gno), memberId);
+    if (!r) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(r);
+  });
   // ⛔ `/api/oyin/board` OLIB TASHLANDI (ega qarori 2026-08-03): reyting ball
   // QOLDIG'I bo'yicha saralanardi — chipta olgan odamning o'rni TUSHARDI, ya'ni to'g'ri
   // xatti-harakat jazolanardi. O'rniga `/api/oyin/bell` — ball qayerdan kelgani.

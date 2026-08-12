@@ -144,3 +144,86 @@ describe("karta abadiy — ega qoidasi buzilmagan", () => {
     expect(code).toMatch(/const nextResult: "won" \| "lost"/);
   });
 });
+
+describe("O11 — o'tgan mavsum kartasi bekor qilinmaydi (jonli bug, 2026-08-12)", () => {
+  // Ega jonli tizimda topmadi — audit topdi: o'tgan mavsum kartasini `cancelOwnTicket` bilan
+  // bekor qilsa ball QAYTMAYDI (`spent` joriy oynadan tashqarida hisoblanadi), lekin sotuv
+  // sanog'i KAMAYADI — to'lib kelayotgan (keyingi mavsumga o'tgan) sovg'a orqaga tepadi.
+  const fn = code.slice(code.indexOf("export async function cancelOwnTicket"));
+  const body = fn.slice(0, fn.indexOf("\nexport ", 1));
+
+  it("bekor qilishdan OLDIN kartaning sanasi JORIY mavsum bilan solishtiriladi", () => {
+    expect(body).toMatch(/Date\.parse\(target\.ts\) < \(season\.startMs/);
+  });
+
+  it("solishtiruv `releaseSoldSlot` dan OLDIN turadi — kech tekshiruv sanoqni allaqachon buzardi", () => {
+    const cmpIdx = body.indexOf("season.startMs ?? -Infinity");
+    const releaseIdx = body.indexOf("releaseSoldSlot(");
+    expect(cmpIdx).toBeGreaterThan(-1);
+    expect(releaseIdx).toBeGreaterThan(cmpIdx);
+  });
+});
+
+describe("mavsum yakuni — xabarnoma zanjiri (2026-08-12, ega talabi)", () => {
+  const wt = code.slice(code.indexOf("export async function seasonWarningTick"));
+  const wtBody = wt.slice(0, wt.indexOf("\nexport ", 1));
+  const cn = code.slice(code.indexOf("export async function seasonCloseNotify"));
+  const cnBody = cn.slice(0, cn.indexOf("\nexport ", 1));
+  const dn = code.slice(code.indexOf("export async function seasonDrawNotify"));
+  const dnBody = dn.slice(0, dn.indexOf("\nexport ", 1));
+
+  it("ogohlantirish FAQAT mavsum FAOL ekanida yuguradi — tugagandan keyin emas", () => {
+    expect(wtBody).toMatch(/season\.phase !== "active"/);
+  });
+
+  it("uch bosqich bor: T-7 kun, T-3 kun, T-49 soat", () => {
+    expect(wtBody).toMatch(/7 \* 86_400_000/);
+    expect(wtBody).toMatch(/3 \* 86_400_000/);
+    expect(wtBody).toMatch(/49 \* 3_600_000/);
+  });
+
+  it("T-24/T-1 soatda BALL haqida push YO'Q — faqat T-49 soatgacha", () => {
+    // Eng kichik oyna 49 soat: undan kichik raqamli qo'shimcha bosqich YO'Q.
+    expect(wtBody).not.toMatch(/24 \* 3_600_000/);
+    expect(wtBody).not.toMatch(/1 \* 3_600_000/);
+  });
+
+  it("yakun xabari `seasonClose` MARKERINI tekshiradi — hali yugurmagan bo'lsa yubormaydi", () => {
+    expect(cnBody).toMatch(/oyin:seasonclosed:\$\{season\.seasonId\}/);
+    expect(cnBody).toMatch(/if \(!closed\) return/);
+  });
+
+  it("balli 0 bo'lganga yakun xabari YUBORILMAYDI", () => {
+    expect(cnBody).toMatch(/breakdown\.ball > 0/);
+  });
+
+  it("g'olibga push `notifiedAt` bilan bir martalik — qayta yugursa qayta yubormaydi", () => {
+    expect(dnBody).toMatch(/if \(w\.notifiedAt\) continue/);
+    expect(dnBody).toMatch(/w\.notifiedAt = new Date\(\)\.toISOString\(\)/);
+  });
+
+  it("yutqazganga push `notifiedLoss` bilan bir martalik", () => {
+    expect(dnBody).toMatch(/result === "lost" && !t\.notifiedLoss/);
+    expect(dnBody).toMatch(/t\.notifiedLoss = true/);
+  });
+
+  it("durable marker DAYKEY'ga emas — mavsum+a'zo ID'siga bog'langan (kunlik cap muammosidan xoli)", () => {
+    const pc = code.slice(code.indexOf("async function pushCandidates"));
+    const pcBody = pc.slice(0, pc.indexOf("\nasync function markPushed"));
+    expect(pcBody).toMatch(/\$\{markerPrefix\}:\$\{seasonId\}:\$\{id\}/);
+    expect(pcBody).not.toMatch(/dayKey/);
+  });
+
+  it("har bosqich bir tikda cheklangan (SEASON_PUSH_BATCH) — minglab a'zoni bitta tikda urib yubormaydi", () => {
+    expect(code).toMatch(/const SEASON_PUSH_BATCH = 300/);
+  });
+
+  it("index.ts yangi poller QO'SHMAYDI — mavjud 15-daqiqalik tikka ulanadi", () => {
+    const idx = readFileSync(resolve(here, "../../../server/src/index.ts"), "utf8");
+    expect(idx).toMatch(/seasonWarningTick\(bot\)/);
+    expect(idx).toMatch(/seasonDrawNotify\(bot\)/);
+    expect(idx).toMatch(/seasonCloseNotify\(bot\)/);
+    // Uchtasi ham AYNAN shu bitta chaqiruv atrofida — alohida `setInterval` YO'Q.
+    expect(idx).not.toMatch(/setInterval[\s\S]{0,80}seasonWarningTick/);
+  });
+});

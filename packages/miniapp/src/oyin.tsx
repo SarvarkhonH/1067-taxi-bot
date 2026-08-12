@@ -10,22 +10,13 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, oyinHintOf, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, OYIN_PRIZE_FILTERS, oyinFilterPrizes, oyinHintOf, type OyinCardDetail, type OyinPrizeCardsResponse, type OyinPrizeFilter, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
 import { BirJoyMark } from "./design/birjoy";
+import { OyinStory } from "./oyinStory";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
-// ⚠️ Raqamlar KNOBDAN. Avval "+30 ball" qotirilgan edi — ega knobni o'zgartirsa ilovaning
-// BIRINCHI ekrani yolg'on aytardi (DIZAYN_QOIDALARI #9).
-function obSlides(h: OyinStateResponse["hints"]): { icon: string; text: string }[] {
-  return [
-    { icon: "🚕", text: `Safar qil — har safarga +${h.rideBall} ball` },
-    { icon: "🤝", text: `Do'st chaqir — u raqam ulasa +${h.referJoinBall}, birinchi safarini qilsa +${h.referFirstRideBall}` },
-    { icon: "🎟", text: "Ball yig'ilgach sodiqlik kartasiga almashtirasan — karta mukofot kunida qatnashish huquqi" },
-    { icon: "🎁", text: "Oy oxiri — jonli mukofot kuni. Real mukofotlar!" },
-  ];
-}
 const OB_SEEN_KEY = "oyk_onboard_seen";
 const FRIENDS_PAGE = 8; // "Do'stlarim" ro'yxati shuncha ko'rsatiladi, keyin "ko'proq" tugmasi
 
@@ -477,15 +468,17 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
               <li>Sodiqlik kartasi pulga sotilmaydi, boshqa odamga berilmaydi va naqd pulga almashtirilmaydi.</li>
               <li>Ball ham sotilmaydi, boshqa hisobga o'tkazilmaydi va pulga almashtirilmaydi.</li>
               <li>Kartaga sarflangan ball qaytarilmaydi.</li>
-              {/* 🟡 S8-5 (nazoratchi 2026-08-04): avvalgi matn ("muddat tugaguncha sarflanmasa
-                   kuyadi") KOD BILAN ZID edi — ball davr bilan bog'liq emas. Amaldagi ikki
-                   qoida esa mijozga HECH QAYERDA aytilmagan edi: bu ochiq aytilishi SHART,
-                   chunki ikkalasi ham ballni kamaytiradi. */}
-              <li>Ball muddatga bog'liq emas — u sarflanmaguncha hisobingizda turadi.</li>
-              <li><b>6 oy davomida hech qanday harakat bo'lmasa</b> (safar, kirish, karta) ball nolga
-                tushadi. Bitta harakat hisobni yana faollashtiradi.</li>
-              <li>Ball tarixi <b>24 oy</b> saqlanadi; undan eskisi hisobdan chiqadi. Sodiqlik
-                kartalari esa o'chmaydi — ular ro'yxatda abadiy qoladi.</li>
+              {/* 🔴 O1 — TUZATILDI (2026-08-12). Avvalgi uchta band («muddatga bog'liq emas»,
+                   «6 oy harakatsiz», «24 oy tarix») HAMMASI kod bilan zid edi: 6 oylik so'nish
+                   olib tashlangan, ball oynasi 24 oy emas — MAVSUM (`computeBallMap`,
+                   2026-08-11 ega qarori). Mijoz shu ekranda aynan qoidaning o'zidagi eng
+                   muhim jumlani o'qiydi — matn kod bilan ZID bo'lsa bu yolg'on va'da. */}
+              <li><b>Ball mavsum ichida yashaydi.</b> Mavsum tugaganda ball hisobi hammada
+                barobar noldan boshlanadi — lekin kartaga aylantirgan ballingiz kartada
+                saqlanib qoladi. Ball yo'qolmaydi: u yo kartaga aylanadi, yo mavsum bilan
+                yopiladi. Tanlov sizda.</li>
+              <li>Sodiqlik kartalari o'chmaydi — ular ro'yxatda abadiy qoladi, mavsum
+                tugashi ularga ta'sir qilmaydi.</li>
               <li>Bir odam bitta mukofot uchun ko'pi bilan {maxPerPrize} ta karta ola oladi.</li>
             </ul>
           </RuleSec>
@@ -502,7 +495,9 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
 }
 
 type OyinTab = "home" | "vitrina" | "tickets" | "jamoam";
-type SheetKind = "buy" | "info" | "how" | "ball" | "bell" | "rules" | "gashtak" | null;
+// 🎟 2026-08-12 (ega talabi): `cards` — sovg'aning kartalar panjarasi · `card` — bitta
+// kartaning sahifasi (O'ZGA odamning kartasi ham shu bilan ochiladi).
+type SheetKind = "buy" | "info" | "how" | "ball" | "bell" | "rules" | "gashtak" | "cards" | "card" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?: string | null } = {}) {
@@ -531,6 +526,16 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     } catch { return "home"; }
   });
   const [sheet, setSheet] = useState<SheetKind>(null);
+  // 🎟 Kartalar panjarasi va karta sahifasi (ega talabi 2026-08-12).
+  // ⚠️ Xato holati ALOHIDA saqlanadi: `null` ma'lumot «karta yo'q» degani EMAS, u «yuklanmadi»
+  // bo'lishi ham mumkin. Ikkalasini aralashtirish shu kodbazada allaqachon bir necha ekranda
+  // «Hali hech narsa yo'q» degan YOLG'ON bo'sh holatni keltirgan (DIZAYN_QOIDALARI).
+  const [cardsData, setCardsData] = useState<OyinPrizeCardsResponse | null>(null);
+  const [cardsErr, setCardsErr] = useState(false);
+  const [cardData, setCardData] = useState<OyinCardDetail | null>(null);
+  const [cardErr, setCardErr] = useState(false);
+  const [filter, setFilter] = useState<OyinPrizeFilter>("hammasi");
+  const [archOpen, setArchOpen] = useState(false);
   const [buyKey, setBuyKey] = useState<string | null>(null);
   const [buyQty, setBuyQty] = useState(1); // 🎟 miqdor (max 3) — YAKUNIY DIZAYN §7 tafsilot ekrani
   const [busy, setBusy] = useState(false); // faqat CHIPTA XARIDI
@@ -671,6 +676,10 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
         r.reason === "will_draw" ? "Bu sovrin allaqachon mukofot kuniga tayyor — bekor qilib bo'lmaydi"
           : r.reason === "final_lock" ? "Davr yakuniga yaqin — bekor qilish yopiq"
           : r.reason === "season_off" ? "Dastur hozir faol emas"
+          // 🔴 O11 (2026-08-12): o'tgan mavsum kartasi bekor qilinsa ball QAYTMAYDI (u eski
+          // mavsum balansidan to'langan) — sabab shu yerda ANIQ aytiladi, aks holda mijoz
+          // kartasini bekorga yo'qotib, «nega ball qaytmadi» deb qoladi.
+          : r.reason === "past_season" ? "Bu karta o'tgan mavsumda olingan — bekor qilinsa ball qaytmaydi, shuning uchun bekor qilib bo'lmaydi"
           : "Bekor qilib bo'lmadi",
         3400,
       );
@@ -904,6 +913,20 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     showToast(`Ochilgan oynada ${f.name}ni tanlang`, 2600);
     void inviteFriend(text);
   }, [inviteFriend, showToast]);
+
+  // 🎟 Sovg'aning kartalar panjarasini ochadi. Mijoz bo'sh raqamni O'ZI tanlaydi —
+  // «menga farqi yo'q» tugmasi ATAYLAB yo'q (ega qarori 2026-08-12).
+  const openCards = useCallback((key: string) => {
+    haptic();
+    setCardsData(null); setCardsErr(false); setSheet("cards");
+    void api.oyinPrizeCards(key).then(setCardsData).catch(() => setCardsErr(true));
+  }, []);
+  // 🔎 Bitta karta sahifasi — O'Z kartasi ham, BOSHQA odamniki ham.
+  const openCard = useCallback((gno: number) => {
+    haptic();
+    setCardData(null); setCardErr(false); setSheet("card");
+    void api.oyinCard(gno).then(setCardData).catch(() => setCardErr(true));
+  }, []);
 
   const tapPrize = useCallback((p: OyinPrizeView) => {
     haptic();
@@ -1361,10 +1384,17 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   <div className="oyk-fin-row"><span>Kartalaringiz</span><b>{state.ticketCount} ta</b></div>
                   <div className="oyk-fin-row"><span>Sarflanmagan ball</span><b>{state.ball}</b></div>
                 </div>
+                {/* 🔴 O1 — TUZATILDI (2026-08-12). Bu ekran aynan mavsum TUGAGANDA ko'rinadi —
+                    ya'ni sarflanmagan ball allaqachon yopiq (karta olish 48 soat oldin
+                    to'xtagan). «Muddatga bog'liq emas, hisobingizda turadi» deyish shu
+                    lahzada eng katta yolg'on edi. Endi haqiqat aytiladi, lekin ayblovsiz:
+                    sabab tizimniki (mavsum qoidasi), mijoznики emas. */}
                 <div className="oyk-fin-sub">
-                  {state.ticketCount > 0
-                    ? <>Ball muddatga bog'liq emas — u sarflanmaguncha hisobingizda turadi. Kartalaringiz esa mukofot kunida — omad!</>
-                    : <>Ball muddatga bog'liq emas — u sarflanmaguncha hisobingizda turadi. Keyingi mukofot kuni sanasi e'lon qilinganda shu yerda ko'rinadi.</>}
+                  {state.ball > 0
+                    ? <>Bu mavsumdagi <b>{state.ball} ball</b> mavsum bilan yopildi.{state.ticketCount > 0 ? " Kartalaringiz esa saqlanadi — ular mukofot kunida omad kutadi." : " Yangi mavsum boshlanganda hisob yana noldan yuguradi."}</>
+                    : state.ticketCount > 0
+                      ? <>Kartalaringiz saqlanadi — ular mukofot kunida omad kutadi.</>
+                      : <>Keyingi mukofot kuni sanasi e'lon qilinganda shu yerda ko'rinadi.</>}
                 </div>
               </div>
             ) : (
@@ -1642,7 +1672,31 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {vitrina.prizes.length === 0 && (
               <div className="oyk-j-report">Mukofotlar hozircha qo'yilmagan — tez orada paydo bo'ladi. Ball yig'ib turing, u yo'qolmaydi 🎁</div>
             )}
-            {vitrina.prizes.map((p) => {
+            {/* 🔎 FILTR (ega talabi 2026-08-12): «odamlarga sovg'alarni filtirlash oson
+                bo'lsin — bir kartalik, ko'p kartalik, kam kartali, qimmat, arzon, yutilishiga
+                kam qolganlari». Chiplar — karusel emas: karusel kontentning ko'p qismini
+                yashiradi, chip esa yorliq (yashiringani arzon). */}
+            <div className="oyk-fchips">
+              {OYIN_PRIZE_FILTERS.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  className={`oyk-fchip${filter === f.id ? " is-on" : ""}`}
+                  onClick={() => { haptic(); setFilter(f.id); }}
+                >{f.label}</button>
+              ))}
+            </div>
+            {/* ⚠️ Bo'sh natija — YOLG'ON bo'sh holat EMAS. «Sovg'a yo'q» deyish noto'g'ri
+                bo'lardi: sovg'a bor, faqat filtr uni chiqarib tashladi. Sababni aytamiz va
+                qaytish yo'lini beramiz (DIZAYN_QOIDALARI: yozuv harakat va'da qilsa — tugma). */}
+            {oyinFilterPrizes(vitrina.prizes.filter((p) => !p.soldOut), filter).length === 0
+              && vitrina.prizes.some((p) => !p.soldOut) && (
+              <div className="oyk-fempty">
+                Bu filtrga mos sovg'a yo'q.{" "}
+                <button type="button" className="oyk-flink" onClick={() => { haptic(); setFilter("hammasi"); }}>Hammasini ko'rish</button>
+              </div>
+            )}
+            {oyinFilterPrizes(vitrina.prizes.filter((p) => !p.soldOut), filter).map((p) => {
               const affordable = !locked && state.ball >= p.price;
               const showPhoto = !!p.photoUrl && !badPhoto.has(p.key);
               return (
@@ -1731,6 +1785,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                         ? <div className="oyk-goal-on">🎯 Maqsad</div>
                         : <button type="button" className="oyk-goal-btn" disabled={goalBusyKey === p.key} onClick={() => void setGoal(p)}>{goalBusyKey === p.key ? "…" : "🎯 Maqsad"}</button>
                     )}
+                    {/* 🎟 Kartalar panjarasi. Ega talabi: «sovg'aga bosilsa kartalar ro'yxati
+                        ochiladi va egasi bor-yo'qligi ko'rsatiladi». To'lgan sovg'ada ham
+                        ochiladi — u eng kuchli ijtimoiy isbot. */}
+                    <button type="button" className="oyk-goal-btn" onClick={() => openCards(p.key)}>🎟 Kartalar</button>
                     {/* 🚕 `needsRide` tugmaning O'ZIDA aytiladi — server bu holatda `no_ride`
                         qaytaradi, ekran esa avval bu haqda hech narsa demasdi va mijoz uni
                         faqat "Tasdiqlash" dan KEYIN bilib olardi (G3). */}
@@ -1750,6 +1808,29 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 </div>
               );
             })}
+            {/* 🗂 ARXIV (ega talabi 2026-08-12): «sovg'alar o'ynalganlari pastga tushib
+                ketishi yoki alohida tabga o'tib ketishi kerak — arxiv degan joyiga kichik
+                chiroyli». To'lgan sovg'a xarid uchun yopiq, lekin kartalari ochiq qoladi:
+                odam o'z kartasini va tiraj ro'yxatini ko'ra olishi shart. */}
+            {vitrina.prizes.some((p) => p.soldOut) && (
+              <div className="oyk-arch">
+                <button type="button" className="oyk-arch-h" onClick={() => { haptic(); setArchOpen((v) => !v); }} aria-expanded={archOpen}>
+                  <span className="oyk-arch-t">🗂 Arxiv</span>
+                  <span className="oyk-arch-n">{vitrina.prizes.filter((p) => p.soldOut).length} ta</span>
+                  <span className="oyk-arch-x" aria-hidden="true">{archOpen ? "▾" : "›"}</span>
+                </button>
+                {archOpen && vitrina.prizes.filter((p) => p.soldOut).map((p) => (
+                  <button key={p.key} type="button" className="oyk-arch-row" onClick={() => openCards(p.key)}>
+                    <span className="oyk-arch-ico">{p.icon}</span>
+                    <span className="oyk-arch-nm">
+                      <b>{p.name}</b>
+                      <small>{p.limit} ta karta{p.mine > 0 ? ` · sizda ${p.mine} ta` : ""}</small>
+                    </span>
+                    <span className="oyk-arch-go" aria-hidden="true">›</span>
+                  </button>
+                ))}
+              </div>
+            )}
             {/* ⚠️ Bu qator endi HAQIQAT: final-48 serverda ham qulflangan (OYIN_FINAL_LOCK_MS).
                 Avval faqat mijoz tomonidagi bo'yoq edi — tugma "muzlagan" derdi, xarid o'tardi. */}
             <div className="oyk-sched">
@@ -2218,6 +2299,95 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
           <div className="oyk-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="oyk-sheet-grip" />
 
+            {/* 🎟 KARTALAR PANJARASI — sovg'aning barcha o'rinlari. Bo'sh katak oq va
+                bosiladi, band katak egasining ismi bilan. Ega qarori 2026-08-12:
+                «oddiy telegram ismlari turishi yaxshi». */}
+            {sheet === "cards" && (
+              <>
+                <div className="oyk-sheet-title">🎟 {cardsData ? cardsData.prizeName : "Kartalar"}</div>
+                {cardsErr && (
+                  <div className="oyk-cards-msg">
+                    Kartalar ro'yxatini yuklab bo'lmadi — bu «karta yo'q» degani emas, aloqa uzildi.
+                  </div>
+                )}
+                {!cardsErr && !cardsData && <div className="oyk-cards-grid is-skel">{Array.from({ length: 24 }).map((_, i) => <span key={i} className="oyk-cell is-skel" />)}</div>}
+                {cardsData && (
+                  <>
+                    <div className="oyk-cards-sub">
+                      {cardsData.sold} olindi · {cardsData.limit - cardsData.sold} bo'sh
+                      {cardsData.minSell > 0 && !cardsData.willDraw ? ` · topshirilishi uchun ${cardsData.minSell} ta kerak` : ""}
+                    </div>
+                    <div className="oyk-cards-grid">
+                      {cardsData.cards.map((c) => (
+                        c.ownerName === null
+                          ? <span key={c.no} className="oyk-cell is-free">{c.no}</span>
+                          : (
+                            <button
+                              key={c.no}
+                              type="button"
+                              className={`oyk-cell${c.mine ? " is-mine" : " is-own"}`}
+                              onClick={() => c.gno != null && openCard(c.gno)}
+                              disabled={c.gno == null}
+                              title={c.ownerName}
+                            >{c.no}</button>
+                          )
+                      ))}
+                    </div>
+                    <div className="oyk-cards-lg">
+                      <span><i className="oyk-sw is-free" />bo'sh</span>
+                      <span><i className="oyk-sw is-own" />egasi bor</span>
+                      <span><i className="oyk-sw is-mine" />meniki</span>
+                    </div>
+                    <div className="oyk-cards-msg">Band kartaga bosing — egasi va sanasi ko'rinadi.</div>
+                  </>
+                )}
+                <button type="button" className="oyk-sheet-ok" onClick={() => setSheet(null)}>Yopish</button>
+              </>
+            )}
+
+            {/* 🔎 BITTA KARTA — o'ziniki ham, BOSHQA odamniki ham. Telefon/familiya YO'Q. */}
+            {sheet === "card" && (
+              <>
+                <div className="oyk-sheet-title">🎟 Karta</div>
+                {cardErr && <div className="oyk-cards-msg">Kartani yuklab bo'lmadi — aloqa uzildi.</div>}
+                {!cardErr && !cardData && <div className="oyk-cards-msg">Yuklanmoqda…</div>}
+                {cardData && (
+                  <>
+                    <div className="oyk-cert">
+                      <div className="oyk-cert-lbl">BirJoy karta</div>
+                      <div className="oyk-cert-no">№ {cardData.gno}</div>
+                      <div className="oyk-cert-pz">{cardData.prizeIcon} {cardData.prizeName}</div>
+                      <div className={`oyk-cert-st${cardData.result === "won" ? " is-won" : ""}`}>
+                        {cardData.result === "won" ? "🏆 Yutdi" : cardData.result === "lost" ? "O'ynadi" : "O'yinda"}
+                      </div>
+                    </div>
+                    <div className="oyk-cert-row">
+                      <span>Egasi</span>
+                      <b>{cardData.ownerName}{cardData.mine ? " (siz)" : ""}</b>
+                    </div>
+                    <div className="oyk-cert-row">
+                      <span>Olingan</span>
+                      {/* ⚠️ `toLocaleDateString("uz-UZ")` EMAS — u ba'zi klientlarda «2026 M08 8»
+                          qaytaradi (jonli tekshiruvda AYNAN shunday chiqdi). Loyihaning o'z
+                          `uzDate` helperi ishlatiladi — u 129-satrda aynan shu sabab yozilgan. */}
+                      <b>{uzDate(cardData.at)}</b>
+                    </div>
+                    {/* ⚠️ Bu qator HAQIQAT bo'lgandagina chiziladi: sana yo'q bo'lsa umuman
+                        yozilmaydi (bo'sh va'da bermaslik qoidasi). */}
+                    {cardData.result === null && cardData.drawIso && (
+                      <div className="oyk-cards-msg">
+                        📺 Mukofot kunida Telegram jonli efirida o'ynaydi.
+                      </div>
+                    )}
+                    <div className="oyk-cards-msg">
+                      Bu karta egasiga biriktirilgan. Egasi o'zgartirilmaydi.
+                    </div>
+                  </>
+                )}
+                <button type="button" className="oyk-sheet-ok" onClick={() => setSheet(null)}>Yopish</button>
+              </>
+            )}
+
             {/* 🔔 QO'NG'IROQ — ball qayerdan kelgani. Reyting shu yerda edi va u ball
                 QOLDIG'I bo'yicha saralanardi: chipta olgan odamning o'rni tushardi, ya'ni
                 to'g'ri xatti-harakat jazolanardi (ega qarori — butunlay olib tashlandi). */}
@@ -2276,12 +2446,15 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               )}
               {/* Doimiy qator (YAKUNIY DIZAYN §4). Ball hech qachon pulga aylanmaydi —
                   buni bir marta onboarding'da aytib qo'yish yetarli emas, doim ko'rinib tursin. */}
-              {/* ⚠️ 2026-08-06: avvalgi matn ("davr oxirigacha sarflanmagan ball yonadi") KOD
-                  BILAN ZID edi — ball mavsum bilan emas, 6 oylik FAOLSIZLIK bilan bog'liq
-                  (Qoidalar §11 bilan bir xil manba, RulesSheet'dagi `oyk-rules-n` 11-band). */}
+              {/* 🔴 O1 — TUZATILDI (2026-08-12). Avvalgi «6 oy harakatsiz» matni 2026-08-06 da
+                  ham allaqachon eskirgan edi — o'sha o'zgarish sanani almashtirdi, sababni
+                  emas. Haqiqat: ball 6 oylik FAOLSIZLIK bilan EMAS, MAVSUM bilan bog'liq
+                  (2026-08-11 ega qarori, `computeBallMap`). Bu — RulesSheet 11-band bilan
+                  BIR XIL manba, ikkalasi endi bir xil gapiradi. */}
               <div className="oyk-ball-warn">
                 Ball pul emas — faqat sodiqlik kartasi olish uchun.<br />
-                Ball muddatga bog'liq emas: 6 oy harakatsiz qolsangiz nolga tushadi, aks holda saqlanadi.
+                Ball shu mavsum ichida yashaydi: mavsum tugaganda hisob noldan boshlanadi —
+                kartaga aylantirgan ballingiz esa saqlanadi.
               </div>
             </div>
                 {/* Yopish tugmasi HAR varaqda. Avval faqat "Qanday ishlaydi"da bor edi —
@@ -2568,26 +2741,18 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
         </div>
       )}
 
-      {onboard !== null && (() => {
-        const slides = obSlides(state.hints);
-        const cur = slides[onboard];
-        if (!cur) return null;
-        return (
-        <div className="oyk-onboard">
-          <div className="oyk-ob-icon">{cur.icon}</div>
-          <div className="oyk-ob-step">{onboard + 1} / {slides.length} QADAM</div>
-          <div className="oyk-ob-text">{cur.text}</div>
-          <div className="oyk-ob-dots">
-            {slides.map((sl, i) => <div key={sl.icon} className={`oyk-ob-dot${i === onboard ? " is-active" : ""}`} />)}
-          </div>
-          <button
-            type="button" className="oyk-ob-next"
-            onClick={() => (onboard >= slides.length - 1 ? finishOnboard() : setOnboard(onboard + 1))}
-          >{onboard === slides.length - 1 ? "Boshladik! 🚀" : "Keyingisi"}</button>
-          <button type="button" className="oyk-ob-skip" onClick={finishOnboard}>O'tkazib yuborish</button>
-        </div>
-        );
-      })()}
+      {/* 📖 STORY-KO'RINISHIDA O'RGATISH (2026-08-12, ega talabi — taxi bo'limidagi naqsh).
+          Avvalgi 4 ta quruq slayd (`obSlides`) o'rniga: bosib turib o'qish, avtomatik o'tish,
+          5 karta. Mavsum sonini `oyk_onboard_seen:<seasonId>` ga bog'lash V-NEXT — hozircha
+          bir martalik (butun ilova umri bo'yicha), taxiStory bilan BIR XIL yondashuv. */}
+      {onboard !== null && (
+        <OyinStory
+          hints={state.hints}
+          cheapestName={cheapest?.name ?? null}
+          cheapestPrice={cheapest?.price ?? null}
+          onClose={finishOnboard}
+        />
+      )}
 
       {/* 🤝 Gashtak-tushuntirish — `obSlides`/`.oyk-onboard` bilan BIR XIL naqsh, alohida
           holat+kalit bilan (yuqoridagi `gashtakSlides` izohiga qarang). */}

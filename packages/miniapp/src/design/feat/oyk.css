@@ -1244,3 +1244,118 @@
 }
 .oyk-hint-ic { font-size: 17px; line-height: 1.2; flex-shrink: 0; }
 .oyk-hint-tx { min-width: 0; }
+
+/* ── 🔎 SOVG'A FILTRI + 🗂 ARXIV + 🎟 KARTALAR (2026-08-12, ega talabi) ─────────────────────── */
+/* Chiplar yopishqoq emas — ro'yxat bilan birga siljiydi (sovg'a soni ≤10, ushlab turishning
+   hojati yo'q va u vertikal joyni yeydi). */
+.oyk-fchips{display:flex;gap:6px;overflow-x:auto;padding:2px 0 4px;-webkit-overflow-scrolling:touch}
+.oyk-fchips::-webkit-scrollbar{height:0}
+.oyk-fchip{flex:none;white-space:nowrap;font:inherit;font-size:12.5px;padding:6px 11px;border-radius:99px;
+  border:1px solid var(--oyk-line);background:transparent;color:var(--oyk-text-2);cursor:pointer}
+.oyk-fchip.is-on{background:var(--oyk-accent);border-color:var(--oyk-accent);color:var(--oyk-on);font-weight:700}
+.oyk-fempty{font-size:13px;color:var(--oyk-text-2);padding:14px 2px;text-align:center}
+.oyk-flink{font:inherit;font-size:13px;background:none;border:0;padding:0;color:var(--oyk-accent);
+  text-decoration:underline;cursor:pointer}
+
+.oyk-arch{margin-top:6px;border:1px solid var(--oyk-line);border-radius:12px;overflow:hidden}
+.oyk-arch-h{display:flex;align-items:center;gap:8px;width:100%;font:inherit;background:transparent;
+  border:0;padding:11px 12px;color:var(--oyk-text);cursor:pointer;text-align:left}
+.oyk-arch-t{font-weight:700;font-size:13.5px}
+.oyk-arch-n{font-size:12px;color:var(--oyk-text-2)}
+.oyk-arch-x{margin-left:auto;color:var(--oyk-text-3)}
+.oyk-arch-row{display:flex;align-items:center;gap:10px;width:100%;font:inherit;background:transparent;
+  border:0;border-top:1px solid var(--oyk-line);padding:10px 12px;color:var(--oyk-text);cursor:pointer;text-align:left}
+.oyk-arch-ico{font-size:20px;flex:none}
+.oyk-arch-nm{flex:1;min-width:0;display:flex;flex-direction:column}
+.oyk-arch-nm b{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.oyk-arch-nm small{font-size:11.5px;color:var(--oyk-text-2)}
+.oyk-arch-go{color:var(--oyk-text-3)}
+
+.oyk-cards-sub{font-size:12.5px;color:var(--oyk-text-2);margin:2px 0 8px}
+.oyk-cards-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.oyk-cell{aspect-ratio:1;border-radius:7px;display:grid;place-items:center;font:inherit;font-size:11px;
+  font-weight:700;border:1px solid var(--oyk-line);cursor:default;padding:0;font-variant-numeric:tabular-nums}
+/* ⚠️ Uch holat KO'Z BILAN ajralishi SHART — panjaraning butun maqsadi «qaysi biri bo'sh»
+   savoliga bir qarashda javob berish. Jonli tekshiruvda bo'sh va band katak deyarli bir xil
+   chiqdi (ikkalasi ham neytral fon), shuning uchun bo'sh katak AKSENT tusiga o'tkazildi:
+   bo'sh = harakat mumkin (aksent) · band = tugagan (neytral, so'nik) · meniki = to'la aksent. */
+.oyk-cell.is-free{background:var(--oyk-accent-fill);border-color:var(--oyk-accent);color:var(--oyk-text)}
+.oyk-cell.is-own{background:var(--oyk-skel);border-color:transparent;color:var(--oyk-text-3);cursor:pointer}
+.oyk-cell.is-mine{background:var(--oyk-accent);border-color:var(--oyk-accent);color:var(--oyk-on);cursor:pointer}
+/* Skeleton — real panjaraning AYNAN nusxasi (bir xil ustun, bir xil o'lcham), aks holda
+   yuklangach ekran sakraydi (DIZAYN_QOIDALARI: skeleton real layout nusxasi). */
+.oyk-cell.is-skel{background:var(--oyk-fill);border-color:transparent;opacity:.55}
+.oyk-cards-lg{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--oyk-text-2);margin-top:9px}
+.oyk-sw{width:12px;height:12px;border-radius:4px;display:inline-block;vertical-align:-2px;margin-right:5px;
+  border:1px solid var(--oyk-line)}
+.oyk-sw.is-free{background:var(--oyk-fill)}
+.oyk-sw.is-own{background:var(--oyk-surface)}
+.oyk-sw.is-mine{background:var(--oyk-accent);border-color:var(--oyk-accent)}
+.oyk-cards-msg{font-size:12.5px;color:var(--oyk-text-2);margin-top:10px;line-height:1.5}
+
+/* Karta — sertifikat. Raqam sahifaning qahramoni: u jonli efirda OVOZ CHIQARIB o'qiladi,
+   shuning uchun eng katta, tabular va keng oraliqli. */
+.oyk-cert{border:1px solid var(--oyk-accent);border-radius:14px;padding:16px 12px;text-align:center;
+  background:var(--oyk-surface)}
+.oyk-cert-lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--oyk-accent);font-weight:700}
+.oyk-cert-no{font-size:26px;font-weight:800;letter-spacing:.06em;margin:6px 0 4px;
+  font-variant-numeric:tabular-nums;color:var(--oyk-text)}
+.oyk-cert-pz{font-size:13px;color:var(--oyk-text-2)}
+.oyk-cert-st{display:inline-block;margin-top:11px;font-size:11px;font-weight:700;letter-spacing:.08em;
+  text-transform:uppercase;border:1px solid var(--oyk-line);color:var(--oyk-text-2);border-radius:99px;padding:3px 11px}
+.oyk-cert-st.is-won{border-color:var(--oyk-accent);color:var(--oyk-accent)}
+.oyk-cert-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  border-bottom:1px solid var(--oyk-line);padding:10px 2px;font-size:13px}
+.oyk-cert-row span{color:var(--oyk-text-2)}
+
+/* ── 📖 O'YIN STORY — 5 mini-vidjet (2026-08-12, `story.css` .st-scene ichida) ─────────────────
+   ⚠️ Story oq fonli (`story.css` `.st{background:#fff}`) — bu ATAYLAB, taxiStory bilan bir xil
+   vizual til (Instagram-uslub, ilova mavzusidan mustaqil). Shuning uchun bu yerda `--oyk-*`
+   (qorong'i o'yin palitrasi) EMAS, alohida engil-tonlar ishlatiladi — faqat animatsiya
+   transform/opacity (qoida #16), prefers-reduced-motion'da to'xtaydi. */
+.st-oy-scene { background: #FFFDF5; border: 1px solid #F6E6BC; display: flex; align-items: center; justify-content: center; }
+
+.st-oy-ballnum { font-size: 64px; filter: drop-shadow(0 6px 14px rgba(245, 183, 0, .35)); }
+.st-oy-chip { position: absolute; font-weight: 800; font-size: 15px; color: #8a6400; background: #FFF3D0;
+  border: 1px solid #F0DA9C; border-radius: 99px; padding: 3px 10px; opacity: 0;
+  animation: oyStRise 2.6s ease-out infinite; }
+.st-oy-chip-a { left: 26%; top: 62%; animation-delay: .1s; }
+.st-oy-chip-b { left: 50%; top: 68%; animation-delay: .9s; }
+.st-oy-chip-c { left: 68%; top: 60%; animation-delay: 1.7s; }
+@keyframes oyStRise { 0% { opacity: 0; transform: translateY(0); } 18% { opacity: 1; } 100% { opacity: 0; transform: translateY(-58px); } }
+@media (prefers-reduced-motion: reduce) { .st-oy-chip { animation: none; opacity: 1; } }
+
+.st-oy-card { width: 200px; background: linear-gradient(165deg, #fff, #FBF6E8); border: 1px solid #E8D9A8;
+  border-radius: 16px; padding: 16px 14px; text-align: center; box-shadow: 0 14px 30px -18px rgba(120, 90, 10, .35); }
+.st-oy-card-lbl { font-size: 9.5px; letter-spacing: .14em; color: #B0862A; font-weight: 800; }
+.st-oy-card-no { font-size: 19px; font-weight: 800; letter-spacing: .07em; color: #4A3A0E; margin: 7px 0;
+  font-variant-numeric: tabular-nums; }
+.st-oy-card-tag { display: inline-block; font-size: 11px; font-weight: 700; color: #01A95E;
+  background: #EAF7EF; border-radius: 99px; padding: 3px 10px; }
+
+.st-oy-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; width: 200px; }
+.st-oy-cell { aspect-ratio: 1; border-radius: 8px; background: #F4F6F9; border: 1px solid #E5E9F0;
+  display: flex; align-items: center; justify-content: center; font-size: 15px; color: #01A95E; font-weight: 800; }
+.st-oy-cell.is-win { background: #FFF3D0; border-color: #F0DA9C; color: #B0862A;
+  animation: oyStPulse 1.4s ease-in-out infinite; }
+@keyframes oyStPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+@media (prefers-reduced-motion: reduce) { .st-oy-cell.is-win { animation: none; } }
+.st-oy-liveTag { position: absolute; bottom: 16px; font-size: 11px; font-weight: 800; color: #D64545;
+  background: #FDEAEA; border-radius: 99px; padding: 3px 10px; }
+
+.st-oy-track { position: relative; width: 210px; height: 6px; background: #EFEFEF; border-radius: 99px; }
+.st-oy-track-fill { position: absolute; inset: 0; border-radius: 99px; background: linear-gradient(90deg, #01A95E, #F5B700); }
+.st-oy-track-dot { position: absolute; top: 50%; left: 100%; width: 14px; height: 14px; border-radius: 50%;
+  background: #fff; border: 3px solid #F5B700; transform: translate(-50%, -50%); }
+.st-oy-track-lbl { position: absolute; font-size: 10.5px; color: var(--st-ink-3, #7E8190); top: 16px; }
+.st-oy-track-lbl.from { left: -6px; } .st-oy-track-lbl.to { right: -6px; }
+.st-oy-track-reset { position: absolute; bottom: 20px; font-size: 12px; font-weight: 700; color: #01A95E;
+  background: #EAF7EF; border-radius: 99px; padding: 4px 12px; }
+
+.st-oy-taxi { font-size: 40px; position: absolute; left: 22%; animation: oyStDrive 2.2s ease-in-out infinite; }
+@keyframes oyStDrive { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(10px); } }
+@media (prefers-reduced-motion: reduce) { .st-oy-taxi { animation: none; } }
+.st-oy-arrow { font-size: 22px; color: #C9CDD6; }
+.st-oy-gift { font-size: 40px; position: absolute; right: 22%; }
+.st-oy-goal { position: absolute; bottom: 18px; font-size: 12px; font-weight: 700; color: #B0862A;
+  background: #FFF3D0; border-radius: 99px; padding: 4px 12px; max-width: 88%; text-align: center; }

@@ -764,6 +764,11 @@ export interface OyinWinner {
   note: string | null; // bloger ismi, guvohlar, video havolasi
   handedAt: string | null; // topshirilgan sana
   photoUrl: string | null; // topshirish fotosi
+  /** 📨 G'olibga push yuborilgan sanasi. `null` = hali yuborilmagan — tik navbatda kutmoqda.
+   *  Ega talabi (2026-08-12): «g'olibga xabar bormaydi — odam yutganini hech qayerdan
+   *  bilmaydi». Bayonnoma yozilishi bilan bir vaqtda emas — server.ts'da bot instansi yo'q,
+   *  shuning uchun keyingi 15-daqiqalik tikda yuboriladi (yangi poller emas). */
+  notifiedAt?: string | null;
 }
 export interface OyinDrawRecordResult {
   ok: boolean;
@@ -1038,6 +1043,11 @@ export interface OyinMyTicket {
   // (`cancelOwnTicket`) — ball qaytadi, chegaraga hech qachon yetmaydigan sovrinda ball
   // abadiy "band" bo'lib qolmasin.
   willDraw: boolean;
+  /** 🏆 Tiraj natijasi. `null` = hali o'ynalmagan.
+   *  ⚠️ 2026-08-12 da OCHILDI. Avval bu maydon bazaga YOZILARDI (`adminRecordWinner` har
+   *  kartaga `won`/`lost` qo'yadi), lekin mijozga UZATILMASDI — ya'ni odam ball to'lab karta
+   *  oldi va natijani hech qachon bilmasdi. Tiraj mijoz uchun umuman sodir bo'lmasdi. */
+  result?: "won" | "lost";
 }
 export interface OyinMyTicketsResponse {
   tickets: OyinMyTicket[];
@@ -1047,7 +1057,7 @@ export interface OyinMyTicketsResponse {
 /** 🎟 Mijoz o'zi chegaraga yetmagan kartasini bekor qiladi (ball qaytadi). */
 export interface OyinCancelTicketResult {
   ok: boolean;
-  reason?: "not_found" | "not_ticket" | "season_off" | "final_lock" | "will_draw";
+  reason?: "not_found" | "not_ticket" | "season_off" | "final_lock" | "will_draw" | "past_season";
   ball?: number; // yangi balans
 }
 
@@ -1442,4 +1452,86 @@ export function oyinSumInWindow(entries: { at: string; ball: number }[], fromMs:
     if (Number.isFinite(b)) sum += Math.round(b);
   }
   return sum;
+}
+
+// ── 🎟 KARTA SAHIFASI VA SOVG'A FILTRI (2026-08-12, ega talabi) ────────────────────────────────
+// Ega: «har bir kartaga kirib bo'lishi · birovni kartasiga kirib ko'rish imkoniyati kerak ·
+// odamlarga sovg'alarni filtirlash oson bo'lsin · o'ynalganlari arxivga o'tsin».
+//
+// ⚠️ Ega ANIQ rad etgan narsalar (prototipda bor edi, olib tashlandi):
+//   · «Menga farqi yo'q» tugmasi — odam kartasini O'ZI tanlaydi;
+//   · «yana N safar» o'lchovi — ball faqat safardan kelmaydi (do'st, gashtak, hikoya ham beradi),
+//     shuning uchun safarga o'girish YOLG'ON bo'lardi. Hech qanday «yana N ...» taxmini yozilmaydi.
+
+/** Sovg'a kartalari panjarasidagi bitta katak. `ownerName === null` = bo'sh o'rin. */
+export interface OyinPrizeCard {
+  no: number;
+  /** Global raqam. Eski kartalarda bo'lmasligi mumkin (`gno` maydoni keyin qo'shilgan). */
+  gno: number | null;
+  /** Telegram ismi (ega qarori 2026-08-12: «oddiy telegram ismlari turishi yaxshi»). */
+  ownerName: string | null;
+  mine: boolean;
+  at: string | null;
+}
+
+export interface OyinPrizeCardsResponse {
+  prizeKey: string;
+  prizeName: string;
+  prizeIcon: string;
+  photoUrl: string | null;
+  price: number;
+  limit: number;
+  sold: number;
+  minSell: number;
+  willDraw: boolean;
+  cards: OyinPrizeCard[];
+}
+
+/** Bitta kartaning sahifasi. BOSHQA odamning kartasi ham shu bilan ochiladi —
+ *  shuning uchun bu yerda telefon, familiya, `memberId` va ball YO'Q. */
+export interface OyinCardDetail {
+  gno: number;
+  no: number;
+  prizeKey: string;
+  prizeName: string;
+  prizeIcon: string;
+  photoUrl: string | null;
+  ownerName: string;
+  mine: boolean;
+  at: string;
+  /** `null` = hali o'ynalmagan. */
+  result: "won" | "lost" | null;
+  drawIso: string | null;
+}
+
+/** Vitrina filtri. Ega: «bir kartalik · ko'p kartalik · kam kartalik · qimmat · arzon ·
+ *  yutilishiga kam qolganlari». */
+export type OyinPrizeFilter = "hammasi" | "bitta" | "kam" | "kop" | "arzon" | "qimmat" | "tugayapti";
+
+export const OYIN_PRIZE_FILTERS: { id: OyinPrizeFilter; label: string }[] = [
+  { id: "hammasi", label: "Hammasi" },
+  { id: "tugayapti", label: "🔥 Tugayapti" },
+  { id: "bitta", label: "💎 Bitta karta" },
+  { id: "kam", label: "Kam kartali" },
+  { id: "kop", label: "Ko'p kartali" },
+  { id: "arzon", label: "Arzon" },
+  { id: "qimmat", label: "Qimmat" },
+];
+
+/** Filtr uchun kerak bo'ladigan eng kichik shakl — vitrina ham, admin ham shu bilan ishlaydi. */
+export interface OyinFilterablePrize { price: number; limit: number; remaining: number }
+
+/** ⚠️ «Arzon/qimmat» RO'YXATNING O'ZIDAN hisoblanadi, qotirilgan chegara bilan emas: katalog
+ *  o'zgarsa chegara ham siljiydi va «qimmat» filtri bo'sh qolib qolmaydi. Chegara — uchdan bir. */
+export function oyinFilterPrizes<T extends OyinFilterablePrize>(list: T[], f: OyinPrizeFilter): T[] {
+  if (f === "hammasi" || list.length === 0) return list;
+  if (f === "bitta") return list.filter((p) => p.limit === 1);
+  if (f === "kam") return list.filter((p) => p.limit > 1 && p.limit <= 12);
+  if (f === "kop") return list.filter((p) => p.limit >= 40);
+  // 🔥 Tugayapti: to'lishiga chorak qolgan, LEKIN hali tugamagan (0 qolgan = tugagan, u arxivda).
+  if (f === "tugayapti") return list.filter((p) => p.remaining > 0 && p.limit > 0 && p.remaining / p.limit <= 0.25);
+  const prices = list.map((p) => p.price).sort((a, b) => a - b);
+  const lo = prices[Math.floor((prices.length - 1) / 3)] ?? 0;
+  const hi = prices[Math.ceil(((prices.length - 1) * 2) / 3)] ?? 0;
+  return f === "arzon" ? list.filter((p) => p.price <= lo) : list.filter((p) => p.price >= hi);
 }

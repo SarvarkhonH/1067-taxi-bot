@@ -6,6 +6,7 @@
 // "grant" yozuvi yo'q, shuning uchun bookingNotifier.ts ga tegilmaydi (faqat push-hook qo'shiladi,
 // pastda ko'ring). Faqat kunlik-kirish/ulashish va chipta-xarid/sotilgan-son AppState'da yoziladi
 // (`oyin:*` prefiks). Yangi Prisma model YO'Q, yangi poller YO'Q (ARCHITECTURE.md invariantlari).
+import type { Bot } from "grammy";
 import {
   OYIN_CAPACITY_RATIO,
   OYIN_FINAL_LOCK_MS,
@@ -60,7 +61,10 @@ import {
   OYIN_SNAPSHOT_MAX,
   type OyinBulkPrizeInput,
   type OyinBulkResult,
+  type OyinCardDetail,
   type OyinCatalogSnapshot,
+  type OyinPrizeCard,
+  type OyinPrizeCardsResponse,
   type OyinSeasonPlan,
   type OyinLeaderRow,
   type OyinVitals,
@@ -124,7 +128,10 @@ interface AppStateRow { key: string; value: string }
 // barcha ishtirokchi kartalar ham "yutuqsiz" deb shu yerga YOZILADI (`adminRecordWinner`).
 // Faqat admin+Telegram kanal ko'radi — mijoz ilovasida (`OyinMyTicket`) HECH NARSA
 // o'zgarmaydi (ega qarori, ataylab qurilmagan).
-interface TicketRecord { prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string; test?: boolean; result?: "won" | "lost" }
+// `notifiedLoss` — 2026-08-12: yutmagan kartaga push yuborilgani belgisi. Faqat "lost" uchun
+// (g'olibning o'zi alohida `OyinWinner.notifiedAt` bilan kuzatiladi — u yerda telefon/hash
+// kabi qo'shimcha bayonnoma ma'lumoti bor, shuning uchun ikkalasi bitta maydonga sig'maydi).
+interface TicketRecord { prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string; test?: boolean; result?: "won" | "lost"; notifiedLoss?: boolean }
 
 // ⚠️ VALIDATSIYA, sof `as` o'girish EMAS. Avval JSON massiv to'g'ridan-to'g'ri `TicketRecord[]`
 // deb e'lon qilinardi — tiplar YOLG'ON edi va bitta buzuq qator butun iqtisodni chalkashtirardi:
@@ -162,6 +169,7 @@ function parseTickets(raw: string | undefined): TicketRecord[] {
         // Faqat aniq "won"/"lost" qabul qilinadi — boshqa (buzuq) qiymat "belgilanmagan" deb
         // o'qiladi, mijozga hech qanday soxta natija ko'rsatilmasin.
         ...(t.result === "won" || t.result === "lost" ? { result: t.result } : {}),
+        ...(t.notifiedLoss === true ? { notifiedLoss: true as const } : {}),
       });
     }
     return out;
@@ -303,10 +311,11 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   // Hisob BOSHLANGANDAGI generatsiya — tugaganda o'zgargan bo'lsa natija eskirgan.
   const gen = ballMapGen;
   const econ = await getBonusEcon();
-  // ⚠️ S8 (2026-08-04): oyna endi DAVRGA emas, VAQTGA bog'langan. Avval `season.startMs/endMs`
-  // edi va bu «karta abadiy» qarori bilan ZIDDIYATDA: karta abadiy → `spent` abadiy → `earned`
-  // ham abadiy bo'lishi shart, aks holda yangi davrda `max(0, earned − spent)` HAMMADA 0 chiqardi.
-  // Endi ball davr chegarasida KUYMAYDI; u faqat 6 oy HARAKATSIZLIKDA so'nadi (pastda).
+  // ⚠️ ESKIRGAN IZOH (S8, 2026-08-04) — pastdagi kod bilan ENDI ZID, 2026-08-11 ega
+  // qarori bilan almashtirildi: quyida yozilgan «ball davr chegarasida KUYMAYDI, faqat 6 oy
+  // harakatsizlikda so'nadi» modeli OLIB TASHLANGAN. Amaldagi qoida pastroqda, 2026-08-11
+  // izohida yozilgan: ball MAVSUM oynasida hisoblanadi (`fromMs = season.startMs`,
+  // `toMs = min(now, season.endMs)`), 6 oylik so'nish kodda YO'Q.
   const nowMs = Date.now();
   // 🔄 2026-08-11 — EGA QARORI: «har mavsum ball nol bo'ladi, uni saqlashning yagona yo'li
   // karta olib qo'yish». Ya'ni ball MAVSUM ICHIDA yashaydi va mavsum tugashi bilan yonadi.
@@ -1385,6 +1394,9 @@ export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse
         // 🧪 Ekranda OCHIQ belgilanadi. Yashirilsa ega o'z sinov chiptasini haqiqiy deb o'ylab
         // tirajni kutib qolardi — va "nega yutmadim" savoli javobsiz bo'lardi.
         ...(t.test ? { test: true } : {}),
+        // 🏆 Natija endi mijozga UZATILADI (2026-08-12). Ma'lumot bazada allaqachon bor edi
+        // (`adminRecordWinner` yozadi) — faqat javobga qo'shilmagan edi.
+        ...(t.result ? { result: t.result } : {}),
         willDraw,
       };
     })
@@ -1411,6 +1423,16 @@ export async function cancelOwnTicket(memberId: number, gno: number): Promise<Oy
   if (idx < 0) return { ok: false, reason: "not_ticket" };
   const target = tickets[idx];
   if (!target) return { ok: false, reason: "not_ticket" };
+  // 🔴 O11 (2026-08-12, jonli tekshiruvda topilgan): O'TGAN mavsumda olingan karta ATAYLAB
+  // rad etiladi. Sabab: `spent` joriy mavsum oynasidan filtrlanadi (yuqoridagi izoh) — o'tgan
+  // mavsum kartasining narxi hozirgi balansda UMUMAN hisobga olinmaydi. Uni bekor qilish shu
+  // sababdan mijozga bir tiyin ham ball qaytarmaydi (qaytaradigan narsa yo'q), lekin
+  // `releaseSoldSlot` baribir sovg'aning umumiy sotuv sanog'ini kamaytiradi — ya'ni to'lib
+  // kelayotgan (keyingi mavsumga o'tgan) sovg'a ORQAGA tepadi, mijoz esa kartasini bekorga
+  // yo'qotadi. Karta faqat O'Z mavsumida bekor qilinadi.
+  if (target.ts && Date.parse(target.ts) < (season.startMs ?? -Infinity)) {
+    return { ok: false, reason: "past_season" };
+  }
 
   const [catalog, soldMap, econ] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon()]);
   const prize = catalog.find((p) => p.key === target.prizeKey);
@@ -3192,7 +3214,7 @@ export async function adminRecordWinner(prizeKey: string, gno: number, note: str
     gno: hit.gno, memberId: hit.memberId, name: hit.name, phone: tu?.phone ?? null,
     drawnAt: new Date().toISOString(), listHash: list.hash, poolSize: list.cards.length,
     note: (note || "").trim().slice(0, 300) || null,
-    handedAt: null, photoUrl: null,
+    handedAt: null, photoUrl: null, notifiedAt: null,
   };
   // `create` (upsert EMAS): ikkita parallel yozuv bo'lsa ikkinchisi unique-xato bilan yiqiladi
   // va bayonnoma ustidan yozilmaydi.
@@ -3313,6 +3335,206 @@ export async function seasonClose(): Promise<OyinSeasonCloseResult> {
   await prisma.appState.create({ data: { key: doneKey, value: JSON.stringify({ at: new Date().toISOString(), convertedCount, totalTanga }) } }).catch(() => undefined);
   invalidateBallCache();
   return { convertedCount, totalTanga };
+}
+
+// ═══ 🔔 MAVSUM YAKUNI — XABARNOMA ZANJIRI (2026-08-12, ega talabi) ═══════════════════════════════
+//
+// Audit topilmasi edi: «mijozga birorta ogohlantirish ketmaydi — g'olibga ham xabar bormaydi,
+// odam yutganini hech qayerdan bilmaydi». Bu bo'lim shu bo'shliqni yopadi. YANGI POLLER YO'Q —
+// hammasi index.ts dagi MAVJUD 15-daqiqalik tikka qo'shiladi (ARCHITECTURE.md invarianti).
+//
+// ⚠️ Nega DAYKEY-DEDUP (mavjud `notifyOnce`) YETARLI EMAS: `NotifyLog` (mavjud) faqat
+// (memberId, kind, dayKey) bo'yicha noyob — ya'ni bitta `kind` FAQAT bitta kunda bir marta.
+// Minglab a'zoga 15-daqiqalik ≤300 tezlikda yetkazish bir necha KUNGA cho'zilishi mumkin —
+// shuning uchun har bosqich o'z DURABLE (kun-mustaqil) markeriga ega: `oyin:<bosqich>:<seasonId>:
+// <memberId>`. `notifyOnce` baribir ISHLATILADI — u kunlik cap/jim-soat/blok/opt-out
+// qo'riqlarini beradi; marker esa FAQAT muvaffaqiyatli yuborilgandan keyin qo'yiladi, ya'ni
+// cap/jim-soat sababli o'tkazib yuborilgan a'zo KEYINGI tikda avtomatik qayta sinaladi.
+const SEASON_PUSH_BATCH = 300; // 15-daq/300 ≈ 0,33 xabar/soniya — Telegram 30/s limitidan 90× past.
+
+/** Ochiq (sotilmagan o'rni bor) sovg'alar orasida eng arzoni — ogohlantirish matnida
+ *  "yana N ball kerak" hisoboti shundan chiqadi. */
+async function cheapestOpenPrize(): Promise<{ key: string; name: string; price: number } | null> {
+  const [catalog, soldMap] = await Promise.all([getCatalog(), getSoldMap()]);
+  const open = catalog
+    .filter((p) => p.active && p.queued !== true && (soldMap.get(p.key) ?? 0) < p.limit)
+    .sort((a, b) => a.price - b.price);
+  const c = open[0];
+  return c ? { key: c.key, name: c.name, price: c.price } : null;
+}
+
+/** Berilgan nomzodlar ro'yxatidan HALI push OLMAGANLARNI ajratadi (durable marker bo'yicha),
+ *  batch bilan cheklaydi va Telegram chat-id'larini bitta so'rovda oladi. Har bosqich (T-7/
+ *  T-3/T-49soat/yakun) shu bitta yordamchidan foydalanadi — mantiq TO'RT marta yozilmasin. */
+async function pushCandidates(
+  markerPrefix: string, seasonId: string, memberIds: number[],
+): Promise<{ memberId: number; chatId: string }[]> {
+  if (memberIds.length === 0) return [];
+  const keyOf = (id: number) => `${markerPrefix}:${seasonId}:${id}`;
+  const already = await prisma.appState.findMany({ where: { key: { in: memberIds.map(keyOf) } }, select: { key: true } });
+  const sentSet = new Set(already.map((r) => r.key));
+  const pendingIds = memberIds.filter((id) => !sentSet.has(keyOf(id))).slice(0, SEASON_PUSH_BATCH);
+  if (pendingIds.length === 0) return [];
+  const tus = await prisma.telegramUser.findMany({ where: { memberId: { in: pendingIds } }, select: { id: true, memberId: true } });
+  const chatByMember = new Map(tus.map((t) => [t.memberId as number, t.id]));
+  const out: { memberId: number; chatId: string }[] = [];
+  for (const id of pendingIds) {
+    const chatId = chatByMember.get(id);
+    if (chatId) out.push({ memberId: id, chatId });
+  }
+  return out;
+}
+async function markPushed(markerPrefix: string, seasonId: string, memberId: number): Promise<void> {
+  await prisma.appState.create({ data: { key: `${markerPrefix}:${seasonId}:${memberId}`, value: new Date().toISOString() } }).catch(() => undefined);
+}
+
+/** ⏳ T-7 kun / T-3 kun / T-49 soat ogohlantirishlari. Mavsum FAOL ekanida (tugamasdan oldin)
+ *  chaqiriladi — `seasonClose` (yuqorida) esa AKSINCHA, faqat tugagandan KEYIN ishlaydi.
+ *  Har bosqich mustaqil: biri o'tkazib yuborilsa (masalan server bir necha soat o'chgan bo'lsa)
+ *  qolganlari baribir o'z vaqtida yuguradi — ular bir-biriga bog'liq emas. */
+export async function seasonWarningTick(bot: Bot): Promise<{ sent7: number; sent3: number; sent49h: number }> {
+  const empty = { sent7: 0, sent3: 0, sent49h: 0 };
+  if (!(await featureOn("oyin"))) return empty;
+  const season = await getSeason();
+  if (!season.configured || season.phase !== "active" || season.endMs == null) return empty;
+  const msLeft = season.endMs - Date.now();
+  if (msLeft <= 0) return empty;
+
+  const { notifyOnce } = await import("./notifyService");
+  const map = await computeBallMap();
+  const cheapest = await cheapestOpenPrize();
+
+  let sent7 = 0, sent3 = 0, sent49h = 0;
+
+  // T-7 KUN — balli bor HAMMAGA (hali karta olishga yetmasa ham — "yana safar qiling" chaqirig'i).
+  if (msLeft <= 7 * 86_400_000) {
+    const ids = [...map.entries()].filter(([, r]) => r.breakdown.ball > 0).map(([id]) => id);
+    for (const { memberId, chatId } of await pushCandidates("oyin:warn7", season.seasonId, ids)) {
+      const ball = map.get(memberId)?.breakdown.ball ?? 0;
+      const need = cheapest ? Math.max(0, cheapest.price - ball) : 0;
+      const html = `🎁 <b>Mavsumga 7 kun qoldi</b>\n\nSizda <b>${ball} ball</b> — mavsum tugashi bilan yonadi. Saqlashning yagona yo'li: kartaga aylantirish.` +
+        (cheapest && need > 0 ? `\n\n<b>${cheapest.name}</b> uchun yana <b>${need} ball</b> kerak.` : "");
+      if (await notifyOnce(bot, chatId, memberId, `oyin_warn7:${season.seasonId}`, html).catch(() => false)) {
+        await markPushed("oyin:warn7", season.seasonId, memberId);
+        sent7++;
+      }
+    }
+  }
+
+  // T-3 KUN — faqat KAMIDA bitta kartaga yetadiganlarga (karta olish hali OCHIQ).
+  if (msLeft <= 3 * 86_400_000 && cheapest) {
+    const ids = [...map.entries()].filter(([, r]) => r.breakdown.ball >= cheapest.price).map(([id]) => id);
+    for (const { memberId, chatId } of await pushCandidates("oyin:warn3", season.seasonId, ids)) {
+      const ball = map.get(memberId)?.breakdown.ball ?? 0;
+      const n = Math.floor(ball / cheapest.price);
+      const html = `⏳ <b>Karta olish 24 soatdan keyin yopiladi</b>\n\nSizda <b>${ball} ball</b> — ayni damda <b>${n} ta karta</b>ga yetadi. Yopilgach ball yonadi va qaytmaydi.`;
+      if (await notifyOnce(bot, chatId, memberId, `oyin_warn3:${season.seasonId}`, html).catch(() => false)) {
+        await markPushed("oyin:warn3", season.seasonId, memberId);
+        sent3++;
+      }
+    }
+  }
+
+  // T-49 SOAT — FINAL-48 dan roppa-rosa 1 soat oldin: oxirgi haqiqiy chaqiriq (48 dan keyin
+  // karta olish serverda ham yopiladi, `OYIN_FINAL_LOCK_MS`). T-24/T-1 da ATAYLAB push YO'Q —
+  // o'sha lahzada mijoz allaqachon hech narsa qila olmaydi, ogohlantirish sof tashvish bo'lardi.
+  if (msLeft <= 49 * 3_600_000 && cheapest) {
+    const ids = [...map.entries()].filter(([, r]) => r.breakdown.ball >= cheapest.price).map(([id]) => id);
+    for (const { memberId, chatId } of await pushCandidates("oyin:warn49h", season.seasonId, ids)) {
+      const ball = map.get(memberId)?.breakdown.ball ?? 0;
+      const html = `🔒 <b>Oxirgi soat</b>\n\nBir soatdan keyin karta olish yopiladi. <b>${ball} ball</b> — hozir sarflasangiz kartaga aylanadi, sarflamasangiz yonadi.`;
+      if (await notifyOnce(bot, chatId, memberId, `oyin_warn49h:${season.seasonId}`, html).catch(() => false)) {
+        await markPushed("oyin:warn49h", season.seasonId, memberId);
+        sent49h++;
+      }
+    }
+  }
+
+  return { sent7, sent3, sent49h };
+}
+
+/** 🏁 Mavsum tugagandan KEYIN: ball>0 bo'lganlarga «yondi» xabari. `seasonClose()` allaqachon
+ *  yugurgan bo'lishi SHART (`doneKey` bilan tekshiriladi) — aks holda hali frozen bo'lmagan
+ *  balansni "yondi" deb e'lon qilib qo'yamiz. Balli 0 bo'lganga bu push YUBORILMAYDI — bo'sh
+ *  va'da/tahdid emas, faqat haqiqiy yo'qotishi borlarga. */
+export async function seasonCloseNotify(bot: Bot): Promise<{ sent: number }> {
+  if (!(await featureOn("oyin"))) return { sent: 0 };
+  const season = await getSeason();
+  if (!season.configured || season.phase !== "ended") return { sent: 0 };
+  const closed = await prisma.appState.findUnique({ where: { key: `oyin:seasonclosed:${season.seasonId}` } });
+  if (!closed) return { sent: 0 };
+
+  const { notifyOnce } = await import("./notifyService");
+  const map = await computeBallMap();
+  const ids = [...map.entries()].filter(([, r]) => r.breakdown.ball > 0).map(([id]) => id);
+  let sent = 0;
+  for (const { memberId, chatId } of await pushCandidates("oyin:seasonend", season.seasonId, ids)) {
+    const ball = map.get(memberId)?.breakdown.ball ?? 0;
+    const html = `🏁 <b>Mavsum yakunlandi</b>\n\nBu mavsumdagi <b>${ball} ball</b> mavsum bilan yopildi. Kartaga aylantirgan ballingiz esa saqlanadi — ular mukofot kunida omad kutadi.\n\nYangi mavsum boshlanganda hisob yana noldan yuguradi.`;
+    if (await notifyOnce(bot, chatId, memberId, `oyin_end:${season.seasonId}`, html).catch(() => false)) {
+      await markPushed("oyin:seasonend", season.seasonId, memberId);
+      sent++;
+    }
+  }
+  return { sent };
+}
+
+/** 🏆 G'olib va yutmaganlarga tiraj natijasi. `adminRecordWinner` bayonnomani yozgan zahoti
+ *  yubora olmaydi — u HTTP marshrutidan chaqiriladi va u yerda `bot` instansi yo'q (loyihada
+ *  bot faqat `index.ts` tikida bor, xuddi `alertAdmins`ning `registerAdminNotifier` naqshi
+ *  kabi). Shuning uchun keyingi tikda: `oyin:winner:*` dan `notifiedAt` yo'qlarini, `oyin:tickets:*`
+ *  dan `result:"lost" && !notifiedLoss` bo'lganlarni tarab chiqadi. */
+export async function seasonDrawNotify(bot: Bot): Promise<{ winners: number; losers: number }> {
+  if (!(await featureOn("oyin"))) return { winners: 0, losers: 0 };
+  const { notifyOnce } = await import("./notifyService");
+  let winners = 0;
+
+  // ── G'oliblar ────────────────────────────────────────────────────────────────────────────
+  const winnerRows = await prisma.appState.findMany({ where: { key: { startsWith: WINNER_PREFIX } } });
+  for (const row of winnerRows) {
+    let w: OyinWinner;
+    try { w = JSON.parse(row.value) as OyinWinner; } catch { continue; }
+    if (w.notifiedAt) continue;
+    const tu = await prisma.telegramUser.findFirst({ where: { memberId: w.memberId }, select: { id: true } });
+    if (!tu) continue; // ulanmagan qolgan — keyingi safar qayta tekshiriladi
+    const html = `🏆 <b>SIZ YUTDINGIZ!</b>\n\n«${w.prizeName}» — karta №${w.gno}.\n${w.poolSize} ta karta ichidan sizniki chiqdi.\n\n📞 Ega tez orada siz bilan bog'lanadi. «Kartalarim»da holatni kuzatib boring.`;
+    const ok = await notifyOnce(bot, tu.id, w.memberId, `oyin_win:${w.prizeKey}`, html).catch(() => false);
+    if (ok) {
+      // ⚠️ `create`/CAS emas — bu yakka o'qish-yozish, poyga xavfi yo'q (bitta g'olib, bitta tik).
+      w.notifiedAt = new Date().toISOString();
+      await prisma.appState.update({ where: { key: row.key }, data: { value: JSON.stringify(w) } }).catch(() => undefined);
+      winners++;
+    }
+  }
+
+  // ── Yutmaganlar ──────────────────────────────────────────────────────────────────────────
+  // ⚠️ Bu yerda `allTicketRows()` KESHI ishlatilmaydi — u 30s TTL bilan o'qish uchun, bu yerda
+  // esa yozish (marker) qilinadi va TO'LIQ, keshsiz haqiqat kerak.
+  const ticketRows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } });
+  let losers = 0, checked = 0;
+  for (const row of ticketRows) {
+    if (checked >= SEASON_PUSH_BATCH) break; // bir tikda cheklangan — qolgani keyingi tikda
+    const memberId = Number(row.key.slice("oyin:tickets:".length));
+    if (!Number.isFinite(memberId)) continue;
+    const tickets = parseTickets(row.value);
+    const fresh = tickets.filter((t) => t.result === "lost" && !t.notifiedLoss);
+    if (fresh.length === 0) continue;
+    checked++;
+    const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
+    if (!tu) continue;
+    const names = [...new Set(fresh.map((t) => t.prizeKey))].length;
+    const html = fresh.length === 1
+      ? `🎬 <b>Tiraj bo'ldi</b>\n\nKartangiz o'ynadi — bu safar chiqmadi. ${fresh.length} ta karta orasidan boshqa raqam chiqdi.\n\n🎁 Yangi sovg'alarni ko'ring — sarflagan ballingiz bekorga ketmaydi, boshqa kartaga aylanadi.`
+      : `🎬 <b>Tiraj bo'ldi</b>\n\n${fresh.length} ta kartangiz (${names} ta sovg'ada) o'ynadi — bu safar chiqmadi.\n\n🎁 Yangi sovg'alarni ko'ring — sarflagan ballingiz bekorga ketmaydi, boshqa kartaga aylanadi.`;
+    const ok = await notifyOnce(bot, tu.id, memberId, `oyin_lost:${row.key}:${fresh.map((t) => t.gno ?? t.no).join(",")}`, html).catch(() => false);
+    if (ok) {
+      for (const t of tickets) if (t.result === "lost") t.notifiedLoss = true;
+      await prisma.appState.update({ where: { key: row.key }, data: { value: JSON.stringify(tickets) } }).catch(() => undefined);
+      losers++;
+    }
+  }
+
+  return { winners, losers };
 }
 
 // ── 🧹 Admin: "Yangi mavsumni toza boshlash" (ega qarori 2026-08-02 — avtomatik EMAS, qo'lda).
@@ -4258,4 +4480,102 @@ export async function adminSetSeasonPlan(input: Partial<OyinSeasonPlan>): Promis
   const value = JSON.stringify(next);
   await prisma.appState.upsert({ where: { key: SEASON_PLAN_KEY }, create: { key: SEASON_PLAN_KEY, value }, update: { value } });
   return next;
+}
+
+// ── 🎟 KARTA SAHIFASI (2026-08-12, ega talabi) ─────────────────────────────────────────────────
+// Ega: «har bir kartaga kirib bo'lishi · birovni kartasiga kirib ko'rish imkoniyati kerak».
+//
+// ⚠️ ALOHIDA INDEKS QURILMADI — ataylab. Kartalar a'zolar chiptalaridan HOSIL QILINADI.
+// Sabab: indeks (`oyin:card:<prize>:<no>`) xarid yo'liga ikkinchi yozuv qo'shadi va u yiqilsa
+// indeks bilan haqiqat AJRALIB ketadi (jim drift — bu kodbazada allaqachon bir necha marta
+// zarar keltirgan naqsh). Hosil qilish esa qurilishi bo'yicha DOIM to'g'ri.
+// Narxi: `oyin:tickets:` prefiksi bo'yicha skan — bugun 854 a'zo, ya'ni arzon. Chegara:
+// ~50 000 kartadan yoki p95 > 300 ms dan keyin alohida jadval kerak bo'ladi (OYIN_KARTA_PLAN §1).
+const PRIZE_CARDS_TTL_MS = 30_000;
+let prizeCardsCache: { at: number; rows: { prizeKey: string; no: number; gno: number | null; memberId: number; ts: string; result?: "won" | "lost" }[] } | null = null;
+
+async function allTicketRows(): Promise<NonNullable<typeof prizeCardsCache>["rows"]> {
+  if (prizeCardsCache && Date.now() - prizeCardsCache.at < PRIZE_CARDS_TTL_MS) return prizeCardsCache.rows;
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } });
+  const out: NonNullable<typeof prizeCardsCache>["rows"] = [];
+  for (const r of rows) {
+    const memberId = Number(r.key.slice("oyin:tickets:".length));
+    if (!Number.isFinite(memberId)) continue;
+    for (const t of parseTickets(r.value)) {
+      // 🧪 Sinov kartasi panjarada KO'RSATILADI (yashirish «ega o'z tirajida qatnashdi»
+      // ayblovini keltiradi), lekin egasi sifatida ochiq «sinov» deb yoziladi.
+      out.push({ prizeKey: t.prizeKey, no: t.no, gno: t.gno ?? null, memberId, ts: t.ts, ...(t.result ? { result: t.result } : {}) });
+    }
+  }
+  prizeCardsCache = { at: Date.now(), rows: out };
+  return out;
+}
+
+/** Egalarning KO'RSATILADIGAN ismi. Ega qarori 2026-08-12: «oddiy telegram ismlari turishi
+ *  yaxshi». Telefon, familiya va `memberId` HECH QACHON chiqmaydi. */
+async function ownerNames(memberIds: number[]): Promise<Map<number, string>> {
+  const ids = [...new Set(memberIds)];
+  if (ids.length === 0) return new Map();
+  const rows = await prisma.telegramUser.findMany({
+    where: { memberId: { in: ids } },
+    select: { memberId: true, firstName: true, username: true },
+  });
+  const map = new Map<number, string>();
+  for (const r of rows) {
+    if (r.memberId == null) continue;
+    const n = (r.firstName ?? "").trim() || (r.username ? `@${r.username}` : "") || "Mijoz";
+    map.set(r.memberId, n.slice(0, 24));
+  }
+  return map;
+}
+
+/** 🎟 Bitta sovg'aning BARCHA kartalari — bo'shi ham, bandi ham. Panjara shundan chiziladi. */
+export async function getPrizeCards(prizeKey: string, viewerMemberId: number | null): Promise<OyinPrizeCardsResponse | null> {
+  const [catalog, soldMap, econ, rows] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon(), allTicketRows()]);
+  const prize = catalog.find((p) => p.key === prizeKey);
+  if (!prize) return null;
+  const mine = rows.filter((r) => r.prizeKey === prizeKey);
+  const names = await ownerNames(mine.map((r) => r.memberId));
+  const byNo = new Map(mine.map((r) => [r.no, r]));
+  const sold = soldMap.get(prizeKey) ?? 0;
+  const minSell = minSellOf(prize.limit, econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT);
+  const cards: OyinPrizeCard[] = [];
+  for (let no = 1; no <= prize.limit; no++) {
+    const r = byNo.get(no);
+    cards.push(r
+      ? { no, gno: r.gno, ownerName: names.get(r.memberId) ?? "Mijoz", mine: viewerMemberId != null && r.memberId === viewerMemberId, at: r.ts }
+      : { no, gno: null, ownerName: null, mine: false, at: null });
+  }
+  return {
+    prizeKey, prizeName: prize.name, prizeIcon: prize.icon, photoUrl: prize.photoUrl,
+    price: prize.price, limit: prize.limit, sold, minSell,
+    willDraw: minSell <= 0 || sold >= minSell,
+    cards,
+  };
+}
+
+/** 🔎 Bitta karta sahifasi — O'ZGA odamning kartasi ham shu bilan ochiladi (ega talabi).
+ *  Shuning uchun bu yerda faqat ochiq ma'lumot: raqam, sovg'a, ism, sana, holat. */
+export async function getCardDetail(gno: number, viewerMemberId: number | null): Promise<OyinCardDetail | null> {
+  if (!Number.isFinite(gno)) return null;
+  const [catalog, season, rows] = await Promise.all([getCatalog(), getSeason(), allTicketRows()]);
+  // Eski kartalarda `gno` yo'q — o'shalar uchun `no` bo'yicha ham qidiriladi (myTickets
+  // aynan shunday moslikni qiladi: `gno: t.gno ?? t.no`).
+  const r = rows.find((x) => x.gno === gno) ?? rows.find((x) => x.gno === null && x.no === gno);
+  if (!r) return null;
+  const prize = catalog.find((p) => p.key === r.prizeKey);
+  const names = await ownerNames([r.memberId]);
+  return {
+    gno: r.gno ?? r.no,
+    no: r.no,
+    prizeKey: r.prizeKey,
+    prizeName: prize?.name ?? r.prizeKey,
+    prizeIcon: prize?.icon ?? "🎟",
+    photoUrl: prize?.photoUrl ?? null,
+    ownerName: names.get(r.memberId) ?? "Mijoz",
+    mine: viewerMemberId != null && r.memberId === viewerMemberId,
+    at: r.ts,
+    result: r.result ?? null,
+    drawIso: season.endIso,
+  };
 }

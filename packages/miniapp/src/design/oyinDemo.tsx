@@ -14,7 +14,7 @@ import { useCallback } from "react";
 import { OyinView } from "../oyin";
 import type {
   OyinStateResponse, OyinVitrinaResponse, OyinActivityResponse, OyinMyTicketsResponse,
-  OyinJamoamResponse, OyinJamoaView,
+  OyinJamoamResponse, OyinJamoaView, OyinPrizeCardsResponse, OyinCardDetail,
 } from "@t1067/shared";
 
 const MOCK_STATE: OyinStateResponse = {
@@ -108,6 +108,37 @@ function jsonRes(body: unknown): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
 }
 
+// 🎟 Kartalar panjarasi uchun mock. Ega KO'RISHI kerak bo'lgan uch holat ham bor:
+// bo'sh o'rin · boshqa odamning kartasi (ismi bilan) · o'zining kartasi.
+const DEMO_NAMES = ["Aziz", "Mehri", "Bekzod", "Dilnoza", "Sardor", "Nodira", "Jamshid", "Zulfiya"];
+function mockPrizeCards(key: string): OyinPrizeCardsResponse {
+  const p = MOCK_VITRINA.prizes.find((x) => x.key === key) ?? MOCK_VITRINA.prizes[0]!;
+  const cards = Array.from({ length: p.limit }, (_, i) => {
+    const no = i + 1;
+    if (no === 7 || no === 22) return { no, gno: 729470 + no, ownerName: "Sarvarxon", mine: true, at: "2026-08-10T09:12:00.000Z" };
+    // Bo'sh o'rinlar ataylab tarqoq — panjara "birinchi N ta sotilgan" bo'lib ko'rinmasin.
+    if (no % 3 === 0 || no % 7 === 0) return { no, gno: null, ownerName: null, mine: false, at: null };
+    return { no, gno: 729400 + no, ownerName: DEMO_NAMES[no % DEMO_NAMES.length]!, mine: false, at: "2026-08-0" + ((no % 8) + 1) + "T12:00:00.000Z" };
+  });
+  return {
+    prizeKey: p.key, prizeName: p.name, prizeIcon: p.icon, photoUrl: p.photoUrl,
+    price: p.price, limit: p.limit, sold: cards.filter((c) => c.ownerName !== null).length,
+    minSell: p.minSell, willDraw: p.willDraw, cards,
+  };
+}
+function mockCard(gno: number): OyinCardDetail {
+  const mine = gno === 729477 || gno === 729492;
+  return {
+    gno, no: gno - 729400, prizeKey: MOCK_VITRINA.prizes[0]!.key,
+    prizeName: MOCK_VITRINA.prizes[0]!.name, prizeIcon: MOCK_VITRINA.prizes[0]!.icon,
+    photoUrl: MOCK_VITRINA.prizes[0]!.photoUrl,
+    ownerName: mine ? "Sarvarxon" : DEMO_NAMES[gno % DEMO_NAMES.length]!,
+    mine, at: "2026-08-08T14:20:00.000Z",
+    // Demo'da natija ko'rsatilmaydi (mavsum hali tugamagan) — «O'yinda» holati chiziladi.
+    result: null, drawIso: MOCK_STATE.season?.endIso ?? null,
+  };
+}
+
 let mockedOnce = false;
 function installOyinMock(): void {
   if (mockedOnce) return;
@@ -117,6 +148,12 @@ function installOyinMock(): void {
     const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     const path = url.replace(/^https?:\/\/[^/]+/, "").split("?")[0] ?? "";
     if (path === "/api/oyin/bell") return jsonRes(MOCK_BELL);
+    // 🎟 Kartalar panjarasi va karta sahifasi (2026-08-12). Bularsiz demo'da ikkala yangi
+    // varaq XATO holatini ko'rsatardi — ya'ni ega ularni QABUL qila olmasdi.
+    const cardsM = /^\/api\/oyin\/prize\/([^/]+)\/cards$/.exec(path);
+    if (cardsM) return jsonRes(mockPrizeCards(decodeURIComponent(cardsM[1] ?? "")));
+    const cardM = /^\/api\/oyin\/card\/(\d+)$/.exec(path);
+    if (cardM) return jsonRes(mockCard(Number(cardM[1])));
     if (path in MOCK_GET) return jsonRes(MOCK_GET[path]);
     // 🤝 Gashtak boshliq amallari (kick/add/turn/message/rotate/disband) — demo'da HAQIQIY
     // guruh o'zgarmaydi (backend yo'q), lekin tugma "ishladi" deb javob qaytaradi, shunda

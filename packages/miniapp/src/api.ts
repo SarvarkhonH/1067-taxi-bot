@@ -28,6 +28,8 @@ import type {
   CashoutResponse,
   TierBenefitsResponse,
   OyinBuyResult,
+  OyinCardDetail,
+  OyinPrizeCardsResponse,
   OyinJamoamResponse,
   OyinJamoaResult,
   OyinJamoaView,
@@ -317,6 +319,10 @@ export const api = {
   oyinTeaser: () => get<OyinTeaserResponse>("/api/oyin/teaser"),
   oyinState: () => get<OyinStateResponse>("/api/oyin/state"),
   oyinVitrina: () => get<OyinVitrinaResponse>("/api/oyin/vitrina"),
+  // 🎟 Sovg'a kartalari panjarasi + bitta kartaning sahifasi (ega talabi 2026-08-12).
+  // `oyinCard` BOSHQA odamning kartasini ham ochadi — javobda faqat ochiq ma'lumot.
+  oyinPrizeCards: (key: string) => get<OyinPrizeCardsResponse>(`/api/oyin/prize/${encodeURIComponent(key)}/cards`),
+  oyinCard: (gno: number) => get<OyinCardDetail>(`/api/oyin/card/${gno}`),
   oyinJamoam: () => get<OyinJamoamResponse>("/api/oyin/jamoam"),
   // 🤝 Gap-jamoa (gashtak) — guruh tuzish/qo'shilish/chiqish. Ball ko'chirish YO'Q.
   oyinJamoa: () => get<OyinJamoaView>("/api/oyin/jamoa"),

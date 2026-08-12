@@ -70,7 +70,12 @@ export async function pushSend(chatId: string, kind: string, send: () => Promise
       await recordBlock(chatId, kind, opts.memberId);
       return "blocked";
     }
-    return "failed"; // 429/tarmoq — avvalgidek jim (chaqiruvchi oqimi o'zgarmaydi)
+    // 🔴 B12 — TUZATILDI (2026-08-12). Avval bu yerda HECH NARSA yozilmasdi: 429/tarmoq xatosi
+    // "failed" bo'lib jim qaytardi, `notifyService` uni "yuborilmadi" deb to'g'ri o'qiydi, lekin
+    // sabab HECH QAYERGA tushmasdi — ya'ni xabar yo'qolganini HECH KIM bilmasdi. Matn/chastota/
+    // cheklov o'zgarmaydi (yuqoridagi qoida) — faqat KO'RINADIGAN bo'ladi.
+    console.error(`[push] ${kind} → ${chatId}: yetkazilmadi —`, e instanceof Error ? e.message : e);
+    return "failed";
   }
 }
 

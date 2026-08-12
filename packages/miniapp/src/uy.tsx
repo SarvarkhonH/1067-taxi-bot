@@ -661,16 +661,16 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         </>
       )}
 
-      {/* O'yin yoniqda bu karta chiqmaydi: yuqoridagi sovg'a paneli allaqachon do'st chaqiradi va
-          kuchliroq sabab bilan ("do'sting yursa senga ball tushadi"). Ikkita bir xil CTA —
-          ikkalasi ham zaiflashadi. O'yin o'chsa karta avvalgidek qaytadi. */}
-      {!f.oyin && (
-        <button className="gl-invite" onClick={() => go("invite")}>
-          <span className="ii"><GlIcon n="users" size={22} /></span>
-          <span className="gl-invite-t"><b>Do'stni chaqir — pul ishla</b><small>Har do'st uchun bonus · birinchi safar bepul</small></span>
-          <span className="ar" aria-hidden="true"><GlIcon n="arrow" /></span>
-        </button>
-      )}
+      {/* 🔴 TUZATILDI (2026-08-12, jonli bug — audit topdi). Avval `!f.oyin` sharti bilan
+          o'yin yoqilganda bu tugma BUTUNLAY yo'qolardi — izoh «sovg'a paneli allaqachon
+          do'st chaqiradi» derdi, lekin `KosonOyinCard` ichida referal/taklif CTA'si UMUMAN
+          YO'Q (tekshirildi). Ya'ni o'yin yoqilgan zahoti ilovadagi yagona ishlaydigan
+          growth-loop tugmasi sababsiz o'chib qolardi. Endi shart olib tashlandi — doim ko'rinadi. */}
+      <button className="gl-invite" onClick={() => go("invite")}>
+        <span className="ii"><GlIcon n="users" size={22} /></span>
+        <span className="gl-invite-t"><b>Do'stni chaqir — pul ishla</b><small>Har do'st uchun bonus · birinchi safar bepul</small></span>
+        <span className="ar" aria-hidden="true"><GlIcon n="arrow" /></span>
+      </button>
 
       {hub && <ServicesHub me={me} onNav={onNav} onClose={() => setHub(false)} onBanner={onBanner} />}
     </div>
