@@ -531,17 +531,6 @@
 .oyk-scarce { font-size: 11px; font-weight: 800; border-radius: 9px; padding: 6px 10px; }
 .oyk-scarce.is-warn { background: var(--oyk-warn-pale); color: var(--oyk-warn-deep); }
 .oyk-scarce.is-hot { background: color-mix(in srgb, var(--oyk-red) 10%, transparent); color: var(--oyk-red-soft); }
-/* ── R6 (audit): bu blok qizil edi, vitrina tabida HAR DOIM shartsiz chiqardi — eng-tanqis-
-   sovrin belgisi ham qizil bo'lsa, bitta ekranda ikki qizil birga chiqib qolardi. Bu — sof
-   jadval-ma'lumot (48-soat qoidasi), ogohlantirish emas, shuning uchun endi neytral. */
-.oyk-sched {
-  background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 16px;
-  padding: 13px 15px; display: flex; gap: 11px; align-items: center;
-}
-.oyk-sched-emoji { font-size: 22px; }
-.oyk-sched-text { font-size: 11.5px; color: var(--oyk-text-2); line-height: 1.55; }
-.oyk-sched-text b { color: var(--oyk-text); }
-
 /* ── 🎟 CHIPTALARIM TABI — chipta ko'rinadigan buyum (YAKUNIY DIZAYN §2) ──────────────── */
 .oyk-tkt { border-radius: 16px; overflow: hidden; background: var(--oyk-surface); box-shadow: var(--oyk-shadow); border: 1px solid var(--oyk-line); }
 .oyk-tkt-stub { position: relative; padding: 14px 16px 15px; color: var(--oyk-on); background: var(--oyk-violet-grad); }
@@ -830,6 +819,8 @@
   cursor: pointer; transition: transform var(--dur-press);
 }
 .oyk-sheet-ok:active { transform: scale(.98); }
+/* Ikkinchi (yopish) tugma birinchi CTA bilan bir sheet'da turganda — kamroq urg'u. */
+.oyk-sheet-ok.is-ghost { background: var(--oyk-fill); color: var(--oyk-text); }
 .oyk-sheet-foot { font-size: 11px; color: var(--oyk-text-3); text-align: center; }
 
 /* 💡 Ball jadvali varag'i */
@@ -1271,25 +1262,39 @@
 .oyk-arch-nm small{font-size:11.5px;color:var(--oyk-text-2)}
 .oyk-arch-go{color:var(--oyk-text-3)}
 
-.oyk-cards-sub{font-size:12.5px;color:var(--oyk-text-2);margin:2px 0 8px}
-.oyk-cards-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
-.oyk-cell{aspect-ratio:1;border-radius:7px;display:grid;place-items:center;font:inherit;font-size:11px;
-  font-weight:700;border:1px solid var(--oyk-line);cursor:default;padding:0;font-variant-numeric:tabular-nums}
+/* 🎨 Panjara sarlavhasi — sovg'aning o'zi (rasm/emoji) + to'lish chizig'i. Ega talabi
+   2026-08-12: «kartalar tanlash joyi hali chiroyli emas», oldin faqat matn edi. */
+.oyk-cards-head{display:flex;align-items:center;gap:11px}
+.oyk-cards-ico{width:42px;height:42px;border-radius:13px;background:var(--oyk-fill);display:grid;
+  place-items:center;font-size:21px;flex-shrink:0;overflow:hidden}
+.oyk-cards-ico img{width:100%;height:100%;object-fit:cover}
+.oyk-cards-head-name{font-size:15px;font-weight:900;line-height:1.25}
+.oyk-cards-bar{margin:11px 0 2px}
+.oyk-cards-sub{font-size:12.5px;color:var(--oyk-text-2);margin:2px 0 10px}
+.oyk-cards-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:7px}
+.oyk-cell{aspect-ratio:1;border-radius:11px;display:grid;place-items:center;font:inherit;font-size:12px;
+  font-weight:800;border:1px solid var(--oyk-line);cursor:default;padding:0;font-variant-numeric:tabular-nums;
+  transition:transform var(--dur-press)}
+.oyk-cell:active{transform:scale(.9)}
 /* ⚠️ Uch holat KO'Z BILAN ajralishi SHART — panjaraning butun maqsadi «qaysi biri bo'sh»
    savoliga bir qarashda javob berish. Jonli tekshiruvda bo'sh va band katak deyarli bir xil
    chiqdi (ikkalasi ham neytral fon), shuning uchun bo'sh katak AKSENT tusiga o'tkazildi:
-   bo'sh = harakat mumkin (aksent) · band = tugagan (neytral, so'nik) · meniki = to'la aksent. */
-.oyk-cell.is-free{background:var(--oyk-accent-fill);border-color:var(--oyk-accent);color:var(--oyk-text)}
+   bo'sh = harakat mumkin (aksent) · band = tugagan (neytral, so'nik) · meniki = to'la aksent,
+   halqa bilan ajratilgan (ega tuzatishi 2026-08-12 — «meniki» boshqalarnikidan yetarlicha
+   ajralmasdi). */
+.oyk-cell.is-free{background:var(--oyk-accent-fill);border-color:var(--oyk-accent);color:var(--oyk-text);cursor:pointer}
 .oyk-cell.is-own{background:var(--oyk-skel);border-color:transparent;color:var(--oyk-text-3);cursor:pointer}
-.oyk-cell.is-mine{background:var(--oyk-accent);border-color:var(--oyk-accent);color:var(--oyk-on);cursor:pointer}
+.oyk-cell.is-mine{background:var(--oyk-accent);border-color:var(--oyk-accent);color:var(--oyk-on);cursor:pointer;
+  box-shadow:0 0 0 3px var(--oyk-accent-fill)}
 /* Skeleton — real panjaraning AYNAN nusxasi (bir xil ustun, bir xil o'lcham), aks holda
    yuklangach ekran sakraydi (DIZAYN_QOIDALARI: skeleton real layout nusxasi). */
 .oyk-cell.is-skel{background:var(--oyk-fill);border-color:transparent;opacity:.55}
-.oyk-cards-lg{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--oyk-text-2);margin-top:9px}
-.oyk-sw{width:12px;height:12px;border-radius:4px;display:inline-block;vertical-align:-2px;margin-right:5px;
-  border:1px solid var(--oyk-line)}
-.oyk-sw.is-free{background:var(--oyk-fill)}
-.oyk-sw.is-own{background:var(--oyk-surface)}
+.oyk-cards-lg{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;font-weight:700;color:var(--oyk-text-2);margin-top:12px}
+.oyk-cards-lg span{display:inline-flex;align-items:center;gap:6px;background:var(--oyk-fill);
+  border:1px solid var(--oyk-line);border-radius:99px;padding:5px 11px 5px 7px}
+.oyk-sw{width:11px;height:11px;border-radius:4px;display:inline-block;border:1px solid var(--oyk-line)}
+.oyk-sw.is-free{background:var(--oyk-accent-fill);border-color:var(--oyk-accent)}
+.oyk-sw.is-own{background:var(--oyk-skel)}
 .oyk-sw.is-mine{background:var(--oyk-accent);border-color:var(--oyk-accent)}
 .oyk-cards-msg{font-size:12.5px;color:var(--oyk-text-2);margin-top:10px;line-height:1.5}
 
@@ -1297,6 +1302,8 @@
    shuning uchun eng katta, tabular va keng oraliqli. */
 .oyk-cert{border:1px solid var(--oyk-accent);border-radius:14px;padding:16px 12px;text-align:center;
   background:var(--oyk-surface)}
+/* Bo'sh joy — chizilgan chegara: "hali real emas" (haqiqiy karta emas, taklif). */
+.oyk-cert.is-empty{border-style:dashed;background:transparent}
 .oyk-cert-lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--oyk-accent);font-weight:700}
 .oyk-cert-no{font-size:26px;font-weight:800;letter-spacing:.06em;margin:6px 0 4px;
   font-variant-numeric:tabular-nums;color:var(--oyk-text)}
@@ -1325,14 +1332,6 @@
 @keyframes oyStRise { 0% { opacity: 0; transform: translateY(0); } 18% { opacity: 1; } 100% { opacity: 0; transform: translateY(-58px); } }
 @media (prefers-reduced-motion: reduce) { .st-oy-chip { animation: none; opacity: 1; } }
 
-.st-oy-card { width: 200px; background: linear-gradient(165deg, #fff, #FBF6E8); border: 1px solid #E8D9A8;
-  border-radius: 16px; padding: 16px 14px; text-align: center; box-shadow: 0 14px 30px -18px rgba(120, 90, 10, .35); }
-.st-oy-card-lbl { font-size: 9.5px; letter-spacing: .14em; color: #B0862A; font-weight: 800; }
-.st-oy-card-no { font-size: 19px; font-weight: 800; letter-spacing: .07em; color: #4A3A0E; margin: 7px 0;
-  font-variant-numeric: tabular-nums; }
-.st-oy-card-tag { display: inline-block; font-size: 11px; font-weight: 700; color: #01A95E;
-  background: #EAF7EF; border-radius: 99px; padding: 3px 10px; }
-
 .st-oy-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; width: 200px; }
 .st-oy-cell { aspect-ratio: 1; border-radius: 8px; background: #F4F6F9; border: 1px solid #E5E9F0;
   display: flex; align-items: center; justify-content: center; font-size: 15px; color: #01A95E; font-weight: 800; }
@@ -1340,8 +1339,13 @@
   animation: oyStPulse 1.4s ease-in-out infinite; }
 @keyframes oyStPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
 @media (prefers-reduced-motion: reduce) { .st-oy-cell.is-win { animation: none; } }
+/* "Tanlaganingiz" — panjaradan tanlash slaydi (StageKarta), real ekrandagi is-mine bilan bir
+   xil til: yashil = sizniki. */
+.st-oy-cell.is-mine { background: #01A95E; border-color: #01A95E; color: #fff; }
 .st-oy-liveTag { position: absolute; bottom: 16px; font-size: 11px; font-weight: 800; color: #D64545;
   background: #FDEAEA; border-radius: 99px; padding: 3px 10px; }
+.st-oy-pickTag { position: absolute; bottom: 16px; font-size: 11px; font-weight: 800; color: #01A95E;
+  background: #EAF7EF; border-radius: 99px; padding: 3px 10px; }
 
 .st-oy-track { position: relative; width: 210px; height: 6px; background: #EFEFEF; border-radius: 99px; }
 .st-oy-track-fill { position: absolute; inset: 0; border-radius: 99px; background: linear-gradient(90deg, #01A95E, #F5B700); }

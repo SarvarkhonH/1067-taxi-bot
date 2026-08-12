@@ -42,8 +42,8 @@ const MOCK_STATE: OyinStateResponse = {
 const MOCK_VITRINA: OyinVitrinaResponse = {
   sponsor: { name: "BirJoy", photoUrl: null },
   prizes: [
-    { key: "p1", icon: "🍳", name: "Nonstick qadoq to'plami", valueLabel: "480 000 so'm", price: 1200, limit: 20, sold: 12, photoUrl: null },
-  ] as unknown as OyinVitrinaResponse["prizes"],
+    { key: "p1", icon: "🍳", name: "Nonstick qadoq to'plami", valueLabel: "480 000 so'm", price: 1200, limit: 20, sold: 12, remaining: 8, soldOut: false, mine: 1, chancePct: 5, photoUrl: null, minSell: 10, willDraw: true },
+  ],
 };
 
 const MOCK_BELL: OyinActivityResponse = { rows: [], total: 0, page: 1, pageSize: 20 };

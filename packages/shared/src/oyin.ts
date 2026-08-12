@@ -497,6 +497,13 @@ export interface OyinHomeTask {
  *  kerak — oxirgi soniyada olingan chipta eksportga tushmay qolishi mumkin. */
 export const OYIN_FINAL_LOCK_MS = 48 * 3600_000;
 
+/** 🔒 Karta bekor qilish oynasi (OYIN_KARTA_PLAN.md §2, ega talabi 2026-08-12: bekor qilish
+ *  hozir CHEKSIZ ochiq edi — sold<minSell bo'lgan ekan, oylar oldin olingan kartani ham bekor
+ *  qilib bo'lardi. Bu yangi sovg'a ochilganda eski (sekin to'layotgan) sovg'alarni ORQAGA
+ *  tepadi: odam eskisini bekor qilib, yangisiga o'tadi. Reja: faqat BARMOQ XATOSI uchun qisqa
+ *  oyna — undan keyin karta «sarflangan» (abadiy), minSell holatidan QAT'I NAZAR. */
+export const OYIN_CANCEL_WINDOW_MS = 60 * 60_000;
+
 /** 📸 Bitta a'zo bitta mavsumda nechta hikoya-isboti uchun ball ola oladi.
  *  IKKI joyda qo'llanadi: yuborishda (`oyinStory.submitStory`) VA ball hisobida
  *  (`computeBallMap`) — ikkinchisi ikkinchi qavat himoya: admin xato bilan limitdan
@@ -1057,7 +1064,7 @@ export interface OyinMyTicketsResponse {
 /** 🎟 Mijoz o'zi chegaraga yetmagan kartasini bekor qiladi (ball qaytadi). */
 export interface OyinCancelTicketResult {
   ok: boolean;
-  reason?: "not_found" | "not_ticket" | "season_off" | "final_lock" | "will_draw" | "past_season";
+  reason?: "not_found" | "not_ticket" | "season_off" | "final_lock" | "will_draw" | "past_season" | "too_late";
   ball?: number; // yangi balans
 }
 

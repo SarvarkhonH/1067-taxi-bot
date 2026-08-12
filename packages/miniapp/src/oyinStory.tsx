@@ -133,7 +133,7 @@ function body(id: CardId, h: OyinStateResponse["hints"], cheapestName: string | 
     case "ball":
       return <>Taksi chaqirasiz — hisobingizga <b>+{h.rideBall} ball</b> tushadi. Ball uchun alohida pul to'lamaysiz, safar narxi o'zgarmaydi. Do'stingiz sizning havolangiz bilan yursa — sizga ham ball.</>;
     case "karta":
-      return <>Ball yetganda uni kartaga almashtirasiz. Karta — bitta sovg'a uchun o'ynaydigan joyingiz; o'z raqami bor va <b>«Kartalarim»</b>da turadi.</>;
+      return <>Ball yetganda kartaga almashtirasiz — panjaradan bo'sh raqamni <b>o'zingiz tanlaysiz</b>. Karta — bitta sovg'a uchun o'ynaydigan joyingiz, <b>«Kartalarim»</b>da doim turadi.</>;
     case "tiraj":
       return <>Mavsum oxirida Telegram jonli efirida barcha kartalar orasidan sovg'a egalari aniqlanadi. Nechta kartangiz ko'p bo'lsa, imkoniyat shuncha yuqori — lekin karta kafolat emas.</>;
     case "mavsum":
@@ -166,14 +166,17 @@ function StageBall({ rideBall }: { rideBall: number }) {
     </div>
   );
 }
+// 🎟 Kartani PANJARADAN tanlaysiz — real ekran bilan bir xil til (ega talabi 2026-08-12:
+// «kartalar tanlash joyi... story ichiga joylashtirib ham qo'y»). Shuning uchun bu yerda
+// endi bitta statik karta emas, real "🎟 Kartalar" varag'idagi xuddi shu panjara-uslub.
 function StageKarta() {
+  const cells = Array.from({ length: 12 }, (_, i) => i);
   return (
     <div className="st-scene st-oy-scene">
-      <div className="st-oy-card">
-        <div className="st-oy-card-lbl">BIRJOY KARTA</div>
-        <div className="st-oy-card-no">421 308 7561</div>
-        <div className="st-oy-card-tag">🎁 Sizniki</div>
+      <div className="st-oy-grid">
+        {cells.map((c) => <span key={c} className={`st-oy-cell${c === 5 ? " is-mine" : ""}`}>{c === 5 ? "✓" : ""}</span>)}
       </div>
+      <div className="st-oy-pickTag">🎟 Tanlaganingiz — sizniki</div>
     </div>
   );
 }

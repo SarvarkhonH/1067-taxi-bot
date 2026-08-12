@@ -10,6 +10,7 @@ import type { Bot } from "grammy";
 import {
   OYIN_CAPACITY_RATIO,
   OYIN_FINAL_LOCK_MS,
+  OYIN_CANCEL_WINDOW_MS,
   oyinRiskScore,
   oyinSumInWindow,
   OYIN_JAMOA_MAX,
@@ -1432,6 +1433,14 @@ export async function cancelOwnTicket(memberId: number, gno: number): Promise<Oy
   // yo'qotadi. Karta faqat O'Z mavsumida bekor qilinadi.
   if (target.ts && Date.parse(target.ts) < (season.startMs ?? -Infinity)) {
     return { ok: false, reason: "past_season" };
+  }
+  // 🔒 BEKOR QILISH OYNASI (2026-08-12, ega talabi — "karta bekor qilib bo'lopti" — jonlida
+  // buzilgan holat topildi). Avval bu yerda hech qanday vaqt cheklovi YO'Q edi: `sold<minSell`
+  // bo'lgan ekan, karta OYLAR OLDIN olingan bo'lsa ham bekor bo'lardi. Reja (§2) buni "faqat
+  // barmoq xatosi uchun qisqa oyna, keyin abadiy" deb belgilagan — busiz mijoz yangi (jozibali)
+  // sovg'a ochilganda eskisidan ko'chib o'tishi mumkin edi, eski sovg'a esa hech qachon to'lmasdi.
+  if (target.ts && Date.now() - Date.parse(target.ts) > OYIN_CANCEL_WINDOW_MS) {
+    return { ok: false, reason: "too_late" };
   }
 
   const [catalog, soldMap, econ] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon()]);

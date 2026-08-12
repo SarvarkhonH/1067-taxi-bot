@@ -164,6 +164,26 @@ describe("O11 — o'tgan mavsum kartasi bekor qilinmaydi (jonli bug, 2026-08-12)
   });
 });
 
+describe("karta bekor qilish OYNASI (jonlida cheksiz ochiq edi, 2026-08-12 ega talabi)", () => {
+  // Avval `sold<minSell` bo'lgan ekan, karta OYLAR OLDIN olingan bo'lsa ham bekor bo'lardi —
+  // yangi (jozibali) sovg'a ochilganda mijoz eskisidan ko'chib o'tar, eski sovg'a hech qachon
+  // to'lmasdi. Reja §2: faqat barmoq xatosi uchun qisqa oyna, keyin abadiy.
+  const fn = code.slice(code.indexOf("export async function cancelOwnTicket"));
+  const body = fn.slice(0, fn.indexOf("\nexport ", 1));
+
+  it("`OYIN_CANCEL_WINDOW_MS`dan o'tgan karta har doim rad etiladi, `minSell` holatidan qat'i nazar", () => {
+    expect(body).toMatch(/Date\.now\(\) - Date\.parse\(target\.ts\) > OYIN_CANCEL_WINDOW_MS/);
+    expect(body).toMatch(/reason:\s*"too_late"/);
+  });
+
+  it("vaqt-qulfi `will_draw` (minSell) tekshiruvidan OLDIN turadi — vaqt qoidasi ustuvor", () => {
+    const winIdx = body.indexOf("OYIN_CANCEL_WINDOW_MS");
+    const willDrawIdx = body.indexOf('reason: "will_draw"');
+    expect(winIdx).toBeGreaterThan(-1);
+    expect(willDrawIdx).toBeGreaterThan(winIdx);
+  });
+});
+
 describe("mavsum yakuni — xabarnoma zanjiri (2026-08-12, ega talabi)", () => {
   const wt = code.slice(code.indexOf("export async function seasonWarningTick"));
   const wtBody = wt.slice(0, wt.indexOf("\nexport ", 1));
