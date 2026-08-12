@@ -42,7 +42,7 @@ const TITLES: Record<CardId, string> = {
   karta: "Ball sovg'a kartasiga aylanadi",
   tiraj: "Sovg'a jonli efirda topshiriladi",
   mavsum: "Ball mavsum ichida yashaydi",
-  boshla: "Birinchi safar — birinchi ball",
+  boshla: "Bugun boshlang — birinchi ball",
 };
 
 export function OyinStory({ hints, cheapestName, cheapestPrice, onClose }: Props) {
@@ -140,8 +140,8 @@ function body(id: CardId, h: OyinStateResponse["hints"], cheapestName: string | 
       return <>Mavsum tugagach ball hisobi <b>hammada barobar noldan</b> boshlanadi. Kartaga aylantirgan ballingiz esa saqlanadi va o'z kunini kutadi. Shuning uchun ballni yig'ib qo'ymang — kartaga aylantiring.</>;
     case "boshla":
       return cheapestName && cheapestPrice
-        ? <>Karta olish uchun kamida bitta haqiqiy safar kerak. Bugun bir marta taksi chaqiring — <b>{cheapestName}</b> uchun {cheapestPrice} ball kerak, qolgani o'zi yuradi.</>
-        : <>Karta olish uchun kamida bitta haqiqiy safar kerak. Bugun bir marta taksi chaqiring — qolgani o'zi yuradi.</>;
+        ? <>Ball yig'ishni hoziroq boshlang — taksi chaqiring yoki do'stingizni taklif qiling. <b>{cheapestName}</b> uchun {cheapestPrice} ball kerak, qolgani o'zi yuradi.</>
+        : <>Ball yig'ishni hoziroq boshlang — taksi chaqiring yoki do'stingizni taklif qiling, qolgani o'zi yuradi.</>;
   }
 }
 
