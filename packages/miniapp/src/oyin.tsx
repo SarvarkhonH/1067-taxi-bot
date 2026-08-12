@@ -1705,14 +1705,18 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {/* ⚠️ Bo'sh natija — YOLG'ON bo'sh holat EMAS. «Sovg'a yo'q» deyish noto'g'ri
                 bo'lardi: sovg'a bor, faqat filtr uni chiqarib tashladi. Sababni aytamiz va
                 qaytish yo'lini beramiz (DIZAYN_QOIDALARI: yozuv harakat va'da qilsa — tugma). */}
-            {oyinFilterPrizes(vitrina.prizes.filter((p) => !p.soldOut), filter).length === 0
-              && vitrina.prizes.some((p) => !p.soldOut) && (
+            {/* 🔴 (ega talabi 2026-08-12: «arxiv o'ynab bo'lingan kartalar uchun emasmi» —
+                to'g'ri edi). Avval bu yerda `!p.soldOut` edi — to'lgan-lekin-hali-tirajga-
+                chiqmagan sovrin (eng qizig'i!) shu tobda yo'qolib, Arxivga tushib qolardi.
+                Endi faqat HAQIQATDA o'ynalgan (`drawn`) sovrin chiqib ketadi. */}
+            {oyinFilterPrizes(vitrina.prizes.filter((p) => !p.drawn), filter).length === 0
+              && vitrina.prizes.some((p) => !p.drawn) && (
               <div className="oyk-fempty">
                 Bu filtrga mos sovg'a yo'q.{" "}
                 <button type="button" className="oyk-flink" onClick={() => { haptic(); setFilter("hammasi"); }}>Hammasini ko'rish</button>
               </div>
             )}
-            {oyinFilterPrizes(vitrina.prizes.filter((p) => !p.soldOut), filter).map((p) => {
+            {oyinFilterPrizes(vitrina.prizes.filter((p) => !p.drawn), filter).map((p) => {
               const affordable = !locked && state.ball >= p.price;
               const showPhoto = !!p.photoUrl && !badPhoto.has(p.key);
               return (
@@ -1826,18 +1830,21 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 </div>
               );
             })}
-            {/* 🗂 ARXIV (ega talabi 2026-08-12): «sovg'alar o'ynalganlari pastga tushib
-                ketishi yoki alohida tabga o'tib ketishi kerak — arxiv degan joyiga kichik
-                chiroyli». To'lgan sovg'a xarid uchun yopiq, lekin kartalari ochiq qoladi:
-                odam o'z kartasini va tiraj ro'yxatini ko'ra olishi shart. */}
-            {vitrina.prizes.some((p) => p.soldOut) && (
+            {/* 🗂 ARXIV (ega talabi 2026-08-12, IKKI marta aniqlashtirilgan): «sovg'alar
+                o'ynalganlari pastga tushib ketishi kerak — arxiv o'ynab bo'lingan kartalar
+                uchun». Birinchi versiyada `soldOut` (o'rinlar tugadi) bilan aralashtirilgan
+                edi — to'lgan-lekin-hali-tirajga-CHIQMAGAN sovrin arxivga yashiringan, aslida
+                ENG QIZIG'I bo'lgani holda. To'g'ri signal — `drawn` (g'olib allaqachon
+                yozilgan). Kartalari archivda ham ochiq qoladi: odam o'z kartasini va tiraj
+                ro'yxatini ko'ra olishi shart. */}
+            {vitrina.prizes.some((p) => p.drawn) && (
               <div className="oyk-arch">
                 <button type="button" className="oyk-arch-h" onClick={() => { haptic(); setArchOpen((v) => !v); }} aria-expanded={archOpen}>
                   <span className="oyk-arch-t">🗂 Arxiv</span>
-                  <span className="oyk-arch-n">{vitrina.prizes.filter((p) => p.soldOut).length} ta</span>
+                  <span className="oyk-arch-n">{vitrina.prizes.filter((p) => p.drawn).length} ta</span>
                   <span className="oyk-arch-x" aria-hidden="true">{archOpen ? "▾" : "›"}</span>
                 </button>
-                {archOpen && vitrina.prizes.filter((p) => p.soldOut).map((p) => (
+                {archOpen && vitrina.prizes.filter((p) => p.drawn).map((p) => (
                   <button key={p.key} type="button" className="oyk-arch-row" onClick={() => openCards(p)}>
                     <span className="oyk-arch-ico">{p.icon}</span>
                     <span className="oyk-arch-nm">

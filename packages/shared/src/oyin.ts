@@ -1029,6 +1029,11 @@ export interface OyinPrizeView {
   // sarflab chipta oladi, keyin "yetarli sotilmadi" deyilishi kutilmagan bo'lmasligi kerak.
   minSell: number; // o'ynalishi uchun kerak bo'lgan chipta soni
   willDraw: boolean; // hozirgi holatda tirajga tushadimi (sold >= minSell)
+  // 🏆 `soldOut` ≠ `drawn` (ega talabi 2026-08-12: «arxiv o'ynab bo'lingan kartalar uchun
+  // emasmi» — to'g'ri edi, avval Arxiv `soldOut`ga qarardi). `soldOut` = o'rinlar tugadi
+  // (sotuv to'xtadi), `drawn` = g'olib ALLAQACHON yozilgan (`oyin:winner:<key>` mavjud).
+  // To'lgan-lekin-hali-o'ynalmagan sovrin ENG QIZIG'I — arxivga YASHIRILMASLIGI kerak.
+  drawn: boolean;
 }
 
 /** 🎟 Mijozning MAVSUM chiptalari. Avval chipta raqami bayram-oynasida bir marta ko'rinib

@@ -164,6 +164,23 @@ describe("O11 — o'tgan mavsum kartasi bekor qilinmaydi (jonli bug, 2026-08-12)
   });
 });
 
+describe("`drawn` ≠ `soldOut` (jonlida aralashtirilgan edi, 2026-08-12 ega tuzatishi)", () => {
+  // Ega: «nega karta to'liq olinsa arxivga tushopti — arxiv o'ynab bo'lingan kartalar
+  // uchun emasmi». To'g'ri edi: `soldOut` (sold>=limit) mijozga "sotuv to'xtadi" degani,
+  // `drawn` esa "g'olib ALLAQACHON yozilgan" (oyin:winner:<key> mavjud) — ikkalasi mustaqil.
+  const fn = code.slice(code.indexOf("export async function getVitrina"));
+  const body = fn.slice(0, fn.indexOf("\nexport ", 1));
+
+  it("`drawn` alohida `WINNER_PREFIX` so'rovidan hisoblanadi, `soldOut`dan MUSTAQIL", () => {
+    expect(body).toMatch(/startsWith:\s*WINNER_PREFIX/);
+    expect(body).toMatch(/drawn:\s*drawnKeys\.has\(p\.key\)/);
+  });
+
+  it("`soldOut` hisoblashi `sold >= p\\.limit` dan — g'olib yozilganiga bog'liq EMAS", () => {
+    expect(body).toMatch(/soldOut:\s*sold >= p\.limit/);
+  });
+});
+
 describe("karta bekor qilish OYNASI (jonlida cheksiz ochiq edi, 2026-08-12 ega talabi)", () => {
   // Avval `sold<minSell` bo'lgan ekan, karta OYLAR OLDIN olingan bo'lsa ham bekor bo'lardi —
   // yangi (jozibali) sovg'a ochilganda mijoz eskisidan ko'chib o'tar, eski sovg'a hech qachon
