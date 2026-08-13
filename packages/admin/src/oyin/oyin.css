@@ -421,8 +421,11 @@
 /* ── ⌘K PALITRA ─────────────────────────────────────────────────────────────────────────────── */
 .oy-pal { position: fixed; inset: 0; z-index: 120; display: flex; align-items: flex-start; justify-content: center; padding-top: 11vh; }
 .oy-pal-c {
+  /* ⚠️ 2026-08-13: `.oy-mdl-c`da topilgan bug bilan BIR XIL shakl — `.oy-scrim` (z-index 70)
+     `.oy-pal`ning (120) stek-kontekstida shu kartaning (avval 2) USTIDAN chizilib, ⌘K
+     palitrasini xiralashtirib, bosish/klaviatura kiritishni yutib olardi. */
   background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-lg);
-  width: min(560px, 92vw); box-shadow: var(--sh-3); position: relative; z-index: 2;
+  width: min(560px, 92vw); box-shadow: var(--sh-3); position: relative; z-index: 80;
   overflow: hidden; animation: oy-up var(--dur) var(--ease);
 }
 .oy-pal-i { width: 100%; height: 46px; background: none; border: 0; border-bottom: 1px solid var(--line); padding: 0 var(--s-4); font-size: var(--fs-14); outline: none; }
