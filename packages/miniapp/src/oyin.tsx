@@ -14,6 +14,7 @@ import { OYIN_FINAL_LOCK_MS, OYIN_CANCEL_WINDOW_MS, OYIN_PRIZE_FILTERS, oyinFilt
 import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
 import { OyinStory } from "./oyinStory";
+import { Icon } from "./icons";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const OB_SEEN_KEY = "oyk_onboard_seen";
@@ -1413,7 +1414,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   <button type="button" className="oyk-draw-btn" onClick={() => { haptic(); setOnboard(0); }}>
                     Qanday ishlaydi? <span aria-hidden="true">›</span>
                   </button>
-                  <span className="oyk-draw-gift" aria-hidden="true">🎁</span>
+                  <span className="oyk-draw-gift" aria-hidden="true"><Icon name="gift" filled size={78} /></span>
                 </div>
 
                 {/* 🪙 MAQSAD-HERO — 2026-08-13 qayta chizildi (ega rasmi bilan): katta sarlavha
@@ -1425,7 +1426,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     <>
                       <div className="oyk-goalc-hero">
                         <div className="oyk-goalc-side">
-                          <div className="oyk-goalc-eyebrow">🎁 Sovrin</div>
+                          <div className="oyk-goalc-eyebrow"><Icon name="gift" size={13} /> Sovrin</div>
                           <h3 className="oyk-goalc-headline">
                             {cheapest.price - state.ball > 0
                               ? <>{cheapest.name} yutib olishga <b>{cheapest.price - state.ball} ball</b> qoldi!</>
@@ -1607,13 +1608,13 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   <div className="oyk-vcard-acts">
                     {!p.soldOut && (
                       state.goalPrizeKey === p.key
-                        ? <div className="oyk-goal-on" aria-label="Bu sizning maqsadingiz" title="Maqsad">🎯</div>
-                        : <button type="button" className="oyk-goal-btn" aria-label="Maqsad qilib belgilash" title="Maqsad qilib belgilash" disabled={goalBusyKey === p.key} onClick={() => void setGoal(p)}>{goalBusyKey === p.key ? "…" : "🎯"}</button>
+                        ? <div className="oyk-goal-on" aria-label="Bu sizning maqsadingiz" title="Maqsad"><Icon name="missions" filled size={19} /></div>
+                        : <button type="button" className="oyk-goal-btn" aria-label="Maqsad qilib belgilash" title="Maqsad qilib belgilash" disabled={goalBusyKey === p.key} onClick={() => void setGoal(p)}>{goalBusyKey === p.key ? "…" : <Icon name="missions" size={19} />}</button>
                     )}
                     {/* 🎟 Kartalar panjarasi. Ega talabi: «sovg'aga bosilsa kartalar ro'yxati
                         ochiladi va egasi bor-yo'qligi ko'rsatiladi». To'lgan sovg'ada ham
                         ochiladi — u eng kuchli ijtimoiy isbot. */}
-                    <button type="button" className="oyk-goal-btn" aria-label="Kartalarni ko'rish" title="Kartalarni ko'rish" onClick={() => openCards(p)}>🎟</button>
+                    <button type="button" className="oyk-goal-btn" aria-label="Kartalarni ko'rish" title="Kartalarni ko'rish" onClick={() => openCards(p)}><Icon name="cards" size={19} /></button>
                     {/* 🚕 `needsRide` tugmaning O'ZIDA aytiladi — server bu holatda `no_ride`
                         qaytaradi, ekran esa avval bu haqda hech narsa demasdi va mijoz uni
                         faqat "Tasdiqlash" dan KEYIN bilib olardi (G3). */}
@@ -1730,18 +1731,27 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 </div>
               </>
             ) : (
+              // 🎨 Illyustratsiyali kirish-holati (2026-08-13, prototip "BirJoy — o'yin, barcha
+              // ekranlar" g-hero naqshiga moslab): avval quruq sarlavha+matn edi. Funksiya BIR
+              // HARFI o'zgarmagan (o'sha shart/handler/disabled) — faqat vizual o'ram yangilandi.
               <>
-                <div className="oyk-jamoa-head">
-                  <div className="oyk-jamoa-name">🤝 Gashtak</div>
+                <div className="oyk-gashtak-hero">
+                  <div className="oyk-gashtak-illus" aria-hidden="true">
+                    <span className="oyk-gashtak-av"><Icon name="user" size={16} /></span>
+                    <span className="oyk-gashtak-av is-mid"><Icon name="friends" size={21} /></span>
+                    <span className="oyk-gashtak-av"><Icon name="user" size={16} /></span>
+                  </div>
+                  <h3 className="oyk-gashtak-title">
+                    {joinCode ? "Sizni gashtakka taklif qilishdi" : `${jamoa.minSize}–${jamoa.maxSize} kishilik gashtak tuzing`}
+                  </h3>
+                  <p className="oyk-gashtak-sub">
+                    {joinCode
+                      ? "Kodni tasdiqlab qo'shiling — gashtak a'zolari birga safar qilib navbat bilan ball yig'adi."
+                      : <>Har oy navbat bitta a'zoga o'tadi va gashtakning umumiy safarlari <b>o'sha navbatchiga</b> ball olib keladi. Keyingi oy — boshqasiga.</>}
+                  </p>
                   <button type="button" className="oyk-info-link is-compact" onClick={() => { haptic(); setGashtakHelp(0); }}>
                     ❔ Qanday ishlaydi
                   </button>
-                </div>
-                <div className="oyk-jamoa-note">
-                  {joinCode
-                    ? <>Sizni gashtakka taklif qilishdi — kodni tasdiqlab qo'shiling.</>
-                    : <>{jamoa.minSize}–{jamoa.maxSize} kishilik gashtak tuzing. Har oy navbat bitta a'zoga o'tadi va
-                      gashtakning umumiy safarlari <b>o'sha navbatchiga</b> ball olib keladi. Keyingi oy — boshqasiga.</>}
                 </div>
                 <div className="oyk-jamoa-acts">
                   <input className="oyk-jamoa-inp" value={jamoaInput} onChange={(e) => setJamoaInput(e.target.value)} placeholder="Gashtak nomi yoki kod" maxLength={40} />
@@ -2099,9 +2109,9 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
       <div className="oyk-tabs">
         {/* 🎟 "Chiptalarim" varaqdan TABGA chiqdi — chipta endi o'yinning asosiy obyekti
             (YAKUNIY DIZAYN §2), varaqda yashirib bo'lmaydi. */}
-        {([["home", "🎮", "Dastur"], ["vitrina", "🎁", "Mukofotlar"], ["tickets", "🎟", "Kartalarim"], ["jamoam", "👥", "Jamoam"]] as const).map(([key, icon, label]) => (
+        {([["home", "games", "Dastur"], ["vitrina", "gift", "Mukofotlar"], ["tickets", "cards", "Kartalarim"], ["jamoam", "friends", "Jamoam"]] as const).map(([key, icon, label]) => (
           <button key={key} type="button" className={`oyk-tab${tab === key ? " is-active" : ""}`} onClick={() => { haptic(); setTab(key); }}>
-            <span className="oyk-tab-icon">{icon}</span>
+            <span className="oyk-tab-icon"><Icon name={icon} filled={tab === key} size={21} /></span>
             <span className="oyk-tab-label">{label}</span>
           </button>
         ))}

@@ -211,9 +211,8 @@
 }
 .oyk-draw-btn:active { transform: scale(.96); }
 .oyk-draw-gift {
-  position: absolute; right: 8px; bottom: 2px; font-size: 92px; line-height: 1;
-  filter: drop-shadow(0 6px 16px rgba(20, 26, 46, .14));
-  animation: oyk-wiggle 3s ease-in-out infinite;
+  position: absolute; right: -6px; bottom: -8px; line-height: 1; color: var(--oyk-accent);
+  opacity: .16; animation: oyk-wiggle 3s ease-in-out infinite;
 }
 
 /* ── 🪙 BALANS KARTASI (uy tabi) ──────────────────────────────────────────────────────────
@@ -799,7 +798,7 @@
   background: linear-gradient(180deg, rgba(255, 255, 255, .95), rgba(255, 246, 224, .95));
   box-shadow: 0 2px 8px rgba(20, 26, 46, .10);
 }
-.oyk-tab-icon { font-size: 19px; }
+.oyk-tab-icon { display: flex; align-items: center; justify-content: center; }
 .oyk-tab-label { font-size: 10px; font-weight: 800; }
 
 /* ── toast ────────────────────────────────────────────────────────────────────────────── */
@@ -1223,6 +1222,20 @@
 .oyk-chip:active { transform: scale(.96); }
 .oyk-jamoa-note { margin-top: 10px; font-size: 11.5px; line-height: 1.6; color: var(--oyk-text-2); }
 .oyk-jamoa-note b { color: var(--oyk-text); }
+
+/* 🎨 Gashtak — kirish-holati (hali a'zo emas). Prototip "g-hero" naqshi: markazlashgan
+   uch-doiralik illyustratsiya + sarlavha + qisqa izoh, pastda funksional forma. */
+.oyk-gashtak-hero { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 6px 4px 4px; }
+.oyk-gashtak-illus { display: flex; align-items: center; margin-bottom: 12px; }
+.oyk-gashtak-av {
+  width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  color: #fff; box-shadow: var(--oyk-shadow);
+}
+.oyk-gashtak-av:first-child { background: var(--oyk-av-3); margin-right: -10px; z-index: 1; }
+.oyk-gashtak-av:last-child { background: var(--oyk-av-0); margin-left: -10px; z-index: 1; }
+.oyk-gashtak-av.is-mid { width: 50px; height: 50px; background: var(--oyk-violet-grad); z-index: 2; }
+.oyk-gashtak-title { font-size: 14.5px; font-weight: 900; margin: 0 0 6px; line-height: 1.3; text-wrap: balance; color: var(--oyk-text); }
+.oyk-gashtak-sub { font-size: 11.5px; color: var(--oyk-text-2); line-height: 1.55; margin: 0 0 12px; max-width: 30ch; }
 .oyk-jamoa-acts { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 11px; }
 .oyk-jamoa-inp {
   flex: 1; min-width: 140px; min-height: 42px; padding: 0 12px; font-size: 13px;

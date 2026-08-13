@@ -187,6 +187,24 @@ export function Icon({ name, filled = false, size = 24 }: { name: string; filled
           <path d="M4 5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H9l-4.5 4V17H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z" fill={filled ? "currentColor" : "none"} />
         </svg>
       );
+    case "gift":
+      // oyin: "Sovrin"/Mukofotlar — 🎁 o'rniga (ba'zi qurilmalarda emoji-shrift yo'qligi muammosi).
+      return (
+        <svg {...p}>
+          <rect x="3" y="8" width="18" height="4" rx="1" fill={filled ? "currentColor" : "none"} />
+          <rect x="4" y="12" width="16" height="9" rx="1.5" />
+          <path d="M12 8v13" />
+          <path d="M12 8c-1.2-3.2-6-4.3-6-1.3C6 8.3 9.2 8.3 12 8ZM12 8c1.2-3.2 6-4.3 6-1.3C18 8.3 14.8 8.3 12 8Z" fill={filled ? "currentColor" : "none"} />
+        </svg>
+      );
+    case "cards":
+      // oyin: Kartalarim/"kartalar" tugmasi — 🎟 o'rniga, ikkita ustma-ust to'plam sifatida chiziladi.
+      return (
+        <svg {...p}>
+          <rect x="6.3" y="3.6" width="14" height="10" rx="2.2" transform="rotate(9 13.3 8.6)" fill={filled ? "currentColor" : "none"} opacity={filled ? 0.55 : 1} />
+          <rect x="4" y="9" width="14" height="10" rx="2.2" fill={filled ? "currentColor" : "none"} />
+        </svg>
+      );
     case "share":
       // Telegram's own "forward/share" glyph (paper-plane) — some devices render 📤 as a blank
       // box (missing emoji font), an SVG never fails to draw.
