@@ -13,7 +13,6 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { OYIN_FINAL_LOCK_MS, OYIN_CANCEL_WINDOW_MS, OYIN_PRIZE_FILTERS, oyinFilterPrizes, oyinHintOf, type OyinCardDetail, type OyinPrizeCardsResponse, type OyinPrizeFilter, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
-import { BirJoyMark } from "./design/birjoy";
 import { OyinStory } from "./oyinStory";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -500,7 +499,10 @@ type OyinTab = "home" | "vitrina" | "tickets" | "jamoam";
 // 🎯 2026-08-12 (ega talabi — "bitta ekran bitta savolga javob"): `earn` — soddalashtirilgan
 // bosh ekrandan "Ball yig'ish" bosilganda ochiladigan qatlam (safar/do'st/ulashish + kunlik
 // vazifalar + topshiriq). Avval bularning HAMMASI uy tabida bir vaqtda turardi.
-type SheetKind = "buy" | "info" | "how" | "ball" | "earn" | "bell" | "rules" | "gashtak" | "cards" | "card" | null;
+// 🗑 "info" (❓ Savol-javob hub) OLIB TASHLANDI 2026-08-13 — sarlavhadagi "?" tugmasi bilan
+// birga ketdi. Ichidagi 4 havola HAMMASI boshqa joydan mustaqil reachable edi allaqachon
+// (Dastur/Jamoam/Mukofotlar tablaridan) — hub o'zi faqat qo'shimcha qavat edi.
+type SheetKind = "buy" | "how" | "ball" | "earn" | "bell" | "rules" | "gashtak" | "cards" | "card" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?: string | null } = {}) {
@@ -513,13 +515,11 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // 🏠 Doimiy topshiriq — Telegram klienti qo'llab-quvvatlaydimi. `unsupported` bo'lsa
   // topshiriq umuman ko'rsatilmaydi (bajarib bo'lmaydigan vazifa ko'rsatish — bo'sh va'da).
   const [homeAddable, setHomeAddable] = useState<boolean | null>(null);
+  // 🗑 "Qizil nuqta" (o'qilmagan voqealar soni) OLIB TASHLANDI 2026-08-13 — uni ko'rsatadigan
+  // sarlavha-qo'ng'iroqchasi olib tashlandi, "Ballingiz qayerdan keldi" endi oddiy havola
+  // ("Ball yig'ish" varag'i ichida). `setBellSeen` hamon `openBell`da chaqiriladi (keyingi
+  // safar shu funksiya qaytarilsa hisoblash tayyor tursin).
   const [bellSeen, setBellSeen] = useState<string>(() => { try { return localStorage.getItem("oyk_bell_seen") ?? ""; } catch { return ""; } });
-  // Qizil nuqta — oxirgi ko'rilgandan keyin necha voqea qo'shilgani. Ro'yxat ochilmagan
-  // bo'lsa (bell === null) nuqta ko'rsatilmaydi: soxta "yangi bor" signali bermaymiz.
-  // ⚠️ Avval `bell` FAQAT varaq ochilganda yuklanardi, ya'ni qizil son HECH QACHON
-  // ochilmasdan ko'rinmasdi — "yangi xabar bor" signali ishlamasdi. Endi ro'yxat
-  // ochilishda yuklanadi (pastdagi `useEffect`), son esa darhol ko'rinadi.
-  const bellNew = bell ? bell.rows.filter((r) => r.at > bellSeen).length : 0;
   const [tickets, setTickets] = useState<OyinMyTicketsResponse | null>(null);
   const [tab, setTab] = useState<OyinTab>(() => {
     try {
@@ -1336,31 +1336,16 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             ⚠️ REYTING BUTUNLAY OLIB TASHLANDI (ega qarori): u ball QOLDIG'I bo'yicha
             saralanardi, ya'ni chipta olgan odamning o'rni TUSHARDI — to'g'ri xatti-harakat
             jazolanardi. Hech bir ekranda o'rin haqida gap qolmadi. */}
-        <div className="oyk-top">
-          <div className="oyk-top-me">
-            <div className="oyk-top-av">
-              <BirJoyMark size={28} />
-              <span className="oyk-top-av-crown" aria-hidden="true">👑</span>
-              {state.ticketCount > 0 && <i className="oyk-top-av-b">{state.ticketCount}</i>}
-            </div>
-            <div className="oyk-top-nm">
-              <b>BirJoy</b>
-              <small>{state.season.label ? `${state.season.label} dasturi` : "Sodiqlik dasturi"}</small>
-            </div>
-          </div>
-          {/* ❓ Savol-javob varag'i TO'LIQ yozilgan edi, lekin unga KIRISH YO'LI yo'q edi:
-              sarlavha qayta chizilganda "?" tugmasi (.oyk-chip-help) tushib qolgan va
-              `setSheet("info")` hech qayerdan chaqirilmasdi — ya'ni "Chipta nima?",
-              "Jonli tiraj nima?", "Qoidalar" javoblari mijozga UMUMAN ko'rinmasdi
-              (YAKUNIY DIZAYN §1 shu to'plamni talab qiladi). */}
-          <div className="oyk-top-acts">
-            <button type="button" className="oyk-icbtn" onClick={() => { haptic(); setSheet("info"); }} aria-label="Savol-javob">?</button>
-            <button type="button" className="oyk-icbtn is-bell" onClick={openBell} aria-label="Xabarlar">
-              🔔
-              {bellNew > 0 && <i className="oyk-bell-dot">{bellNew > 9 ? "9+" : bellNew}</i>}
-            </button>
-          </div>
-        </div>
+        {/* 🗑 Sarlavha ("BirJoy" logotip+nom+mavsum) va "?"/"🔔" tugmalari OLIB TASHLANDI
+            (ega talabi 2026-08-13: "BirJoy ? va qo'ng'iroqchalarni ol — boshqa hammasidan
+            ortiqchalik qiladi"). Chiqish yo'li BUNGA bog'liq emas — o'yin ekranida ilova
+            menyusi chizilmaydi, orqaga qaytish Telegram BackButton orqali (yuqorida
+            `useBackButton`, App.tsx:520-522). "?" ichidagi 4 havola (Qanday ishlaydi/
+            Gashtak nima/Sodiqlik kartasi nima/Qoidalar) HAMMASI boshqa joydan alohida
+            reachable: "Qanday ishlaydi" — Dastur tabidagi tiraj-banner tugmasidan, "Gashtak
+            nima" — Jamoam tabidagi o'z havolasidan (:1761), "Qoidalar" — Mukofotlar tabidan.
+            "🔔" (ball tarixi) FAQAT shu yerda edi — funksiyasi yo'qolmasin deb "Ball
+            yig'ish" varag'iga ko'chirildi (pastda, `sheet === "earn"`). */}
 
         {/* ⚠️ Matn "yopildi" degan QAT'IY da'vodan ogohlantirishga o'tkazildi. Sabab: bu faza
             qurilma soatidan hisoblanadi va soati oldinda ketgan telefonda noto'g'ri chiqadi —
@@ -1425,22 +1410,21 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   <span className="oyk-draw-gift" aria-hidden="true">🎁</span>
                 </div>
 
-                {/* 🪙 BALANS — 2026-08-06 (ega talabi): TO'PLANGAN ball endi hero-raqam (avval
-                    "qolgan" ball edi — "nechi ball yig'ganim aniq ko'rinsin" so'ralgach), maqsad
-                    (sovrin nomi + qolgan ball) kichik chipga tushdi. Karta oq (skrinshot
-                    yo'nalishi), sovrin fotosi ko'k halqa bilan — bar/tugmalar bilan bitta rang. */}
+                {/* 🪙 MAQSAD-HERO — 2026-08-13 qayta chizildi (ega rasmi bilan): katta sarlavha
+                    "{sovrin} yutib olishga N ball qoldi!" endi bosh gap (avval kichik chipga
+                    tushirilgan edi), rangli "gap" zonasida, sovrin fotosi kattaroq. Pastki oq
+                    zonada progress + son — formulasiz (ega talabi: "= 1 ta karta" gapi yo'q). */}
                 <div className="oyk-goalc">
                   {cheapest ? (
                     <>
-                      <div className="oyk-goalc-top">
+                      <div className="oyk-goalc-hero">
                         <div className="oyk-goalc-side">
-                          <div className="oyk-goalc-tag">
-                            <span aria-hidden="true">🎯</span>
-                            <b>{cheapest.name}{cheapest.price - state.ball > 0 ? ` — yana ${cheapest.price - state.ball} ball` : " — tayyor!"}</b>
-                          </div>
-                          <div className="oyk-goalc-num">
-                            <b>{state.ball}</b> <span>ball balansingiz</span>
-                          </div>
+                          <div className="oyk-goalc-eyebrow">🎯 Mening maqsadim</div>
+                          <h3 className="oyk-goalc-headline">
+                            {cheapest.price - state.ball > 0
+                              ? <>{cheapest.name} yutib olishga <b>{cheapest.price - state.ball} ball</b> qoldi!</>
+                              : <>{cheapest.name} uchun ball yetdi — karta oling!</>}
+                          </h3>
                         </div>
                         <div className="oyk-goalc-img">
                           {cheapest.photoUrl && !badPhoto.has(cheapest.key)
@@ -1448,14 +1432,15 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                             : <span>{cheapest.icon}</span>}
                         </div>
                       </div>
-                      <div className="oyk-goalc-bar">
-                        <span style={{ transform: `scaleX(${Math.min(1, state.ball / cheapest.price)})` }} />
+                      <div className="oyk-goalc-lower">
+                        <div className="oyk-goalc-bar">
+                          <span style={{ transform: `scaleX(${Math.min(1, state.ball / cheapest.price)})` }} />
+                        </div>
+                        <div className="oyk-goalc-meta">
+                          <span><b>{state.ball}</b> / {cheapest.price} ball</span>
+                          <span>{Math.min(100, Math.round((state.ball / cheapest.price) * 100))}%</span>
+                        </div>
                       </div>
-                      <div className="oyk-goalc-meta">
-                        <span><b>{state.ball}</b> / {cheapest.price} = 1 ta karta</span>
-                        <span>{Math.min(100, Math.round((state.ball / cheapest.price) * 100))}%</span>
-                      </div>
-                      <div className="oyk-goalc-foot">{cheapest.price} ball = 1 ta sodiqlik kartasi</div>
                     </>
                   ) : (
                     <div className="oyk-goalc-num"><b>{state.ball}</b> <span>ball</span></div>
@@ -1499,30 +1484,14 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
 
         {tab === "vitrina" && (
           <>
-            <div className="oyk-v-head">
-              <div className="oyk-v-title">🎁 Mukofotlar</div>
-              <div className="oyk-rail-sub">{vitrina.prizes.reduce((s, p) => s + p.limit, 0)} ta karta</div>
-            </div>
-            {/* 📅 Tiraj banneri — sana VA vaqt (YAKUNIY DIZAYN §7, tab 2 birinchi elementi).
-                Avval mijoz "qachon o'ynaladi?" degan savolga javobsiz chipta olardi.
-                🪙 Balans ham shu yerda: avval "qancha ballim bor?" uchun boshqa tabga qaytish kerak edi.
-                ⚠️ Avval bu karta OQ edi, uy tabidagi tiraj kartasi esa TO'Q BINAFSHA — bitta o'yin
-                ichida ikkita ekran ikki xil ilovadek ko'rinardi. Endi tiraj sanasi qayerda
-                ko'rinsa ham AYNAN bir xil chiziladi (bitta narsa — bitta ko'rinish). */}
-            <div className="oyk-vtop">
-              <div className="oyk-vtop-h">📅 MUKOFOT KUNI</div>
-              {state.season.endIso
-                ? <div className="oyk-vtop-d">{drawDateText}</div>
-                : <div className="oyk-vtop-soon">Sana tez orada e'lon qilinadi</div>}
-              <div className="oyk-vtop-ball"><span>Sizning ballingiz</span><b>{state.ball}</b></div>
-            </div>
-            <div className="oyk-sponsor-strip">
-              <div className="oyk-sponsor-logo">
-                <BirJoyMark size={18} />
-                <span className="oyk-sponsor-crown" aria-hidden="true">👑</span>
-              </div>
-              <div className="oyk-sponsor-strip-text">Mukofotlar homiysi — <b>{vitrina.sponsor.name}</b></div>
-            </div>
+            {/* 🗑 Sarlavha ("🎁 Mukofotlar"), "📅 MUKOFOT KUNI"+sana+balans va homiy-chizig'i
+                OLIB TASHLANDI (ega talabi 2026-08-13: "ortiqcha yuzovlarni to'liq olib
+                tashlash kerak... tepaga mukofotlar degan gap kerak emas, mukofot kuni ham").
+                Uchalasi ham boshqa joyda BOR: "Mukofotlar" so'zi pastki tab-qatorida va
+                global sarlavhada (mavsum nomi) allaqachon ko'rinadi; sana va balans Dastur
+                tabidagi tiraj-banner/maqsad-hero'da; homiy — hech qayerda haqiqiy qiymat
+                qo'shmasdi (faqat matn takrorlanardi). Endi tab to'g'ridan-to'g'ri harakatli
+                qismdan (filtr+kartalar) boshlanadi. */}
             {vitrina.prizes.length === 0 && (
               <div className="oyk-j-report">Mukofotlar hozircha qo'yilmagan — tez orada paydo bo'ladi. Ball yig'ib turing, u yo'qolmaydi 🎁</div>
             )}
@@ -2126,14 +2095,12 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
           </>
         )}
 
-        <div className="oyk-sponsor">
-          <div className="oyk-sponsor-logo">
-            <BirJoyMark size={20} />
-            <span className="oyk-sponsor-crown" aria-hidden="true">👑</span>
-          </div>
-          <div className="oyk-sponsor-text">Dastur homiysi — <b>{vitrina.sponsor.name}</b></div>
-        </div>
-        <div className="oyk-legal">Sodiqlik kartasi — ishtirok huquqi, mukofot kafolati emas. Mukofot kuni davr oxirida jonli efirda.</div>
+        {/* 🗑 "Dastur homiysi" chizig'i va pastki huquqiy eslatma OLIB TASHLANDI (ega talabi
+            2026-08-13: "dastur homiysi degan narsalar umuman kerak emas... eng pasga
+            yozilgan sodiqlik kartasi degan joyi [ham]"). HAR bir tabda (Dastur/Mukofotlar/
+            Kartalarim/Jamoam) qattiq ko'rinardi — ortiqcha yuzov edi. Huquqiy matnning
+            o'zi YO'QOLMAGAN: xuddi shu gap "?" — Savol-javob varag'ida ("Sodiqlik kartasi
+            nima" bo'limi) va "📋 Dastur qoidalari"da to'liq saqlanadi. */}
       </div>
 
       <div className="oyk-tabs">
@@ -2308,7 +2275,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   {([
                     ["🚕", "Safar qiling", `Taksi chaqiring va safar qiling. Har safardan +${state.hints.rideBall} ball olasiz.`],
                     ["🪙", "Ball yig'ing", `Vazifalarni bajaring, do'stlaringizni taklif qiling. Do'stingiz birinchi safarini qilsa +${state.hints.referFirstRideBall} ball.`],
-                    ["🎟", "Ballni kartaga almashtiring", cheapest ? `${cheapest.price} ball = 1 ta sodiqlik kartasi. Nechta karta ko'p bo'lsa, imkoniyat shuncha yuqori.` : "Ballni sodiqlik kartasiga almashtirasiz. Nechta karta ko'p bo'lsa, imkoniyat shuncha yuqori."],
+                    ["🎟", "Ballni kartaga almashtiring", "Ballni sodiqlik kartasiga almashtirasiz. Nechta karta ko'p bo'lsa, imkoniyat shuncha yuqori."],
                     ["📺", "Mukofot kunida qatnashing", `${drawDateText ? `${drawDateText} — ` : "Davr oxirida "}Telegramda jonli efirda barcha kartalar orasidan mukofot egalari aniqlanadi.`],
                     ["🎁", "Mukofotni qo'lga kiriting", "Mukofot egasi bo'lsangiz, sovg'angizni bepul olib ketasiz!"],
                   ] as const).map(([em, title, body], i) => (
@@ -2453,6 +2420,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     faqat "eng oson yo'llar" bor, chuqurroq qiziqqan mijoz shu yerdan o'tadi. */}
                 <button type="button" className="oyk-bal-btn" onClick={() => { haptic(); setSheet("ball"); }}>
                   To'liq ro'yxatni ko'rish <span aria-hidden="true">›</span>
+                </button>
+                {/* 🔔 Ball tarixi — avval sarlavhadagi qo'ng'iroqcha tugmasi ochardi (olib
+                    tashlandi, 2026-08-13). Funksiyasi shu yerga ko'chdi — `openBell` o'zgarishsiz. */}
+                <button type="button" className="oyk-bal-btn" onClick={openBell}>
+                  Ballingiz qayerdan keldi <span aria-hidden="true">›</span>
                 </button>
 
                 <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); }}>Yopish</button>
@@ -2638,57 +2610,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {/* ❓ Ma'lumot to'plami (YAKUNIY DIZAYN §1) — TAB emas, lekin doim qo'l ostida.
                 Avval bularning hammasi onboarding'da bir marta chiqib abadiy yo'qolardi;
                 "chipta nima?" savoli esa xarid PAYTIDA, bir hafta o'tib tug'iladi. */}
-            {sheet === "info" && (
-              <>
-                <div className="oyk-sheet-title">❓ Savol-javob</div>
-                <div className="oyk-info">
-                  {/* ⚠️ Bu yerda "🎮 Qanday ishlaydi" bloki turardi — ayni sarlavha ALOHIDA
-                      varaqda ham bor (5 qadamli "Qanday ishlaydi?"). Bitta savolga ikki joyda
-                      ikki xil javob = qaysi biri to'liq ekani noaniq. Endi javob bitta joyda,
-                      bu yerda esa unga OLIB BORADIGAN qator turadi. */}
-                  <button type="button" className="oyk-info-link" onClick={() => { haptic(); setSheet("how"); }}>
-                    <span>🎮 Qanday ishlaydi — 5 qadam</span>
-                    <span aria-hidden="true">›</span>
-                  </button>
-                  {/* R19 (audit): Gashtak — eng yangi/murakkab mexanika — "?" varag'ida UMUMAN
-                      tushuntirilmagan edi. */}
-                  <button type="button" className="oyk-info-link" onClick={() => { haptic(); setSheet(null); setGashtakHelp(0); }}>
-                    <span>🤝 Gashtak nima — 5 qadam</span>
-                    <span aria-hidden="true">›</span>
-                  </button>
-                  <div className="oyk-info-b">
-                    <div className="oyk-info-t">🎟 Sodiqlik kartasi nima</div>
-                    <div className="oyk-info-x">
-                      Sodiqlik kartasi — <b>mukofot kunida qatnashish huquqi</b>, mukofot kafolati emas.
-                      Har kartaning o'z raqami bor va u <b>Kartalarim</b> tabida doim turadi.
-                      Bir mukofotga nechta kartangiz bo'lsa, imkoningiz shuncha yuqori.
-                    </div>
-                  </div>
-                  <div className="oyk-info-b">
-                    <div className="oyk-info-t">📺 Mukofot kuni nima</div>
-                    <div className="oyk-info-x">
-                      {tickets?.drawIso || state.season.endIso
-                        ? <>Davr tugagach — <b>{uzDate(tickets?.drawIso ?? state.season.endIso)}{drawTime ? `, ${drawTime}` : ""}</b> — </>
-                        : <>Davr tugagach </>}
-                      Telegram kanalimizda jonli efir bo'ladi. Mukofot egalari kartalar orasidan
-                      tasodifiy aniqlanadi, hamma ko'rib turadi. Natijalar Telegram kanalimizda
-                      e'lon qilinadi.
-                    </div>
-                  </div>
-                  {/* 📋 Bu yerda 5 qatorlik "Qoidalar" bloki turardi (S4'da ALMASHTIRILDI).
-                      U sovg'ali aksiya uchun MAJBURIY bandlarning birortasini ham qamramasdi:
-                      tashkilotchi kim, muddat qachon, mukofotlar nechta, mukofot qayerda va
-                      qachon topshiriladi, kim qatnasha olmaydi. Qisqacha nusxa SAQLANMADI —
-                      bitta savolga ikki joyda ikki xil javob turishi qaysi biri rasmiy ekanini
-                      noaniq qiladi (yuqoridagi "Qanday ishlaydi" saboqi bilan bir xil qoida). */}
-                  <button type="button" className="oyk-info-link" onClick={() => { haptic(); setSheet("rules"); }}>
-                    <span>📋 Dastur qoidalari — rasmiy hujjat</span>
-                    <span aria-hidden="true">›</span>
-                  </button>
-                </div>
-                <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); }}>Yopish</button>
-              </>
-            )}
+            {/* 🗑 "❓ Savol-javob" hub OLIB TASHLANDI 2026-08-13 — kirish tugmasi ("?" sarlavhada)
+                bilan birga. 4 havolaning barchasi mustaqil reachable: "Qanday ishlaydi" — Dastur
+                tabi, "Gashtak nima" — Jamoam tabi, "Qoidalar" — Mukofotlar tabi; "Sodiqlik
+                kartasi nima"/"Mukofot kuni nima" qisqa izohlari Qoidalar hujjatida (RulesSheet)
+                to'liqroq shaklda mavjud. */}
 
             {/* 🎟 SOVRIN TAFSILOTI (YAKUNIY DIZAYN §7): katta rasm · o'lchangan tanqislik ·
                 "Sizning ballingiz" · MIQDOR (max N) · "Xariddan keyin qoladi" · katta tugma ·

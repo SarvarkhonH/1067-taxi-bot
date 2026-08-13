@@ -24,6 +24,9 @@
   /* sahifa foni QATTIQ rangda — chipta "tishlari" aynan shu rangda bo'lishi kerak */
   --oyk-page: #f1f3fa;
   --oyk-violet-grad: linear-gradient(140deg, #6b5bf0, #5b46f0);
+  /* 🎨 (2026-08-13, ega rasmi bilan) — `--oyk-violet`ning yengil rangi, "Mening maqsadim"
+     gap-zonasi uchun. Boshqa pale/deep juftliklar bilan bir xil naqsh (qarang --oyk-warn-pale). */
+  --oyk-violet-pale: #efecfd;
   --oyk-ride-grad: linear-gradient(140deg, #fdb022, #f79009);
   --oyk-ride-ink: #2b1a00;
   /* 🏆 "Hero" kartalar foni — YORUG', bir oz ko'k-tortgan (och-ko'kdan oqqa) — tiraj/balans/
@@ -217,46 +220,39 @@
    ⚠️ 2026-08-06: OQ karta (ega skrinshoti) — `oyk-draw`dan farqlanishi uchun toza oq
    (och-ko'k wash emas), sovrin fotosi endi KO'K halqa bilan (avval oltin) — bar/tugmalar
    bilan BITTA rang tili, "bu bar bilan bitta bo'lib ketishi kerak" (ega talabi). */
-.oyk-goalc {
-  position: relative; overflow: hidden; border-radius: 20px; padding: 14px 15px 15px;
-  background: var(--oyk-surface); border: 1px solid var(--oyk-line); box-shadow: var(--oyk-shadow); color: var(--oyk-text);
-}
-.oyk-goalc-top { display: flex; align-items: center; gap: 12px; }
+/* ⚠️ 2026-08-13 (ega talabi, rasm bilan): to'liq qayta chizildi — ikki qavatli tarkib
+   (rangli "gap" zonasi + oq progress-zonasi), katta sarlavha bosh gap sifatida ("N ball
+   qoldi!"), kattaroq sovrin fotosi. Yangi rang — `--oyk-violet-pale` — pastda BIR MARTA
+   e'lon qilingan (fayl boshidagi qoida: tokens.css'da yo'q qiymatlar shu yerda, `--oyk-
+   violet`ning o'zidan olingan tint, o'ylab topilgan yangi rang emas). */
+.oyk-goalc { position: relative; overflow: hidden; border-radius: 20px; background: var(--oyk-surface); border: 1px solid var(--oyk-line); box-shadow: var(--oyk-shadow); color: var(--oyk-text); }
+.oyk-goalc-hero { position: relative; display: flex; align-items: center; gap: 13px; padding: 17px 16px 20px; background: var(--oyk-violet-pale); }
 .oyk-goalc-side { flex: 1; min-width: 0; }
-/* R33 (audit): uzun sovrin nomi bitta qatorda kesilardi — endi 2 qatorga o'tadi
-   (DIZAYN_QOIDALARI #12), boshqa joylardagi naqsh bilan bir xil. */
-.oyk-goalc-tag {
-  display: flex; align-items: flex-start; gap: 6px; max-width: 100%;
-  background: var(--oyk-fill); border-radius: 9px; padding: 5px 9px;
-  font-size: 11px; font-weight: 800; color: var(--oyk-text-2); line-height: 1.35;
+.oyk-goalc-eyebrow { font-size: 10.5px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; color: var(--oyk-violet); }
+/* R33 (audit, hamon amalda): uzun sovrin nomi 2 qatorga o'tishi kerak. */
+.oyk-goalc-headline {
+  margin: 7px 0 0; font-size: 16.5px; font-weight: 900; line-height: 1.32; color: var(--oyk-text);
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
-.oyk-goalc-tag span { flex-shrink: 0; }
-.oyk-goalc-tag b {
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--oyk-text);
-}
-/* 🎯 Ball SONI — ega talabi 2026-08-06: "nechi ball yig'ganim aniq ko'rinsa chiroyli
-   ko'rinardi, maqsad esa kichikroq" — hero endi TO'PLANGAN ballni ko'rsatadi (avval
-   "qolgan" ball edi, maqsad-nomi esa yuqoridagi kichik chipga tushdi). */
-.oyk-goalc-num { display: flex; align-items: baseline; gap: 8px; margin-top: 8px; }
+.oyk-goalc-headline b { color: var(--oyk-violet); }
+/* 🎯 Ball SONI — "no cheapest" holatida (katalog bo'sh) hamon shu bilan ko'rsatiladi. */
+.oyk-goalc-num { display: flex; align-items: baseline; gap: 8px; padding: 14px 15px 15px; }
 .oyk-goalc-num b { font-size: 40px; font-weight: 900; letter-spacing: -1.5px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--oyk-accent-deep); }
 .oyk-goalc-num span { font-size: 16px; font-weight: 800; color: var(--oyk-text-2); }
 .oyk-goalc-img {
-  position: relative; width: 108px; height: 108px; flex-shrink: 0; border-radius: 19px; overflow: hidden;
-  background: var(--oyk-fill); display: flex; align-items: center; justify-content: center; font-size: 52px;
-  box-shadow: 0 0 0 2px var(--oyk-accent), 0 0 16px -4px var(--oyk-accent);
+  position: relative; width: 92px; height: 92px; flex-shrink: 0; border-radius: 18px; overflow: hidden;
+  background: var(--oyk-surface); display: flex; align-items: center; justify-content: center; font-size: 42px;
+  box-shadow: var(--oyk-shadow-lift);
 }
 .oyk-goalc-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.oyk-goalc-bar { height: 9px; border-radius: 99px; background: var(--oyk-fill); margin-top: 13px; overflow: hidden; }
+.oyk-goalc-lower { padding: 14px 16px 15px; }
+.oyk-goalc-bar { height: 9px; border-radius: 99px; background: var(--oyk-fill); overflow: hidden; }
 .oyk-goalc-bar span { display: block; height: 100%; width: 100%; border-radius: 99px; background: var(--oyk-prog-grad); transform-origin: left; transform: scaleX(0); transition: transform .5s ease; }
 .oyk-goalc-meta {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 7px;
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 9px;
   font-size: 11.5px; font-weight: 700; color: var(--oyk-text-2); font-variant-numeric: tabular-nums;
 }
 .oyk-goalc-meta b { color: var(--oyk-accent-deep); font-weight: 900; }
-.oyk-goalc-foot {
-  margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--oyk-line);
-  font-size: 11.5px; font-weight: 700; color: var(--oyk-text-3); text-align: center;
-}
 .oyk-bal-btn {
   margin-top: 12px; padding: 9px 15px; border-radius: 12px; background: var(--oyk-fill); border: 0;
   color: var(--oyk-text-2); font-size: 12.5px; font-weight: 800; cursor: pointer;
