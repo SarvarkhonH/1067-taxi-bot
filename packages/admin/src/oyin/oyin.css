@@ -379,8 +379,11 @@
 /* ── MODAL ──────────────────────────────────────────────────────────────────────────────────── */
 .oy-mdl { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-start; justify-content: center; padding: var(--s-8) var(--s-4); overflow-y: auto; }
 .oy-mdl-c {
+  /* ⚠️ 2026-08-13 (ega xabari: "yangi sovg'a qo'shish xira, qiyin"): z-index 2 edi, `.oy-scrim`
+     esa 70 — qorong'i pardaning O'ZI kartaning USTIDAN chizilib, formani xiralashtirib,
+     bosishlarni yutib olardi. `.oy-drw`ning 80 konvensiyasiga moslab tuzatildi. */
   background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r-lg);
-  width: min(880px, 100%); box-shadow: var(--sh-3); position: relative; z-index: 2;
+  width: min(880px, 100%); box-shadow: var(--sh-3); position: relative; z-index: 80;
   animation: oy-up var(--dur) var(--ease);
 }
 @keyframes oy-up { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
