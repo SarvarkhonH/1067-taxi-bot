@@ -226,12 +226,14 @@
    e'lon qilingan (fayl boshidagi qoida: tokens.css'da yo'q qiymatlar shu yerda, `--oyk-
    violet`ning o'zidan olingan tint, o'ylab topilgan yangi rang emas). */
 .oyk-goalc { position: relative; overflow: hidden; border-radius: 20px; background: var(--oyk-surface); border: 1px solid var(--oyk-line); box-shadow: var(--oyk-shadow); color: var(--oyk-text); }
-.oyk-goalc-hero { position: relative; display: flex; align-items: center; gap: 13px; padding: 17px 16px 20px; background: var(--oyk-violet-pale); }
+/* ⚠️ 2026-08-13 (2-tur, ega talabi: "kattaroq aniqroq"): sarlavha va foto kattalashtirildi
+   — eyebrow 10.5→11px, sarlavha 16.5→19px, foto 92→110px, hero padding kengaydi. */
+.oyk-goalc-hero { position: relative; display: flex; align-items: center; gap: 15px; padding: 19px 17px 22px; background: var(--oyk-violet-pale); }
 .oyk-goalc-side { flex: 1; min-width: 0; }
-.oyk-goalc-eyebrow { font-size: 10.5px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; color: var(--oyk-violet); }
-/* R33 (audit, hamon amalda): uzun sovrin nomi 2 qatorga o'tishi kerak. */
+.oyk-goalc-eyebrow { font-size: 11px; font-weight: 900; letter-spacing: .07em; text-transform: uppercase; color: var(--oyk-violet); }
+/* R33 (audit, hamon amalda): uzun sovrin nomi bir necha qatorga o'tishi kerak. */
 .oyk-goalc-headline {
-  margin: 7px 0 0; font-size: 16.5px; font-weight: 900; line-height: 1.32; color: var(--oyk-text);
+  margin: 8px 0 0; font-size: 19px; font-weight: 900; line-height: 1.28; color: var(--oyk-text);
   display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
 .oyk-goalc-headline b { color: var(--oyk-violet); }
@@ -240,8 +242,8 @@
 .oyk-goalc-num b { font-size: 40px; font-weight: 900; letter-spacing: -1.5px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--oyk-accent-deep); }
 .oyk-goalc-num span { font-size: 16px; font-weight: 800; color: var(--oyk-text-2); }
 .oyk-goalc-img {
-  position: relative; width: 92px; height: 92px; flex-shrink: 0; border-radius: 18px; overflow: hidden;
-  background: var(--oyk-surface); display: flex; align-items: center; justify-content: center; font-size: 42px;
+  position: relative; width: 110px; height: 110px; flex-shrink: 0; border-radius: 20px; overflow: hidden;
+  background: var(--oyk-surface); display: flex; align-items: center; justify-content: center; font-size: 48px;
   box-shadow: var(--oyk-shadow-lift);
 }
 .oyk-goalc-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -819,6 +821,9 @@
   cursor: pointer; transition: transform var(--dur-press);
 }
 .oyk-sheet-ok:active { transform: scale(.98); }
+/* 🎯 Bosh ekrandagi yagona CTA ("→ Ball yig'ish") — bittasi, shuning uchun eng ko'zga
+   tashlanadigan bo'lishi kerak: gradient + biroz balandroq (ega talabi: "kattaroq"). */
+.oyk-sheet-ok.is-hero { min-height: 54px; font-size: 15.5px; background: var(--oyk-violet-grad); box-shadow: 0 10px 22px -12px rgba(91, 70, 240, .55); }
 /* Ikkinchi (yopish) tugma birinchi CTA bilan bir sheet'da turganda — kamroq urg'u. */
 .oyk-sheet-ok.is-ghost { background: var(--oyk-fill); color: var(--oyk-text); }
 .oyk-sheet-foot { font-size: 11px; color: var(--oyk-text-3); text-align: center; }

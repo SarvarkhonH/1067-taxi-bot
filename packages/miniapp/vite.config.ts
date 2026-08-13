@@ -57,7 +57,9 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // ⚠️ Qattiq 5173 EMAS — muhit `PORT` bersa (masalan avtomatik port-tanlash), o'shani
+    // ishlatadi. 5173 faqat ilova ichida qo'lda ishga tushirilganda (harness'siz) fallback.
+    port: Number(process.env.PORT) || 5173,
     fs: { allow: ["..", "../.."] },
     proxy: {
       "/api": "http://localhost:8080",

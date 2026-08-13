@@ -502,7 +502,9 @@ type OyinTab = "home" | "vitrina" | "tickets" | "jamoam";
 // 🗑 "info" (❓ Savol-javob hub) OLIB TASHLANDI 2026-08-13 — sarlavhadagi "?" tugmasi bilan
 // birga ketdi. Ichidagi 4 havola HAMMASI boshqa joydan mustaqil reachable edi allaqachon
 // (Dastur/Jamoam/Mukofotlar tablaridan) — hub o'zi faqat qo'shimcha qavat edi.
-type SheetKind = "buy" | "how" | "ball" | "earn" | "bell" | "rules" | "gashtak" | "cards" | "card" | null;
+// 🗑 "how" (statik "Qanday ishlaydi?" varag'i) OLIB TASHLANDI 2026-08-13 — kirish tugmasi
+// endi story'ni ochadi (`setOnboard`), sheet emas.
+type SheetKind = "buy" | "ball" | "earn" | "bell" | "rules" | "gashtak" | "cards" | "card" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?: string | null } = {}) {
@@ -1404,7 +1406,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   <div className="oyk-draw-h">OY OXIRIDA MUKOFOT KUNI!</div>
                   <div className="oyk-draw-k">Sovg'alar topshiriladi — har oyda bir marta o'tkaziladi</div>
                   <div className="oyk-draw-d">{drawDateText}</div>
-                  <button type="button" className="oyk-draw-btn" onClick={() => { haptic(); setSheet("how"); }}>
+                  {/* 🗑 Statik 5-qatorli "how" varag'i O'RNIGA endi story ochiladi (ega talabi
+                      2026-08-13: "bosilgandan o'zimizni story ko'rinishi chiqishi kerak") —
+                      birinchi kirishda avtomatik ko'rsatiladigan HAQIQIY story (`OyinStory`,
+                      `onboard` holati) qayta ishlatiladi, ikkinchi quruq nusxa qurilmaydi. */}
+                  <button type="button" className="oyk-draw-btn" onClick={() => { haptic(); setOnboard(0); }}>
                     Qanday ishlaydi? <span aria-hidden="true">›</span>
                   </button>
                   <span className="oyk-draw-gift" aria-hidden="true">🎁</span>
@@ -1451,7 +1457,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     joyda o'ninchi qatorgacha (harakatlar/kunlik halqa/topshiriq/hikoya/uy-ekrani/
                     maslahat/tezyo'l/kartalar) bitta zumda turardi — endi HAMMASI "earn" varag'iga
                     ko'chdi, bosh ekranda faqat BITTA aniq keyingi qadam qoladi. */}
-                <button type="button" className="oyk-sheet-ok" style={{ marginTop: 12 }} onClick={() => { haptic(); setSheet("earn"); }}>
+                <button type="button" className="oyk-sheet-ok is-hero" style={{ marginTop: 12 }} onClick={() => { haptic(); setSheet("earn"); }}>
                   → Ball yig'ish
                 </button>
               </>
@@ -2262,37 +2268,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {/* 🔔 QO'NG'IROQ — ball qayerdan kelgani. Reyting shu yerda edi va u ball
                 QOLDIG'I bo'yicha saralanardi: chipta olgan odamning o'rni tushardi, ya'ni
                 to'g'ri xatti-harakat jazolanardi (ega qarori — butunlay olib tashlandi). */}
-            {/* 🎮 "Qanday ishlaydi?" — ega maketi 3-rasm: 5 qadam. Raqamlar KNOBDAN va
-                katalogdan keladi, qotirilmagan (ega narxni o'zgartirsa matn ham o'zgaradi). */}
-            {sheet === "how" && (
-              <>
-                {/* Sarlavhalar bir oilaga keltirildi: har varaq "emoji + savol" shaklida
-                    (avval biri "Qanday ishlaydi?", biri "💡 Ball qanday yig'iladi" — emojili
-                    va emojisiz aralash edi, ochilgan varaq boshqa ilovadek tuyulardi). */}
-                <div className="oyk-sheet-title">🎮 Qanday ishlaydi?</div>
-                <div className="oyk-how-lead">Juda oson! 5 qadamda sovg'a olasiz 🎁</div>
-                <div className="oyk-how">
-                  {([
-                    ["🚕", "Safar qiling", `Taksi chaqiring va safar qiling. Har safardan +${state.hints.rideBall} ball olasiz.`],
-                    ["🪙", "Ball yig'ing", `Vazifalarni bajaring, do'stlaringizni taklif qiling. Do'stingiz birinchi safarini qilsa +${state.hints.referFirstRideBall} ball.`],
-                    ["🎟", "Ballni kartaga almashtiring", "Ballni sodiqlik kartasiga almashtirasiz. Nechta karta ko'p bo'lsa, imkoniyat shuncha yuqori."],
-                    ["📺", "Mukofot kunida qatnashing", `${drawDateText ? `${drawDateText} — ` : "Davr oxirida "}Telegramda jonli efirda barcha kartalar orasidan mukofot egalari aniqlanadi.`],
-                    ["🎁", "Mukofotni qo'lga kiriting", "Mukofot egasi bo'lsangiz, sovg'angizni bepul olib ketasiz!"],
-                  ] as const).map(([em, title, body], i) => (
-                    <div key={title} className="oyk-how-step">
-                      <span className="oyk-how-em">{em}</span>
-                      <span className="oyk-how-body">
-                        <b><i>{i + 1}</i> {title}</b>
-                        <small>{body}</small>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-                <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); }}>
-                  Tushunarli, boshlaymiz! 🚀
-                </button>
-              </>
-            )}
+            {/* 🗑 Statik "🎮 Qanday ishlaydi?" varaq (5 qatorli ro'yxat) OLIB TASHLANDI
+                2026-08-13 — kirish tugmasi endi to'g'ridan-to'g'ri story'ni ochadi
+                (`setOnboard(0)`, yuqorida `.oyk-draw-btn`). Ikkinchi, quruqroq nusxa
+                saqlash shart emas edi — story xuddi shu 5 qadamni chiroyliroq aytadi. */}
 
             {/* 🎯 "Ball yig'ish" — bosh ekrandagi "→ Ball yig'ish" tugmasidan ochiladi
                 (ega talabi 2026-08-12, progressiv-oshkoralik). Bu yerdagi HAR bir blok avval

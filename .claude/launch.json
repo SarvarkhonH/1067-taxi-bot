@@ -5,7 +5,8 @@
       "name": "miniapp",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@t1067/miniapp", "dev"],
-      "port": 5173
+      "port": 5173,
+      "autoPort": true
     },
     {
       "name": "miniapp-alt14",
@@ -168,6 +169,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["serve", "C:\\Users\\sarva\\Desktop", "-l", "4321"],
       "port": 4321
+    },
+    {
+      "name": "sim-dashboard",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "packages/server/src/sim/dashboard/server.ts"],
+      "port": 5555
     }
   ]
 }
