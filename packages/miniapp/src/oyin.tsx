@@ -33,12 +33,12 @@ function gashtakSlides(): { icon: string; text: string; visual?: "unity" | "join
     { icon: "👥", text: "3–10 kishi — oila, do'stlar, mahalla. Kod yoki havola bilan qo'shiling", visual: "join" },
     {
       icon: "🎯",
-      text: "Har oy — BITTA odamning navbati. O'sha oyda hammaning safari o'sha bitta odamga ishlaydi",
+      text: "Boshliq istalgan payt 'kimga ball yig'amiz' deb belgilaydi. Hammaning safari o'sha bitta odamga ishlaydi",
       visual: "compare",
     },
     {
       icon: "📱",
-      text: "Misol: yolg'iz yursangiz, telefon kabi katta sovg'aga yetish ancha vaqt oladi. Lekin navbatingiz kelgan oyda — 10 kishi birga yursa, o'sha BIR OYNING o'zida odatdagidan 2-3 baravar ko'p ball yig'asiz. Katta orzuga eng tez yetish yo'li — birga yurish",
+      text: "Misol: yolg'iz yursangiz, telefon kabi katta sovg'aga yetish ancha vaqt oladi. Lekin navbatingiz kelganda — 10 kishi birga yursa, odatdagidan 2-3 baravar ko'p ball yig'asiz. Katta orzuga eng tez yetish yo'li — birga yurish",
       visual: "goal",
     },
     { icon: "📢", text: "Boshliq a'zolarga to'g'ridan-to'g'ri xabar yubora oladi — masalan \"yana 2 safar qilsak yetadi\"", visual: "message" },
@@ -76,7 +76,7 @@ function GashtakCompareViz() {
     <div className="oyk-gcmp" aria-hidden="true">
       <div className="oyk-gcmp-col">
         <div className="oyk-gcmp-track"><span className="oyk-gcmp-fill is-solo" /></div>
-        <div className="oyk-gcmp-label">Yolg'iz oy</div>
+        <div className="oyk-gcmp-label">Yolg'iz</div>
       </div>
       <div className="oyk-gcmp-col">
         <div className="oyk-gcmp-track">
@@ -85,7 +85,7 @@ function GashtakCompareViz() {
             <span key={i} className="oyk-gcmp-spark" style={{ animationDelay: `${i * 260}ms` }} />
           ))}
         </div>
-        <div className="oyk-gcmp-label is-accent">Navbat oyi</div>
+        <div className="oyk-gcmp-label is-accent">Navbat sizda</div>
       </div>
     </div>
   );
@@ -369,7 +369,10 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
 
           <RuleSec n={2} t="Tashkilotchi">
             Tashkilotchi: <RuleFill value={RULES_ORGANIZER} /><br />
-            Mukofotlar bo'yicha barcha majburiyat tashkilotchi zimmasida.
+            Mukofotlar bo'yicha barcha majburiyat tashkilotchi zimmasida.{" "}
+            <b>Yutilgan sovg'ani berish — BirJoy platformasining majburiy vazifasi:</b> mukofot
+            egasi 9-bandda tasvirlangan tartibda aniqlangach, sovg'a berilishi shart va
+            kechiktirilmaydi.
           </RuleSec>
 
           {/* ⏳ Muddat — JONLI (`season.startIso` / `endIso`). Mavsum sozlanmagan bo'lsa
@@ -401,34 +404,48 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
             birligi — ular pul emas.
           </RuleSec>
 
-          {/* 🎁 Mukofotlar — JONLI katalogdan. Qotirilgan ro'yxat yo'q: ega mukofot qo'shsa
-              yoki olib tashlasa hujjat o'zi yangilanadi. Katalog bo'sh bo'lsa soxta ro'yxat
-              o'ylab topilmaydi (DIZAYN_QOIDALARI #7) — rost gap aytiladi. */}
-          <RuleSec n={5} t="Mukofotlar">
-            {prizes.length === 0 ? (
-              <>
-                Mukofotlar ro'yxati hali e'lon qilinmagan. E'lon qilingach shu yerda to'liq
-                ko'rinadi: har mukofotning nomi, sodiqlik kartalari soni va topshirilishi uchun
-                kerak bo'lgan karta soni.
-              </>
-            ) : (
-              <>
-                Jami <b>{prizes.length} ta mukofot</b> · <b>{cards} ta sodiqlik kartasi</b>.
-                <ul className="oyk-rules-ul">
-                  {prizes.map((p) => (
-                    <li key={p.key}>
-                      <b>{p.name}</b> — {p.limit} ta sodiqlik kartasi
-                      {p.minSell > 0 ? <> · topshirilishi uchun kamida {p.minSell} ta karta tarqatilishi kerak</> : null}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
+          <RuleSec n={5} t="Ball qanday yig'iladi">
+            Ball — turli ijobiy harakatlar uchun beriladigan ilova ichidagi hisob birligi.
+            Asosiy manbalar: BirJoy orqali qilingan <b>haqiqiy safarlar</b>, do'st taklif qilish,
+            ilovaga muntazam kirish, sovrinni ijtimoiy tarmoqda ulashish va <b>gashtak</b>{" "}
+            (7-band) orqali guruh bo'lib yig'ilgan ball. Har manbaning aniq miqdori dastur
+            ichida — "Ball yig'ish" varag'ida — ko'rsatiladi va ehtiyojga qarab o'zgarishi
+            mumkin.
           </RuleSec>
 
-          <RuleSec n={6} t="Mukofot egasi qanday aniqlanadi">
+          <RuleSec n={6} t="Sodiqlik kartasi nima">
+            Sodiqlik kartasi — ballingiz mukofot narxiga yetganda olinadigan, <b>noyob raqamli</b>{" "}
+            hisob yozuvi. Bitta mukofot uchun bir nechta karta olish mumkin — qancha ko'p bo'lsa,
+            mukofot kunidagi imkoniyat shuncha yuqori (14-band). Karta egasiga biriktiriladi va
+            egasi o'zgartirilmaydi; mavsum tugashi kartaga ta'sir qilmaydi (14-band).
+          </RuleSec>
+
+          <RuleSec n={7} t="Gashtak qoidalari">
+            Gashtak — 3–10 kishilik guruh: oila, do'stlar yoki mahalla birgalikda ball yig'adi.
+            Qo'shilish faqat boshliq ulashgan <b>kod yoki havola</b> orqali — gashtak nomi bilan
+            qo'shilib bo'lmaydi. Istalgan a'zo istalgan payt guruhdan chiqishi mumkin.<br />
+            Boshliq istalgan payt <b>«bu safarlar kimga hisoblansin»ni belgilaydi</b> — o'sha
+            paytdan e'tiboran gashtakning umumiy safarlari shu a'zoga ball olib keladi. Belgilov
+            keyinchalik boshqa a'zoga qayta o'zgartirilishi mumkin. Bir a'zoga oyiga qo'shiladigan
+            ball yuqori chegarasi bor — aniq son "⚙️ Boshqarish" varag'ida ko'rinadi.
+          </RuleSec>
+
+          {/* 🎁 Mukofotlar — TURLARI umumiy tasvirlanadi (sovg'a nomlari EMAS, ega talabi
+              2026-08-13): katalog tez-tez yangilanadi, aniq nomlarni qoidalarga qotirish
+              hujjatni tezda eskirtiradi. Joriy aniq ro'yxat — Mukofotlar tabida, jonli. Son
+              (jami mukofot/karta) hamon rost va JONLI — bu hisob emas, sanoq. */}
+          <RuleSec n={8} t="Mukofotlar">
+            Mukofotlar — turmushda kerakli buyumlar (masalan: maishiy texnika, elektronika,
+            aksessuarlar). Aniq nomlar, narxlar va har birining sodiqlik kartasi soni doim
+            o'zgarib turadi — <b>joriy to'liq ro'yxat "Mukofotlar" bo'limida, jonli</b> ko'rinadi.
+            {prizes.length > 0 && <> Hozircha jami <b>{prizes.length} ta mukofot</b> · <b>{cards} ta sodiqlik kartasi</b> e'lon qilingan.</>}
+            {" "}Har mukofot yonida topshirilishi uchun kerak bo'lgan karta soni oldindan
+            ko'rsatiladi; yetmasa, o'sha mukofot o'ynalmaydi va bu haqda ochiq e'lon qilinadi.
+          </RuleSec>
+
+          <RuleSec n={9} t="Mukofot egasi qanday aniqlanadi">
             Har mukofot o'z sodiqlik kartalarining belgilangan qismi tarqatilganda EGASIGA TOPSHIRILADI —
-            kerakli son har mukofot yonida (5-band) OLDINDAN ko'rsatilgan. Kerakli son
+            kerakli son har mukofot yonida (8-band) OLDINDAN ko'rsatilgan. Kerakli son
             yig'ilmasa, o'sha mukofot o'ynalmaydi va bu haqda ochiq e'lon qilinadi.<br />
             Muddat tugashiga <b>{lockH} soat</b> qolganda karta berish to'xtaydi: ro'yxat
             muzlatiladi va ommaga e'lon qilinadi.<br />
@@ -437,13 +454,15 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
             tekshirish uchun saqlanadi.
           </RuleSec>
 
-          <RuleSec n={7} t="Mukofotni topshirish">
+          <RuleSec n={10} t="Mukofotni topshirish">
             Topshirish joyi va muddati: <RuleFill value={RULES_HANDOVER} /><br />
             Mukofot faqat egasining o'ziga topshiriladi: shaxsni tasdiqlovchi hujjat va dasturda
-            ro'yxatdan o'tgan telefon raqami talab qilinadi.
+            ro'yxatdan o'tgan telefon raqami talab qilinadi.{" "}
+            <b>Aniqlangan g'olibga sovg'a berilishi — BirJoy platformasining majburiy vazifasi</b>{" "}
+            (2-band).
           </RuleSec>
 
-          <RuleSec n={8} t="Soliq">
+          <RuleSec n={11} t="Soliq">
             {/* ⚠️ «Yutuq solig'i» — Soliq kodeksidagi RASMIY atama. Uni butunlay olib tashlash
                 huquqiy hujjatni noaniq qilardi, shuning uchun mahsulot tili birinchi, rasmiy
                 atama qavsda: hujjat ham to'g'ri, ekran ham lug'atga mos. */}
@@ -451,19 +470,19 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
             Undan qimmatroq mukofotlarda soliq mukofot egasi bilan birgalikda rasmiylashtiriladi.
           </RuleSec>
 
-          <RuleSec n={9} t="Kim qatnasha olmaydi">
+          <RuleSec n={12} t="Kim qatnasha olmaydi">
             Tashkilotchi, uning xodimlari va ularning oila a'zolari mukofot kunida qatnasha
             olmaydi.<br />
             Bir odam bir nechta hisob ochsa, soxta ma'lumot yoki qalbaki taklif ishlatsa — uning
             bali va kartalari bekor qilinadi.
           </RuleSec>
 
-          <RuleSec n={10} t="Savol va shikoyat">
+          <RuleSec n={13} t="Savol va shikoyat">
             Murojaat uchun: <RuleFill value={RULES_CONTACT} /><br />
             Har bir murojaat ko'rib chiqiladi va javob beriladi.
           </RuleSec>
 
-          <RuleSec n={11} t="Muhim chegaralar">
+          <RuleSec n={14} t="Muhim chegaralar">
             <ul className="oyk-rules-ul">
               <li>Sodiqlik kartasi pulga sotilmaydi, boshqa odamga berilmaydi va naqd pulga almashtirilmaydi.</li>
               <li>Ball ham sotilmaydi, boshqa hisobga o'tkazilmaydi va pulga almashtirilmaydi.</li>
@@ -720,7 +739,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     // Har sabab O'Z matni bilan — "xatolik" degan umumiy so'z hech narsa aytmaydi (T4 saboqi).
     switch (reason) {
       case "already_in": return "Siz allaqachon gashtakdasiz";
-      case "not_found": return "Bunday kodli gashtak topilmadi";
+      case "not_found": return "Bunday kod topilmadi — bu gashtak NOMI emas, boshliq yuborgan kod kerak";
       case "full": return `Gashtak to'lgan (${jamoa?.maxSize ?? 10} kishi)`;
       case "bad_name": return "Nom kamida 2 harf bo'lsin";
       case "not_in": return "Siz gashtakda emassiz";
@@ -1459,7 +1478,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     maslahat/tezyo'l/kartalar) bitta zumda turardi — endi HAMMASI "earn" varag'iga
                     ko'chdi, bosh ekranda faqat BITTA aniq keyingi qadam qoladi. */}
                 <button type="button" className="oyk-sheet-ok is-hero" style={{ marginTop: 12 }} onClick={() => { haptic(); setSheet("earn"); }}>
-                  ✨ Ball yig'ish <span aria-hidden="true">→</span>
+                  Ball yig'ish <span aria-hidden="true">→</span>
                 </button>
               </>
             )}
@@ -1702,9 +1721,9 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     // avtomatik navbat matnidan USTUN, chunki inson qarori.
                     <>🎯 Bugun ball <b>{jamoa.jamoa.members.find((m) => m.isNavbatchi)?.name ?? "—"}</b> uchun yig'ilmoqda — {jamoa.jamoa.turnNote}</>
                   ) : jamoa.jamoa.isMine ? (
-                    <>🎯 <b>Bu oy NAVBAT SIZDA</b> — gashtak {jamoa.jamoa.ridesThisMonth} safar qildi, sizga <b>{jamoa.jamoa.navbatchiBall} ball</b></>
+                    <>🎯 <b>Hozir navbat sizda</b> — gashtak {jamoa.jamoa.ridesThisMonth} safar qildi, sizga <b>{jamoa.jamoa.navbatchiBall} ball</b></>
                   ) : (
-                    <>Bu oy navbat: <b>{jamoa.jamoa.members.find((m) => m.isNavbatchi)?.name ?? "—"}</b> · gashtak {jamoa.jamoa.ridesThisMonth} safar qildi</>
+                    <>Hozir navbat: <b>{jamoa.jamoa.members.find((m) => m.isNavbatchi)?.name ?? "—"}</b> · gashtak {jamoa.jamoa.ridesThisMonth} safar qildi</>
                   )}
                 </div>
                 <div className="oyk-jamoa-list">
@@ -1719,8 +1738,9 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   ))}
                 </div>
                 <div className="oyk-jamoa-note">
-                  Har oy navbat keyingi odamga o'tadi. Gashtakning umumiy safarlari navbatchiga ball olib keladi —
-                  har safar <b>{jamoa.jamoa.ballPerRide} ball</b>, oyiga eng ko'pi {jamoa.jamoa.maxBall}.
+                  Boshliq «⚙️ Boshqarish»dan istalgan payt navbatni boshqa a'zoga o'tkaza oladi. Gashtakning
+                  umumiy safarlari navbatchiga ball olib keladi — har safar <b>{jamoa.jamoa.ballPerRide} ball</b>,
+                  oyiga eng ko'pi {jamoa.jamoa.maxBall}.
                   {jamoa.jamoa.members.length < jamoa.minSize && <> Gashtak {jamoa.minSize} kishidan boshlanadi — yana {jamoa.minSize - jamoa.jamoa.members.length} kishi qo'shilsin.</>}
                 </div>
                 <div className="oyk-jamoa-foot">
@@ -1746,15 +1766,15 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   </h3>
                   <p className="oyk-gashtak-sub">
                     {joinCode
-                      ? "Kodni tasdiqlab qo'shiling — gashtak a'zolari birga safar qilib navbat bilan ball yig'adi."
-                      : <>Har oy navbat bitta a'zoga o'tadi va gashtakning umumiy safarlari <b>o'sha navbatchiga</b> ball olib keladi. Keyingi oy — boshqasiga.</>}
+                      ? "Kodni tasdiqlab qo'shiling — gashtak birga safar qilib, boshliq belgilagan a'zoga ball yig'ib beradi."
+                      : <>Boshliq istalgan payt <b>«kimga ball yig'amiz»ni belgilaydi</b> — gashtakning umumiy safarlari o'sha a'zoga ball olib keladi.</>}
                   </p>
                   <button type="button" className="oyk-info-link is-compact" onClick={() => { haptic(); setGashtakHelp(0); }}>
                     ❔ Qanday ishlaydi
                   </button>
                 </div>
                 <div className="oyk-jamoa-acts">
-                  <input className="oyk-jamoa-inp" value={jamoaInput} onChange={(e) => setJamoaInput(e.target.value)} placeholder="Gashtak nomi yoki kod" maxLength={40} />
+                  <input className="oyk-jamoa-inp" value={jamoaInput} onChange={(e) => setJamoaInput(e.target.value)} placeholder={joinCode ? "Kod" : "Yangi gashtak nomi / qo'shilish kodi"} maxLength={40} />
                   {/* Taklif-kodi bilan kelgan mijoz FAQAT "Qo'shilish"ni ko'radi — "Tuzish" tugmasi
                       shu holatda ekranda turmasligi kerak, aks holda ikkalasi ham yoqilgan bo'lib
                       qolib, mijoz noto'g'ri tugmani bosib tasodifan YANGI gashtak yaratib qo'yishi
@@ -1764,6 +1784,16 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   )}
                   <button type="button" className={`oyk-jamoa-btn${joinCode ? "" : " is-ghost"}`} disabled={jamoaBusy || jamoaInput.trim().length < 4} onClick={() => { void doJamoa("join", jamoaInput.trim()); }}>Qo'shilish</button>
                 </div>
+                {/* ⚠️ 2026-08-13 (ega topgan chalkashlik: "1111 nomli gashtagimga qo'shila
+                    olmayapti") — nom va kod IKKI XIL narsa (kod tasodifiy yaratiladi, "1"
+                    raqami ISHLATILMAYDI), bitta input ikkalasini ham qabul qilgani chalkashtirdi.
+                    Qo'shilishda ANIQ nima kerakligini eslatamiz. */}
+                {!joinCode && (
+                  <div className="oyk-gashtak-hint">
+                    Qo'shilish uchun gashtak <b>nomi</b> emas, boshliq yuborgan <b>kod</b> kerak
+                    (masalan: «⚙️ Boshqarish → Havola ulashish»dan kelgan link yoki 6 belgili kod).
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -2433,7 +2463,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               {/* 🔴 O1 — TUZATILDI (2026-08-12). Avvalgi «6 oy harakatsiz» matni 2026-08-06 da
                   ham allaqachon eskirgan edi — o'sha o'zgarish sanani almashtirdi, sababni
                   emas. Haqiqat: ball 6 oylik FAOLSIZLIK bilan EMAS, MAVSUM bilan bog'liq
-                  (2026-08-11 ega qarori, `computeBallMap`). Bu — RulesSheet 11-band bilan
+                  (2026-08-11 ega qarori, `computeBallMap`). Bu — RulesSheet 14-band bilan
                   BIR XIL manba, ikkalasi endi bir xil gapiradi. */}
               <div className="oyk-ball-warn">
                 Ball pul emas — faqat sodiqlik kartasi olish uchun.<br />
