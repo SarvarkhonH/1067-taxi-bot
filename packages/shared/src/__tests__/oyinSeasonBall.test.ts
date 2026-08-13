@@ -181,6 +181,22 @@ describe("`drawn` ≠ `soldOut` (jonlida aralashtirilgan edi, 2026-08-12 ega tuz
   });
 });
 
+describe("O7 — `adminAdjustBall` poyga-himoyasi va cheksiz jurnal (2026-08-11 audit, 2026-08-13 tuzatildi)", () => {
+  // Avval qulf YO'Q edi (findUnique→hisoblash→upsert orasida poyga) va jurnal oxirgi 50
+  // yozuvga kesilardi (eski tuzatishlar jimgina yo'qolardi). `withMemberLock` — xuddi shu
+  // faylda `buyTicket` uchun ishlatilgan mavjud naqsh.
+  const fn = code.slice(code.indexOf("export async function adminAdjustBall"));
+  const body = fn.slice(0, fn.indexOf("\nexport ", 1));
+
+  it("butun o'qish-yozish `withMemberLock` ichida — ikkinchi parallel tuzatish birinchisini bosib yozmaydi", () => {
+    expect(body).toMatch(/withMemberLock\(memberId, async \(\) => \{/);
+  });
+
+  it("jurnal ENDI kesilmaydi — `.slice(-50)` yo'q", () => {
+    expect(body).not.toMatch(/\.slice\(-50\)/);
+  });
+});
+
 describe("karta bekor qilish OYNASI (jonlida cheksiz ochiq edi, 2026-08-12 ega talabi)", () => {
   // Avval `sold<minSell` bo'lgan ekan, karta OYLAR OLDIN olingan bo'lsa ham bekor bo'lardi —
   // yangi (jozibali) sovg'a ochilganda mijoz eskisidan ko'chib o'tar, eski sovg'a hech qachon

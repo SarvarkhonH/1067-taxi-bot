@@ -404,21 +404,12 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
   // qoidasini boqardi; qoida ball mavsum-doirali bo'lgach o'chirildi, ya'ni xarita hech kim
   // o'qimaydigan bo'lib qoldi. Har `computeBallMap` da 5 ta tsikl bo'yicha behuda ishlardi va
   // «bu nima uchun kerak?» degan savolni tug'dirardi.
-  // 🔴 S8-7 (nazoratchi 2026-08-04): avval FAQAT safar · kirish · karta sanalardi. Ya'ni
-  // har kuni hikoya yuklaydigan, vazifa bajaradigan, ulashadigan yoki do'stlari yuradigan
-  // mijoz "harakatsiz" deb belgilanib 6 oydan keyin BUTUN ballini yo'qotardi — hech qanday
-  // ogohlantirishsiz. Harakat ta'rifi ball manbalari bilan BIR XIL bo'lishi shart.
-  const touchDays = (rows: { key: string; value: string }[], prefix: string): void => {
-    for (const row of rows) {
-      const memberId = Number(row.key.slice(prefix.length));
-      if (!Number.isFinite(memberId)) continue;
-      const last = parseDayList(row.value).sort().at(-1);
-    }
-  };
-  touchDays(loginRows, "oyin:login:");
-  touchDays(shareRows, "oyin:share:");
-  touchDays(questRows, "oyin:quest:");
-  touchDays(homeRows, "oyin:home:");
+  // 🔴 O8 (2026-08-11 audit, olib tashlandi 2026-08-13): `touchDays` avval "harakatsizlik"
+  // qoidasi uchun oxirgi faollik sanasini yig'ardi (S8-7 shu ta'rifni to'g'irlagan edi —
+  // kirish/hikoya/vazifa/ulashish ham "harakat" hisoblansin). 2026-08-11 da harakatsizlik
+  // qoidasining O'ZI olib tashlandi (ball endi mavsum-doirali), lekin bu funksiya va 4 ta
+  // chaqiruvi qolib ketgan edi — `last` hisoblanardi-yu HECH QAYERGA yozilmasdi, faqat har
+  // `computeBallMap`da behuda tsikl yugurardi.
   // Telefon ulash — bir martalik, lekin HARAKAT: raqam ulab miniapp ochmagan odam jazolanmasin.
 
   // ⚠️ `spent` endi DAVRGA KESILMAYDI (S8): karta abadiy bo'lgani uchun uning narxi ham abadiy
@@ -3634,21 +3625,30 @@ const ARCHIVED_SINGLETONS = ["oyin:sprintweek", "oyin:seasonclosed", FREEZE_KEY,
  *  bo'lmaydigan iz qoldiradi. Yozuv KUMULYATIV: har tuzatish jurnalga qo'shiladi, `total` esa
  *  `computeBallMap` ichida `earned` ga qo'shiladi (ya'ni ball JONLI hisobda qoladi — bu yerda
  *  hech qanday "balans" saqlanmaydi, aks holda ikkita haqiqat manbai paydo bo'lardi). */
+// 🔴 O7 (2026-08-11 audit, tuzatildi 2026-08-13): avval bu yerda qulf YO'Q edi — ikki admin
+// (yoki bitta admin ikki marta tez-tez) BIR XIL a'zoga bir vaqtda tuzatish kiritsa, ikkinchi
+// yozuv birinchisining USTIDAN yozardi (findUnique → hisoblash → upsert orasida poyga).
+// `withMemberLock` — xuddi shu faylda `buyTicket` uchun ishlatilgan naqsh, bu yerda ham
+// bir xil xavfsizlikni beradi. Jurnal ham endi CHEKSIZ — avval oxirgi 50 taси saqlanardi,
+// 51-tuzatishdan keyin ENG ESKI yozuv JIMGINA yo'qolardi (audit izi buzilardi). Admin
+// tuzatishi kamdan-kam, qo'lda bosiladigan amal — ming yozuv ham bir necha yuz KB dan
+// oshmaydi, shuning uchun chegara olib tashlash xavfsiz.
 export async function adminAdjustBall(input: OyinBallAdjustInput): Promise<OyinAdminActionResult> {
   const ball = Math.round(Number(input.ball));
   const reason = (input.reason || "").trim().slice(0, 200);
   if (!Number.isFinite(ball) || ball === 0 || !reason) return { ok: false, reason: "bad_input" };
   const memberId = Number(input.memberId);
   if (!Number.isFinite(memberId)) return { ok: false, reason: "bad_input" };
-  const key = `${ADJ_PREFIX}${memberId}`;
-  const row = await prisma.appState.findUnique({ where: { key } });
-  const cur = parseAdjust(row?.value);
-  // Jurnal cheksiz o'smasin — oxirgi 50 tasi saqlanadi (`total` HAMMASINI hisobga oladi).
-  const log = [...cur.log, { ball, reason, at: new Date().toISOString() }].slice(-50);
-  const value = JSON.stringify({ total: cur.total + ball, log });
-  await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
-  invalidateBallCache();
-  return { ok: true, ball: await getBall(memberId) };
+  return withMemberLock(memberId, async () => {
+    const key = `${ADJ_PREFIX}${memberId}`;
+    const row = await prisma.appState.findUnique({ where: { key } });
+    const cur = parseAdjust(row?.value);
+    const log = [...cur.log, { ball, reason, at: new Date().toISOString() }];
+    const value = JSON.stringify({ total: cur.total + ball, log });
+    await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
+    invalidateBallCache();
+    return { ok: true, ball: await getBall(memberId) };
+  });
 }
 
 /** 🎟 Chiptani bekor qilish. O'rin QAYTARILADI (test bo'lsa test-hisoblagichga), ball esa o'zi

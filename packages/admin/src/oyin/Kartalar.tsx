@@ -35,7 +35,12 @@ export function Kartalar({ onChanged }: { onChanged: () => void }) {
 
   const prizeOf = (k: string): OyinAdminPrizeRow | undefined => catalog.find((p) => p.key === k);
   const winnerByPrize = new Map(winners.map((w) => [w.prizeKey, w]));
-  const ready = catalog.filter((p) => p.active && p.queued !== true && p.limit > 0 && p.sold >= p.limit && !winnerByPrize.has(p.key));
+  // 🔴 O13 (2026-08-11 audit, tuzatildi 2026-08-13): avval bu yerda `sold >= p.limit` (100%
+  // to'lish) o'z holicha hisoblanardi — server esa `sold >= minSell` (`oyinMinSellPct` knobi,
+  // odatda < 100%) bo'yicha chiqaradi. `oyinMinSellPct` 100dan past qilib sozlansa, server
+  // allaqachon tirajga tayyor deb bilgan sovrin bu ro'yxatda UMUMAN ko'rinmasdi. `p.willDraw`
+  // — server AYNAN shu hisobdan yuborgan tayyor maydon, qayta hisoblash shart emas edi.
+  const ready = catalog.filter((p) => p.active && p.queued !== true && p.willDraw && !winnerByPrize.has(p.key));
 
   const rows = exp.tickets.filter((t) => {
     if (prizeKey && t.prizeKey !== prizeKey) return false;
@@ -49,7 +54,7 @@ export function Kartalar({ onChanged }: { onChanged: () => void }) {
     if (w && w.gno === t.ticketNo) return { label: `🏆 G'OLIB${w.handedAt ? " · topshirildi" : " · topshirilmagan"}`, tone: "ok" };
     if (w) return { label: "tiraj o'tdi", tone: "mute" };
     const p = prizeOf(t.prizeKey);
-    if (p && p.limit > 0 && p.sold >= p.limit) return { label: "📦 to'lgan — tiraj kutmoqda", tone: "warn" };
+    if (p && p.willDraw) return { label: "📦 to'lgan — tiraj kutmoqda", tone: "warn" };
     return { label: "🎟 tirajda", tone: "mute" };
   };
 

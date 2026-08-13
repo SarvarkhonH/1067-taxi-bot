@@ -1425,7 +1425,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     <>
                       <div className="oyk-goalc-hero">
                         <div className="oyk-goalc-side">
-                          <div className="oyk-goalc-eyebrow">🎯 Mening maqsadim</div>
+                          <div className="oyk-goalc-eyebrow">🎁 Sovrin</div>
                           <h3 className="oyk-goalc-headline">
                             {cheapest.price - state.ball > 0
                               ? <>{cheapest.name} yutib olishga <b>{cheapest.price - state.ball} ball</b> qoldi!</>
@@ -1458,7 +1458,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     maslahat/tezyo'l/kartalar) bitta zumda turardi — endi HAMMASI "earn" varag'iga
                     ko'chdi, bosh ekranda faqat BITTA aniq keyingi qadam qoladi. */}
                 <button type="button" className="oyk-sheet-ok is-hero" style={{ marginTop: 12 }} onClick={() => { haptic(); setSheet("earn"); }}>
-                  → Ball yig'ish
+                  ✨ Ball yig'ish <span aria-hidden="true">→</span>
                 </button>
               </>
             )}
@@ -1588,23 +1588,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       🛡 Topshirilishi uchun {p.minSell} ta karta kerak — hozir {p.sold} ta
                     </div>
                   )}
-                  {/* ⚠️ Tugagan sovringa "eng tez yo'l" ko'rsatish — bo'sh va'da: yo'l bor,
-                      lekin oxirida olib bo'lmaydi. Tugaganda faqat qatnashgan bo'lsa gap qoladi. */}
-                  {(!p.soldOut || p.mine > 0) && (
-                    <div className="oyk-vcard-path">
-                      {/* ⚠️ "Imkoniyat %" OLIB TASHLANDI (ega talabi 2026-08-12: "shuncha ball
-                          shuncha imkoniyat degan ortiq malumot kerak emas" — reja §8 buni
-                          allaqachon tavsiya qilgan edi: foiz kun sayin o'zi tushadi, mijoz
-                          aldangandek bo'ladi). Sof son qoladi — sharhsiz. */}
-                      💡 {p.mine > 0
-                        ? (p.limit === 1
-                          ? "Bu mukofotning yagona kartasi sizda"
-                          : `Sizda ${p.mine} ta karta bor`)
-                        : p.price - state.ball <= 0
-                          ? "Ball yetdi — kartani oling!"
-                          : "Do'stingizga ayting — sizning havolangiz orqali taksi chaqirsin"}
-                    </div>
-                  )}
+                  {/* 🗑 "💡" holat-matni OLIB TASHLANDI (ega talabi 2026-08-13: "hintlar
+                      ortiqcha"). Xuddi shu fakt pastdagi xarid tugmasining O'Z matnida
+                      allaqachon bor edi ("🎟 Yana ol", "🎟 Karta ol", "N ball qoldi") —
+                      bitta faktni ikki marta, ikki joyda aytish ortiqcha edi. */}
                   {/* Limit xariddan OLDIN aytiladi — avval mijoz unga faqat tugmani bosgandan
                       keyin duch kelardi ("limitga yetdingiz", raqamsiz). */}
                   {p.mine > 0 && p.mine >= state.hints.maxPerPrize && (
@@ -1776,10 +1763,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             global noyob raqam, sovrin, tiraj sanasi va holati. */}
         {tab === "tickets" && (
           <>
-            <div className="oyk-v-head">
-              <div className="oyk-v-title">🎟 Kartalarim</div>
-              {tickets && <div className="oyk-rail-sub">{tickets.tickets.length} ta</div>}
-            </div>
+            {/* 🗑 "🎟 Kartalarim" sarlavhasi OLIB TASHLANDI 2026-08-13 — Mukofotlar tabida
+                qo'llangan qoidaning O'ZI (pastki tab-qatorida "Kartalarim" allaqachon bor,
+                sarlavha shu so'zni ikkinchi marta aytardi). Jami son endi pastdagi
+                "Jami N ta karta" qatorida bir marta ko'rinadi. */}
             {ticketsErr ? (
               /* Tarmoq xatosi — "chiptangiz yo'q" DEMAYDI (G8). Mijozning 600 balli evaziga
                  olingan chiptasi bor bo'lishi mumkin; bizda esa shunchaki javob yo'q. */
