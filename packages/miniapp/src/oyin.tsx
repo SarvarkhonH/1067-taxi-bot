@@ -497,7 +497,10 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
 type OyinTab = "home" | "vitrina" | "tickets" | "jamoam";
 // 🎟 2026-08-12 (ega talabi): `cards` — sovg'aning kartalar panjarasi · `card` — bitta
 // kartaning sahifasi (O'ZGA odamning kartasi ham shu bilan ochiladi).
-type SheetKind = "buy" | "info" | "how" | "ball" | "bell" | "rules" | "gashtak" | "cards" | "card" | null;
+// 🎯 2026-08-12 (ega talabi — "bitta ekran bitta savolga javob"): `earn` — soddalashtirilgan
+// bosh ekrandan "Ball yig'ish" bosilganda ochiladigan qatlam (safar/do'st/ulashish + kunlik
+// vazifalar + topshiriq). Avval bularning HAMMASI uy tabida bir vaqtda turardi.
+type SheetKind = "buy" | "info" | "how" | "ball" | "earn" | "bell" | "rules" | "gashtak" | "cards" | "card" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?: string | null } = {}) {
@@ -870,13 +873,6 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     });
     return () => { alive = false; off(); };
   }, [loadHome, showToast]);
-
-  // Chipta endi O'Z TABIGA ega (YAKUNIY DIZAYN §1) — varaq ochilmaydi, tabga o'tiladi.
-  // Bitta narsa ikki joyda ochilsa (varaq + tab) qaysi biri "haqiqiy" ekani noaniq bo'ladi.
-  const openTickets = useCallback(() => {
-    haptic();
-    setTab("tickets");
-  }, []);
 
   // 🔔 Qo'ng'iroq — ball qayerdan kelgani. Ochilganda "ko'rildi" belgisi yangilanadi.
   const openBell = useCallback(() => {
@@ -1280,7 +1276,6 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
     goalPrize ??
     [...vitrina.prizes].filter((p) => !p.soldOut).sort((a, b) => a.price - b.price)[0] ??
     null;
-  const nearMiss = cheapest ? state.ball >= cheapest.price : false;
 
   // 🚦 O'lchangan tanqislik (YAKUNIY DIZAYN §6): tanqislik HAQIQAT bo'lgandagina ko'rsatiladi.
   // ≥50% — rangsiz · 20–50% — kahrabo · <20% — qizil. Sabab: lotereya + qizil bosim mahalliy
@@ -1465,169 +1460,23 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   ) : (
                     <div className="oyk-goalc-num"><b>{state.ball}</b> <span>ball</span></div>
                   )}
-                  <button type="button" className="oyk-bal-btn" onClick={() => { haptic(); setSheet("ball"); }}>
-                    Ball qanday yig'iladi? <span aria-hidden="true">›</span>
-                  </button>
                 </div>
 
-                {/* Ikkita asosiy harakat. "Safar qilish" XARITAGA kirgizadi (ega talabi). */}
-                <div className="oyk-acts">
-                  <button type="button" className="oyk-act is-ride" onClick={() => { haptic(); if (onTaxi) onTaxi(); else showToast("Taksi chaqirish — Uy ekranidan 🚕"); }}>
-                    <span className="oyk-act-ic">🚕</span>
-                    <b>Safar qilish</b>
-                    <small>+{state.hints.rideBall} ball</small>
-                  </button>
-                  <button type="button" className="oyk-act is-invite" onClick={() => void inviteFriend()}>
-                    <span className="oyk-act-ic">👥</span>
-                    <b>Do'st chaqirish</b>
-                    <small>+{state.hints.referFirstRideBall} ball</small>
-                  </button>
-                </div>
+                {/* 🎯 (ega talabi 2026-08-12: "bitta ekran — bitta savolga javob"). Avval shu
+                    joyda o'ninchi qatorgacha (harakatlar/kunlik halqa/topshiriq/hikoya/uy-ekrani/
+                    maslahat/tezyo'l/kartalar) bitta zumda turardi — endi HAMMASI "earn" varag'iga
+                    ko'chdi, bosh ekranda faqat BITTA aniq keyingi qadam qoladi. */}
+                <button type="button" className="oyk-sheet-ok" style={{ marginTop: 12 }} onClick={() => { haptic(); setSheet("earn"); }}>
+                  → Ball yig'ish
+                </button>
               </>
             )}
 
-            {/* Mavsum tugagach kunlik vazifalar ham, "ball yig'" chaqiriqlari ham MA'NOSIZ —
-                ular ball va'da qiladi, ball esa endi hech narsaga aylanmaydi. */}
-            {!ended && (() => {
-              // 🎯 Bugungi maqsad — prototipdagi halqa, endi REAL ma'lumot bilan (state.today).
-              // ⚠️ Uchinchi qator avval "Do'st chaqirish +40" derdi va bosilganda `inviteFriend()`
-              // ni chaqirardi — u esa faqat Telegram ulashish oynasini ochadi va HECH QANDAY ball
-              // bermaydi (+40 do'st RAQAM ULAGANDA, ya'ni ertaga yoki hech qachon keladi).
-              // Ustiga `done` sharti `shared || referJoined` edi: +10 ulashish balini olgan odamga
-              // ekran "✓ +40" deb ko'rsatardi. Endi qator o'zi beradigan narsani aytadi:
-              // ulashish = +10, bosilganda `doShareBonus` HAQIQATAN yozadi va galochka qo'yiladi.
-              const tasks = [
-                { done: state.today.login, label: "Ilovaga kirish", gain: state.hints.loginBall, tap: null },
-                { done: state.today.rides > 0, label: "1 safar qilish", gain: state.hints.rideBall, tap: null },
-                { done: state.today.shared, label: "Ulashish", gain: state.hints.shareBall, tap: () => void doShareBonus() },
-              ] as const;
-              const doneCount = tasks.filter((t) => t.done).length;
-              const R = 26;
-              const C = 2 * Math.PI * R;
-              return (
-                <div className="oyk-daily">
-                  <div className="oyk-daily-ring">
-                    <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
-                      {/* Iz rangi TOKENDAN. Avval `rgba(255,255,255,.09)` — qorong'i qurilishdan
-                          qolgan oq iz, oq karta ustida umuman ko'rinmasdi (halqa "osilib" turardi). */}
-                      <circle cx="32" cy="32" r={R} fill="none" stroke="var(--oyk-fill)" strokeWidth="6" />
-                      <circle
-                        className="oyk-daily-ring-progress"
-                        cx="32" cy="32" r={R} fill="none" stroke="var(--oyk-violet)" strokeWidth="6" strokeLinecap="round"
-                        strokeDasharray={C} strokeDashoffset={C * (1 - doneCount / tasks.length)}
-                        transform="rotate(-90 32 32)"
-                      />
-                    </svg>
-                    <div className="oyk-daily-ring-num">{doneCount}/{tasks.length}</div>
-                  </div>
-                  <div className="oyk-daily-body">
-                    {/* Ega talabi: sarlavha "vazifa" emas, YORDAM tilida. */}
-                    <div className="oyk-daily-title">Tezroq ball olish uchun <small>{doneCount}/{tasks.length} bajarildi</small></div>
-                    {tasks.map((t) => (
-                      <button
-                        key={t.label} type="button" disabled={t.done || !t.tap}
-                        className={`oyk-daily-row${t.done ? " is-done" : ""}${!t.done && t.tap ? " is-tappable" : ""}`}
-                        onClick={t.tap ?? undefined}
-                      >
-                        <span className="oyk-daily-check">{t.done ? "✔" : ""}</span>
-                        <span className="oyk-daily-label">{t.label}</span>
-                        <span className="oyk-daily-gain">{t.done ? `✓ +${t.gain}` : `+${t.gain}`}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* 🎯 BUGUNGI TOPSHIRIQ — har kuni RANDOM (ega talabi 2026-08-03). Tanlov
-                deterministik (a'zo + kun), sahifa yangilanganda o'zgarmaydi. To'plamda faqat
-                SERVER TEKSHIRA OLADIGAN topshiriqlar bor. */}
-            {!ended && state.quest && state.quest.ball > 0 && (
-              <div className={`oyk-quest${state.quest.done ? " is-done" : ""}`}>
-                <span className="oyk-quest-em">{state.quest.icon}</span>
-                <span className="oyk-quest-tx">
-                  <b>{state.quest.title}</b>
-                  <small>{state.quest.done ? "Bajarildi — ball tushdi ✓" : state.quest.hint}</small>
-                </span>
-                <span className="oyk-quest-b">{state.quest.done ? `✓ +${state.quest.ball}` : `+${state.quest.ball}`}</span>
-              </div>
-            )}
-
-            {/* 📸 Hikoya-qo'yish — PROMO kartochka, HAQIQIY "topshiriq" EMAS (2026-08-05, ega
-                talabi + xavfsizlik cheklovi). Ball haqiqiy va ko'rinadigan (`state.story.ballEach`)
-                — bu odamni harakatga undaydi — lekin bosish HECH QACHON `done`/ball bermaydi,
-                faqat hikoya bo'limiga OLIB BORADI. Sabab: server hikoyani serverga TEKSHIRA
-                OLMAYDI (faqat admin ko'radi) — 2026-08-03'da "story" aynan shu sabab bilan
-                `OYIN_QUEST_POOL`dan OLIB TASHLANGAN (izohga qarang) — mavsumda BIR MARTA
-                tasdiqlangan odam shundan keyin HAR KUNI bepul "bajarildi" olardi. Bu kartochka
-                o'sha xatoni QAYTARMAYDI: haqiqiy ball hamon FAQAT admin tasdig'idan keyin,
-                `computeBallMap` orqali, mavjud yo'l bilan tushadi. */}
-            {!ended && state.story.ballEach > 0 && state.story.approved < state.story.limit && (
-              <button type="button" className="oyk-quest is-story" onClick={goToStory}>
-                <span className="oyk-quest-em">📸</span>
-                <span className="oyk-quest-tx">
-                  <b>Hikoya qo'ying — ball oling</b>
-                  <small>{state.story.pending ? "Yuborilgan — 24 soat ichida tekshiramiz" : "Instagram yoki Telegram'ga qo'ying"}</small>
-                </span>
-                <span className="oyk-quest-b">+{state.story.ballEach}</span>
-              </button>
-            )}
-
-            {/* 🏠 DOIMIY topshiriq — ilovani telefon ekraniga o'rnatish.
-                Ko'rsatish sharti (2026-08-03): `homeAddable` (avval `homeSupported`) "qo'shish MUMKIN" degani
-                (`homeScreenStatus() === "missed"`), "klient qo'llab-quvvatlaydi" emas. Sabab:
-                ikonka ALLAQACHON ekranda bo'lsa Telegram oqimi qayta ochilmaydi va hodisa
-                otilmaydi — ya'ni topshiriq BAJARIB BO'LMAYDIGAN bo'lib ekranda osilib qolardi.
-                `state.homeTask.done` bo'lsa esa baribir ko'rsatiladi: mijoz o'zi bajargan ishning
-                tasdig'ini ko'rishi kerak (aks holda ball tushadi-yu, sababi ekrandan yo'qoladi). */}
-            {!ended && (homeAddable === true || state.homeTask.done) && state.homeTask.ball > 0 && (
-              <button
-                type="button"
-                className={`oyk-quest is-home${state.homeTask.done ? " is-done" : ""}`}
-                disabled={state.homeTask.done}
-                onClick={() => { haptic(); addToHomeScreen(); }}
-              >
-                <span className="oyk-quest-em">🏠</span>
-                <span className="oyk-quest-tx">
-                  <b>Ilovani telefon ekraniga o'rnating</b>
-                  <small>{state.homeTask.done ? "O'rnatilgan — ball tushdi ✓" : "Bir bosishda — keyin ilova tezroq ochiladi"}</small>
-                </span>
-                <span className="oyk-quest-b">{state.homeTask.done ? `✓ +${state.homeTask.ball}` : `+${state.homeTask.ball}`}</span>
-              </button>
-            )}
-
-            {/* 💡 KUNLIK MASLAHAT — har kuni boshqa, a'zo bo'yicha deterministik.
-                ⛔ Qizil emas, miltillamaydi: maslahat SHOSHILINCH EMAS. Har kuni yonib tursa
-                odam ko'rmay qo'yadi va haqiqatan muhim narsa uchun urg'u qolmaydi. */}
-            {!ended && (
-              <div className="oyk-hint">
-                <span className="oyk-hint-ic" aria-hidden="true">{isNew ? "👋" : dailyHint.icon}</span>
-                <span className="oyk-hint-tx">{isNew ? "Xush kelibsiz! Birinchi safaringizdan darhol ball tushadi — boshlash uchun taksi chaqiring." : dailyHint.text}</span>
-              </div>
-            )}
-
-            {/* 💡 Eng tez yo'l — ega talabi 2026-08-03: "do'stinga ayt, SEN ORQALI taksi
-                chaqirsin". Avval quruq "N do'st + M safar" hisobi turardi; endi aniq harakat. */}
-            {!ended && cheapest && !nearMiss && (
-              <button type="button" className="oyk-fast" onClick={() => void inviteFriend()}>
-                <span className="oyk-fast-ic">💡</span>
-                <span>Eng tez yo'l: <b>do'stingga ayt — sening havolang orqali taksi chaqirsin</b></span>
-              </button>
-            )}
-
-
-            {/* 🎟 Chipta raqami avval bayram-oynasida BIR MARTA ko'rinib abadiy yo'qolardi —
-                odam 600 ball to'lab qo'lida hech narsa qolmasdi. Endi doimiy ro'yxat bor. */}
-            {state.ticketCount > 0 && (
-              <button type="button" className="oyk-howto" onClick={openTickets}>
-                <span>🎟 Mening kartalarim <b>({state.ticketCount})</b></span>
-                <span className="oyk-howto-go">→</span>
-              </button>
-            )}
-
-            {/* ⛔ Haftalik zanjir bloki va JONLI lenta OLIB TASHLANDI (ega qarori 2026-08-03):
-                "havtalik vazifa ham [kerak emas]", "Jonli ham kerak emas". Zanjir mexanikasi
-                serverda ishlayveradi va ball jadvalida ko'rinadi — faqat bu blok yo'q. */}
+            {/* ⛔ Kunlik halqa/topshiriq/hikoya/uy-ekrani-vazifasi/maslahat/tezyo'l/kartalar
+                bu yerdan OLIB TASHLANDI (ega talabi 2026-08-12) — hammasi "earn" varag'iga
+                ko'chdi (pastda, sheet bo'limida). "Mening kartalarim" havolasi ham olindi —
+                pastki tab-qatorida allaqachon "Kartalarim" bor edi, ikkalasi bitta joyga
+                olib borardi (ortiqcha yo'l). Bosh ekranda faqat ijtimoiy-isbot qatori qoladi. */}
 
             {!ended && activeFriend && (
               <div className="oyk-magnet">
@@ -1645,17 +1494,6 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               </div>
             )}
 
-            {/* ⛔ Sovrin raili uy tabidan OLIB TASHLANDI (ega qarori 2026-08-03:
-                "uy sahifasida sovrinlar kerak emas"). Sovrinlar o'z tabida —
-                bitta narsa ikki joyda turmasin. */}
-            {/* ⭐ Eng muhim savol — "nima qilsam ball ko'payadi?". Avval javob varaq ortida edi va
-                deyarli hech kim ochmasdi: eng katta mukofot (hikoya, do'st birinchi safari) ekranda
-                umuman ko'rinmasdi. YAKUNIY DIZAYN §4 — jadval EKRANDA, ostida doimiy ogohlantirish. */}
-            {/* Tugagan mavsumda ball jadvali va "do'st chaqiring" chaqirig'i ball va'da
-                qiladi, ball esa endi hech narsaga aylanmaydi — ikkalasi ham yashiriladi. */}
-            {/* ⛔ Ball jadvali va pastdagi CTA uy tabidan OLINDI (ega qarori 2026-08-03):
-                jadval endi "Ball qanday yig'iladi? ›" tugmasi ortida. Uy tabi qisqa va
-                aniq bo'lib qoldi: tiraj sanasi → balans → ikkita harakat → bugungi vazifalar. */}
           </>
         )}
 
@@ -1749,12 +1587,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   <div className="oyk-vbar">
                     <div className="oyk-vbar-fill" style={{ transform: `scaleX(${Math.min(1, state.ball / p.price)})` }} />
                   </div>
-                  {/* Olingan/qolgan JUFTLIGI (YAKUNIY DIZAYN §7): faqat "qolgan" ijtimoiy isbot
-                      bermaydi — "olingan" boshqalar ham olayotganini ko'rsatadi. */}
-                  <div className="oyk-vcard-stats">
-                    <span>Olingan: <b>{p.sold}</b> · Qolgan: <b>{p.remaining}</b></span>
-                    <span>Sizda: <b>{p.mine} ta</b></span>
-                  </div>
+                  {/* 🗑 "Olingan/Qolgan/Sizda" qatori OLIB TASHLANDI (ega talabi 2026-08-13:
+                      Mukofotlar kartasi soddalashtirilsin). Ikkalasi ham boshqa joyda bor:
+                      "olingan/qolgan" progress-chiziqda ko'rinadi (va tanqislik chindan
+                      muhim bo'lsa pastdagi 🚦 belgi orqali), "sizda N ta" esa pastdagi 💡
+                      qatorida takrorlanardi — bir xil fakt ikki marta yozilardi. */}
                   {/* 🚦 Tanqislik faqat HAQIQAT bo'lganda ko'rsatiladi (§6): <20% qizil,
                       20-50% kahrabo, undan yuqorisi — rangsiz. */}
                   {scarcity(p) !== "none" && (
@@ -1767,12 +1604,13 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       cheksiz bo'lardi — 133 chiptalik sovringa 5 ta sotilsa ham beriladi).
                       Bu shartni YASHIRISH ishonchni bir marta va butunlay buzadi: odam ball
                       sarflab chipta oladi, keyin "yetarli sotilmadi" degan gapni birinchi marta
-                      eshitadi. Shuning uchun kartada, xarid varag'ida va chiptada turadi. */}
-                  {p.minSell > 0 && (
-                    <div className={`oyk-vcard-path${p.willDraw ? " is-ok" : ""}`}>
-                      {p.willDraw
-                        ? `🛡 Mukofot kunida topshiriladi — kerakli ${p.minSell} ta karta yig'ildi`
-                        : `🛡 Topshirilishi uchun ${p.minSell} ta karta kerak — hozir ${p.sold} ta`}
+                      eshitadi. Shuning uchun kartada, xarid varag'ida va chiptada turadi.
+                      ⚠️ 2026-08-13: "✅ tayyor" tasdig'i OLIB TASHLANDI — bu OGOHLANTIRISH
+                      emas, faqat quvonchli qo'shimcha edi, kartani band qilardi. Faqat HALI
+                      YETARLI sotilmagan holat (haqiqiy ogohlantirish) qoladi. */}
+                  {p.minSell > 0 && !p.willDraw && (
+                    <div className="oyk-vcard-path">
+                      🛡 Topshirilishi uchun {p.minSell} ta karta kerak — hozir {p.sold} ta
                     </div>
                   )}
                   {/* ⚠️ Tugagan sovringa "eng tez yo'l" ko'rsatish — bo'sh va'da: yo'l bor,
@@ -1800,17 +1638,20 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   {/* 🎯 Maqsad qilish + chipta olish BITTA qatorda. Avval ikkalasi ham butun
                       enlik blok edi: har kartada ikkita bir xil vaznli tugma turib, qaysi biri
                       ASOSIY harakat ekani ko'rinmasdi (5 sovrin = 10 ta baland tugma devori).
-                      Endi ierarxiya ko'z bilan o'qiladi: maqsad — kichik chip, chipta — asosiy. */}
+                      Endi ierarxiya ko'z bilan o'qiladi: maqsad — kichik chip, chipta — asosiy.
+                      ⚠️ 2026-08-13: ikkinchi darajali ikkitasi (Maqsad/Kartalar) matnsiz
+                      ikonka-tugmaga tushdi — `aria-label`/`title` bilan hamon tushunarli,
+                      lekin ekranda kamroq joy oladi va "Karta ol" yagona ko'zga tashlanadi. */}
                   <div className="oyk-vcard-acts">
                     {!p.soldOut && (
                       state.goalPrizeKey === p.key
-                        ? <div className="oyk-goal-on">🎯 Maqsad</div>
-                        : <button type="button" className="oyk-goal-btn" disabled={goalBusyKey === p.key} onClick={() => void setGoal(p)}>{goalBusyKey === p.key ? "…" : "🎯 Maqsad"}</button>
+                        ? <div className="oyk-goal-on" aria-label="Bu sizning maqsadingiz" title="Maqsad">🎯</div>
+                        : <button type="button" className="oyk-goal-btn" aria-label="Maqsad qilib belgilash" title="Maqsad qilib belgilash" disabled={goalBusyKey === p.key} onClick={() => void setGoal(p)}>{goalBusyKey === p.key ? "…" : "🎯"}</button>
                     )}
                     {/* 🎟 Kartalar panjarasi. Ega talabi: «sovg'aga bosilsa kartalar ro'yxati
                         ochiladi va egasi bor-yo'qligi ko'rsatiladi». To'lgan sovg'ada ham
                         ochiladi — u eng kuchli ijtimoiy isbot. */}
-                    <button type="button" className="oyk-goal-btn" onClick={() => openCards(p)}>🎟 Kartalar</button>
+                    <button type="button" className="oyk-goal-btn" aria-label="Kartalarni ko'rish" title="Kartalarni ko'rish" onClick={() => openCards(p)}>🎟</button>
                     {/* 🚕 `needsRide` tugmaning O'ZIDA aytiladi — server bu holatda `no_ride`
                         qaytaradi, ekran esa avval bu haqda hech narsa demasdi va mijoz uni
                         faqat "Tasdiqlash" dan KEYIN bilib olardi (G3). */}
@@ -2483,6 +2324,138 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); }}>
                   Tushunarli, boshlaymiz! 🚀
                 </button>
+              </>
+            )}
+
+            {/* 🎯 "Ball yig'ish" — bosh ekrandagi "→ Ball yig'ish" tugmasidan ochiladi
+                (ega talabi 2026-08-12, progressiv-oshkoralik). Bu yerdagi HAR bir blok avval
+                uy tabida bevosita turgan — funksiyalari (handler/shart) BIR HARFI ham
+                o'zgarmagan, faqat endi bosh ekran emas, shu varaqning ichida. */}
+            {/* ⚠️ `!ended` QO'RIG'I: bosh ekrandagi CTA `!ended` bo'lganda GINA chiziladi, shuning
+                uchun odatda bu varaq ochilganda mavsum allaqachon faol. Lekin `sheet` holati
+                `ended` bilan BOG'LANMAGAN — nazariy jihatdan mavsum SHU varaq OCHIQ turgan
+                paytda tugashi mumkin (davriy `loadHome` yangilanishi). Eski kodda HAR blok o'z
+                `!ended &&` qo'rig'iga ega edi — bu yerda BITTA qo'riq bilan bir xil natija. */}
+            {sheet === "earn" && !ended && (
+              <>
+                <div className="oyk-sheet-title">🎯 Ball yig'ish</div>
+
+                {/* 💡 Kunlik maslahat — birinchi safar kelgan mijozga xush kelibsiz, aks holda
+                    kunlik-deterministik maslahat. Avval bosh ekranda doim ko'rinardi. */}
+                <div className="oyk-hint">
+                  <span className="oyk-hint-ic" aria-hidden="true">{isNew ? "👋" : dailyHint.icon}</span>
+                  <span className="oyk-hint-tx">{isNew ? "Xush kelibsiz! Birinchi safaringizdan darhol ball tushadi — boshlash uchun taksi chaqiring." : dailyHint.text}</span>
+                </div>
+
+                {/* Ikkita asosiy harakat. "Safar qilish" XARITAGA kirgizadi (ega talabi). */}
+                <div className="oyk-acts">
+                  <button type="button" className="oyk-act is-ride" onClick={() => { haptic(); if (onTaxi) onTaxi(); else showToast("Taksi chaqirish — Uy ekranidan 🚕"); }}>
+                    <span className="oyk-act-ic">🚕</span>
+                    <b>Safar qilish</b>
+                    <small>+{state.hints.rideBall} ball</small>
+                  </button>
+                  <button type="button" className="oyk-act is-invite" onClick={() => void inviteFriend()}>
+                    <span className="oyk-act-ic">👥</span>
+                    <b>Do'st chaqirish</b>
+                    <small>+{state.hints.referFirstRideBall} ball</small>
+                  </button>
+                </div>
+
+                {/* 🎯 Bugungi maqsad — halqa, REAL ma'lumot bilan (state.today). Uchinchi qator
+                    ulashish = +N, bosilganda `doShareBonus` HAQIQATAN yozadi va galochka qo'yiladi. */}
+                {(() => {
+                  const tasks = [
+                    { done: state.today.login, label: "Ilovaga kirish", gain: state.hints.loginBall, tap: null },
+                    { done: state.today.rides > 0, label: "1 safar qilish", gain: state.hints.rideBall, tap: null },
+                    { done: state.today.shared, label: "Ulashish", gain: state.hints.shareBall, tap: () => void doShareBonus() },
+                  ] as const;
+                  const doneCount = tasks.filter((t) => t.done).length;
+                  const R = 26;
+                  const C = 2 * Math.PI * R;
+                  return (
+                    <div className="oyk-daily">
+                      <div className="oyk-daily-ring">
+                        <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
+                          <circle cx="32" cy="32" r={R} fill="none" stroke="var(--oyk-fill)" strokeWidth="6" />
+                          <circle
+                            className="oyk-daily-ring-progress"
+                            cx="32" cy="32" r={R} fill="none" stroke="var(--oyk-violet)" strokeWidth="6" strokeLinecap="round"
+                            strokeDasharray={C} strokeDashoffset={C * (1 - doneCount / tasks.length)}
+                            transform="rotate(-90 32 32)"
+                          />
+                        </svg>
+                        <div className="oyk-daily-ring-num">{doneCount}/{tasks.length}</div>
+                      </div>
+                      <div className="oyk-daily-body">
+                        <div className="oyk-daily-title">Tezroq ball olish uchun <small>{doneCount}/{tasks.length} bajarildi</small></div>
+                        {tasks.map((t) => (
+                          <button
+                            key={t.label} type="button" disabled={t.done || !t.tap}
+                            className={`oyk-daily-row${t.done ? " is-done" : ""}${!t.done && t.tap ? " is-tappable" : ""}`}
+                            onClick={t.tap ?? undefined}
+                          >
+                            <span className="oyk-daily-check">{t.done ? "✔" : ""}</span>
+                            <span className="oyk-daily-label">{t.label}</span>
+                            <span className="oyk-daily-gain">{t.done ? `✓ +${t.gain}` : `+${t.gain}`}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* 🎯 Bugungi topshiriq — har kuni random, faqat SERVER tekshira oladigan turdan. */}
+                {state.quest && state.quest.ball > 0 && (
+                  <div className={`oyk-quest${state.quest.done ? " is-done" : ""}`}>
+                    <span className="oyk-quest-em">{state.quest.icon}</span>
+                    <span className="oyk-quest-tx">
+                      <b>{state.quest.title}</b>
+                      <small>{state.quest.done ? "Bajarildi — ball tushdi ✓" : state.quest.hint}</small>
+                    </span>
+                    <span className="oyk-quest-b">{state.quest.done ? `✓ +${state.quest.ball}` : `+${state.quest.ball}`}</span>
+                  </div>
+                )}
+
+                {/* 📸 Hikoya-qo'yish — PROMO, HAQIQIY "topshiriq" emas: bosish hech qachon
+                    done/ball bermaydi, faqat hikoya bo'limiga olib boradi (server hikoyani
+                    o'zi tekshira olmaydi, faqat admin ko'radi). */}
+                {state.story.ballEach > 0 && state.story.approved < state.story.limit && (
+                  <button type="button" className="oyk-quest is-story" onClick={goToStory}>
+                    <span className="oyk-quest-em">📸</span>
+                    <span className="oyk-quest-tx">
+                      <b>Hikoya qo'ying — ball oling</b>
+                      <small>{state.story.pending ? "Yuborilgan — 24 soat ichida tekshiramiz" : "Instagram yoki Telegram'ga qo'ying"}</small>
+                    </span>
+                    <span className="oyk-quest-b">+{state.story.ballEach}</span>
+                  </button>
+                )}
+
+                {/* 🏠 Doimiy topshiriq — ilovani telefon ekraniga o'rnatish. `homeAddable` =
+                    "qo'shish mumkin" (ikonka hali yo'q), `state.homeTask.done` bo'lsa ham
+                    ko'rsatiladi — mijoz o'z bajargan ishining tasdig'ini ko'rishi kerak. */}
+                {(homeAddable === true || state.homeTask.done) && state.homeTask.ball > 0 && (
+                  <button
+                    type="button"
+                    className={`oyk-quest is-home${state.homeTask.done ? " is-done" : ""}`}
+                    disabled={state.homeTask.done}
+                    onClick={() => { haptic(); addToHomeScreen(); }}
+                  >
+                    <span className="oyk-quest-em">🏠</span>
+                    <span className="oyk-quest-tx">
+                      <b>Ilovani telefon ekraniga o'rnating</b>
+                      <small>{state.homeTask.done ? "O'rnatilgan — ball tushdi ✓" : "Bir bosishda — keyin ilova tezroq ochiladi"}</small>
+                    </span>
+                    <span className="oyk-quest-b">{state.homeTask.done ? `✓ +${state.homeTask.ball}` : `+${state.homeTask.ball}`}</span>
+                  </button>
+                )}
+
+                {/* To'liq ro'yxat — barcha 10 ta manba, qiymat bo'yicha saralangan. Bu yerda
+                    faqat "eng oson yo'llar" bor, chuqurroq qiziqqan mijoz shu yerdan o'tadi. */}
+                <button type="button" className="oyk-bal-btn" onClick={() => { haptic(); setSheet("ball"); }}>
+                  To'liq ro'yxatni ko'rish <span aria-hidden="true">›</span>
+                </button>
+
+                <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); }}>Yopish</button>
               </>
             )}
 

@@ -515,16 +515,20 @@
 .oyk-vbtn.is-on { background: var(--oyk-accent-grad); color: var(--oyk-on); }
 .oyk-vbtn.is-frozen { background: color-mix(in srgb, var(--oyk-red) 12%, transparent); color: var(--oyk-red-soft); cursor: not-allowed; }
 .oyk-vbtn.is-soldout { background: var(--oyk-fill); color: var(--oyk-text-3); cursor: not-allowed; }
+/* 🎨 Ikonka-tugma (ega talabi 2026-08-13: Mukofotlar kartasi soddalashtirildi — "Maqsad"/
+   "Kartalar" endi matnsiz, faqat ikonka; "Karta ol" yagona to'liq-kengli asosiy harakat).
+   Avval ikkalasi ham to'liq matnli pill edi — 3 tugma qatorda (Maqsad·Kartalar·Karta ol),
+   qaysi biri ASOSIY ekani ko'zga yiqilmasdi. */
 .oyk-goal-btn {
-  flex-shrink: 0; min-height: 46px; padding: 0 13px; border: 1px solid var(--oyk-line); border-radius: 12px;
-  background: var(--oyk-fill); color: var(--oyk-text); font-size: 12px; font-weight: 800;
-  font-family: inherit; white-space: nowrap; cursor: pointer; transition: transform var(--dur-press);
+  flex-shrink: 0; width: 44px; min-height: 44px; padding: 0; border: 1px solid var(--oyk-line); border-radius: 12px;
+  background: var(--oyk-fill); color: var(--oyk-text); font-size: 16px;
+  font-family: inherit; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: transform var(--dur-press);
 }
 .oyk-goal-btn:active { transform: scale(.97); }
 .oyk-goal-on {
-  flex-shrink: 0; min-height: 46px; padding: 0 13px; display: flex; align-items: center; justify-content: center;
-  border-radius: 12px; background: var(--oyk-accent-pale); color: var(--oyk-accent-deep);
-  font-size: 12px; font-weight: 800; white-space: nowrap;
+  flex-shrink: 0; width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center;
+  border-radius: 12px; background: var(--oyk-accent-pale); color: var(--oyk-accent-deep); font-size: 16px;
 }
 /* 🚦 O'lchangan tanqislik (§6): <20% qizil, 20–50% kahrabo, undan yuqorisi rangsiz.
    Kahrabo ATAYLAB ko'k aksentdan ALOHIDA (yuqoridagi --oyk-warn-* izohiga qarang). */
