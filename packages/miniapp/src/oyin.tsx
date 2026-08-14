@@ -732,6 +732,9 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // qo'shilish maydoni OLDINDAN TO'LDIRILADI. Faqat BIRINCHI yuklashda — keyin foydalanuvchi
   // o'zi tahrirlashi mumkin bo'lishi kerak (har `jamoa` yangilanishida qayta yozib qo'ymaymiz).
   const [jamoaInput, setJamoaInput] = useState(() => joinCode ?? "");
+  // 🔑 Kod-input ENDI nom-inputdan JISMONAN alohida (2026-08-13, pastdagi izohga qarang) —
+  // `joinCode` chuqur-havoladan kelsa ikkalasi ham shu qiymatdan boshlanadi (join-only ko'rinish).
+  const [joinInput, setJoinInput] = useState(() => joinCode ?? "");
   const [jamoaBusy, setJamoaBusy] = useState(false);
   const loadJamoa = useCallback(() => { api.oyinJamoa().then(setJamoa).catch(() => undefined); }, []);
   useEffect(() => { loadJamoa(); }, [loadJamoa]);
@@ -761,6 +764,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
       setJamoa(r.view);
       if (r.ok) {
         setJamoaInput("");
+        setJoinInput("");
         loadHome(true); // jamoa balli darhol balansda ko'rinsin
         showToast(action === "leave" ? "Gashtakdan chiqdingiz" : action === "create" ? "🤝 Gashtak tuzildi — kodni do'stlaringizga yuboring" : "🤝 Gashtakka qo'shildingiz");
       } else {
@@ -1773,26 +1777,38 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     ❔ Qanday ishlaydi
                   </button>
                 </div>
-                <div className="oyk-jamoa-acts">
-                  <input className="oyk-jamoa-inp" value={jamoaInput} onChange={(e) => setJamoaInput(e.target.value)} placeholder={joinCode ? "Kod" : "Yangi gashtak nomi / qo'shilish kodi"} maxLength={40} />
-                  {/* Taklif-kodi bilan kelgan mijoz FAQAT "Qo'shilish"ni ko'radi — "Tuzish" tugmasi
-                      shu holatda ekranda turmasligi kerak, aks holda ikkalasi ham yoqilgan bo'lib
-                      qolib, mijoz noto'g'ri tugmani bosib tasodifan YANGI gashtak yaratib qo'yishi
-                      mumkin (2026-08-06, ega talabi). */}
-                  {!joinCode && (
-                    <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || jamoaInput.trim().length < 2} onClick={() => { void doJamoa("create", jamoaInput.trim()); }}>Tuzish</button>
-                  )}
-                  <button type="button" className={`oyk-jamoa-btn${joinCode ? "" : " is-ghost"}`} disabled={jamoaBusy || jamoaInput.trim().length < 4} onClick={() => { void doJamoa("join", jamoaInput.trim()); }}>Qo'shilish</button>
-                </div>
-                {/* ⚠️ 2026-08-13 (ega topgan chalkashlik: "1111 nomli gashtagimga qo'shila
-                    olmayapti") — nom va kod IKKI XIL narsa (kod tasodifiy yaratiladi, "1"
-                    raqami ISHLATILMAYDI), bitta input ikkalasini ham qabul qilgani chalkashtirdi.
-                    Qo'shilishda ANIQ nima kerakligini eslatamiz. */}
-                {!joinCode && (
-                  <div className="oyk-gashtak-hint">
-                    Qo'shilish uchun gashtak <b>nomi</b> emas, boshliq yuborgan <b>kod</b> kerak
-                    (masalan: «⚙️ Boshqarish → Havola ulashish»dan kelgan link yoki 6 belgili kod).
+                {/* ⚠️ 2026-08-13 (ega IKKI MARTA topgan chalkashlik: "1111 nomli gashtagimga
+                    qo'shila olmayapti", keyin qayta "gashtakga 1111 ulana olmadim") — bitta
+                    umumiy input + pastdagi matn-hint YETARLI bo'lmadi: odam baribir nomni
+                    "qo'shilish" maydoniga yozib ko'rardi. Endi IKKI FIZIK ALOHIDA maydon —
+                    xato ehtimoli strukturaviy yo'q qilingan, hint SHART emas. */}
+                {joinCode ? (
+                  <div className="oyk-jamoa-acts">
+                    <input className="oyk-jamoa-inp" value={jamoaInput} onChange={(e) => setJamoaInput(e.target.value)} placeholder="Kod" maxLength={40} />
+                    <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || jamoaInput.trim().length < 4} onClick={() => { void doJamoa("join", jamoaInput.trim()); }}>Qo'shilish</button>
                   </div>
+                ) : (
+                  <>
+                    <div className="oyk-gashtak-group">
+                      <div className="oyk-gashtak-group-lbl">🔑 Kodingiz bormi? — Qo'shilish</div>
+                      <div className="oyk-jamoa-acts">
+                        <input className="oyk-jamoa-inp" value={joinInput} onChange={(e) => setJoinInput(e.target.value)} placeholder="6 belgili kod (masalan: AB3XQ9)" maxLength={40} />
+                        <button type="button" className="oyk-jamoa-btn" disabled={jamoaBusy || joinInput.trim().length < 4} onClick={() => { void doJamoa("join", joinInput.trim()); }}>Qo'shilish</button>
+                      </div>
+                      <div className="oyk-gashtak-hint">
+                        Kod boshliqning "⚙️ Boshqarish → Havola/Nusxa" tugmasidan chiqadi —
+                        gashtak <b>nomi</b> emas, faqat shu 6 belgili kod ishlaydi.
+                      </div>
+                    </div>
+                    <div className="oyk-gashtak-div"><span>yoki</span></div>
+                    <div className="oyk-gashtak-group">
+                      <div className="oyk-gashtak-group-lbl">➕ Yangisini tuzasizmi?</div>
+                      <div className="oyk-jamoa-acts">
+                        <input className="oyk-jamoa-inp" value={jamoaInput} onChange={(e) => setJamoaInput(e.target.value)} placeholder="Gashtak nomi" maxLength={40} />
+                        <button type="button" className="oyk-jamoa-btn is-ghost" disabled={jamoaBusy || jamoaInput.trim().length < 2} onClick={() => { void doJamoa("create", jamoaInput.trim()); }}>Tuzish</button>
+                      </div>
+                    </div>
+                  </>
                 )}
               </>
             )}
