@@ -92,6 +92,7 @@ import {
 import crypto from "node:crypto";
 import { prisma } from "../db";
 import { env } from "../env";
+import { appBtn } from "../bot/webAppUrl";
 import { resolveTelegramFileUrl } from "./driverPhotoService";
 import { encodeCardCode, decodeCardCode } from "./cardCode";
 import { getBonusEcon } from "./bonusConfig";
@@ -3564,6 +3565,47 @@ export async function seasonDrawNotify(bot: Bot): Promise<{ winners: number; los
   }
 
   return { winners, losers };
+}
+
+// 🗓 K7 (OYIN_KARTA_PLAN.md §12.1) — "Xotira" eslatmasi: birinchi (test bo'lmagan) kartasini
+// olganidan CARD_MEMORY_DAYS kun o'tgan a'zoga BIR MARTA (abadiy) eslatadi. Mavsumdan MUSTAQIL —
+// karta tirajdan keyin ham qoladi (K5), demak xotira ham mavsum yopilishi/almashishiga bog'liq
+// emas; shuning uchun pushCandidates/markPushed'ga haqiqiy seasonId o'rniga doimiy "v1" beriladi
+// (marker kaliti season almashsa ham qayta tiklanmaydi). Navbat + tezlik nazorati YANGI YOZILMAYDI —
+// xuddi T-7/T-3/T-49soat ogohlantirishlari ishlatgan pushCandidates/SEASON_PUSH_BATCH (≤300/tik)
+// qayta ishlatiladi (plan §7: "Push tezlik nazorati YO'Q" — bu yerda allaqachon bor edi).
+const CARD_MEMORY_DAYS = 182; // ~6 oy — ega aniq son bermagan, bitta doimiyni o'zgartirish yetarli
+const CARD_MEMORY_MARKER = "oyin:cardmem";
+export async function cardMemoryTick(bot: Bot): Promise<{ sent: number }> {
+  if (!(await featureOn("oyin"))) return { sent: 0 };
+  const { notifyOnce } = await import("./notifyService");
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } });
+  const cutoff = Date.now() - CARD_MEMORY_DAYS * 86_400_000;
+  const firstPurchase = new Map<number, number>(); // memberId → eng birinchi HAQIQIY (test emas) chipta vaqti (ms)
+  for (const row of rows) {
+    const memberId = Number(row.key.slice("oyin:tickets:".length));
+    if (!Number.isFinite(memberId)) continue;
+    for (const t of parseTickets(row.value)) {
+      if (t.test) continue; // sinov chiptalari mijozga hech qachon ko'rsatilmaydi/hisoblanmaydi
+      const ts = Date.parse(t.ts);
+      if (!Number.isFinite(ts)) continue;
+      const prev = firstPurchase.get(memberId);
+      if (prev == null || ts < prev) firstPurchase.set(memberId, ts);
+    }
+  }
+  const ids = [...firstPurchase.entries()].filter(([, ts]) => ts <= cutoff).map(([id]) => id);
+  let sent = 0;
+  for (const { memberId, chatId } of await pushCandidates(CARD_MEMORY_MARKER, "v1", ids)) {
+    const ts = firstPurchase.get(memberId)!;
+    const months = Math.max(1, Math.round((Date.now() - ts) / (30.44 * 86_400_000)));
+    const html = `🗓 <b>Xotira</b>\n\n${months} oy oldin birinchi kartangizni olgan edingiz! Kartalaringiz hali ham «Kartalarim»da — bir qarab keting. 🎴`;
+    const ok = await notifyOnce(bot, chatId, memberId, "oyin_cardmem", html, appBtn("🎴 Kartalarim", "oyin")).catch(() => false);
+    if (ok) {
+      await markPushed(CARD_MEMORY_MARKER, "v1", memberId);
+      sent++;
+    }
+  }
+  return { sent };
 }
 
 // ── 🧹 Admin: "Yangi mavsumni toza boshlash" (ega qarori 2026-08-02 — avtomatik EMAS, qo'lda).

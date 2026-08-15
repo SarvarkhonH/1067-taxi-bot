@@ -363,13 +363,15 @@ async function main(): Promise<void> {
           // 🎮 KOSON O'YINI — haftalik sprint-baholash (o'z-ichida idempotent: hafta almashmaguncha
           // no-op) + mavsum-yopilish (ichkarida SEASON_END-darvozasi bor). Ikkalasi ham flag
           // "oyin" ichida gated.
-          const { sprintCheck, seasonClose, seasonWarningTick, seasonCloseNotify, seasonDrawNotify } = await import("./services/oyinService");
+          const { sprintCheck, seasonClose, seasonWarningTick, seasonCloseNotify, seasonDrawNotify, cardMemoryTick } = await import("./services/oyinService");
           await sprintCheck().catch((e) => console.error("[oyin] sprintCheck failed:", e));
           // 🔔 Mavsum yakuni xabarnoma zanjiri (2026-08-12, ega talabi) — yangi poller YO'Q,
           // hammasi shu mavjud tikka qo'shildi. Tartib ahamiyatsiz: har funksiya o'z holatini
           // (mavsum fazasi + durable marker) o'zi tekshiradi, bir-biriga bog'liq emas.
           await seasonWarningTick(bot).catch((e) => console.error("[oyin] seasonWarningTick failed:", e));
           await seasonDrawNotify(bot).catch((e) => console.error("[oyin] seasonDrawNotify failed:", e));
+          // 🗓 K7 — "Xotira" eslatmasi (mavsumdan mustaqil, o'zining doimiy markeri bilan)
+          await cardMemoryTick(bot).catch((e) => console.error("[oyin] cardMemoryTick failed:", e));
           const oyinClose = await seasonClose().catch((e) => { console.error("[oyin] seasonClose failed:", e); return null; });
           await seasonCloseNotify(bot).catch((e) => console.error("[oyin] seasonCloseNotify failed:", e));
           if (oyinClose && oyinClose.convertedCount > 0) {
