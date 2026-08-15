@@ -1,135 +1,129 @@
-// 🍽 RESTORAN — «ESHIK» ekrani (ega qarori 2026-08-15).
+// 🍽 RESTORAN — hamkor ilovasi BIZNING ILOVA ICHIDA (ega qarori 2026-08-15).
 //
-// NIMA O'ZGARDI: bu tab ilgari bizning O'Z katalogimiz edi (restoranlar, menyu, savat, checkout,
-// operator-navbat — concierge V1, RESTORAN_PLAN.md). Endi taom-buyurtma TO'LIQ hamkorning tashqi
-// mini-appida. Bu ekran shuning uchun bitta ish qiladi: hamkor ilovasini ochadi. Bizda menyu ham,
-// narx ham, buyurtma ham, holat ham SAQLANMAYDI — hech qanday server chaqiruvi yo'q.
+// NIMA: tab ochilsa Koson Dasturxon mini-appi shu yerda, to'liq ekranda ochiladi. Alohida
+// brauzer oynasi YO'Q, ortiqcha ekran YO'Q. Orqaga bosilsa — Uy sahifasiga qaytadi.
+// Bizda katalog ham, buyurtma ham, holat ham saqlanmaydi va hech qanday server chaqiruvi yo'q.
 //
-// NEGA "ochish" — "ichiga joylash" emas: Telegram bitta mini app ICHIDA boshqa botning mini
-// appini ko'rsatishga ruxsat bermaydi, iframe ham ishlamaydi (hamkor bizning freymda o'z
-// `initData`sini olmaydi + ko'p host freymni bloklaydi). Yagona ishlaydigan yo'l — deep-link.
-import { useEffect, useRef } from "react";
+// NEGA FREYM (avvalgi "deep-link" yondashuvidan farqli): ega talabi — «alohida web page
+// ochmaslik kerak». Freym buni beradi va orqaga/yopish xatti-harakatini ham BIZ boshqaramiz.
+//
+// 🔑 AVTORIZATSIYA (401 muammosi): hamkor ilovasi rasmiy `telegram-web-app.js` ni yuklaydi, u
+// esa `initData` ni URL HASH'idan o'qiydi (`#tgWebAppData=…`) — Telegram Web klientlari ham
+// aynan shunday uzatadi. Shuning uchun freym manziliga BIZNING initData'ni hash orqali
+// qo'shamiz. Hamkor tomonda bitta shart bor: bu initData BirJoy botining tokeni bilan
+// imzolangan, ya'ni ularning serveri uni BirJoy tokeni bilan ham tekshira olishi kerak
+// (batafsil: PROGRESS.md 2026-08-15).
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { MeResponse } from "@t1067/shared";
-import { haptic, tg } from "./telegram";
-import { useIsActive } from "./useIsActive";
+import { getInitData } from "./api";
+import { tg } from "./telegram";
+import { useBackButton } from "./useBackButton";
 import "./design/feat/rstDoor.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
-/** 🔗 HAMKOR ILOVASI HAVOLASI — YAGONA MANBA.
- *
- *  Ikki format qo'llab-quvvatlanadi:
- *   · "https://t.me/<bot>/<app>"  → Telegram MINI APP sifatida ochiladi (initData BERILADI)
- *   · "https://…"                 → Telegram ichki brauzerida oddiy sayt sifatida ochiladi
- *
- *  ⚠️ HOZIRGI QIYMAT — hamkorning DEV mini-app manzili (ega bergan, 2026-08-15). U `t.me` emas,
- *  ya'ni ochilganda Telegram avtorizatsiyasi (initData) UZATILMAYDI. Tekshirildi: shu manzil
- *  brauzerda 401 qaytaradi (ilova o'z API'siga initData bilan kirmoqchi bo'ladi). Ya'ni bu
- *  havola EGA-PREVIEW uchun yaroqli, MIJOZ uchun emas — mijozga chiqarishdan oldin hamkordan
- *  BotFather direct-link'i ("t.me/<bot>/<app>") olinishi SHART. Shu sababli `restoran` bayrog'i
- *  ataylab O'CHIRIQ: tabni faqat ega ko'radi (owner-preview). */
-const PARTNER_LINK = "https://mini-app.dev.koson-dasturxon.uz/";
-/** Hamkor brendi — matnda ishlatiladi. */
+/** 🔗 Hamkor mini-app manzili — YAGONA MANBA. Bo'sh bo'lsa ekran halol "ulanmoqda" holatini
+ *  ko'rsatadi (soxta yuklanish yoki ishlamaydigan tugma emas). */
+const PARTNER_URL = "https://mini-app.dev.koson-dasturxon.uz/";
 const PARTNER_NAME = "Koson Dasturxon";
 
-/** Havolani ochish. `t.me` bo'lsa — `openTelegramLink` (mini app sifatida, initData bilan).
- *  Oddiy https bo'lsa — `openLink` (Telegram ichki brauzeri). `window.open` faqat Telegramdan
- *  tashqarida ishlaydi (webview'da bloklanadi), shuning uchun u eng oxirgi zaxira.
- *  Xuddi shu naqsh services.tsx:211/255 da ham ishlatilgan. */
-function openPartner(): void {
-  if (!PARTNER_LINK) return;
-  const t = tg as unknown as { openTelegramLink?: (u: string) => void; openLink?: (u: string) => void } | undefined;
-  const isTme = /^https:\/\/t\.me\//i.test(PARTNER_LINK);
-  if (isTme && t?.openTelegramLink) t.openTelegramLink(PARTNER_LINK);
-  else if (!isTme && t?.openLink) t.openLink(PARTNER_LINK);
-  else window.open(PARTNER_LINK, "_blank");
+/** Freym manzilini yig'ish: hamkor URL + Telegram konteksti hash'da.
+ *  `telegram-web-app.js` aynan shu kalitlarni qidiradi — nom bir harf ham farq qilmasligi kerak. */
+function buildFrameUrl(): string {
+  if (!PARTNER_URL) return "";
+  const w = tg as unknown as {
+    version?: string; platform?: string; colorScheme?: string; themeParams?: Record<string, string>;
+  } | undefined;
+  const p = new URLSearchParams();
+  const initData = getInitData();
+  if (initData) p.set("tgWebAppData", initData);
+  p.set("tgWebAppVersion", w?.version || "7.0");
+  p.set("tgWebAppPlatform", w?.platform || "web");
+  p.set("tgWebAppThemeParams", JSON.stringify(w?.themeParams ?? {}));
+  return `${PARTNER_URL}#${p.toString()}`;
 }
 
-/** Hero ikonkasi — inline SVG (emoji EMAS: bu bo'lim dizayni emoji'ni taqiqlaydi, eski
- *  rstIcons.tsx bilan bir xil qoida). currentColor bilan ishlaydi, ya'ni tokendan rang oladi. */
-function ForkKnifeIcon() {
-  return (
-    <svg className="rd-hero-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M7 3v7a2.5 2.5 0 0 0 5 0V3" />
-      <path d="M9.5 10v11" />
-      <path d="M17.5 3c-1.4 1.6-2 3.4-2 5.5 0 1.6.7 2.6 2 3.1V21" />
-    </svg>
-  );
-}
+export function RestoranView({ onNav }: { me: MeResponse; onBanner?: (m: string) => void; onNav?: (t: string) => void }) {
+  // Manzil BIR MARTA hisoblanadi: `src` har renderda o'zgarsa freym qayta yuklanardi va
+  // foydalanuvchi savatini yo'qotardi.
+  const src = useMemo(buildFrameUrl, []);
+  const [loaded, setLoaded] = useState(false);
+  const boxRef = useRef<HTMLDivElement | null>(null);
 
-// Props App.tsx chaqiruvi bilan mos turadi, lekin HECH BIRI ishlatilmaydi: bu ekran shaxsiy
-// ma'lumot ko'rsatmaydi va bironta so'rov yubormaydi — u shunchaki eshik.
-export function RestoranView(_props: { me: MeResponse; onBanner?: (m: string) => void; openRestaurantId?: number | null }) {
-  const active = useIsActive();
-  const autoOpened = useRef(false);
-  const linked = PARTNER_LINK.length > 0;
-  const brand = PARTNER_NAME || "hamkorimiz ilovasi";
+  // 📏 Balandlik TAXMIN QILINMAYDI, O'LCHANADI. Qobiq ikki xil: oddiy ekranda tepada topbar +
+  // pastda tabbar, mehmon rejimida topbar YO'Q lekin pastda "guest-bar" bor. CSS'da qattiq
+  // raqam yozilsa ulardan biri albatta noto'g'ri chiqardi. Shuning uchun freym qutisining
+  // haqiqiy `top` i o'lchanadi va qolgan joy CSS o'zgaruvchisiga beriladi (inline stil emas —
+  // uslub qoidasi baribir CSS faylida qoladi). BOTTOM_GAP = tabbar/guest-bar uchun zaxira.
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const BOTTOM_GAP = 96; // .content padding-bottom (styles.css:80) — tabbar shu joyni egallaydi
+    const apply = () => {
+      const top = el.getBoundingClientRect().top;
+      el.style.setProperty("--rd-h", `${Math.max(320, window.innerHeight - top - BOTTOM_GAP)}px`);
+    };
+    apply();
+    window.addEventListener("resize", apply);
+    return () => window.removeEventListener("resize", apply);
+  }, [src]);
 
-  // Ega talabi: «tabga bosganda ochilsin». Tab ochilishi bilan deep-link BIR MARTA o'zi ishga
-  // tushadi — foydalanuvchi qo'shimcha bosmaydi. Ekranning o'zi ortda qoladi: Telegram hamkor
-  // ilovasini bizning oyna USTIGA ochadi, orqaga qaytilganda BirJoy shu yerda turadi va
-  // «Ochish» tugmasi bilan qayta kirish mumkin (avto-ochilish bloklansa ham yo'l ochiq qoladi).
+  // ‹ Orqaga — ega talabi: «back bo'lsa avto back home». Freym ichidagi navigatsiyaga
+  //   aralashmaymiz (cross-origin, o'qiy olmaymiz) — orqaga BirJoy Uy sahifasiga qaytaradi.
+  useBackButton(!!src, () => onNav?.("uy"));
+
+  // Telegram'ning yopish-tasdig'i: mijoz buyurtma o'rtasida tasodifan swipe qilib ilovani
+  // yopib yubormasin. Tabdan chiqilganda o'chiriladi.
   useEffect(() => {
-    if (!active || autoOpened.current || !linked) return;
-    autoOpened.current = true;
-    openPartner();
-  }, [active, linked]);
+    const w = tg as unknown as { enableClosingConfirmation?: () => void; disableClosingConfirmation?: () => void } | undefined;
+    if (!src) return;
+    w?.enableClosingConfirmation?.();
+    return () => w?.disableClosingConfirmation?.();
+  }, [src]);
+
+  // 🚪 «Yopilsa — avto Uy sahifasi» (ega talabi). Freym ichidagi rasmiy `telegram-web-app.js`
+  // hodisalarni ota-oynaga `postMessage(JSON, '*')` bilan yuboradi (SDK manbasida tekshirildi:
+  // targetOrigin '*'). Ya'ni hamkor ilovasi `WebApp.close()` chaqirsa — biz eshitamiz.
+  // `event.origin` ATAYLAB tekshiriladi: '*' bo'lgani uchun istalgan sayt shu xabarni yubora
+  // oladi, biz esa faqat hamkor domenidan kelganini qabul qilamiz.
+  useEffect(() => {
+    if (!src) return;
+    const partnerOrigin = new URL(PARTNER_URL).origin;
+    const onMsg = (e: MessageEvent) => {
+      if (e.origin !== partnerOrigin) return;
+      let type = "";
+      try {
+        const d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
+        type = (d as { eventType?: string })?.eventType ?? "";
+      } catch { return; } // JSON emas — bizniki emas, jim o'tkazamiz
+      if (type === "web_app_close") onNav?.("uy");
+    };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, [src, onNav]);
+
+  if (!src) {
+    return (
+      <div className="rd-wrap">
+        <div className="rd-soon">
+          <span>{PARTNER_NAME || "Hamkor"} ilovasi ulanmoqda. Tayyor bo'lishi bilan shu yerda ochiladi.</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="rd-wrap">
-      <div className="rd-hero">
-        <ForkKnifeIcon />
-        <h2>Kosonda taom buyurtmasi</h2>
-        <p>
-          Shahardagi restoran va oshxonalardan yetkazib berish — {brand} orqali.
-          Buyurtma, to'lov va yetkazish o'sha ilovada boshqariladi.
-        </p>
-        <div className="rd-chips">
-          <span className="rd-chip">Yetkazish</span>
-          <span className="rd-chip">Olib ketish</span>
-        </div>
-      </div>
-
-      {linked ? (
-        <div>
-          <button className="rd-cta" onClick={() => { haptic(); openPartner(); }}>
-            Ochish
-          </button>
-          <p className="rd-cta-note">Telegram {PARTNER_NAME || "hamkor"} ilovasini ochadi</p>
-        </div>
-      ) : (
-        <>
-          {/* Havola yo'q ekan — soxta tugma ko'rsatilmaydi. Sabab ochiq aytiladi. */}
-          <div className="rd-soon">
-            <span>Bu bo'lim hamkor ilovasiga ulanmoqda. Tayyor bo'lishi bilan shu yerda ochiladi.</span>
-          </div>
-          <button className="rd-cta" disabled>
-            Tez orada
-          </button>
-        </>
-      )}
-
-      <div className="rd-steps">
-        <div className="rd-step">
-          <span className="rd-step-n">1</span>
-          <div>
-            <div className="rd-step-t">Ilova ochiladi</div>
-            <div className="rd-step-s">Menyu va restoranlar ro'yxati o'sha yerda.</div>
-          </div>
-        </div>
-        <div className="rd-step">
-          <span className="rd-step-n">2</span>
-          <div>
-            <div className="rd-step-t">Buyurtma beriladi</div>
-            <div className="rd-step-s">To'lov va yetkazish shartlari hamkor tomonidan belgilanadi.</div>
-          </div>
-        </div>
-        <div className="rd-step">
-          <span className="rd-step-n">3</span>
-          <div>
-            <div className="rd-step-t">BirJoy shu yerda</div>
-            <div className="rd-step-s">Orqaga qaytsangiz — taksi, do'kon va qolgan bo'limlar joyida.</div>
-          </div>
-        </div>
-      </div>
+    <div className="rd-frame-wrap" ref={boxRef}>
+      {/* Skeleton REAL layoutni takrorlaydi: to'liq ekran maydoni, spinner emas — freym
+          yuklangach joyida hech narsa "sakramaydi". */}
+      {!loaded && <div className="rd-frame-skel" aria-hidden="true" />}
+      <iframe
+        className="rd-frame"
+        src={src}
+        title={PARTNER_NAME}
+        onLoad={() => setLoaded(true)}
+        allow="geolocation; clipboard-write; payment"
+        // sandbox ATAYLAB qo'yilmadi: hamkor ilovasiga o'z domenidagi to'liq huquq kerak
+        // (localStorage/sessionStorage, cookie, to'lov oqimi). U CSP bilan o'zini himoya qiladi.
+      />
     </div>
   );
 }

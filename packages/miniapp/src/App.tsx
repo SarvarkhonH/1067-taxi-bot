@@ -500,7 +500,7 @@ export function App() {
             {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} openProductId={openProductFromFeed ?? deepProduct} />}
             {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
             {tab === "elonlar" && <ElonlarView me={me} onBanner={flash} reload={reload} />}
-            {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
+            {tab === "restoran" && <RestoranView me={me} onBanner={flash} onNav={nav} />}
             {tab === "ravella" && <RavellaView me={me} onBanner={flash} />}
             {/* O'yindagi "Safar qilish" tugmasi taksi formasini TO'G'RIDAN ochadi — avval u
                 faqat "Uy ekranidan chaqiring" degan toast chiqaradigan boshi berk tugma edi. */}
@@ -827,7 +827,7 @@ function GuestApp({ flags }: { flags: MeResponse["flags"] }) {
         <Suspense fallback={<Spinner />}>
           {tab === "oyin" && <OyinTeaser onLink={() => void link.start()} busy={link.busy} />}
           {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={() => undefined} onBook={() => void link.start()} />}
-          {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
+          {tab === "restoran" && <RestoranView me={me} onBanner={flash} onNav={() => setTab(firstTab ?? "dokon")} />}
           {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
         </Suspense>
       </div>

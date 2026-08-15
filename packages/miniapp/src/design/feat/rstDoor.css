@@ -1,40 +1,40 @@
-/* 🍽 RESTORAN — «eshik» ekrani (2026-08-15). Eski katalog (rst.css, ~700 qator) o'chirildi:
-   restoran endi HAMKORNING tashqi mini-appi, bizda menyu ham, savat ham yo'q.
+/* 🍽 RESTORAN — hamkor mini-appi BIZNING tab ichida (2026-08-15). Eski katalog uslublari
+   (rst.css, ~700 qator) o'chirildi: bizda ko'rsatiladigan menyu/savat/checkout yo'q.
    Bu fayl faqat restoran chunk'i yuklanganda keladi — birinchi chizilishni bloklamaydi.
    Ranglar FAQAT `--rst-*` tokenlaridan (tokens.css) — inline stil yo'q. */
 
-.rd-wrap { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
-
-/* Hero — hamkor brendining o'rni. Taom rasmi QO'YILMAYDI: bizda hamkorning real taom
-   fotosi yo'q, stok/emoji rasm esa "jismoniy narsa = real rasm" qoidasini buzardi. */
-.rd-hero {
-  position: relative; border-radius: var(--r-card); overflow: hidden;
-  background: var(--rst-grad); color: #fff;
-  padding: 22px 18px 20px; box-shadow: var(--rst-shadow-cta);
+/* Freym tab kontentining BUTUN maydonini egallaydi.
+   `--rd-h` ni restoran.tsx O'LCHAB qo'yadi (qutining haqiqiy `top` i bo'yicha) — qobiq ikki xil
+   bo'lgani uchun (oddiy: topbar+tabbar · mehmon: topbar YO'Q, pastda guest-bar) qattiq raqam
+   ikkisining birida albatta noto'g'ri chiqardi. Quyidagi `calc` — JS ishlamay qolsa zaxira.
+   `100dvh` — mobil panellar harakatlanganda 100vh sakraydi, dvh esa haqiqiy balandlik. */
+.rd-frame-wrap {
+  position: relative;
+  margin: 0 -16px; /* .content ning yon paddingi — hamkor ilovasi chetdan-chetga chiqsin */
+  height: var(--rd-h, calc(100dvh - 62px - var(--safe-top, 0px) - 96px));
+  min-height: 320px;
+  overflow: hidden;
+  background: var(--rst-bg-grad);
 }
-.rd-hero-ico { display: block; width: 40px; height: 40px; margin-bottom: 12px; }
-.rd-hero h2 { margin: 0 0 6px; font-size: 21px; font-weight: 800; letter-spacing: -0.01em; }
-.rd-hero p { margin: 0; font-size: 13.5px; line-height: 1.5; opacity: 0.92; }
-
-.rd-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
-.rd-chip {
-  font-size: 11.5px; font-weight: 600; padding: 5px 10px;
-  border-radius: var(--r-chip); background: rgba(255, 255, 255, 0.16); color: #fff;
+.rd-frame {
+  display: block; width: 100%; height: 100%; border: 0;
 }
 
-/* CTA — «yozuv harakat va'da qilsa tugma shart» qoidasi: matn "ochiladi" desa, tugma ochadi. */
-.rd-cta {
-  display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
-  padding: 15px 16px; border: 0; border-radius: var(--r-btn);
-  background: var(--rst-blue); color: #fff; font-size: 15.5px; font-weight: 700;
-  box-shadow: var(--rst-shadow-cta);
-  transition: transform var(--dur-press) var(--ease-out);
+/* Skeleton — real layout nusxasi: bir xil o'lcham/fon, shuning uchun freym kelganda
+   sahifa "sakramaydi". Shimmer transform bilan (DIZAYN_QOIDALARI: faqat transform/opacity). */
+.rd-frame-skel {
+  position: absolute; inset: 0; background: var(--rst-bg-grad); overflow: hidden;
 }
-.rd-cta:active { transform: scale(0.98); }
-.rd-cta:disabled { background: var(--rst-disabled); color: #fff; box-shadow: none; transform: none; }
-.rd-cta-note { margin: 8px 0 0; text-align: center; font-size: 11.5px; color: var(--rst-muted); }
+.rd-frame-skel::after {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, .55) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: rd-shimmer var(--dur-shimmer, 1.4s) var(--ease-out) infinite;
+}
+@keyframes rd-shimmer { to { transform: translateX(100%); } }
 
 /* Hamkor hali ulanmaganida — bo'sh va'da bermaydigan, sababini aytadigan qator. */
+.rd-wrap { display: flex; flex-direction: column; gap: 14px; padding-top: 4px; }
 .rd-soon {
   display: flex; gap: 10px; align-items: flex-start;
   padding: 12px 14px; border-radius: var(--r-card);
@@ -42,17 +42,6 @@
   font-size: 12.5px; line-height: 1.45;
 }
 
-.rd-steps { display: flex; flex-direction: column; gap: 10px; padding: 2px 2px 0; }
-.rd-step { display: flex; gap: 11px; align-items: flex-start; }
-.rd-step-n {
-  flex: 0 0 22px; height: 22px; border-radius: var(--r-chip);
-  background: var(--rst-fill-blue); color: var(--rst-blue);
-  font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center;
-}
-.rd-step-t { font-size: 13.5px; font-weight: 600; color: var(--rst-ink); }
-.rd-step-s { font-size: 12px; color: var(--rst-desc); margin-top: 1px; }
-
 @media (prefers-reduced-motion: reduce) {
-  .rd-cta { transition: none; }
-  .rd-cta:active { transform: none; }
+  .rd-frame-skel::after { animation: none; }
 }

@@ -24,22 +24,48 @@ push'lar) YOZILGANDAN KEYIN QAYTARIB OLINDI — bazada yangi jadval YO'Q, VPS mi
 bazada tarix sifatida qoladi (jonli DB'da ustun o'chirish alohida ongli qadam; hech qanday kod
 ularga murojaat qilmaydi). Ya'ni **bu push uchun `db push` KERAK EMAS**.
 
-### Yangi ekran
+### Yangi ekran — hamkor mini-appi BIZNING TAB ICHIDA (freym)
 
-`packages/miniapp/src/restoran.tsx` — hero + 3 qadamlik tushuntirish + «Ochish» tugmasi.
-Tab ochilishi bilan deep-link BIR MARTA o'zi ishga tushadi (ega talabi: «tabga bosganda ochilsin»),
-tugma esa qaytib kelganda qayta kirish uchun qoladi. Server so'rovi UMUMAN yo'q.
-Uslublar — yangi `design/feat/rstDoor.css`, ranglar faqat mavjud `--rst-*` tokenlaridan.
+Ega yakuniy talabi: **«alohida web page ochmaslik kerak · restoranga bosilsa ortiqcha narsa
+kerak emas, Dasturxon.uz ochilsin · yopilsa yoki back bo'lsa avto back home»**. Shuning uchun
+avvalgi «hero + tugma → deep-link» varianti (26752630 da chiqqan) freymga almashtirildi.
 
-### ⚠️ OCHIQ GAP — hamkor havolasi
+`packages/miniapp/src/restoran.tsx` — bitta `<iframe>`, boshqa hech narsa yo'q:
 
-`restoran.tsx:PARTNER_LINK` **hozircha bo'sh**. Bo'sh bo'lganda ekran halol «Tez orada» holatini
-ko'rsatadi va tugma bosilmaydi (ishlamaydigan tugmani jim ko'rsatish taqiq). Havola kelgach
-FAQAT o'sha bitta qator (+ `PARTNER_NAME`) to'ldiriladi.
+- **Manzil:** `https://mini-app.dev.koson-dasturxon.uz/` + hash'da Telegram konteksti
+  (`#tgWebAppData=<bizning initData>&tgWebAppVersion=…&tgWebAppPlatform=…&tgWebAppThemeParams=…`).
+  Bu — Telegram Web klientlari ishlatadigan usulning AYNAN o'zi; rasmiy `telegram-web-app.js`
+  shu kalitlarni hash'dan o'qiydi.
+- **Orqaga:** `useBackButton` → Uy tabi (freym ichidagi navigatsiyaga aralashmaymiz — cross-origin).
+- **Yopilsa:** freymdagi SDK `web_app_close` ni ota-oynaga yuboradi (SDK manbasida tekshirildi:
+  `postMessage(JSON, '*')`), biz uni ushlab Uy'ga qaytaramiz. `event.origin` MAJBURIY
+  tekshiriladi — `'*'` bo'lgani uchun boshqa sayt ham shu xabarni yubora oladi.
+- **Balandlik o'lchanadi, taxmin qilinmaydi:** qobiq ikki xil (oddiy: topbar+tabbar · mehmon:
+  topbar YO'Q, pastda guest-bar), shuning uchun qutining haqiqiy `top` i o'lchanib `--rd-h`
+  CSS o'zgaruvchisiga beriladi; CSS'dagi `calc` — JS ishlamay qolsa zaxira.
+- **Server so'rovi UMUMAN yo'q.** Bizda katalog ham, buyurtma ham, holat ham saqlanmaydi.
 
-**Shu sababli deploy tavsiyasi:** havola kelmaguncha push qilinmasin — aks holda mijoz ishlab
-turgan katalog o'rnida «Tez orada» ko'radi. Muqobil: push qilinsa, `restoran` bayrog'i o'chirilsin
-(tab butunlay yo'qoladi), havola kelgach qayta yoqilsin.
+### ⚠️ OCHIQ GAP — hamkor tomonda 2 ta o'zgarish kerak (o'lchandi, taxmin emas)
+
+| Tekshiruv | Natija |
+|---|---|
+| Freym ochiladimi | ❌ `Framing '…' violates … "frame-ancestors 'self' https://web.telegram.org …". The request has been blocked.` |
+| Ular Telegram SDK'sini yuklaydimi | ✅ `telegram-web-app.js` — `initData`ni hash'dan o'qiydi |
+| SDK freymda ota-oynaga hodisa yuboradimi | ✅ `postEvent web_app_ready` / `web_app_expand` qabul qilindi |
+| Yaroqsiz initData'da javob | ⚠️ **500** (401 bo'lishi kerak — hamkorga aytildi) |
+
+Hamkor tomonda bajarilishi kerak (ega tasdiqladi, dasturchiga prompt berildi):
+
+1. CSP `frame-ancestors` ga `https://app.birjoy.online` qo'shilsin.
+2. `initData` tekshiruvi IKKI token bilan sinasin — o'ziniki, keyin `BIRJOY_BOT_TOKEN`
+   (ega qarori 2026-08-15: alohida HMAC-chipta emas, bot tokeni beriladi; kalit chat orqali
+   EMAS, VPS `/opt/app/.env` dan qo'lda uzatiladi). Telegram `user.id` ikkala botda bir xil —
+   akkaunt bog'lash KERAK EMAS.
+
+**Shu sababli `restoran` bayrog'i VPS'da O'CHIRILDI** (`setFlag.ts restoran off`, tasdiqlandi:
+`checkFlags` → `restoran OFF`). Mijoz tabni umuman ko'rmaydi; ega owner-preview orqali ko'radi
+([server.ts:414](packages/server/src/api/server.ts#L414) `restoranOn || isAdmin(...)`).
+Hamkor ikkala o'zgarishni qilgach — flag qayta yoqiladi.
 
 ### Isbot (buyruq + natija)
 
@@ -51,11 +77,12 @@ turgan katalog o'rnida «Tez orada» ko'radi. Muqobil: push qilinsa, `restoran` 
 | `pnpm --filter @t1067/server typecheck` | ✅ restoranga oid xato yo'q (yagona xato — `src/sim/config/arms.ts`, bu sessiyagacha mavjud va **untracked**, ya'ni CI ko'rmaydi) |
 | `pnpm --filter @t1067/shared test` | ✅ 187/187 |
 | `simEconomy` · `simLoyalty` · `simGuards` | ✅ uchalasi yashil (CI shield to'liq takrorlandi) |
-| `pnpm --filter @t1067/miniapp build` | ✅ `restoran` chunk 2.51 kB (avvalgi katalog o'rniga) |
-| Vizual | ✅ eshik-ekran haqiqiy `tokens.css` + `rstDoor.css` bilan mobil kenglikda render qilindi (ikkala holat: «Tez orada» va «Ochish») |
+| `pnpm --filter @t1067/miniapp build` | ✅ `restoran` chunk 1.88 kB + CSS 1.04 kB (avvalgi 1214-qatorli katalog o'rniga) |
+| Freym bloki | ✅ brauzerda EMPIRIK isbotlandi: `app.birjoy.online` emas, `localhost` origin'idan ham CSP bloklaydi (xato matni yuqorida) |
+| SDK freymda ishlaydimi | ✅ konsolda `postEvent web_app_ready`/`web_app_expand` — ya'ni «yopilsa Uy'ga qaytish» yo'li ochiq |
 
-**Jonli mijoz-akkauntida HALI tekshirilmagan** (havola yo'q + lokal baza yo'q) — R6 bo'yicha ega
-qabuli kerak.
+**Jonli akkauntda HALI tekshirilmagan** — hamkor CSP'ni yangilamaguncha freym ochilmaydi.
+R6 bo'yicha ega qabuli kerak.
 
 ## 🔴 2026-08-11 — MENING REGRESSIYAM: jurnal va balans ajralib ketdi (ega topdi) — TUZATILDI
 
