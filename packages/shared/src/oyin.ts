@@ -1521,6 +1521,11 @@ export interface OyinCardDetail {
   note: string | null;
   /** Faqat `mine:true` bo'lganda mazmunli — o'z qaydining hozirgi maxfiylik holati. */
   notePublic: boolean;
+  /** 👤 Ega talabi (K4): standart — faqat ism. Egasi roziligi bo'lsa (`avatarOptIn`) BOSHQA odamga
+   *  ham rasm ko'rinadi. `mine:true` bo'lsa — o'zining joriy roziligi qat'i nazar (o'zi ko'radi). */
+  ownerPhotoUrl: string | null;
+  /** Faqat `mine:true` bo'lganda mazmunli — rasm ko'rsatish yoqilganmi. */
+  avatarOptIn: boolean;
 }
 
 /** 🗒 Karta qaydini o'zgartirish (faqat egasi, faqat o'z kartasi). */
@@ -1534,6 +1539,15 @@ export interface OyinSetCardNoteResult {
   // ⚠️ "boshqa odamning kartasi" ATAYLAB "not_found" bilan bir xil sabab qaytaradi (maxfiylik:
   // egaga tegishli bo'lmagan `gno`ning umuman mavjud emasligi bilan bir xil ko'rinsin).
   reason?: "not_found" | "too_long";
+}
+
+/** 👤 K4 — o'z Telegram avatarini o'yin kartasida ko'rsatish/yashirish. */
+export interface OyinAvatarOptInResult {
+  ok: boolean;
+  optIn: boolean;
+  /** Rozilik yoqildi, LEKIN Telegram'da ochiq profil-rasm topilmadi — bo'sh va'da bermaslik uchun
+   *  klientga aniq aytiladi (DIZAYN_QOIDALARI #7). */
+  photoFound: boolean;
 }
 
 /** Vitrina filtri. Ega: «bir kartalik · ko'p kartalik · kam kartalik · qimmat · arzon ·

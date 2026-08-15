@@ -29,6 +29,7 @@ import type {
   TierBenefitsResponse,
   OyinBuyResult,
   OyinCardDetail,
+  OyinAvatarOptInResult,
   OyinSetCardNoteResult,
   OyinPrizeCardsResponse,
   OyinJamoamResponse,
@@ -320,6 +321,8 @@ export const api = {
   // 🗒 K2/K3 — egasi o'z kartasiga qisqa qayd yozadi/o'chiradi, maxfiylikni tanlaydi.
   oyinSetCardNote: (gno: number, note: string, isPublic: boolean) =>
     post<OyinSetCardNoteResult>(`/api/oyin/card/${gno}/note`, { note, isPublic }),
+  // 👤 K4 — o'z Telegram avatarini o'yin kartasida ko'rsatish/yashirish.
+  oyinSetAvatarOptIn: (optIn: boolean) => post<OyinAvatarOptInResult>("/api/oyin/avatar-optin", { optIn }),
   oyinJamoam: () => get<OyinJamoamResponse>("/api/oyin/jamoam"),
   // 🤝 Gap-jamoa (gashtak) — guruh tuzish/qo'shilish/chiqish. Ball ko'chirish YO'Q.
   oyinJamoa: () => get<OyinJamoaView>("/api/oyin/jamoa"),

@@ -1280,6 +1280,11 @@
 .oyk-note-save:disabled { opacity: .45; cursor: default; }
 .oyk-note-view { margin-top: 11px; font-size: 12px; line-height: 1.5; color: var(--oyk-text-2); font-style: italic; }
 .oyk-note-view b { color: var(--oyk-text); font-style: normal; }
+/* 👤 K4 (2026-08-14) — egasi roziligi bilan Telegram avatari. Standart: faqat ism. */
+.oyk-cert-owner { display: inline-flex; align-items: center; gap: 6px; }
+.oyk-cert-owner-av { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.oyk-avatar-optin { width: 100%; margin-top: 8px; }
+.oyk-avatar-optin:disabled { opacity: .6; cursor: default; }
 
 /* ── 📖 O'YIN STORY — 5 mini-vidjet (2026-08-12, `story.css` .st-scene ichida) ─────────────────
    ⚠️ Story oq fonli (`story.css` `.st{background:#fff}`) — bu ATAYLAB, taxiStory bilan bir xil

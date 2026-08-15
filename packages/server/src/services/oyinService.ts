@@ -66,6 +66,7 @@ import {
   type OyinCatalogSnapshot,
   type OyinPrizeCard,
   type OyinPrizeCardsResponse,
+  type OyinAvatarOptInResult,
   type OyinSeasonPlan,
   type OyinSetCardNoteResult,
   type OyinLeaderRow,
@@ -89,6 +90,8 @@ import {
 } from "@t1067/shared";
 import crypto from "node:crypto";
 import { prisma } from "../db";
+import { env } from "../env";
+import { resolveTelegramFileUrl } from "./driverPhotoService";
 import { getBonusEcon } from "./bonusConfig";
 import { featureOn } from "./featureFlags";
 import { weekKey } from "./missionService";
@@ -4604,6 +4607,8 @@ export async function getCardDetail(gno: number, viewerMemberId: number | null):
   // 🔒 Maxfiylik QARORI shu yerda, klientda EMAS — egasi bo'lmagan tomoshabinga qaydning o'zi
   // umuman uzatilmaydi (notePublic bo'lmasa), klient "yashirish" bilan shug'ullanmaydi.
   const noteVisible = mine || r.notePublic === true;
+  const avatar = await getAvatarState(r.memberId);
+  const photoVisible = mine || avatar.optIn;
   return {
     gno: r.gno ?? r.no,
     no: r.no,
@@ -4618,6 +4623,8 @@ export async function getCardDetail(gno: number, viewerMemberId: number | null):
     drawIso: season.endIso,
     note: noteVisible && r.note ? r.note : null,
     notePublic: r.notePublic === true,
+    ownerPhotoUrl: photoVisible && avatar.fileId ? await resolveTelegramFileUrl(avatar.fileId) : null,
+    avatarOptIn: avatar.optIn,
   };
 }
 
@@ -4635,4 +4642,54 @@ export async function setCardNote(memberId: number, gno: number, noteRaw: string
   await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
   prizeCardsCache = null; // darhol ko'rinsin — 30s TTL kutilmaydi
   return { ok: true };
+}
+
+/** 👤 K4 — o'z Telegram avatarini o'yin kartasida ko'rsatish. ATAYLAB `Member.photoFileId`ga
+ *  TEGILMAYDI — o'sha maydon haydovchi-portret moderatsiya oqimiga tegishli (driverPhotoService),
+ *  bu yerdan yozilsa moderatsiyadan o'tgan rasmni jimgina bosib yozib qo'yardi. O'z alohida
+ *  AppState kaliti: `oyin:avatar:<memberId>` = `{ optIn, fileId }`. */
+async function getAvatarState(memberId: number): Promise<{ optIn: boolean; fileId: string | null }> {
+  const row = await prisma.appState.findUnique({ where: { key: `oyin:avatar:${memberId}` } });
+  if (!row?.value) return { optIn: false, fileId: null };
+  try {
+    const v = JSON.parse(row.value) as { optIn?: unknown; fileId?: unknown };
+    return { optIn: v.optIn === true, fileId: typeof v.fileId === "string" && v.fileId ? v.fileId : null };
+  } catch {
+    return { optIn: false, fileId: null };
+  }
+}
+
+export async function setAvatarOptIn(memberId: number, optIn: boolean): Promise<OyinAvatarOptInResult> {
+  const key = `oyin:avatar:${memberId}`;
+  const cur = await getAvatarState(memberId);
+  let fileId = cur.fileId;
+  // Yoqilganda — yangi Telegram profil-rasmini olib ko'ramiz (har safar yangilanadi, eski
+  // rasm chirimasin). O'chirilganda fileId SAQLANADI — qayta yoqilsa qayta so'rov shart emas.
+  if (optIn) fileId = (await fetchTelegramAvatarFileId(memberId)) ?? fileId;
+  await prisma.appState.upsert({
+    where: { key }, create: { key, value: JSON.stringify({ optIn, fileId }) },
+    update: { value: JSON.stringify({ optIn, fileId }) },
+  });
+  prizeCardsCache = null; // egasining boshqa kartalarida ham darhol ko'rinsin
+  return { ok: true, optIn, photoFound: optIn ? fileId != null : true };
+}
+
+/** Telegram'dan ochiq profil-rasmni tortib oladi (bor bo'lsa). `driverPhotoService.
+ *  syncDriverPhotoFromTelegram` bilan BIR XIL API chaqiruvi — lekin BU YERDA hech qanday
+ *  Prisma yozuvga TEGILMAYDI, faqat `file_id` qaytaradi (Member jadvali — haydovchi
+ *  moderatsiyasiga tegishli, bu yerdan aralashilmaydi). */
+async function fetchTelegramAvatarFileId(memberId: number): Promise<string | null> {
+  if (!env.BOT_TOKEN) return null;
+  const tu = await prisma.telegramUser.findFirst({ where: { memberId }, select: { id: true } });
+  if (!tu) return null;
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/getUserProfilePhotos?user_id=${tu.id}&limit=1`);
+    const data = (await res.json()) as { ok: boolean; result?: { photos?: { file_id: string }[][] } };
+    if (!data.ok || !data.result?.photos?.length) return null;
+    const sizes = data.result.photos[0];
+    if (!sizes?.length) return null;
+    return sizes[sizes.length - 1]!.file_id; // eng katta variant
+  } catch {
+    return null;
+  }
 }

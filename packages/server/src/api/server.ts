@@ -1532,6 +1532,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     const b = req.body as { note?: string; isPublic?: boolean };
     res.json(await setCardNote(memberId, Number(req.params.gno), String(b?.note ?? ""), b?.isPublic === true));
   });
+  // 👤 K4 — o'z Telegram avatarini o'yin kartasida ko'rsatish/yashirish (ATAYLAB alohida,
+  // haydovchi-portret moderatsiya oqimiga tegmaydi — setCardNote yonidagi izohga qarang).
+  app.post("/api/oyin/avatar-optin", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { setAvatarOptIn } = await import("../services/oyinService");
+    const b = req.body as { optIn?: boolean };
+    res.json(await setAvatarOptIn(memberId, b?.optIn === true));
+  });
   // ⛔ `/api/oyin/board` OLIB TASHLANDI (ega qarori 2026-08-03): reyting ball
   // QOLDIG'I bo'yicha saralanardi — chipta olgan odamning o'rni TUSHARDI, ya'ni to'g'ri
   // xatti-harakat jazolanardi. O'rniga `/api/oyin/bell` — ball qayerdan kelgani.

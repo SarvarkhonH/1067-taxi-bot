@@ -145,6 +145,10 @@ function mockCard(gno: number): OyinCardDetail {
     // boshqa kartada oldindan yozilgan ochiq qayd (ko'rish-holatini tekshirish uchun).
     note: mine ? null : "BirJoydagi birinchi kartam ❤️",
     notePublic: !mine,
+    // 👤 K4 QA: boshqa kartada rozilik yoqilgan deb ko'rsatiladi (rasm-ko'rsatish holatini
+    // tekshirish uchun), lekin demo'da haqiqiy Telegram rasmi yo'q — shuning uchun `null`.
+    ownerPhotoUrl: null,
+    avatarOptIn: !mine,
   };
 }
 
@@ -167,6 +171,12 @@ function installOyinMock(): void {
     // qaytaradi, shunda tahrir-forma UI oqimini sinash mumkin.
     if (/^\/api\/oyin\/card\/\d+\/note$/.test(path) && init?.method === "POST") {
       return jsonRes({ ok: true });
+    }
+    // 👤 K4 (2026-08-14) — demo'da haqiqiy Telegram so'rovi yo'q, "rasm topilmadi" deb
+    // qaytaradi (bo'sh va'da bermaslik UI-yo'lini tekshirish uchun).
+    if (path === "/api/oyin/avatar-optin" && init?.method === "POST") {
+      const body = JSON.parse(String(init.body ?? "{}")) as { optIn?: boolean };
+      return jsonRes({ ok: true, optIn: body.optIn === true, photoFound: false });
     }
     if (path in MOCK_GET) return jsonRes(MOCK_GET[path]);
     // 🤝 Gashtak boshliq amallari (kick/add/turn/message/rotate/disband) — demo'da HAQIQIY

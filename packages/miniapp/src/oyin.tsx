@@ -575,6 +575,9 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const [noteText, setNoteText] = useState("");
   const [notePublic, setNotePublic] = useState(false);
   const [noteBusy, setNoteBusy] = useState(false);
+  // 👤 K4 — avatar-rozilik. `cardData.avatarOptIn` mavjud qiymat, `avatarBusy` faqat
+  // so'rov davomida tugma bosilib qolishini oldini oladi.
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [filter, setFilter] = useState<OyinPrizeFilter>("hammasi");
   const [archOpen, setArchOpen] = useState(false);
   const [buyKey, setBuyKey] = useState<string | null>(null);
@@ -993,6 +996,27 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
       setNoteBusy(false);
     }
   }, [cardData, noteText, notePublic]);
+  // 👤 K4 — avatar-rozilik almashtirish. Yoqilganda server Telegram'dan rasm tortishga
+  // urinadi; topilmasa ham HAQIQATNI aytamiz (bo'sh va'da bermaslik, DIZAYN_QOIDALARI #7).
+  const toggleAvatarOptIn = useCallback(async () => {
+    if (!cardData) return;
+    haptic();
+    setAvatarBusy(true);
+    try {
+      const next = !cardData.avatarOptIn;
+      const r = await api.oyinSetAvatarOptIn(next);
+      if (r.ok) {
+        setCardData({ ...cardData, avatarOptIn: r.optIn, ownerPhotoUrl: r.optIn && !r.photoFound ? null : cardData.ownerPhotoUrl });
+        showToast(!r.optIn ? "Rasm yashirildi" : r.photoFound ? "Rasm ko'rsatiladi" : "Yoqildi — lekin Telegram'da ochiq profil-rasmingiz topilmadi");
+      } else {
+        showToast("Saqlanmadi");
+      }
+    } catch {
+      showToast("Saqlanmadi — aloqa uzildi");
+    } finally {
+      setAvatarBusy(false);
+    }
+  }, [cardData]);
   // 🆕 Bo'sh katakka bosilganda (ega talabi 2026-08-12: «har bir karta yasalgan payt ham
   // kirib ko'rib bo'lishi kerak, egasiz bo'lsa ham»). Serverga so'rov YO'Q — `gno` faqat
   // xariddan tug'iladi (K1 rejasi), shuning uchun bu joyda haqiqiy karta ma'lumoti yo'q,
@@ -2372,7 +2396,13 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                           <div className="oyk-cert-rows">
                             <div className="oyk-cert-row">
                               <span>Egasi</span>
-                              <b>{cardData.ownerName}{cardData.mine ? " (siz)" : ""}</b>
+                              {/* 👤 K4 — rasm FAQAT egasi rozilik bergan bo'lsa (yoki bu SIZNING
+                                  o'z kartangiz). Server hal qiladi (`ownerPhotoUrl`), bu yerda
+                                  faqat bor-yo'qligi tekshiriladi. */}
+                              <b className="oyk-cert-owner">
+                                {cardData.ownerPhotoUrl && <img className="oyk-cert-owner-av" src={cardData.ownerPhotoUrl} alt="" />}
+                                {cardData.ownerName}{cardData.mine ? " (siz)" : ""}
+                              </b>
                             </div>
                             <div className="oyk-cert-row">
                               <span>Olingan</span>
@@ -2419,6 +2449,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                                 {noteBusy ? "…" : "Saqlash"}
                               </button>
                             </div>
+                            {/* 👤 K4 — standart: faqat ism ko'rinadi. Rozilik bersangiz Telegram
+                                profil-rasmingiz ham qo'shiladi (bu kartani ko'rgan har kimga). */}
+                            <button type="button" className={`oyk-note-priv oyk-avatar-optin${cardData.avatarOptIn ? " is-on" : ""}`} disabled={avatarBusy} onClick={() => void toggleAvatarOptIn()}>
+                              {avatarBusy ? "…" : cardData.avatarOptIn ? "👤 Rasmingiz ko'rinadi" : "👤 Rasmingizni ham ko'rsatish"}
+                            </button>
                           </div>
                         ) : cardData.note && (
                           <div className="oyk-note-view">🗒 <b>{cardData.ownerName}</b>: «{cardData.note}»</div>
