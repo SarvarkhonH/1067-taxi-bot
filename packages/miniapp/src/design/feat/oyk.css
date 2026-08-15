@@ -431,6 +431,9 @@
 .oyk-scarce.is-hot { background: color-mix(in srgb, var(--oyk-red) 10%, transparent); color: var(--oyk-red-soft); }
 /* ── 🎟 CHIPTALARIM TABI — chipta ko'rinadigan buyum (YAKUNIY DIZAYN §2) ──────────────── */
 .oyk-tkt { border-radius: 16px; overflow: hidden; background: var(--oyk-surface); box-shadow: var(--oyk-shadow); border: 1px solid var(--oyk-line); }
+.oyk-tkt.is-tappable { cursor: pointer; transition: transform var(--dur-press); }
+.oyk-tkt.is-tappable:active { transform: scale(.98); }
+.oyk-tkt.is-tappable:focus-visible { outline: 2px solid var(--oyk-accent); outline-offset: 2px; }
 .oyk-tkt-stub { position: relative; padding: 14px 16px 15px; color: var(--oyk-on); background: var(--oyk-violet-grad); }
 /* Chipta "tishlari" — sahifa foni rangida. Avval `var(--oyk-bg-solid, …)` yozilgan edi,
    lekin `--oyk-bg-solid` TOKENI YO'Q: har doim fallback ishlardi, ya'ni token nomi aldov edi. */

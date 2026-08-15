@@ -1586,12 +1586,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       <div className="oyk-vcard-photo-price">{p.price} <small>ball</small></div>
                     </div>
                   )}
-                  {/* ⚠️ Avval bu qator `{p.valueLabel} · {p.limit} dona` edi: qiymat bo'sh
-                      bo'lganda ekranda osilgan " · 15 dona" chiqardi (nuqta nimanidir ajratishi
-                      kerak, ajratadigan narsa yo'q edi). Endi ikkala bo'lak ham shartli. */}
-                  <div className="oyk-vcard-sub">
-                    {[p.valueLabel, `${p.limit} dona`].filter(Boolean).join(" · ")}
-                  </div>
+                  {/* ⚠️ 2026-08-13 (ega talabi: "sovg'a narxlari ko'rsatma faqat o'zimiz uchun") —
+                      `p.valueLabel` (taxminiy so'm qiymati) mijozga ENDI ko'rsatilmaydi, faqat
+                      admin panelda qoladi. Shu qator faqat dona-sonini aytadi. */}
+                  <div className="oyk-vcard-sub">{p.limit} dona</div>
                   <div className="oyk-vbar">
                     <div className="oyk-vbar-fill" style={{ transform: `scaleX(${Math.min(1, state.ball / p.price)})` }} />
                   </div>
@@ -1877,7 +1875,15 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             ) : (
               <>
                 {tickets.tickets.map((t) => (
-                  <div key={`${t.prizeKey}-${t.gno}`} className={`oyk-tkt${t.test ? " is-test" : ""}`}>
+                  // 🎟 K1 (OYIN_KARTA_PLAN.md §12.1, ega talabi 2026-08-13: "kartalarim
+                  // bo'limiga kartaga bosib bo'lsin, uning malumotlari chiqsin"). Panjaradagi
+                  // BIR XIL `openCard` qayta ishlatiladi — yangi ekran/so'rov yo'q.
+                  <div
+                    key={`${t.prizeKey}-${t.gno}`} className={`oyk-tkt is-tappable${t.test ? " is-test" : ""}`}
+                    role="button" tabIndex={0}
+                    onClick={() => openCard(t.gno)}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openCard(t.gno); } }}
+                  >
                     <div className="oyk-tkt-stub">
                       {/* 🧪 TEST chipta OCHIQ belgilanadi. Yashirilsa ega o'z sinov chiptasini
                           haqiqiy deb o'ylab tirajni kutardi va "nega yutmadim" savoli javobsiz
@@ -1917,7 +1923,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       <button
                         type="button" className="oyk-tkt-cancel"
                         disabled={cancellingGno === t.gno}
-                        onClick={() => void cancelTicket(t.gno)}
+                        onClick={(e) => { e.stopPropagation(); void cancelTicket(t.gno); }}
                       >
                         <span className="oyk-tkt-cancel-x" aria-hidden="true">{cancellingGno === t.gno ? "…" : "✕"}</span>
                         Endigina oldingiz — bekor qilish (ball qaytadi)
@@ -2666,7 +2672,6 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     : <span className="oyk-buy-hero-emoji">{buyPrize.icon}</span>}
                   <div className="oyk-buy-hero-fade" />
                   <div className="oyk-buy-hero-name">{buyPrize.name}</div>
-                  {buyPrize.valueLabel && <div className="oyk-buy-hero-val">{buyPrize.valueLabel}</div>}
                 </div>
                 {sc !== "none" && (
                   <div className={`oyk-scarce is-${sc}`}>
