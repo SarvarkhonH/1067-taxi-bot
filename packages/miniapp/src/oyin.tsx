@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, OYIN_CANCEL_WINDOW_MS, OYIN_PRIZE_FILTERS, oyinFilterPrizes, oyinHintOf, type OyinCardDetail, type OyinPrizeCardsResponse, type OyinPrizeFilter, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, OYIN_CANCEL_WINDOW_MS, OYIN_JAMOA_MIN, OYIN_JAMOA_MAX, OYIN_PRIZE_FILTERS, oyinFilterPrizes, oyinHintOf, type OyinCardDetail, type OyinPrizeCardsResponse, type OyinPrizeFilter, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
 import { OyinStory } from "./oyinStory";
@@ -30,7 +30,7 @@ const GASHTAK_HELP_SEEN_KEY = "oyk_gashtak_help_seen";
 function gashtakSlides(): { icon: string; text: string; visual?: "unity" | "join" | "compare" | "goal" | "message" }[] {
   return [
     { icon: "🤝", text: "Gashtak — o'zbekona hamjihatlik: yaqinlaringiz bilan birlashib, navbat bilan bir-biringizga yordam berasiz", visual: "unity" },
-    { icon: "👥", text: "3–10 kishi — oila, do'stlar, mahalla. Kod yoki havola bilan qo'shiling", visual: "join" },
+    { icon: "👥", text: `${OYIN_JAMOA_MIN}–${OYIN_JAMOA_MAX} kishi — oila, do'stlar, mahalla. Kod yoki havola bilan qo'shiling`, visual: "join" },
     {
       icon: "🎯",
       text: "Boshliq istalgan payt 'kimga ball yig'amiz' deb belgilaydi. Hammaning safari o'sha bitta odamga ishlaydi",
@@ -421,7 +421,7 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
           </RuleSec>
 
           <RuleSec n={7} t="Gashtak qoidalari">
-            Gashtak — 3–10 kishilik guruh: oila, do'stlar yoki mahalla birgalikda ball yig'adi.
+            Gashtak — {OYIN_JAMOA_MIN}–{OYIN_JAMOA_MAX} kishilik guruh: oila, do'stlar yoki mahalla birgalikda ball yig'adi.
             Qo'shilish faqat boshliq ulashgan <b>kod yoki havola</b> orqali — gashtak nomi bilan
             qo'shilib bo'lmaydi. Istalgan a'zo istalgan payt guruhdan chiqishi mumkin.<br />
             Boshliq istalgan payt <b>«bu safarlar kimga hisoblansin»ni belgilaydi</b> — o'sha
@@ -562,6 +562,11 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const [cardsPrize, setCardsPrize] = useState<OyinPrizeView | null>(null);
   const [cardData, setCardData] = useState<OyinCardDetail | null>(null);
   const [cardErr, setCardErr] = useState(false);
+  // 🛡 Panjaradan tez-tez katak almashtirilsa (yopib-boshqasini ochish), eski so'rov KECHROQ
+  // qaytishi mumkin va yangi kartani eskisining ma'lumoti bilan bosib yozib qo'yishi mumkin
+  // edi. `gno` shu yerda "so'nggi so'ralgan" sifatida saqlanadi — javob kelganda mos kelmasa
+  // e'tiborsiz qoldiriladi.
+  const cardReqRef = useRef<number | null>(null);
   // Bo'sh (hali sotilmagan) katakka bosilganda: haqiqiy karta yo'q (gno faqat xariddan keyin
   // tug'iladi), shuning uchun serverga so'rov yubormaymiz — faqat joy raqamini ko'rsatamiz.
   const [emptySlotNo, setEmptySlotNo] = useState<number | null>(null);
@@ -954,8 +959,11 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // 🔎 Bitta karta sahifasi — O'Z kartasi ham, BOSHQA odamniki ham.
   const openCard = useCallback((gno: number) => {
     haptic();
+    cardReqRef.current = gno;
     setCardData(null); setCardErr(false); setEmptySlotNo(null); setSheet("card");
-    void api.oyinCard(gno).then(setCardData).catch(() => setCardErr(true));
+    void api.oyinCard(gno)
+      .then((d) => { if (cardReqRef.current === gno) setCardData(d); })
+      .catch(() => { if (cardReqRef.current === gno) setCardErr(true); });
   }, []);
   // 🆕 Bo'sh katakka bosilganda (ega talabi 2026-08-12: «har bir karta yasalgan payt ham
   // kirib ko'rib bo'lishi kerak, egasiz bo'lsa ham»). Serverga so'rov YO'Q — `gno` faqat
@@ -963,6 +971,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // faqat "bu joy bo'sh, olishga arziydi" holati ko'rsatiladi.
   const openEmptySlot = useCallback((no: number) => {
     haptic();
+    cardReqRef.current = null; // oldingi openCard so'rovi (bo'lsa) endi ESKIRGAN
     setCardData(null); setCardErr(false); setEmptySlotNo(no); setSheet("card");
   }, []);
 
@@ -1736,7 +1745,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       <span className="oyk-jamoa-who">{m.isNavbatchi ? "🎯" : m.hadTurn ? "✓" : "•"} {m.isTest && "🧪 "}{m.name}{m.isTest && <small> (sinov)</small>}{m.isLeader && <span className="oyk-jamoa-crown">👑<small> boshliq</small></span>}</span>
                       <span className="oyk-jamoa-rides">{m.ridesThisMonth} safar · {m.ballEarnedTotal} ball</span>
                       {jamoa.jamoa!.isLeader && !m.isLeader && (
-                        <button type="button" className="oyk-jamoa-kick" disabled={jamoaBusy} title="Chiqarish" onClick={() => { void doGashtakKick(m.memberId); }}>✕</button>
+                        <button type="button" className="oyk-jamoa-kick" disabled={jamoaBusy} aria-label={`${m.name}ni chiqarish`} title="Chiqarish" onClick={() => { void doGashtakKick(m.memberId); }}>✕</button>
                       )}
                     </div>
                   ))}

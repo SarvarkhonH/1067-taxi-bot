@@ -139,47 +139,6 @@
 }
 .oyk-error-retry:active { transform: scale(.97); }
 
-/* ── 👤 SARLAVHA — avatar + brend + "?" + qo'ng'iroq ──────────────────────────────────────
-   Reyting chipi OLIB TASHLANDI (ega qarori): u ball QOLDIG'I bo'yicha saralanardi, ya'ni chipta
-   olgan odamning o'rni tushardi — to'g'ri xatti-harakat jazolanardi. */
-.oyk-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.oyk-top-me { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.oyk-top-av {
-  position: relative; width: 42px; height: 42px; border-radius: 50%; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: var(--oyk-surface); border: 1px solid var(--oyk-line);
-}
-.oyk-top-av .bj-mark { display: block; }
-.oyk-top-av-crown {
-  position: absolute; top: -8px; left: 50%; transform: translateX(-50%);
-  font-size: 13px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .3));
-}
-.oyk-top-av-b {
-  position: absolute; right: -3px; bottom: -3px; min-width: 18px; height: 18px; padding: 0 4px;
-  border-radius: 99px; background: var(--oyk-accent); color: var(--oyk-on);
-  font-size: 10.5px; font-weight: 900; font-style: normal;
-  display: flex; align-items: center; justify-content: center; border: 2px solid var(--oyk-surface);
-}
-.oyk-top-nm { min-width: 0; line-height: 1.2; }
-.oyk-top-nm b { display: block; font-size: 17px; font-weight: 900; }
-.oyk-top-nm small { display: block; font-size: 11.5px; color: var(--oyk-text-3); }
-/* Ikkita yumaloq tugma bir xil geometriyada — "?" va 🔔 bir oilaga o'xshasin */
-.oyk-top-acts { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.oyk-icbtn {
-  position: relative; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%;
-  background: var(--oyk-fill); border: 1px solid var(--oyk-line);
-  font-size: 17px; font-weight: 900; color: var(--oyk-text-3);
-  cursor: pointer; transition: transform var(--dur-press);
-}
-.oyk-icbtn:active { transform: scale(.92); }
-.oyk-icbtn.is-bell { font-size: 19px; }
-.oyk-bell-dot {
-  position: absolute; top: -3px; right: -3px; min-width: 17px; height: 17px; padding: 0 4px;
-  border-radius: 99px; background: var(--oyk-red); color: var(--oyk-on);
-  font-size: 10px; font-weight: 900; font-style: normal;
-  display: flex; align-items: center; justify-content: center; border: 2px solid var(--oyk-surface);
-}
-
 /* ── 🔒 FINAL-48 banneri ──────────────────────────────────────────────────────────────────
    ⚠️ R6 (audit): avval qizil edi. Vitrina tabidagi eng-tanqis-sovrin belgisi ham qizil bo'lishi
    mumkin — bitta ekranda IKKI qizil bir vaqtda chiqib, "eng ko'pi bitta qizil" qoidasini
@@ -278,12 +237,6 @@
 }
 .oyk-act:active { transform: scale(.97); }
 .oyk-act-ic { font-size: 19px; display: block; margin-bottom: 3px; position: relative; }
-.oyk-act-ic--brand { width: 32px; height: 20px; line-height: 0; }
-.oyk-act-ic--brand .bj-mark { display: block; }
-.oyk-act-crown {
-  position: absolute; top: -9px; left: 50%; transform: translateX(-50%);
-  font-size: 12px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .3));
-}
 .oyk-act b { display: block; font-size: 12.5px; font-weight: 900; }
 .oyk-act small { font-size: 10.5px; opacity: .9; }
 /* "Safar qilish" BREND rangida — bizga daromad keltiradigan harakat ilova bilan bir xil his qilinsin */
@@ -351,26 +304,6 @@
 }
 .oyk-quest.is-done .oyk-quest-b { color: var(--oyk-green); }
 
-/* 💡 Eng tez yo'l — TUGMA (yozuv harakat va'da qiladi, DIZAYN_QOIDALARI #14) */
-.oyk-fast {
-  display: flex; align-items: center; gap: 7px; width: 100%; padding: 9px 12px; border: 0; border-radius: 13px;
-  background: var(--oyk-accent-pale); color: var(--oyk-accent-deep); font-size: 11.5px; font-weight: 700;
-  font-family: inherit; text-align: left; cursor: pointer; transition: transform var(--dur-press);
-}
-.oyk-fast:active { transform: scale(.98); }
-.oyk-fast-ic { font-size: 14px; }
-
-/* 🎟 "Mening chiptalarim" qatori */
-.oyk-howto {
-  display: flex; align-items: center; justify-content: space-between; gap: 8px;
-  min-height: 44px; padding: 0 14px; border-radius: 14px; cursor: pointer;
-  background: var(--oyk-surface); border: 1px solid var(--oyk-line); box-shadow: var(--oyk-shadow);
-  font-size: 13px; font-weight: 800; color: var(--oyk-text); font-family: inherit;
-  transition: transform var(--dur-press);
-}
-.oyk-howto:active { transform: scale(.98); }
-.oyk-howto-go { color: var(--oyk-text-3); }
-
 /* ── 🏁 MAVSUM YAKUNI (uy tabi kontenti, erta-return EMAS) ────────────────────────────────
    ⚠️ Avval bu blok `.oyk-hero*` sinflarini ishlatardi — ular MEHMON-teaser ekraniga ham
    tegishli, ya'ni bittasini tuzatish ikkinchisini buzardi. Endi yakunning o'z sinflari bor
@@ -428,55 +361,7 @@
 .oyk-cta-label { position: relative; z-index: 1; }
 .oyk-cta-shine { position: absolute; top: 0; bottom: 0; width: 50px; background: rgba(255, 255, 255, .5); filter: blur(7px); animation: oyk-shine 2.8s ease-in-out infinite; }
 
-/* ── homiy chizig'i + huquqiy izoh ────────────────────────────────────────────────────── */
-.oyk-sponsor {
-  display: flex; align-items: center; justify-content: center; gap: 9px; padding: 10px 14px;
-  background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 14px;
-}
-.oyk-sponsor-logo {
-  position: relative; width: 26px; height: 26px; border-radius: 8px; background: var(--oyk-surface);
-  border: 1px solid var(--oyk-line);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.oyk-sponsor-logo .bj-mark { display: block; }
-.oyk-sponsor-crown {
-  position: absolute; top: -7px; left: 50%; transform: translateX(-50%);
-  font-size: 10px; line-height: 1; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, .3));
-}
-.oyk-sponsor-text { font-size: 11px; color: var(--oyk-text-3); white-space: nowrap; }
-.oyk-sponsor-text b { color: var(--oyk-text); }
-.oyk-legal { text-align: center; font-size: 10.5px; color: var(--oyk-text-3); padding: 0 12px; }
-
 /* ── 🎁 SOVRINLAR TABI ─────────────────────────────────────────────────────────────────── */
-.oyk-v-head { display: flex; align-items: baseline; justify-content: space-between; }
-.oyk-v-title { font-size: 17px; font-weight: 900; }
-/* 📅 Tiraj banneri — uy tabidagi tiraj kartasi bilan AYNAN bir uslubda.
-   ⚠️ Avval bu OQ karta edi: bitta o'yin ichida bir xil fakt (tiraj sanasi) ikki tabda ikki xil
-   ko'rinishda chiziladi va ekranlar bir-biriga begona tuyulardi. */
-.oyk-vtop {
-  position: relative; overflow: hidden; border-radius: 20px; padding: 15px 16px 14px;
-  background: var(--oyk-hero-grad); border: 1px solid var(--oyk-line); box-shadow: var(--oyk-shadow); color: var(--oyk-text);
-}
-.oyk-vtop-h { position: relative; font-size: 11px; font-weight: 900; letter-spacing: .12em; color: var(--oyk-accent-deep); }
-.oyk-vtop-d { position: relative; font-size: 22px; font-weight: 900; margin-top: 3px; color: var(--oyk-text); }
-.oyk-vtop-soon { position: relative; font-size: 14px; font-weight: 800; margin-top: 3px; color: var(--oyk-text-2); }
-.oyk-vtop-ball {
-  position: relative; display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
-  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--oyk-line);
-  font-size: 12px; color: var(--oyk-text-2);
-}
-.oyk-vtop-ball b { font-size: 22px; font-weight: 900; color: var(--oyk-accent-deep); font-variant-numeric: tabular-nums; }
-/* ⚠️ 2026-08-06 (mustaqil tekshiruv topdi): avval quti oltin, matn ko'k edi (gold→accent
-   ko'chishning to'liq bo'lmagan qoldig'i). Homiy-chizig'i alohida rang-ma'nosiga muhtoj emas —
-   endi to'liq neytral. */
-.oyk-sponsor-strip {
-  display: flex; align-items: center; gap: 9px; padding: 9px 12px;
-  background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 12px;
-}
-.oyk-sponsor-strip .oyk-sponsor-logo { width: 24px; height: 24px; border-radius: 7px; }
-.oyk-sponsor-strip-text { font-size: 11px; color: var(--oyk-text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.oyk-sponsor-strip-text b { color: var(--oyk-text); }
-
 .oyk-vcard { background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px; box-shadow: var(--oyk-shadow); padding: 14px; display: flex; flex-direction: column; gap: 9px; }
 .oyk-vcard.is-soldout { opacity: .55; }
 /* Afisha: karta tepasi to'liq mahsulot-foto, pastdan qoraytirish bilan nom va narx o'qiladi */
@@ -507,8 +392,6 @@
 /* R32 (audit): avval `width` bilan animatsiya qilinardi (layout-reflow, Qoida-16 buzilishi) —
    endi `transform:scaleX` (kompozitorda, `.oyk-vbar` o'zi 100% eni beradi). */
 .oyk-vbar-fill { height: 100%; width: 100%; border-radius: 4px; background: var(--oyk-prog-grad); transform-origin: left; transition: transform .5s; }
-.oyk-vcard-stats { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--oyk-text-2); font-variant-numeric: tabular-nums; }
-.oyk-vcard-stats b { color: var(--oyk-text); }
 .oyk-vcard-path { font-size: 12px; color: var(--oyk-text-2); }
 /* 🛡 Tiraj sharti bajarilgan holat — yashil. Bajarilmagani oddiy kulrang matnda qoladi
    (qizil TAQIQ: bu xato emas, shunchaki hali yig'ilmagan holat — qizil qo'rqitardi). */
@@ -863,27 +746,6 @@
   color: var(--oyk-text-3); background: var(--oyk-fill); border-top: 1px solid var(--oyk-line);
 }
 
-/* 🎮 "Qanday ishlaydi?" varag'i (5 qadam) */
-.oyk-how-lead { font-size: 13px; color: var(--oyk-text-2); margin-bottom: 2px; }
-.oyk-how { display: flex; flex-direction: column; gap: 9px; }
-.oyk-how-step {
-  display: flex; align-items: flex-start; gap: 11px; padding: 12px 13px; border-radius: 15px;
-  background: var(--oyk-fill); border: 1px solid var(--oyk-line);
-}
-.oyk-how-em { font-size: 26px; line-height: 1.1; flex-shrink: 0; }
-.oyk-how-body { flex: 1; min-width: 0; }
-.oyk-how-body b { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 900; }
-.oyk-how-body b i {
-  width: 21px; height: 21px; border-radius: 50%; background: var(--oyk-violet); color: var(--oyk-on);
-  font-size: 11.5px; font-style: normal; display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.oyk-how-body small { display: block; font-size: 12px; color: var(--oyk-text-2); line-height: 1.5; margin-top: 4px; }
-
-/* ❓ Savol-javob varag'i */
-.oyk-info { display: flex; flex-direction: column; gap: 12px; }
-.oyk-info-b { background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 16px; padding: 12px 14px; }
-.oyk-info-t { font-size: 13.5px; font-weight: 900; margin-bottom: 5px; }
-.oyk-info-x { font-size: 12px; line-height: 1.55; color: var(--oyk-text-2); }
 /* "Qanday ishlaydi" javobi ALOHIDA varaqda — bu qator unga olib boradi (takror sarlavha yo'q) */
 .oyk-info-link {
   display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%;
