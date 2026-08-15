@@ -2,7 +2,7 @@ import { Fragment, Suspense, lazy, useEffect, useRef, useState } from "react";
 
 const DesignDemo = lazy(() => import("./design/demo")); // #demo dagina yuklanadi
 const ShopDemo = lazy(() => import("./design/shopDemo").then((m) => ({ default: m.ShopDemoPage }))); // #shopdemo dagina — shopv2 vizual-QA (mock-fetch, real Telegram auth kerak emas)
-const RstDemo = lazy(() => import("./design/rstDemo").then((m) => ({ default: m.RstDemoPage }))); // #rstdemo dagina — restoran dizayn-QA (B0…B5 yonma-yon solishtirish uchun)
+// #rstdemo (restoran dizayn-QA) 2026-08-15 da o'chirildi — solishtiradigan katalog qolmadi.
 const PickupDemo = lazy(() => import("./design/pickupDemo").then((m) => ({ default: m.PickupDemoPage }))); // #pickupdemo dagina — olib ketish varag'ining A/B dizayn-QA'si (flag `pickup2` jonlida OFF)
 const OyinDemo = lazy(() => import("./design/oyinDemo").then((m) => ({ default: m.OyinDemoPage }))); // #oyindemo dagina — Koson O'yini dizayn-QA (qorong'i qurilish, flag `oyin` hali yo'q)
 import type { LeaderboardResponse, MeResponse } from "@t1067/shared";
@@ -25,7 +25,8 @@ const ShopView = lazy(() => import("./shop").then((m) => ({ default: m.ShopView 
 const XizmatlarView = lazy(() => import("./services").then((m) => ({ default: m.XizmatlarView })));
 // 📋 E'lonlar — mahalla e'lon taxtasi (gated by feature `elonlar`; owner-preview while DARK)
 const ElonlarView = lazy(() => import("./elonlar").then((m) => ({ default: m.ElonlarView })));
-// 🍽 Restoran — taom-buyurtma, "wallet"ning bo'shagan tab-slotini egallaydi (gated by feature `restoran`; owner-preview while DARK)
+// 🍽 Restoran — HAMKORNING tashqi mini-appiga eshik (2026-08-15; ilgari o'z katalogimiz edi).
+// Flag `restoran` — kill-switch: o'chirilsa tab butunlay yo'qoladi.
 const RestoranView = lazy(() => import("./restoran").then((m) => ({ default: m.RestoranView })));
 // 🎀 Ravella — hamkor-brend bezak konstruktori. Tabbar'da YO'Q (ega qarori: "bosh ekranda kichik,
 // umuman boshqa xizmat turi") — faqat uy rail'i / banner / deep-link orqali ochiladi.
@@ -177,13 +178,6 @@ export function App() {
       </Suspense>
     );
   }
-  if (window.location.hash === "#rstdemo") {
-    return (
-      <Suspense fallback={<div className="boot"><div className="boot-logo">🍽</div></div>}>
-        <RstDemo />
-      </Suspense>
-    );
-  }
   if (window.location.hash === "#oyindemo") {
     return (
       <Suspense fallback={<div className="boot"><div className="boot-logo">🎮</div></div>}>
@@ -217,10 +211,10 @@ export function App() {
   const [history, setHistory] = useState(() => readGo() === "history"); // 📜 ride-history overlay
   const [deepGashtakCode] = useState(() => readDeepGashtakCode()); // 🤝 taklif-havolasi kod
   const [deepProduct] = useState(() => readDeepProduct()); // 🛍 auto-open a shared product once
-  // 🏠 UY feed cards (bento) carry their real id via nav("dokon:<id>"/"restoran:<id>") so tapping one
-  // opens THAT product/restaurant's detail, not just the bare tab list — parsed in nav() below.
+  // 🏠 UY feed cards (bento) carry their real id via nav("dokon:<id>") so tapping one opens THAT
+  // product's detail, not just the bare tab list — parsed in nav() below. (🍽 "restoran:<id>"
+  // 2026-08-15 da chiqdi: feed'da taom kartasi yo'q, restoran tabi — hamkorga eshik.)
   const [openProductFromFeed, setOpenProductFromFeed] = useState<number | null>(null);
-  const [openRestoranFromFeed, setOpenRestoranFromFeed] = useState<number | null>(null);
   const coins = useCountUp(me?.coins ?? 0);
   // WOW-1: balans oshganda tanga ikonkasi sakraydi
   const [coinBounce, setCoinBounce] = useState(false);
@@ -365,11 +359,11 @@ export function App() {
   const nav = (t: string) => {
     if (t === "invite") { haptic(); setInvite(true); return; } // 🎁 open invite overlay directly
     if (t === "history") { haptic(); setHistory(true); return; } // 📜 open ride-history overlay
-    // 🏠 UY feed card target, e.g. "dokon:35" / "restoran:5" — open that exact item, not just the tab.
+    // 🏠 UY feed card target, e.g. "dokon:35" — open that exact item, not just the tab.
+    // Eski "restoran:<id>" pinlari hali kelib qolsa — id e'tiborsiz, oddiy tabga tushiriladi.
     const feedItem = /^(dokon|restoran):(\d+)$/.exec(t);
     if (feedItem) {
-      const id = Number(feedItem[2]);
-      if (feedItem[1] === "dokon") setOpenProductFromFeed(id); else setOpenRestoranFromFeed(id);
+      if (feedItem[1] === "dokon") setOpenProductFromFeed(Number(feedItem[2]));
       go(feedItem[1] as Tab);
       return;
     }
@@ -409,8 +403,8 @@ export function App() {
     const ELONLAR_TAB = { id: "elonlar" as Tab, icon: "board", label: "E'lonlar" };
     TABS = TABS.map((t) => (t.id === "reyting" ? ELONLAR_TAB : t));
   }
-  // 🍽 Restoran (feature "restoran", RESTORAN_PLAN W1/R1): "wallet"ning bo'shagan tab-slotini
-  // to'ldiradi — Do'kon/Xizmatlar bilan bir xil, Reyting'dan OLDIN qo'shiladi.
+  // 🍽 Restoran (feature "restoran"): tab-slot Do'kon/Xizmatlar bilan bir xil, Reyting'dan OLDIN
+  // qo'shiladi. Ekranning o'zi endi hamkor ilovasiga eshik (restoran.tsx).
   if (me.flags?.restoran) {
     const RESTORAN_TAB = { id: "restoran" as Tab, icon: "food", label: "Restoran" };
     const ri = TABS.findIndex((t) => t.id === "reyting" || t.id === "elonlar");
@@ -506,7 +500,7 @@ export function App() {
             {tab === "dokon" && <ShopView me={me} onBanner={flash} reload={reload} onBook={() => { haptic(); setBooking(true); }} openProductId={openProductFromFeed ?? deepProduct} />}
             {tab === "xizmat" && <XizmatlarView me={me} onBanner={flash} />}
             {tab === "elonlar" && <ElonlarView me={me} onBanner={flash} reload={reload} />}
-            {tab === "restoran" && <RestoranView me={me} onBanner={flash} openRestaurantId={openRestoranFromFeed} />}
+            {tab === "restoran" && <RestoranView me={me} onBanner={flash} />}
             {tab === "ravella" && <RavellaView me={me} onBanner={flash} />}
             {/* O'yindagi "Safar qilish" tugmasi taksi formasini TO'G'RIDAN ochadi — avval u
                 faqat "Uy ekranidan chaqiring" degan toast chiqaradigan boshi berk tugma edi. */}

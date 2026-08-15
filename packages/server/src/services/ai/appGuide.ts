@@ -15,7 +15,7 @@ export const APP_GUIDE = [
   "🔥 KUNLIK STREAK: har kuni belgilab tur — ketma-ket kunlar tanga ko'paytiradi. Uzilса — yonadi.",
   "🎁 VAZIFALAR (bonuslar): kunlik topshiriqlar — bajarsang tanga.",
   "💵 SO'MGA YECHISH (naxt): tangangни real pulга aylantirasan — ega tasdiqlaydi, kamida 1 real safar qilgan bo'lish kerak, kunlik byudjet ichida.",
-  "🍽 OVQAT: restoranlardан taom buyurtma — operator qo'ng'iroq qilib tasdiqlaydi, naqd to'lov.",
+  "🍽 OVQAT (RESTORAN): Mini App'даги «Restoran» tabi HAMKOR ilovasини ochadi — taom u yerдан buyurtma qilinadi. Bizда menyu ham, buyurtma ham YO'Q: «osh buyurtma qil» deyilса, Restoran tabини ochишни ayt, o'zинг buyurtma qilma va narx aytma.",
   "🔎 XIZMATLAR (ustalar): santexnik, basseyn, avtoservis va h.k. — reyting + «BirJoy tekshiruvi» bali bilan, telefon berib bir bosishда qo'ng'iroq.",
   "🛒 DO'KON (bazar): mahsulotlar tanga bilan sotib olinadi, yetkazib beriladi.",
   "📋 E'LONLAR: oldi-sotdi, ish, uy-joy, transport — mahalla e'lon taxtasi.",

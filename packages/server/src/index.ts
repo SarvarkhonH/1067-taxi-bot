@@ -160,17 +160,8 @@ async function main(): Promise<void> {
     notifyElonlarOwner: async (notice) => {
       if (bot) await (await import("./bot/elonlar")).notifyOwnerElonlar(bot, notice);
     },
-    // 🍽 new restoran order → owner info card (R3: operator acts from admin panel, no buttons here)
-    notifyRestoranOwner: async (notice) => {
-      if (bot) await (await import("./bot/restoran")).notifyOwnerNewFoodOrder(bot, notice);
-    },
-    // 🍽 order status advanced → rider push (qulaylik #1, jonli-his)
-    notifyRiderOrderStatus: async (notice) => {
-      if (bot) await (await import("./bot/restoran")).notifyRiderOrderStatus(bot, notice);
-    },
-    notifyRiderOrderRejected: async (notice) => {
-      if (bot) await (await import("./bot/restoran")).notifyRiderOrderRejected(bot, notice);
-    },
+    // 🍽 restoran ulanishlari 2026-08-15 da olib tashlandi — tab endi hamkorning tashqi
+    // mini-appiga eshik, buyurtma bizda YARATILMAYDI, demak yuboradigan xabar ham yo'q.
     // 🎀 yangi Ravella buyurtmasi → HAMKOR kartasi [✅ Qabul][☎️ Bog'landim][✔ Bajarildi][❌ Rad] (+ega CC)
     notifyRavellaPartner: async (notice) => {
       if (bot) await (await import("./bot/ravella")).notifyRavellaPartner(bot, notice);
@@ -462,10 +453,7 @@ async function main(): Promise<void> {
       const { maybeAlertKasHealth } = await import("./services/kasHealth");
       const { alertAdmins } = await import("./services/economyService");
       await maybeAlertKasHealth(alertAdmins).catch(() => undefined);
-      // 🍽 RESTORAN R3 SLA-sweep (D4/D5: yangi poller YO'Q — mavjud booking tick'iga qo'shildi).
-      // kas'ga umuman bog'liq emas — faqat 3+ daq javobsiz FoodOrder'larni operatorlarga eslatadi.
-      const { checkRestoranSlaAndAlert } = await import("./services/restoranService");
-      await checkRestoranSlaAndAlert(alertAdmins).catch((e) => console.error("[restoran-sla] failed:", e));
+      // 🍽 RESTORAN SLA-sweep 2026-08-15 da olib tashlandi (bizda kutadigan buyurtma yo'q).
       // 🎀 RAVELLA SLA-sweep — bir xil naqsh (yangi poller YO'Q): hamkor javob bermagan
       // buyurtmalar egaga BIR marta eslatiladi (`slaAlertedAt`). Flag OFF → funksiya darhol qaytadi.
       const { checkRavellaSlaAndAlert } = await import("./services/ravellaService");

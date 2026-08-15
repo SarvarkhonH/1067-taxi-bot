@@ -16,7 +16,6 @@ import type {
   AdminBroadcastRow,
   AdminClassifiedListResponse,
   AdminEconomy,
-  AdminFoodOrderRow,
   BallDistribution,
   AdminGrowth,
   AdminHealth,
@@ -257,8 +256,6 @@ export const adminApi = {
   clearDriverPhoto: (driverId: number) =>
     req<{ ok: boolean }>(`/api/admin/driver-photo/${driverId}`, { method: "DELETE" }),
   driverPhotoUrl: (driverId: number) => `${API_BASE}/api/driver-photo/${driverId}`,
-  restoranPhotoUrl: (restaurantId: number) => `${API_BASE}/api/restoran/photo/${restaurantId}`,
-  restoranMenuPhotoUrl: (menuItemId: number) => `${API_BASE}/api/restoran/menuphoto/${menuItemId}`,
   recruitQrUrl: (driverId: number) => `${API_BASE}/api/admin/recruitqr/${driverId}`,
   driverStickerUrl: (driverId: number, token: string) => `${API_BASE}/api/admin/driver-sticker/${driverId}?token=${encodeURIComponent(token)}`,
   recruits: () => req<{ driverId: number; fullName: string; scanned: number; joined: number; rode: number; earned: number }[]>("/api/admin/recruits"),
@@ -395,28 +392,7 @@ export const adminApi = {
   shopCatDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/shop/categories/${id}`, { method: "DELETE" }),
   shopCatIcon: (id: number, mime: string, base64: string) => postJson<{ ok: boolean; error?: string }>(`/api/admin/shop/categories/${id}/icon`, { mime, base64 }),
   shopCatIconUrl: (id: number) => `${API_BASE}/api/shop/cat-icon/${id}`,
-  // 🍽 restoran — R3 sessiya-navbati
-  restoranOrders: (status?: string) => req<{ orders: AdminFoodOrderRow[] }>(`/api/admin/restoran/orders${status ? `?status=${status}` : ""}`),
-  restoranCall: (id: number) => postJson<{ ok: boolean }>(`/api/admin/restoran/orders/${id}/call`, {}),
-  restoranAccept: (id: number) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/restoran/orders/${id}/accept`, {}),
-  restoranAdvance: (id: number) => postJson<{ ok: boolean; reason?: string; newStatus?: string }>(`/api/admin/restoran/orders/${id}/advance`, {}),
-  restoranReject: (id: number, reason: string) => postJson<{ ok: boolean; reason?: string }>(`/api/admin/restoran/orders/${id}/reject`, { reason }),
-  // 🍽 restoran — R4 restoran+menyu CRUD
-  restoranList: () => req<{ restaurants: RestoranAdminRow[]; enabled: boolean }>("/api/admin/restoran/restaurants"),
-  restoranCreate: (p: { name: string; phone: string; category?: string; address?: string; workHours?: string; deliveryFeeSom?: number; minOrderSom?: number; pickupEnabled?: boolean; prepMinutes?: number }) =>
-    postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/restoran/restaurants", p),
-  restoranEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/restoran/restaurants/${id}`, patch),
-  restoranToggle: (id: number, active: boolean) => postJson<{ ok: boolean }>(`/api/admin/restoran/restaurants/${id}/toggle`, { active }),
-  restoranDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/restoran/restaurants/${id}`, { method: "DELETE" }),
-  restoranPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/restoran/restaurants/${id}/photo`, { mime, base64 }),
-  restoranMenu: (id: number) => req<{ items: RestoranMenuItemRow[] }>(`/api/admin/restoran/restaurants/${id}/menu`),
-  restoranMenuCreate: (restaurantId: number, p: { section?: string; name: string; desc?: string; priceSom: number }) =>
-    postJson<{ ok: boolean; id?: number; error?: string }>("/api/admin/restoran/menu", { restaurantId, ...p }),
-  restoranMenuBulk: (restaurantId: number, section: string, lines: string[]) =>
-    postJson<{ ok: boolean; created: number }>("/api/admin/restoran/menu/bulk", { restaurantId, section, lines }),
-  restoranMenuEdit: (id: number, patch: Record<string, unknown>) => postJson<{ ok: boolean }>(`/api/admin/restoran/menu/${id}`, patch),
-  restoranMenuDelete: (id: number) => req<{ ok: boolean }>(`/api/admin/restoran/menu/${id}`, { method: "DELETE" }),
-  restoranMenuPhotoUpload: (id: number, mime: string, base64: string) => postJson<{ ok: boolean }>(`/api/admin/restoran/menu/${id}/photo`, { mime, base64 }),
+  // 🍽 restoran admin API'lari 2026-08-15 da olib tashlandi — hamkorning tashqi mini-appi.
   // 👔 jamoa — xodimlar davomati + oylik (owner-only; JAMOA_PLAN J3). Tiplar jamoa.tsx'da
   // (type-only import — runtime aylanish yo'q).
   staffOverview: () => req<import("./jamoa").JamoaOverview>("/api/admin/staff/overview"),
@@ -710,7 +686,8 @@ export interface AdminChatMsg {
 
 // 🎧 Super Operator console
 export interface OprOpsRow {
-  module: "taxi" | "food" | "bazar" | "reys";
+  // 🍽 "food" 2026-08-15 da chiqdi (server OpsRow bilan bir xil) — restoran hamkorning tashqi ilovasi.
+  module: "taxi" | "bazar" | "reys";
   id: number | string;
   memberId?: number;
   title: string;
@@ -838,35 +815,6 @@ export interface Driver360 {
   rating: { avg: number; count: number; tags: { tag: string; n: number }[] };
   recruits: number;
   mashinaTickets: number;
-}
-
-// 🍽 restoran admin rows (R4)
-export interface RestoranAdminRow {
-  id: number;
-  name: string;
-  category: string;
-  phone: string;
-  address: string | null;
-  workHours: string | null;
-  deliveryFeeSom: number;
-  minOrderSom: number;
-  pickupEnabled: boolean;
-  prepMinutes: number;
-  hasPhoto: boolean;
-  active: boolean;
-  paused: boolean;
-  menuCount: number;
-  orderCount: number;
-  createdAt: string;
-}
-export interface RestoranMenuItemRow {
-  id: number;
-  section: string;
-  name: string;
-  desc?: string;
-  priceSom: number;
-  hasPhoto: boolean;
-  available: boolean;
 }
 
 // 🛍 tanga shop admin rows

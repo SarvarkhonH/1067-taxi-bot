@@ -41,7 +41,6 @@ function ago(iso: string): string {
 }
 const rideKind = (s: string): OrderRow["kind"] => /cancel|bekor/i.test(s) ? "bad" : "done";
 const shopKind = (s: string): OrderRow["kind"] => s === "delivered" ? "done" : s === "pending" ? "way" : "bad";
-const foodKind = (s: string): OrderRow["kind"] => /deliver|yetkaz/i.test(s) && !/way|yo/i.test(s) ? "done" : /cancel|reject|bekor/i.test(s) ? "bad" : "way";
 const icKind = (s: string): OrderRow["kind"] => /cancel|bekor/i.test(s) ? "bad" : /complete|arriv|done|tugadi/i.test(s) ? "done" : "book";
 const KIND_LB: Record<OrderRow["kind"], string> = { done: "Yakunlandi", way: "Yo'lda", book: "Bron", bad: "Bekor" };
 
@@ -59,18 +58,18 @@ export function NewProfileView({ me, onNav, onBanner }: { me: MeResponse; onNav:
     Promise.all([
       api.bookingHistory().catch(() => ({ rides: [], totals: { count: 0, spent: 0, cashback: 0, savingsPct: 0 } })),
       f.shop ? api.shopOrders().then((r) => r.orders).catch(() => []) : empty<import("@t1067/shared").ShopPurchaseView>(),
-      f.restoran ? api.restoranOrders().then((r) => r.orders).catch(() => []) : empty<import("@t1067/shared").FoodOrderView>(),
+      // 🍽 restoran buyurtmalari 2026-08-15 da chiqdi — ular endi hamkorning tashqi ilovasida,
+      // bizda yozuvi yo'q, demak bu ro'yxatda ko'rsatadigan qator ham yo'q.
       f.intercity ? api.icMyBookings().catch(() => []) : empty<import("./api").IntercityBookingRow>(),
       f.shop ? api.shopFavs().then((r) => r.products).catch(() => []) : empty<ShopProductView>(),
       api.recentPickups().catch(() => []),
       api.referral().catch(() => null),
-    ]).then(([hist, shop, food, ic, favList, recent, referral]) => {
+    ]).then(([hist, shop, ic, favList, recent, referral]) => {
       if (!alive) return;
       setRides(hist.totals.count);
       const rows: OrderRow[] = [];
       for (const r of hist.rides.slice(0, 10)) rows.push({ key: "r" + r.id, icon: "🚖", iconCls: "taxi", title: r.addressName || "Safar", sub: "Taxi · " + ago(r.at), status: KIND_LB[rideKind(r.status)], kind: rideKind(r.status), ts: Date.parse(r.at) || 0, amount: num(r.payment) + " so'm", nav: "history" });
       for (const o of shop) rows.push({ key: "s" + o.id, icon: "🏪", iconCls: "shop", title: o.productName, sub: "Do'kon · " + ago(o.createdAt), status: KIND_LB[shopKind(o.status)], kind: shopKind(o.status), ts: Date.parse(o.createdAt) || 0, amount: num(o.priceTanga) + " 🪙", nav: "dokon" });
-      for (const o of food) rows.push({ key: "f" + o.id, icon: "🍽", iconCls: "food", title: o.restaurantName, sub: "Restoran · " + ago(o.createdAt), status: KIND_LB[foodKind(o.status)], kind: foodKind(o.status), ts: Date.parse(o.createdAt) || 0, amount: num(o.totalSom) + " so'm", nav: "restoran" });
       for (const o of ic) rows.push({ key: "i" + o.id, icon: "🚐", iconCls: "yol", title: `${o.trip.originCity.name} → ${o.trip.destCity.name}`, sub: "Yo'l · " + ago(o.createdAt), status: KIND_LB[icKind(o.status)], kind: icKind(o.status), ts: Date.parse(o.createdAt) || 0, amount: `${o.seatsBooked} o'rin`, nav: "yol" });
       rows.sort((a, b) => b.ts - a.ts);
       setOrders(rows.slice(0, 8));

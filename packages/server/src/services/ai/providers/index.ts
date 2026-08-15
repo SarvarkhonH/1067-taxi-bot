@@ -4,7 +4,8 @@
 // provider is invisible to the LLM the moment its flag goes off.
 import { featureOn } from "../../featureFlags";
 import type { AiProvider } from "./types";
-import { restoranProvider } from "./restoranProvider";
+// 🍽 restoranProvider 2026-08-15 da olib tashlandi: restoran endi hamkorning tashqi mini-appi,
+// bizda katalog ham, buyurtma ham yo'q — AI izlaydigan/buyurtma qiladigan narsa qolmadi.
 import { xizmatProvider } from "./xizmatProvider";
 import { bazarProvider } from "./bazarProvider";
 import { elonProvider } from "./elonProvider";
@@ -37,7 +38,6 @@ export function providerByKey(key: string): AiProvider | undefined {
   return REGISTRY.find((p) => p.key === key);
 }
 
-register(restoranProvider);
 register(xizmatProvider);
 register(bazarProvider);
 register(elonProvider);

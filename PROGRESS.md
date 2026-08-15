@@ -1,5 +1,62 @@
 # PROGRESS
 
+## 🍽 2026-08-15 — RESTORAN endi TASHQI HAMKORGA ESHIK (o'z katalog o'chirildi)
+
+**Holat: `ready for verification` (gap: hamkor mini-app havolasi hali yo'q).**
+
+Ega qarori: restoran bo'limi to'liq tashqi manbaga o'tadi — hamkorning o'z mini-appi ochiladi,
+BirJoy tomonda hech narsa qolmaydi. Ega ikkinchi tushuntirishida aniqlashtirdi:
+**«hamkor botdagi holat qiziq emas — tab faqat eshik vazifasini bajarsin»**. Shu sababli
+oldin boshlangan webhook/holat-kuzatuv qatlami (PartnerFoodOrder jadvali, `/api/partner/food/*`,
+push'lar) YOZILGANDAN KEYIN QAYTARIB OLINDI — bazada yangi jadval YO'Q, VPS migration KERAK EMAS.
+
+### Nima o'chirildi (o'z katalog, to'liq)
+
+| Qatlam | O'chirilgan |
+|---|---|
+| **Server** | `restoranService.ts` (642 q) · `bot/restoran.ts` · `ai/providers/restoranProvider.ts` · 12 ta seed/tekshiruv skripti · `/api/restoran/*` va `/api/admin/restoran/*` (24 marshrut) · `index.ts` push-ulanishlari + SLA-sweep · `operatorConsole` `order_food`/`cancel_food`/`search:restoran` + Ops "food" moduli |
+| **Miniapp** | eski `restoran.tsx` (1214 q) → yangi eshik (~120 q) · `rst.css` · `rstIcons.tsx` · `rstDemo.tsx` + `#rstdemo` · `api.ts` dagi 8 restoran metodi · Profil buyurtma-tarixidagi taom qatorlari |
+| **Admin** | `RestoranAdminView` + `RestoranCatalogAdminView` (~355 q) · `api.ts` dagi 18 metod + 2 tur · Restoran tabi (v1 va v2 nav) · Bosh-sahifa "Restoran pin" tanlovi · Jonli/Nazorat "🍽 Ovqat" moduli · Operator "🍽 Restoran" qidiruvi |
+| **Shared** | `RestaurantView`/`MenuItemView`/`FoodOrder*`/`RestaurantReview*` turlari · `HomeFeedItem.kind` endi faqat `"product"` |
+| **Uy feed** | taom/restoran kartalari va taom-banneri — `homeFeedService` endi faqat do'kon mahsulotlaridan yig'adi |
+
+**Prisma sxema TEGILMADI** — `Restaurant`/`MenuItem`/`FoodOrder`/`RestaurantReview` jadvallari
+bazada tarix sifatida qoladi (jonli DB'da ustun o'chirish alohida ongli qadam; hech qanday kod
+ularga murojaat qilmaydi). Ya'ni **bu push uchun `db push` KERAK EMAS**.
+
+### Yangi ekran
+
+`packages/miniapp/src/restoran.tsx` — hero + 3 qadamlik tushuntirish + «Ochish» tugmasi.
+Tab ochilishi bilan deep-link BIR MARTA o'zi ishga tushadi (ega talabi: «tabga bosganda ochilsin»),
+tugma esa qaytib kelganda qayta kirish uchun qoladi. Server so'rovi UMUMAN yo'q.
+Uslublar — yangi `design/feat/rstDoor.css`, ranglar faqat mavjud `--rst-*` tokenlaridan.
+
+### ⚠️ OCHIQ GAP — hamkor havolasi
+
+`restoran.tsx:PARTNER_LINK` **hozircha bo'sh**. Bo'sh bo'lganda ekran halol «Tez orada» holatini
+ko'rsatadi va tugma bosilmaydi (ishlamaydigan tugmani jim ko'rsatish taqiq). Havola kelgach
+FAQAT o'sha bitta qator (+ `PARTNER_NAME`) to'ldiriladi.
+
+**Shu sababli deploy tavsiyasi:** havola kelmaguncha push qilinmasin — aks holda mijoz ishlab
+turgan katalog o'rnida «Tez orada» ko'radi. Muqobil: push qilinsa, `restoran` bayrog'i o'chirilsin
+(tab butunlay yo'qoladi), havola kelgach qayta yoqilsin.
+
+### Isbot (buyruq + natija)
+
+| Tekshiruv | Natija |
+|---|---|
+| `pnpm --filter @t1067/shared typecheck` | ✅ toza |
+| `pnpm --filter @t1067/miniapp typecheck` | ✅ toza |
+| `pnpm --filter @t1067/admin typecheck` | ✅ toza |
+| `pnpm --filter @t1067/server typecheck` | ✅ restoranga oid xato yo'q (yagona xato — `src/sim/config/arms.ts`, bu sessiyagacha mavjud va **untracked**, ya'ni CI ko'rmaydi) |
+| `pnpm --filter @t1067/shared test` | ✅ 187/187 |
+| `simEconomy` · `simLoyalty` · `simGuards` | ✅ uchalasi yashil (CI shield to'liq takrorlandi) |
+| `pnpm --filter @t1067/miniapp build` | ✅ `restoran` chunk 2.51 kB (avvalgi katalog o'rniga) |
+| Vizual | ✅ eshik-ekran haqiqiy `tokens.css` + `rstDoor.css` bilan mobil kenglikda render qilindi (ikkala holat: «Tez orada» va «Ochish») |
+
+**Jonli mijoz-akkauntida HALI tekshirilmagan** (havola yo'q + lokal baza yo'q) — R6 bo'yicha ega
+qabuli kerak.
+
 ## 🔴 2026-08-11 — MENING REGRESSIYAM: jurnal va balans ajralib ketdi (ega topdi) — TUZATILDI
 
 Ega jonli tizimda topdi: **«hozir menga ball berilyapti, lekin yozilmagan ballarga»**.

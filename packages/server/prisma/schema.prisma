@@ -108,7 +108,7 @@ model Member {
   leagueTier           String                      @default("Bronza") // promotion/relegation tier
   driverTier           String                      @default("Bronza") // weekly driver tier (DiDi model): Bronza|Kumush|Oltin|Olmos
   shopPurchases        ShopPurchase[] // 🛍 tanga shop purchases (feature "shop")
-  foodOrders           FoodOrder[] // 🍽 restoran buyurtmalari (feature "restoran")
+  foodOrders           FoodOrder[] // 🍽 eski o'z-katalog buyurtmalari (concierge V1) — 2026-08-15 dan kod ishlatmaydi, jadval tarix sifatida qoladi
 
   @@unique([type, kasId])
   @@index([type, points])

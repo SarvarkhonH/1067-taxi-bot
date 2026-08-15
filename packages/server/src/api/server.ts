@@ -54,12 +54,6 @@ export interface ApiOptions {
   notifyServiceDemand?: (notice: import("../services/serviceDirectory").ServiceDemandNotice) => Promise<void>;
   /** 📋 Forward a new pending e'lon to the owner's Telegram [✅ Chiqarish]/[❌ Rad] (bot-bound). */
   notifyElonlarOwner?: (notice: import("../services/classifiedService").ClassifiedOwnerNotice) => Promise<void>;
-  /** 🍽 New restoran order → owner info card (no buttons — operator acts from admin panel, R3). */
-  notifyRestoranOwner?: (notice: import("../services/restoranService").FoodOrderOwnerNotice) => Promise<void>;
-  /** 🍽 Order status advanced (accepted/preparing/delivering/delivered) → rider push (qulaylik #1). */
-  notifyRiderOrderStatus?: (notice: { memberId: number; restaurantName: string; newStatus: string }) => Promise<void>;
-  /** 🍽 Order rejected → rider push with the reason. */
-  notifyRiderOrderRejected?: (notice: { memberId: number; restaurantName: string; reason: string }) => Promise<void>;
   /** 🎀 New Ravella order → PARTNER card with [✅ Qabul][☎️ Bog'landim][✔ Bajarildi][❌ Rad] (+owner CC). */
   notifyRavellaPartner?: (notice: import("../services/ravellaService").RavellaOwnerNotice) => Promise<void>;
   /** 🎀 Ravella order status changed → customer push (cashback berilgan bo'lsa summasi bilan). */
@@ -895,16 +889,8 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/shop/review-photo/:reviewId", serveReviewPhoto);
   app.get("/api/shop/review-photo/:reviewId/:n", serveReviewPhoto);
 
-  // ── 🍽 RESTORAN (feature "restoran", DARK until seed + QABUL) — R1: katalog o'qish only ───────
-  // owner-preview: admins browse the REAL catalog while riders see nothing (shop patterni).
-  app.get("/api/restoran/list", allowGuest, rateLimit(30), async (_req, res) => {
-    const { listActiveRestaurants } = await import("../services/restoranService");
-    res.set("Cache-Control", "private, max-age=30");
-    res.json({ restaurants: await listActiveRestaurants(isAdmin(res.locals.telegramId as string)) });
-  });
-
   // 🏠 HOME FEED aggregate (feature "newhome", Bosqich 2) — one call: promo banner + image feed +
-  // rail flag-state. Reads local DB (shop+restoran views), cached ~30s server-side; no kas, no poller.
+  // rail flag-state. Reads local DB (shop views), cached ~30s server-side; no kas, no poller.
   app.get("/api/home/feed", requireUser, rateLimit(30), async (_req, res) => {
     const { getHomeFeed } = await import("../services/homeFeedService");
     res.set("Cache-Control", "private, max-age=30");
@@ -932,77 +918,9 @@ export function createApiServer(opts: ApiOptions = {}) {
     await adminDeleteFeatured(Number(req.params.id));
     res.json({ ok: true });
   });
-  // R2: savat + checkout + FoodOrder — naqd/so'm to'lov (D1), CoinTxn TEGILMAYDI. Bu ikkalasi
-  // /api/restoran/:id'DAN OLDIN turishi SHART — aks holda Express "orders"/"order"ni :id sifatida
-  // ushlab qoladi (bir marta jonli xato bergan bug: getRestaurantDetail(NaN) → Prisma "id missing").
-  app.post("/api/restoran/order", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
-    const { createFoodOrder } = await import("../services/restoranService");
-    const b = req.body ?? {};
-    const items = Array.isArray(b.items) ? (b.items as { menuItemId: unknown; qty: unknown }[]).map((i) => ({ menuItemId: Number(i.menuItemId), qty: Number(i.qty) })) : [];
-    const r = await createFoodOrder(
-      id, Number(b.restaurantId), items,
-      String(b.address ?? ""), String(b.contact ?? ""), String(b.note ?? ""),
-      !!b.isPickup, isAdmin(res.locals.telegramId as string),
-    );
-    if (r.ok && r.notice && opts.notifyRestoranOwner) await opts.notifyRestoranOwner(r.notice).catch(() => undefined);
-    const { notice: _n, ...pub } = r; // owner-notice (phone/address) never leaves the server response path
-    return pub;
-  }));
-  app.get("/api/restoran/orders", requireUser, rateLimit(30), withMember2(async (id) => {
-    const { myFoodOrders } = await import("../services/restoranService");
-    return { orders: await myFoodOrders(id) };
-  }));
-  // "orders/:id/cancel" has 3 segments after /restoran/ — never collides with the bare :id catch-all
-  // below regardless of registration order (Express matches on exact segment count), but kept near
-  // the other order routes for readability.
-  app.post("/api/restoran/orders/:id/cancel", requireUser, rateLimit(10), withMember2(async (id, req, res) => {
-    const { cancelFoodOrder } = await import("../services/restoranService");
-    return cancelFoodOrder(id, Number(req.params.id));
-  }));
-  app.get("/api/restoran/:id", allowGuest, rateLimit(30), async (req, res) => {
-    const { getRestaurantDetail } = await import("../services/restoranService");
-    res.json(await getRestaurantDetail(Number(req.params.id), isAdmin(res.locals.telegramId as string)));
-  });
-  app.get("/api/restoran/:id/reviews", requireUser, rateLimit(30), withMember2(async (memberId, req, res) => {
-    const { listRestaurantReviews } = await import("../services/restoranService");
-    const r = await listRestaurantReviews(Number(req.params.id), memberId, isAdmin(res.locals.telegramId as string));
-    const reviews = r.reviews.map((x) => ({ id: x.id, stars: x.stars, text: x.text, createdAt: x.createdAt, mine: x.memberId === memberId, memberName: x.memberId === memberId ? "Siz" : "Mijoz" }));
-    return { avgRating: r.avgRating, reviewCount: r.reviewCount, reviews, myReview: reviews.find((x) => x.mine) ?? null };
-  }));
-  app.post("/api/restoran/:id/review", requireUser, rateLimit(10), withMember2(async (memberId, req, res) => {
-    const { submitRestaurantReview } = await import("../services/restoranService");
-    return submitRestaurantReview(memberId, Number(req.params.id), Number(req.body?.stars), typeof req.body?.text === "string" ? req.body.text : undefined, isAdmin(res.locals.telegramId as string));
-  }));
-  app.delete("/api/restoran/:id/review", requireUser, rateLimit(10), withMember2(async (memberId, req) => {
-    const { deleteMyRestaurantReview } = await import("../services/restoranService");
-    return deleteMyRestaurantReview(memberId, Number(req.params.id));
-  }));
-  const serveRestoranPhoto = async (req: Request, res: Response): Promise<void> => {
-    const { resolveRestaurantPhoto } = await import("../services/restoranService");
-    const url = await resolveRestaurantPhoto(Number(req.params.id));
-    if (!url) { res.status(404).end(); return; }
-    if (url.startsWith("data:")) {
-      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
-      if (!m) { res.status(404).end(); return; }
-      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
-      return;
-    }
-    await pipeTelegramFile(res, url, 3600, req);
-  };
-  app.get("/api/restoran/photo/:id", serveRestoranPhoto);
-  const serveMenuItemPhoto = async (req: Request, res: Response): Promise<void> => {
-    const { resolveMenuItemPhoto } = await import("../services/restoranService");
-    const url = await resolveMenuItemPhoto(Number(req.params.id));
-    if (!url) { res.status(404).end(); return; }
-    if (url.startsWith("data:")) {
-      const m = /^data:([^;]+);base64,(.*)$/.exec(url);
-      if (!m) { res.status(404).end(); return; }
-      sendImage(req, res, Buffer.from(m[2]!, "base64"), m[1]!);
-      return;
-    }
-    await pipeTelegramFile(res, url, 3600, req);
-  };
-  app.get("/api/restoran/menuphoto/:id", serveMenuItemPhoto);
+  // 🍽 RESTORAN — server-tomon YO'Q. Tab endi shunchaki hamkor mini-appiga deep-link eshigi
+  // (miniapp/src/restoran.tsx), buyurtma/menyu/holat — hammasi hamkor tomonda. Shu sababli
+  // /api/restoran/* marshrutlari 2026-08-15 da butunlay olib tashlandi (git tarixida qoladi).
 
   // ── 🎀 RAVELLA (feature "ravella", DARK until seed + QABUL) — bezak konstruktori ───────────────
   // Narx SERVERDA hisoblanadi (RAVELLA_PLAN §7.1) — bu yerda client'dan hech qanday summa
@@ -3090,94 +3008,8 @@ export function createApiServer(opts: ApiOptions = {}) {
     res.json(await uploadCategoryIcon(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
   });
 
-  // ── 🍽 RESTORAN admin (R3: sessiya-navbati + qo'lda holat-boshqaruv) — concierge V1, operator ODAM ──
-  app.get("/api/admin/restoran/orders", requireAdmin, async (req, res) => {
-    const { adminListFoodOrders } = await import("../services/restoranService");
-    res.json({ orders: await adminListFoodOrders(req.query?.status ? String(req.query.status) : undefined) });
-  });
-  app.post("/api/admin/restoran/orders/:id/call", requireAdmin, rateLimit(30), async (req, res) => {
-    const { markOrderCalled } = await import("../services/restoranService");
-    res.json(await markOrderCalled(Number(req.params.id)));
-  });
-  app.post("/api/admin/restoran/orders/:id/accept", requireAdmin, rateLimit(30), async (req, res) => {
-    const { acceptFoodOrder } = await import("../services/restoranService");
-    const r = await acceptFoodOrder(Number(req.params.id));
-    if (r.ok && r.notice && opts.notifyRiderOrderStatus) await opts.notifyRiderOrderStatus(r.notice).catch(() => undefined);
-    const { notice: _n, ...pub } = r;
-    res.json(pub);
-  });
-  app.post("/api/admin/restoran/orders/:id/advance", requireAdmin, rateLimit(30), async (req, res) => {
-    const { advanceFoodOrderStatus } = await import("../services/restoranService");
-    const r = await advanceFoodOrderStatus(Number(req.params.id));
-    if (r.ok && r.notice && opts.notifyRiderOrderStatus) await opts.notifyRiderOrderStatus(r.notice).catch(() => undefined);
-    const { notice: _n, ...pub } = r;
-    res.json(pub);
-  });
-  app.post("/api/admin/restoran/orders/:id/reject", requireAdmin, rateLimit(30), async (req, res) => {
-    const { rejectFoodOrder } = await import("../services/restoranService");
-    const r = await rejectFoodOrder(Number(req.params.id), String(req.body?.reason ?? ""));
-    if (r.ok && r.notice && opts.notifyRiderOrderRejected) await opts.notifyRiderOrderRejected(r.notice).catch(() => undefined);
-    const { notice: _n, ...pub } = r;
-    res.json(pub);
-  });
-
-  // ── 🍽 RESTORAN admin — R4: restoran+menyu CRUD (§6.1 tezlik: bulk-menyu, nusxalash, inline edit) ──
-  app.get("/api/admin/restoran/restaurants", requireAdmin, async (_req, res) => {
-    const { adminListRestaurants } = await import("../services/restoranService");
-    res.json(await adminListRestaurants());
-  });
-  app.post("/api/admin/restoran/restaurants", requireAdmin, rateLimit(20), async (req, res) => {
-    const { adminCreateRestaurant } = await import("../services/restoranService");
-    res.json(await adminCreateRestaurant(req.body ?? {}));
-  });
-  app.post("/api/admin/restoran/restaurants/:id", requireAdmin, rateLimit(20), async (req, res) => {
-    const { adminEditRestaurant } = await import("../services/restoranService");
-    res.json(await adminEditRestaurant(Number(req.params.id), req.body ?? {}));
-  });
-  app.post("/api/admin/restoran/restaurants/:id/toggle", requireAdmin, rateLimit(20), async (req, res) => {
-    const { adminToggleRestaurant } = await import("../services/restoranService");
-    res.json(await adminToggleRestaurant(Number(req.params.id), !!req.body?.active));
-  });
-  app.delete("/api/admin/restoran/restaurants/:id", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
-    const { adminDeleteRestaurant } = await import("../services/restoranService");
-    res.json(await adminDeleteRestaurant(Number(req.params.id)));
-  });
-  app.post("/api/admin/restoran/restaurants/:id/photo", express.json({ limit: "6mb" }), requireAdmin, async (req, res) => {
-    const b = req.body as { mime?: string; base64?: string };
-    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
-    const { uploadRestaurantPhoto } = await import("../services/restoranService");
-    res.json(await uploadRestaurantPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
-  });
-  app.post("/api/admin/restoran/menu", requireAdmin, rateLimit(20), async (req, res) => {
-    const { adminCreateMenuItem } = await import("../services/restoranService");
-    res.json(await adminCreateMenuItem(Number(req.body?.restaurantId), req.body ?? {}));
-  });
-  app.post("/api/admin/restoran/menu/bulk", requireAdmin, rateLimit(20), async (req, res) => {
-    const { adminBulkCreateMenuItems } = await import("../services/restoranService");
-    const lines = Array.isArray(req.body?.lines) ? (req.body.lines as unknown[]).filter((l): l is string => typeof l === "string") : [];
-    res.json(await adminBulkCreateMenuItems(Number(req.body?.restaurantId), String(req.body?.section ?? "Taomlar"), lines));
-  });
-  app.post("/api/admin/restoran/menu/:id", requireAdmin, rateLimit(20), async (req, res) => {
-    const { adminEditMenuItem } = await import("../services/restoranService");
-    res.json(await adminEditMenuItem(Number(req.params.id), req.body ?? {}));
-  });
-  app.delete("/api/admin/restoran/menu/:id", requireAdmin, rateLimit(20), async (req, res) => {
-    const { adminDeleteMenuItem } = await import("../services/restoranService");
-    res.json(await adminDeleteMenuItem(Number(req.params.id)));
-  });
-  app.post("/api/admin/restoran/menu/:id/photo", express.json({ limit: "6mb" }), requireAdmin, async (req, res) => {
-    const b = req.body as { mime?: string; base64?: string };
-    if (!b?.base64) { res.status(400).json({ error: "no image" }); return; }
-    const { uploadMenuItemPhoto } = await import("../services/restoranService");
-    res.json(await uploadMenuItemPhoto(Number(req.params.id), Buffer.from(b.base64, "base64"), b.mime || "image/jpeg"));
-  });
-  // restoran/menu CRUD kartalar+forma menyusi uchun mavjud menyularni ham qaytaradi (nusxalash +
-  // tahrirlash) — `adminGetRestaurantDetail` (active=false bo'lsa ham ko'rsatadi, getRestaurantDetail'dan farqli)
-  app.get("/api/admin/restoran/restaurants/:id/menu", requireAdmin, async (req, res) => {
-    const { adminGetRestaurantDetail } = await import("../services/restoranService");
-    const r = await adminGetRestaurantDetail(Number(req.params.id));
-    res.json({ items: r.items });
-  });
+  // 🍽 RESTORAN admin (endi hamkor-webhook kuzatuvi) — GET /api/admin/partner-food-orders
+  // yuqorida (mijoz-tomonli marshrutlar bilan bir joyda) ro'yxatdan o'tgan.
 
   // ── 🎀 RAVELLA admin — konstruktor CRUD (kategoriya/bezak/qo'shimcha + rasm) + buyurtma navbati ──
   // Bu yerdan ega: rasm qo'yadi, narx yozadi, qaysi qo'shimcha qaysi rasmni chiqarishini belgilaydi.

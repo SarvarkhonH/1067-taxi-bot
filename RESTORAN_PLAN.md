@@ -1,3 +1,10 @@
+> ⛔ **BEKOR QILINGAN — 2026-08-15 (ega qarori).** Bu rejadagi concierge V1 (o'z katalog, operator
+> telefon orqali, admin sessiya-navbati) TO'LIQ QURILGAN va keyin TO'LIQ O'CHIRILGAN. Restoran endi
+> HAMKORNING tashqi mini-appi: bizning tab shunchaki deep-link eshigi
+> (`packages/miniapp/src/restoran.tsx`), bizda katalog ham, buyurtma ham, holat ham saqlanmaydi.
+> Quyidagi matn faqat TARIX uchun qoldirildi — hech qanday qismi bugungi kodga mos EMAS.
+> Joriy holat: `PROGRESS.md` → «2026-08-15 — RESTORAN endi TASHQI HAMKORGA ESHIK».
+
 # RESTORAN — Hamyon→Uy ko'chirish + tab joyiga taom-buyurtma (V1 = concierge, chiroyli old-tomon)
 
 *Maqsad: tabbardagi "Hamyon" slotini bo'shatish, o'rniga Kosonda restoran/oshxonalardan taom buyurtma. Mijoz uchun Uber Eats darajasidagi CHIROYLI tajriba — orqa tomonda esa boshida AVTOMATIKA emas, ODAM (admin) ko'prik bo'ladi.*

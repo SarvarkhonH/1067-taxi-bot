@@ -51,7 +51,7 @@ export const NAV: NavGroup[] = [
     label: "Katalog",
     items: [
       { id: "dokon", icon: "▦", label: "Do'kon", ownerOnly: true },
-      { id: "restoran", icon: "◗", label: "Restoran", ownerOnly: true },
+      // 🍽 "restoran" 2026-08-15 da chiqdi — hamkorning tashqi mini-appi, bizda katalog yo'q.
       { id: "xizmatlar", icon: "✦", label: "Xizmatlar", ownerOnly: true },
       { id: "elonlar", icon: "▥", label: "E'lonlar", ownerOnly: true },
       { id: "ravella", icon: "❋", label: "Ravella", ownerOnly: true },

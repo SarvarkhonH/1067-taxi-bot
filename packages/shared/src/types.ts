@@ -657,131 +657,11 @@ export interface ShopChatThreadResponse {
   messages: ShopChatMessageView[];
 }
 
-// ── 🍽 RESTORAN (feature "restoran") — R1: katalog o'qish only (savat/buyurtma R2'da) ─────────────
-// Narx REAL SO'M (tanga emas, RESTORAN_PLAN D1). V1 = concierge: bu turlar faqat KO'RISH uchun.
-
-export interface RestaurantView {
-  id: number;
-  name: string;
-  category: string;
-  address?: string | null;
-  workHours?: string | null; // "09:00-22:00" — Ochiq/Yopiq client-side hisoblanadi (xizmatlar patterni)
-  deliveryFeeSom: number;
-  minOrderSom: number;
-  pickupEnabled: boolean;
-  prepMinutes: number;
-  hasPhoto: boolean; // render /api/restoran/photo/:id when true
-  avgRating: number;
-  reviewCount: number;
-  orderCount: number; // sotuv-quroli: "N buyurtma qabul qilingan"
-}
-
-export interface MenuItemView {
-  id: number;
-  section: string;
-  name: string;
-  desc?: string;
-  priceSom: number;
-  hasPhoto: boolean; // render /api/restoran/menuphoto/:id when true
-  available: boolean;
-}
-
-export interface RestoranListResponse {
-  restaurants: RestaurantView[];
-}
-
-export interface RestoranDetailResponse {
-  restaurant: RestaurantView | null;
-  items: MenuItemView[]; // client groups by `section` for display
-}
-
-// ── 🍽 RESTORAN R2 — savat + checkout + FoodOrder. Naqd/so'm to'lov (D1), CoinTxn YO'Q. ──────────
-
-export interface FoodOrderCartItem {
-  menuItemId: number;
-  qty: number;
-}
-
-export interface FoodOrderCreateBody {
-  restaurantId: number;
-  items: FoodOrderCartItem[];
-  address: string;
-  contact: string;
-  note?: string;
-  isPickup?: boolean;
-}
-
-export interface FoodOrderCreateResponse {
-  ok: boolean;
-  reason?: "off" | "unavailable" | "paused" | "closed" | "empty_cart" | "bad_item" | "below_min" | "bad_address" | "pending_limit";
-  orderId?: number;
-  totalSom?: number;
-}
-
-export type FoodOrderStatus = "pending" | "accepted" | "preparing" | "delivering" | "delivered" | "rejected" | "cancelled_by_user";
-
-export interface FoodOrderView {
-  id: number;
-  restaurantId: number;
-  restaurantName: string;
-  itemsJson: { menuItemId: number; name: string; qty: number; priceSom: number }[];
-  itemsTotalSom: number;
-  deliveryFeeSom: number;
-  totalSom: number;
-  isPickup: boolean;
-  address: string;
-  status: FoodOrderStatus;
-  rejectReason?: string | null;
-  createdAt: string;
-}
-
-// ── 🍽 RESTORAN R3 — admin sessiya-navbati + qo'lda holat-boshqaruv + SLA (RESTORAN_PLAN §2/§6) ──
-
-export interface AdminFoodOrderRow {
-  id: number;
-  restaurantId: number;
-  restaurantName: string;
-  restaurantPhone: string;
-  buyerName: string;
-  contact: string;
-  itemsJson: { menuItemId: number; name: string; qty: number; priceSom: number }[];
-  itemsTotalSom: number;
-  deliveryFeeSom: number;
-  totalSom: number;
-  isPickup: boolean;
-  address: string;
-  note: string;
-  status: FoodOrderStatus;
-  rejectReason: string | null;
-  calledAt: string | null;
-  ageMinutes: number; // "hozir necha daqiqadan beri" — admin panel SLA-rang shu bilan hisoblanadi
-  createdAt: string;
-}
-
-// ── 🍽 RESTORAN qulayliklar: bekor qilish, qayta buyurtma, qidiruv/filtr, sharh ──────────────────
-
-export interface RestaurantReviewView {
-  id: number;
-  memberName: string; // ism, faqat birinchi (xizmatlar/do'kon patterni)
-  stars: number;
-  text?: string | null;
-  createdAt: string;
-  mine: boolean;
-}
-
-export interface RestaurantReviewsResponse {
-  avgRating: number;
-  reviewCount: number;
-  reviews: RestaurantReviewView[];
-  myReview: RestaurantReviewView | null;
-}
-
-export interface RestaurantReviewSubmitResponse {
-  ok: boolean;
-  reason?: "off" | "unavailable" | "bad_stars" | "bad_text";
-  avgRating?: number;
-  reviewCount?: number;
-}
+// ── 🍽 RESTORAN — bu yerda turlar YO'Q va bo'lmasligi ham kerak. Tab endi hamkor (tashqi)
+// mini-appiga ochiladigan deep-link eshigi: katalog, menyu, savat, buyurtma, holat — hammasi
+// HAMKOR tomonda, bizda hech qanday ma'lumot saqlanmaydi va hech qanday API yo'q. Eski
+// o'z-katalog turlari (RestaurantView / MenuItemView / FoodOrder* / RestaurantReview*)
+// 2026-08-15 da olib tashlandi — git tarixida qoladi.
 
 // ── 🔎 XIZMATLAR (feature "xizmatlar") — Koson services directory ────────────────────────────────
 // Read/search/call/review only — NO money shapes here by design.
@@ -1081,11 +961,13 @@ export const CLASSIFIED_AD_DAYS = 30; // §7 expiresAt = createdAt + 30 kun
 // client makes ONE call instead of fanning out. photoUrl/imageUrl are RELATIVE API paths — the client
 // wraps them with apiUrl(). No kas calls, no new poller; cached ~30s server-side.
 export interface HomeFeedItem {
-  kind: "product" | "restaurant" | "dish";
+  // 🍽 "restaurant"/"dish" 2026-08-15 da chiqdi — restoran endi hamkorning tashqi mini-appi,
+  // bizda ko'rsatadigan taom ham, rasm ham yo'q. Uy feed'i faqat do'kon mahsulotlaridan.
+  kind: "product";
   id: number;
   name: string;
   photoUrl: string | null; // e.g. "/api/shop/photo/12?s=1" — client wraps with apiUrl()
-  sub: string; // "🏪 shopName" | "🍽 restaurantName"
+  sub: string; // "🏪 shopName"
   priceLabel?: string; // FULLY formatted incl. unit — "45 000 so'm" (dish) or "89 000 🪙" (product);
   oldPriceLabel?: string; // strikethrough when discounted — same formatting rule as priceLabel
   rating?: number;

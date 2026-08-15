@@ -1,11 +1,12 @@
-// 🛡 CRASH-GUARD + REBOOK tiketi ISBOTI — restoran (B), intercity id-guard (C), intercity
+// 🛡 CRASH-GUARD + REBOOK tiketi ISBOTI — intercity id-guard (C), intercity
 // bekor→qayta-band (D). TEST_DATABASE_URL'da yuradi (_testDb app DB'ni RAD ETADI).
 // Yugurtirish: npx tsx src/scripts/testCrashGuards.ts
 //
+// 🍽 B) restoran guard'lari 2026-08-15 da olib tashlandi — restoran endi hamkorning tashqi
+// mini-appi, bizda tekshiradigan restoranService yo'q.
+//
 // Isbotlanadigan da'volar:
 //   0) NAZORAT — prisma HAQIQATAN NaN id'da tashlaydi (guard yuk ko'taruvchi, bezak emas).
-//   B) restoran: NaN/0/manfiy id → toza xato-javob, throw YO'Q (2026-07-08 crash'ining
-//      review/order yo'llarida qolgan qismi).
 //   C) intercity: har mijoz-beradigan id → toza xato-javob, throw YO'Q.
 //   D) intercity: bekor qilingandan keyin AYNAN o'sha reysga qayta yozilish ISHLAYDI va
 //      haqiqiy o'rin oladi; bekor qilinmagan booking hamon duplikat deb qaytadi;
@@ -37,10 +38,6 @@ const BAD_IDS = [NaN, 0, -5, 1.5];
 
 async function main(): Promise<void> {
   const { prisma } = await import("../db");
-  const {
-    listRestaurantReviews, deleteMyRestaurantReview, cancelFoodOrder,
-    acceptFoodOrder, rejectFoodOrder, advanceFoodOrderStatus,
-  } = await import("../services/restoranService");
   const {
     bookSeat, cancelBookingByRider, departTrip, arriveTrip, driverCancelTrip,
     getTripManifest, publishTrip,
@@ -74,25 +71,10 @@ async function main(): Promise<void> {
   try {
     // ── 0) NAZORAT: prisma haqiqatan NaN'da tashlaydimi? ────────────────────────
     let threw = false;
-    try { await prisma.restaurant.findUnique({ where: { id: NaN } }); } catch { threw = true; }
+    try { await prisma.member.findUnique({ where: { id: NaN } }); } catch { threw = true; }
     ok(threw, "0: NAZORAT — prisma.findUnique({id: NaN}) HAQIQATAN tashlaydi (guard yuk ko'taruvchi)");
 
-    // ── B) restoran guard'lari ─────────────────────────────────────────────────
     const m = await prisma.member.create({ data: { type: "client", kasId: `${TAG}-R`, fullName: "CG Mijoz", phone: "+998900000001", coins: 0 } });
-    for (const bad of BAD_IDS) {
-      const r = await noThrow(`B: listRestaurantReviews(id=${bad})`, () => listRestaurantReviews(bad, m.id, true));
-      ok(r?.reviewCount === 0 && r?.reviews.length === 0, `B: listRestaurantReviews(id=${bad}) bo'sh natija qaytardi`);
-      const d = await noThrow(`B: deleteMyRestaurantReview(id=${bad})`, () => deleteMyRestaurantReview(m.id, bad));
-      ok(d?.ok === false, `B: deleteMyRestaurantReview(id=${bad}) → ok:false`);
-      const c = await noThrow(`B: cancelFoodOrder(id=${bad})`, () => cancelFoodOrder(m.id, bad));
-      ok(c?.ok === false, `B: cancelFoodOrder(id=${bad}) → ok:false`);
-      const a = await noThrow(`B: acceptFoodOrder(id=${bad})`, () => acceptFoodOrder(bad));
-      ok(a?.ok === false && a?.reason === "not_found", `B: acceptFoodOrder(id=${bad}) → not_found`);
-      const rj = await noThrow(`B: rejectFoodOrder(id=${bad})`, () => rejectFoodOrder(bad, "sabab"));
-      ok(rj?.ok === false && rj?.reason === "not_found", `B: rejectFoodOrder(id=${bad}) → not_found`);
-      const adv = await noThrow(`B: advanceFoodOrderStatus(id=${bad})`, () => advanceFoodOrderStatus(bad));
-      ok(adv?.ok === false && adv?.reason === "not_found", `B: advanceFoodOrderStatus(id=${bad}) → not_found`);
-    }
 
     // ── C) intercity guard'lari (flag ON bo'lishi kerak) ───────────────────────
     await setFeature("intercity", true);

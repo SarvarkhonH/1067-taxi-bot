@@ -25,7 +25,6 @@ import {
   type AdminBotUsersResponse,
   type AdminClassifiedListResponse,
   type AdminEconomy,
-  type AdminFoodOrderRow,
   type BallDistribution,
   type AdminGrowth,
   type AdminHealth,
@@ -59,10 +58,10 @@ import {
 } from "@t1067/shared";
 import { RavellaAdminView } from "./ravella";
 import { JamoaAdminView } from "./jamoa";
-import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type RestoranAdminRow, type RestoranMenuItemRow, type OprOpsRow, type OprJurnalRow } from "./api";
+import { adminApi, clearAdminToken, hasAdminToken, setAdminToken, type AdminBannedRow, type AdminChatConvo, type AdminChatMsg, type AdminDebtRow, type AdminMsgHistoryRow, type AdminRatingRow, type AdminTxnRow, type AdminBlockedRow, type AdminReferralRow, type AdminRideRow, type AdminUserRow, type AdminWithdrawalRow, type AdminWithdrawalTabRow, type CampaignRow, type Driver360, type DriverCallRow, type DriverCallStats, type DriverMissionRow, type IntercityAdminTrip, type IntercityAdminDebt, type Member360, type PeakHourRow, type ShopAdminProductRow, type ShopAdminOrderRow, type ShopAdminReviewRow, type SvcAdminRow, type SvcAdminCat, type SvcAdminReview, type OprOpsRow, type OprJurnalRow } from "./api";
 import { Konsol } from "./oyin/Konsol";
 
-type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "restoran" | "ravella" | "bilim" | "bosh" | "jamoa" | "oyin";
+type Tab = "overview" | "pulse" | "analytics" | "finance" | "live" | "x360" | "driver" | "client" | "botusers" | "obzvon" | "boshqaruv" | "topshiriq" | "actions" | "integrity" | "audit" | "safarlar" | "qarzlar" | "referallar" | "banlist" | "yechishlar" | "baholar" | "xabar" | "chat" | "broadcasts" | "intercity" | "pik" | "transactions" | "blocked" | "shop" | "xizmatlar" | "elonlar" | "ravella" | "bilim" | "bosh" | "jamoa" | "oyin";
 
 const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string }[] }[] = [
   {
@@ -119,7 +118,6 @@ const NAV_GROUPS: { label: string; items: { id: Tab; icon: string; label: string
       { id: "shop", icon: "🛍", label: "Do'kon" },
       { id: "xizmatlar", icon: "🔎", label: "Xizmatlar" },
       { id: "elonlar", icon: "📋", label: "E'lonlar" },
-      { id: "restoran", icon: "🍽", label: "Restoran" },
       { id: "ravella", icon: "🎀", label: "Ravella" },
       { id: "jamoa", icon: "👔", label: "Jamoa" },
       { id: "oyin", icon: "🎮", label: "O'yin mavsumi" },
@@ -274,7 +272,6 @@ export function App() {
           {tab === "shop" && <ShopAdminView />}
           {tab === "xizmatlar" && <XizmatlarAdminView />}
           {tab === "elonlar" && <ElonlarAdminView />}
-          {tab === "restoran" && (<><RestoranAdminView /><RestoranCatalogAdminView /></>)}
           {tab === "ravella" && <RavellaAdminView />}
           {tab === "jamoa" && <JamoaAdminView />}
           {/* 🎮 Butun o'yin boshqaruvi BITTA tabda, ish tartibi bo'yicha (OyinTab). Avval mukofot
@@ -2034,22 +2031,21 @@ function HomeFeaturedAdminView() {
   useEffect(() => { load(); }, []);
   const create = async () => {
     if (!title.trim()) { setMsg("Sarlavha kerak"); return; }
-    if ((kind === "product" || kind === "restaurant") && !refId.trim()) { setMsg("Mahsulot/restoran ID kerak"); return; }
-    await adminApi.homeFeaturedCreate({ kind, title: title.trim(), refId: refId ? Number(refId) : undefined, subtitle: subtitle || undefined, badge: badge || undefined, target: kind === "restaurant" ? "restoran" : "dokon" }).catch(() => null);
+    if (kind === "product" && !refId.trim()) { setMsg("Mahsulot ID kerak"); return; }
+    await adminApi.homeFeaturedCreate({ kind, title: title.trim(), refId: refId ? Number(refId) : undefined, subtitle: subtitle || undefined, badge: badge || undefined, target: "dokon" }).catch(() => null);
     setTitle(""); setRefId(""); setSubtitle(""); setBadge(""); setMsg("✅ Qo'shildi"); load();
   };
   return (
     <div>
       <h2>🏠 Bosh sahifa — tavsiya boshqaruvi</h2>
-      <p className="muted">Bo'sh qoldirsangiz — avtomatik feed (top-sotuvchi/reyting) ishlaydi. Bu yerda banner yoki mahsulot/restoranni majburan yuqoriga pin qilasiz.</p>
+      <p className="muted">Bo&apos;sh qoldirsangiz — avtomatik feed (top-sotuvchi) ishlaydi. Bu yerda banner yoki mahsulotni majburan yuqoriga pin qilasiz. (🍽 «Restoran pin» 2026-08-15 da olib tashlandi — restoran endi hamkorning tashqi ilovasi.)</p>
       <div className="card">
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <select value={kind} onChange={(e) => setKind(e.target.value)}>
             <option value="product">Mahsulot (pin)</option>
-            <option value="restaurant">Restoran (pin)</option>
             <option value="banner">Banner</option>
           </select>
-          {(kind === "product" || kind === "restaurant") && <input placeholder="ID" value={refId} onChange={(e) => setRefId(e.target.value)} style={{ width: 80 }} />}
+          {kind === "product" && <input placeholder="ID" value={refId} onChange={(e) => setRefId(e.target.value)} style={{ width: 80 }} />}
           <input placeholder="Sarlavha" value={title} onChange={(e) => setTitle(e.target.value)} />
           <input placeholder="Izoh (ixtiyoriy)" value={subtitle} onChange={(e) => setSubtitle(e.target.value)} />
           <input placeholder="Badge" value={badge} onChange={(e) => setBadge(e.target.value)} style={{ width: 110 }} />
@@ -2741,362 +2737,9 @@ function svcParsePriceText(v: string): { label: string; priceSom: number }[] {
     .filter((i) => i.label.length >= 2 && i.priceSom > 0);
 }
 
-// 🍽 RESTORAN R3 — sessiya-navbati (RESTORAN_PLAN §0/§2/§3/§6). Concierge V1: operator ODAM, bu
-// panel operatorning "ish stoli" — Telegram-bot integratsiyasi yo'q (V2). 3+ daq pending → flagged
-// (adm-card.flagged, mavjud CSS qayta ishlatildi). 8s poll (DoD: real-vaqt/5-10s).
-const RST_STATUS_LABEL: Record<string, { t: string; badge: string }> = {
-  pending: { t: "⏳ Kutilmoqda", badge: "badge-warn" },
-  accepted: { t: "✅ Qabul qilindi", badge: "badge-ok" },
-  preparing: { t: "🍳 Tayyorlanmoqda", badge: "badge-ok" },
-  delivering: { t: "🛵 Yo'lda", badge: "badge-ok" },
-  delivered: { t: "✅ Yetkazildi", badge: "badge-ok" },
-  rejected: { t: "❌ Rad etildi", badge: "badge-bad" },
-  cancelled_by_user: { t: "✖ Bekor qilindi", badge: "badge-bad" },
-};
-const RST_NEXT_LABEL: Record<string, string> = { accepted: "🍳 Tayyorlanmoqda", preparing: "🛵 Yo'lda", delivering: "✅ Yetkazildi" };
-
-function RestoranAdminView() {
-  const [orders, setOrders] = useState<AdminFoodOrderRow[] | null>(null);
-  const [filter, setFilter] = useState<"all" | "pending" | "active" | "done">("pending");
-  const [msg, setMsg] = useState("");
-  const [busyId, setBusyId] = useState<number | null>(null);
-
-  const reload = () => adminApi.restoranOrders().then((r) => setOrders(r.orders)).catch(() => undefined);
-  useEffect(() => {
-    reload();
-    const iv = setInterval(reload, 8000); // DoD: real-vaqt/5-10s poll — operator boshqa qurilmada bosgan holat shu yerda 8s ichida ko'rinadi
-    return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const withBusy = async (id: number, fn: () => Promise<{ ok: boolean; reason?: string }>) => {
-    setBusyId(id);
-    const r = await fn().catch((e: Error) => ({ ok: false as const, reason: e.message }));
-    setMsg(r.ok ? "✅ Saqlandi" : `❌ ${r.reason ?? "Xatolik"}`);
-    setBusyId(null);
-    reload();
-  };
-  const reject = (id: number) => {
-    const reason = window.prompt("Rad etish sababi (restoranga qo'ng'iroqdan keyin):");
-    if (reason == null) return;
-    void withBusy(id, () => adminApi.restoranReject(id, reason));
-  };
-
-  const filtered = (orders ?? []).filter((o) => {
-    if (filter === "all") return true;
-    if (filter === "pending") return o.status === "pending";
-    if (filter === "active") return o.status === "accepted" || o.status === "preparing" || o.status === "delivering";
-    return o.status === "delivered" || o.status === "rejected" || o.status === "cancelled_by_user";
-  });
-
-  return (
-    <section className="panel">
-      <div className="panel-title">🍽 Restoran — sessiyalar</div>
-      <p className="muted" style={{ marginTop: 0 }}>
-        Concierge V1: restoranga TELEFON qiling, keyin holatni shu yerda belgilang. 3+ daqiqa javobsiz buyurtma qizil chiziq bilan ajraladi.
-      </p>
-      <div className="adm-toolbar">
-        <select className="inp" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
-          <option value="pending">⏳ Kutilmoqda</option>
-          <option value="active">🍳 Faol (qabul qilingan)</option>
-          <option value="done">✔ Tugagan</option>
-          <option value="all">Barchasi</option>
-        </select>
-      </div>
-      {msg && <div className="action-msg" style={{ marginTop: 10 }}>{msg}</div>}
-      {orders === null && <p className="muted">Yuklanmoqda…</p>}
-      {orders && filtered.length === 0 && <p className="muted">Mos buyurtma yo'q.</p>}
-      {filtered.map((o) => {
-        const s = RST_STATUS_LABEL[o.status] ?? { t: o.status, badge: "badge-warn" };
-        const sla = o.status === "pending" && o.ageMinutes >= 3;
-        const busy = busyId === o.id;
-        return (
-          <div key={o.id} className={"adm-card open" + (sla ? " flagged" : "")}>
-            <div className="adm-card-head" style={{ cursor: "default" }}>
-              <div className="adm-card-main">
-                <div className="adm-card-title">
-                  #{o.id} <b>{o.restaurantName}</b>
-                  <span className={"badge " + s.badge}>{s.t}</span>
-                  {sla && <span className="badge badge-bad">⚠ {o.ageMinutes} daq</span>}
-                  {!sla && o.status === "pending" && <span className="muted" style={{ fontSize: 11 }}>{o.ageMinutes} daq</span>}
-                </div>
-                <div className="adm-card-sub">
-                  <span>👤 {o.buyerName} · ☎ {o.contact}</span>
-                  <span>🏪 {o.restaurantPhone}</span>
-                  <span>{o.isPickup ? "🚶 Olib ketish" : `🛵 ${o.address}`}</span>
-                </div>
-              </div>
-            </div>
-            <div className="adm-card-body">
-              <div className="muted" style={{ fontSize: 13, marginBottom: 6 }}>
-                {o.itemsJson.map((i) => `${i.name} ×${i.qty}`).join(", ")}
-              </div>
-              {o.note && <div className="muted" style={{ fontSize: 12, marginBottom: 6 }}>💬 {o.note}</div>}
-              <div style={{ fontWeight: 700, marginBottom: 10 }}>Jami: {o.totalSom.toLocaleString("ru-RU")} so'm (naqd)</div>
-              {o.rejectReason && <div className="muted" style={{ fontSize: 12, marginBottom: 10 }}>Sabab: {o.rejectReason}</div>}
-              {o.status === "pending" && (
-                <div className="adm-card-body-foot">
-                  {!o.calledAt ? (
-                    <button className="btn sm" disabled={busy} onClick={() => void withBusy(o.id, () => adminApi.restoranCall(o.id))}>☎ Qo'ng'iroq qildim</button>
-                  ) : (
-                    <span className="muted" style={{ fontSize: 12 }}>☎ Qo'ng'iroq qilindi</span>
-                  )}
-                  <button className="btn sm" disabled={busy} onClick={() => void withBusy(o.id, () => adminApi.restoranAccept(o.id))}>✅ Qabul qildi</button>
-                  <button className="btn sm" disabled={busy} onClick={() => reject(o.id)}>❌ Rad</button>
-                </div>
-              )}
-              {(o.status === "accepted" || o.status === "preparing" || o.status === "delivering") && (
-                <div className="adm-card-body-foot">
-                  <button className="btn sm" disabled={busy} onClick={() => void withBusy(o.id, () => adminApi.restoranAdvance(o.id))}>{RST_NEXT_LABEL[o.status]}</button>
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </section>
-  );
-}
-
-// 🍽 RESTORAN R4 — restoran+menyu CRUD (§6.1 tezlik: bulk-menyu matn-parse, shablon-nusxalash,
-// modal-siz inline tahrirlash). Do'kon admin kartalar+forma qolipidan (commit e6d069d).
-interface RestoranDraft {
-  name: string; category: string; phone: string; address: string; workHours: string;
-  deliveryFeeSom: string; minOrderSom: string; prepMinutes: string; pickupEnabled: boolean;
-}
-function restoranDraftFromRow(r: RestoranAdminRow): RestoranDraft {
-  return {
-    name: r.name, category: r.category, phone: r.phone, address: r.address ?? "", workHours: r.workHours ?? "",
-    deliveryFeeSom: String(r.deliveryFeeSom), minOrderSom: String(r.minOrderSom), prepMinutes: String(r.prepMinutes),
-    pickupEnabled: r.pickupEnabled,
-  };
-}
-
-function RestoranCatalogAdminView() {
-  const [data, setData] = useState<{ restaurants: RestoranAdminRow[]; enabled: boolean } | null>(null);
-  const [showAdd, setShowAdd] = useState(false);
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [category, setCategory] = useState("milliy");
-  const [msg, setMsg] = useState("");
-  const [q, setQ] = useState("");
-  const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [draft, setDraft] = useState<RestoranDraft | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [menu, setMenu] = useState<RestoranMenuItemRow[] | null>(null);
-  const [bulkSection, setBulkSection] = useState("Taomlar");
-  const [bulkText, setBulkText] = useState("");
-  const [photoV, setPhotoV] = useState(0); // cache-bust: /api/restoran/photo redirect is cached 1h — bump on upload so admin sees the new image immediately
-
-  const load = () => { adminApi.restoranList().then(setData).catch(() => undefined); };
-  useEffect(() => { load(); }, []);
-
-  const create = async () => {
-    if (!name.trim() || !phone.trim()) { setMsg("⚠️ Nom va telefon to'ldirilsin"); return; }
-    const r = await adminApi.restoranCreate({ name: name.trim(), phone: phone.trim(), category: category.trim() || "milliy" })
-      .catch((e: Error) => ({ ok: false as const, error: e.message }));
-    setMsg(r.ok ? "✅ Qo'shildi (o'chiq holda — menyu kiritib, yoqing)" : `❌ Qo'shilmadi: ${("error" in r && r.error) || "server javob bermadi"}`);
-    if (r.ok) { setName(""); setPhone(""); setShowAdd(false); load(); }
-  };
-
-  const toggleExpand = (r: RestoranAdminRow) => {
-    if (expandedId === r.id) { setExpandedId(null); setDraft(null); setMenu(null); return; }
-    setExpandedId(r.id);
-    setDraft(restoranDraftFromRow(r));
-    setMenu(null);
-    adminApi.restoranMenu(r.id).then((res) => setMenu(res.items)).catch(() => setMenu([]));
-  };
-
-  const saveDraft = async (id: number) => {
-    if (!draft) return;
-    if (!draft.name.trim() || !draft.phone.trim()) { setMsg("❌ Nom va telefon to'ldirilsin"); return; }
-    setSaving(true);
-    const r = await adminApi.restoranEdit(id, {
-      name: draft.name, category: draft.category || "milliy", phone: draft.phone,
-      address: draft.address || null, workHours: draft.workHours || null,
-      deliveryFeeSom: Number(draft.deliveryFeeSom) || 0, minOrderSom: Number(draft.minOrderSom) || 0,
-      prepMinutes: Number(draft.prepMinutes) || 30, pickupEnabled: draft.pickupEnabled,
-    }).catch((e: Error) => ({ ok: false as const, error: e.message }));
-    setMsg(r.ok ? "✅ Saqlandi" : "❌ Saqlanmadi");
-    setSaving(false);
-    load();
-  };
-
-  const uploadPhoto = (id: number) => {
-    const input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*";
-    input.onchange = () => {
-      const f = input.files?.[0];
-      if (!f) return;
-      if (f.size > 5 * 1024 * 1024) { setMsg("❌ Rasm 5MB dan kichik bo'lsin"); return; }
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = String(reader.result).split(",")[1] ?? "";
-        const r = await adminApi.restoranPhotoUpload(id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
-        setMsg(r.ok ? "✅ Rasm yuklandi" : "❌ Rasm yuklanmadi");
-        if (r.ok) setPhotoV((v) => v + 1);
-        load();
-      };
-      reader.readAsDataURL(f);
-    };
-    input.click();
-  };
-
-  const del = async (r: RestoranAdminRow) => {
-    if (!window.confirm(`"${r.name}" o'chirilsinmi? (buyurtma tarixi saqlanadi)`)) return;
-    await adminApi.restoranDelete(r.id).catch(() => undefined);
-    load();
-  };
-
-  const addBulkMenu = async (restaurantId: number) => {
-    const lines = bulkText.split("\n").map((l) => l.trim()).filter(Boolean);
-    if (!lines.length) { setMsg("⚠️ Kamida bitta qator kiriting: Nom — Narx"); return; }
-    const r = await adminApi.restoranMenuBulk(restaurantId, bulkSection || "Taomlar", lines).catch((e: Error) => ({ ok: false as const, created: 0, error: e.message }));
-    setMsg(r.ok ? `✅ ${r.created} ta taom qo'shildi` : "❌ Hech qaysi qator to'g'ri formatda emas (Nom — Narx)");
-    if (r.ok) {
-      setBulkText("");
-      adminApi.restoranMenu(restaurantId).then((res) => setMenu(res.items)).catch(() => undefined);
-      load();
-    }
-  };
-
-  const menuQuickEdit = async (item: RestoranMenuItemRow, patch: Record<string, unknown>) => {
-    await adminApi.restoranMenuEdit(item.id, patch).catch(() => undefined);
-    if (expandedId != null) adminApi.restoranMenu(expandedId).then((res) => setMenu(res.items)).catch(() => undefined);
-    load();
-  };
-  const menuDelete = async (item: RestoranMenuItemRow) => {
-    if (!window.confirm(`"${item.name}" menyudan o'chirilsinmi?`)) return;
-    await adminApi.restoranMenuDelete(item.id).catch(() => undefined);
-    if (expandedId != null) adminApi.restoranMenu(expandedId).then((res) => setMenu(res.items)).catch(() => undefined);
-    load();
-  };
-
-  const uploadMenuPhoto = (item: RestoranMenuItemRow) => {
-    const input = document.createElement("input");
-    input.type = "file"; input.accept = "image/*";
-    input.onchange = () => {
-      const f = input.files?.[0];
-      if (!f) return;
-      if (f.size > 5 * 1024 * 1024) { setMsg("❌ Rasm 5MB dan kichik bo'lsin"); return; }
-      const reader = new FileReader();
-      reader.onload = async () => {
-        const base64 = String(reader.result).split(",")[1] ?? "";
-        const r = await adminApi.restoranMenuPhotoUpload(item.id, f.type || "image/jpeg", base64).catch((e: Error) => ({ ok: false as const, error: e.message }));
-        setMsg(r.ok ? `✅ "${item.name}" rasmi yuklandi` : "❌ Rasm yuklanmadi");
-        if (r.ok) setPhotoV((v) => v + 1);
-        if (expandedId != null) adminApi.restoranMenu(expandedId).then((res) => setMenu(res.items)).catch(() => undefined);
-      };
-      reader.readAsDataURL(f);
-    };
-    input.click();
-  };
-
-  const restaurants = (data?.restaurants ?? []).filter((r) => {
-    const t = q.trim().toLowerCase();
-    return !t || r.name.toLowerCase().includes(t) || r.category.toLowerCase().includes(t);
-  });
-
-  return (
-    <section className="panel">
-      <div className="panel-title">🍽 Restoranlar ({restaurants.length})</div>
-      <p className="muted" style={{ marginTop: 0 }}>
-        {data && !data.enabled && <b style={{ color: "#f59e0b" }}>«restoran» flag o&apos;chiq — mijozlarga ko&apos;rinmaydi (Features&apos;dan yoqiladi). </b>}
-        Yangi restoran O&apos;CHIQ holda yaratiladi — menyu kiritib, «yoqish»ni bosing.
-      </p>
-      <button className="btn sm" onClick={() => setShowAdd((v) => !v)}>{showAdd ? "✖ Yopish" : "➕ Yangi restoran qo'shish"}</button>
-      {showAdd && (
-        <div className="adm-form-grid" style={{ marginTop: 10 }}>
-          <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="Koson Milliy Taomlar" /></div>
-          <div className="adm-field"><span className="adm-field-label">Telefon</span><input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+998901234567" /></div>
-          <div className="adm-field"><span className="adm-field-label">Kategoriya</span><input value={category} onChange={(e) => setCategory(e.target.value)} /></div>
-          <div className="adm-field">
-            <span className="adm-field-label">&nbsp;</span>
-            <button onClick={create}>➕ Qo&apos;shish</button>
-          </div>
-        </div>
-      )}
-      {msg && <div className="action-msg" style={{ marginTop: 10 }}>{msg}</div>}
-      <div className="adm-toolbar" style={{ marginTop: 10 }}>
-        <input className="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Nom yoki kategoriya…" />
-      </div>
-      {restaurants.map((r) => (
-        <div key={r.id} className={"adm-card" + (expandedId === r.id ? " open" : "")}>
-          <div className="adm-card-head" role="button" tabIndex={0} onClick={() => toggleExpand(r)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleExpand(r); } }}>
-            <div className="adm-card-main">
-              <div className="adm-card-title">
-                {r.name}
-                <span className={"badge " + (r.active ? "badge-ok" : "badge-warn")}>{r.active ? "🟢 Yoniq" : "🔴 O'chiq"}</span>
-                {r.paused && <span className="badge badge-bad">⏸ To'xtatilgan</span>}
-              </div>
-              <div className="adm-card-sub">
-                <span>☎ {r.phone}</span>
-                <span>📋 {r.menuCount} taom</span>
-                <span>🧾 {r.orderCount} buyurtma</span>
-              </div>
-            </div>
-            <div className="adm-card-actions" onClick={(e) => e.stopPropagation()}>
-              <button className="btn sm" onClick={() => void adminApi.restoranToggle(r.id, !r.active).then(load)}>{r.active ? "O'chirish" : "Yoqish"}</button>
-              <button className="btn sm" onClick={() => del(r)}>🗑</button>
-            </div>
-            <span className="adm-card-chev">{expandedId === r.id ? "▲" : "▼"}</span>
-          </div>
-          {expandedId === r.id && draft && (
-            <div className="adm-card-body">
-              <div className="adm-form-grid">
-                <div className="adm-field"><span className="adm-field-label">Nomi</span><input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} /></div>
-                <div className="adm-field"><span className="adm-field-label">Telefon</span><input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} /></div>
-                <div className="adm-field"><span className="adm-field-label">Kategoriya</span><input value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} /></div>
-                <div className="adm-field"><span className="adm-field-label">Manzil</span><input value={draft.address} onChange={(e) => setDraft({ ...draft, address: e.target.value })} /></div>
-                <div className="adm-field"><span className="adm-field-label">Ish vaqti (09:00-22:00)</span><input value={draft.workHours} onChange={(e) => setDraft({ ...draft, workHours: e.target.value })} placeholder="09:00-22:00" /></div>
-                <div className="adm-field"><span className="adm-field-label">Yetkazish (so'm)</span><input type="number" value={draft.deliveryFeeSom} onChange={(e) => setDraft({ ...draft, deliveryFeeSom: e.target.value })} /></div>
-                <div className="adm-field"><span className="adm-field-label">Min buyurtma (so'm)</span><input type="number" value={draft.minOrderSom} onChange={(e) => setDraft({ ...draft, minOrderSom: e.target.value })} /></div>
-                <div className="adm-field"><span className="adm-field-label">Tayyorlash (daq)</span><input type="number" value={draft.prepMinutes} onChange={(e) => setDraft({ ...draft, prepMinutes: e.target.value })} /></div>
-                <div className="adm-field">
-                  <span className="adm-field-label">Olib ketish</span>
-                  <button onClick={() => setDraft({ ...draft, pickupEnabled: !draft.pickupEnabled })}>{draft.pickupEnabled ? "✅ Yoqilgan" : "✖ O'chiq"}</button>
-                </div>
-              </div>
-              <div className="adm-card-body-foot">
-                {r.hasPhoto && <img src={`${adminApi.restoranPhotoUrl(r.id)}?v=${photoV}`} alt="" style={{ width: 44, height: 44, borderRadius: 8, objectFit: "cover" }} />}
-                <button className="btn" disabled={saving} onClick={() => saveDraft(r.id)}>{saving ? "Saqlanmoqda…" : "💾 Saqlash"}</button>
-                <button className="btn sm" onClick={() => uploadPhoto(r.id)}>{r.hasPhoto ? "🖼 Rasmni almashtirish" : "🖼 Rasm yuklash"}</button>
-              </div>
-
-              <hr style={{ margin: "14px 0", border: 0, borderTop: "1px solid var(--line)" }} />
-              <div className="panel-title" style={{ fontSize: 14 }}>📋 Menyu ({menu?.length ?? 0})</div>
-              {menu === null && <p className="muted">Yuklanmoqda…</p>}
-              {menu && menu.length === 0 && <p className="muted">Hali taom yo'q — pastdan bulk qo'shing.</p>}
-              {menu?.map((item) => (
-                <div key={item.id} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "6px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                  {item.hasPhoto
-                    ? <img src={`${adminApi.restoranMenuPhotoUrl(item.id)}?v=${photoV}`} alt="" style={{ width: 32, height: 32, borderRadius: 6, objectFit: "cover", flexShrink: 0 }} />
-                    : <span style={{ width: 32, height: 32, borderRadius: 6, background: "var(--card)", flexShrink: 0 }} />}
-                  <span className="muted" style={{ fontSize: 11, minWidth: 70 }}>{item.section}</span>
-                  <input className="inp" style={{ flex: "2 1 160px" }} defaultValue={item.name} onBlur={(e) => e.target.value !== item.name && menuQuickEdit(item, { name: e.target.value })} />
-                  <input className="inp" type="number" style={{ flex: "0 1 100px" }} defaultValue={item.priceSom} onBlur={(e) => Number(e.target.value) !== item.priceSom && menuQuickEdit(item, { priceSom: Number(e.target.value) })} />
-                  <button className="btn sm" onClick={() => menuQuickEdit(item, { available: !item.available })}>{item.available ? "🟢 Bor" : "🔴 Tugagan"}</button>
-                  <button className="btn sm" onClick={() => uploadMenuPhoto(item)} title={item.hasPhoto ? "Rasmni almashtirish" : "Rasm yuklash"}>{item.hasPhoto ? "🖼✔" : "🖼"}</button>
-                  <button className="btn sm" onClick={() => menuDelete(item)}>🗑</button>
-                </div>
-              ))}
-              <div className="adm-field" style={{ marginTop: 10 }}>
-                <span className="adm-field-label">Bo'lim nomi</span>
-                <input value={bulkSection} onChange={(e) => setBulkSection(e.target.value)} placeholder="Issiq taom" />
-              </div>
-              <div className="adm-field" style={{ marginTop: 6 }}>
-                <span className="adm-field-label">Bulk qo'shish — har qatorda: Nom — Narx</span>
-                <textarea className="inp" rows={4} value={bulkText} onChange={(e) => setBulkText(e.target.value)} placeholder={"Osh — 35000\nLag'mon — 30000\nShurva — 25000"} />
-              </div>
-              <button className="btn sm" style={{ marginTop: 6 }} onClick={() => addBulkMenu(r.id)}>➕ Bulk qo&apos;shish</button>
-            </div>
-          )}
-        </div>
-      ))}
-      {data && restaurants.length === 0 && <p className="muted">Mos restoran topilmadi.</p>}
-    </section>
-  );
-}
+// 🍽 RESTORAN admin ekranlari (sessiya-navbati + restoran/menyu CRUD, ~355 qator) 2026-08-15
+// da olib tashlandi: restoran endi HAMKORNING tashqi mini-appi — bizda boshqariladigan
+// katalog ham, kuzatiladigan buyurtma ham yo'q. Git tarixida qoladi.
 
 function XizmatlarAdminView() {
   const [data, setData] = useState<{ rows: SvcAdminRow[]; enabled: boolean; pending: number; hiddenReviews: number; phoneFlagged: number; newRequests: number } | null>(null);
@@ -4929,9 +4572,9 @@ function OperatorActions({ memberId, telegramId, onDone }: { memberId?: number |
   // ── taksi ──
   const [addr, setAddr] = useState("");
   // ── qidiruv/buyurtma ──
-  const [provider, setProvider] = useState("restoran");
+  const [provider, setProvider] = useState("bazar"); // 🍽 "restoran" 2026-08-15 da chiqdi (hamkor ilovasi)
   const [query, setQuery] = useState("");
-  const [cards, setCards] = useState<{ id: string; title: string; subtitle?: string; restaurantId?: number; menuItemId?: number; shopId?: number; productId?: number }[] | null>(null);
+  const [cards, setCards] = useState<{ id: string; title: string; subtitle?: string; shopId?: number; productId?: number }[] | null>(null);
   const [pickedId, setPickedId] = useState("");
   const [qty, setQty] = useState(1);
   const [orderAddr, setOrderAddr] = useState("");
@@ -4980,7 +4623,6 @@ function OperatorActions({ memberId, telegramId, onDone }: { memberId?: number |
         <div>
           <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
             <select className="inp" value={provider} onChange={(e) => setProvider(e.target.value)}>
-              <option value="restoran">🍽 Restoran</option>
               <option value="xizmat">🔎 Xizmat</option>
               <option value="bazar">🛒 Bozor</option>
               <option value="elon">📋 E'lon</option>
@@ -5000,7 +4642,7 @@ function OperatorActions({ memberId, telegramId, onDone }: { memberId?: number |
               ))}
             </div>
           )}
-          {(provider === "restoran" || provider === "bazar") && (
+          {provider === "bazar" && (
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               <input className="inp" type="number" min={1} style={{ width: 70 }} value={qty} onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))} />
               <input className="inp" style={{ flex: 1 }} placeholder="Yetkazish manzili" value={orderAddr} onChange={(e) => setOrderAddr(e.target.value)} />
@@ -5010,12 +4652,7 @@ function OperatorActions({ memberId, telegramId, onDone }: { memberId?: number |
                 onClick={() => {
                   const picked = cards?.find((c) => c.id === pickedId);
                   if (!picked) return;
-                  void act(provider === "restoran" ? "order_food" : "order_bazar", {
-                    ...(provider === "restoran"
-                      ? { restaurantId: picked.restaurantId, foodItems: [{ menuItemId: picked.menuItemId, qty }] }
-                      : { shopId: picked.shopId, bazarItems: [{ productId: picked.productId, qty }] }),
-                    address: orderAddr.trim(),
-                  });
+                  void act("order_bazar", { shopId: picked.shopId, bazarItems: [{ productId: picked.productId, qty }], address: orderAddr.trim() });
                 }}
               >
                 🛒 Buyurtma qilish
@@ -5094,7 +4731,7 @@ function NazoratView() {
   const load = () => adminApi.oprDashboard().then((r) => setRows(r.rows)).catch(() => setRows([]));
   useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); }, []);
 
-  const icon: Record<OprOpsRow["module"], string> = { taxi: "🚕", food: "🍽", bazar: "🛒", reys: "🚐" };
+  const icon: Record<OprOpsRow["module"], string> = { taxi: "🚕", bazar: "🛒", reys: "🚐" };
 
   return (
     <div className="table-wrap">

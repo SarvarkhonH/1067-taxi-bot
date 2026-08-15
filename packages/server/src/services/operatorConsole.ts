@@ -21,14 +21,10 @@ export interface DispatchParams {
   // taxi
   addressQuery?: string;
   addressId?: number;
-  // search / order (city providers — restoran/xizmat/bazar/elon/reys)
+  // search / order (city providers — xizmat/bazar/elon/reys)
   providerKey?: string;
   query?: string;
-  // food order (multi-item, direct — NOT the AI's single-item provider tool)
-  restaurantId?: number;
-  foodItems?: { menuItemId: number; qty: number }[];
   address?: string;
-  isPickup?: boolean;
   // bazar order (multi-item, direct)
   shopId?: number;
   bazarItems?: { productId: number; qty: number }[];
@@ -104,29 +100,8 @@ export async function dispatchAction(
     }
     case "search": {
       if (!params.providerKey || !params.query) return { ok: false, message: "provider/query kerak" };
-      // 🍽 restoran needs a richer card than the AI's AiCard{id,title,subtitle} gives — its `id`
-      // is just the menuItemId (no restaurantId), fine for the AI's own single-item order() flow
-      // (which re-searches by name to disambiguate) but not enough for the operator UI to submit
-      // a direct multi-item createFoodOrder call. Search restaurants+menus directly here instead
-      // of going through the AI provider, so each card also carries restaurantId.
-      if (params.providerKey === "restoran") {
-        const { listActiveRestaurants, getRestaurantDetail } = await import("./restoranService");
-        const q = params.query.toLowerCase().trim();
-        const restaurants = await listActiveRestaurants();
-        const found: { id: string; title: string; subtitle?: string; restaurantId: number; menuItemId: number }[] = [];
-        for (const r of restaurants) {
-          const { restaurant, items } = await getRestaurantDetail(r.id);
-          if (!restaurant) continue;
-          for (const it of items) {
-            if (!it.available || !it.name.toLowerCase().includes(q)) continue;
-            found.push({ id: `${r.id}:${it.id}`, title: `${it.name} — ${restaurant.name}`, subtitle: `${it.priceSom.toLocaleString("ru-RU")} so'm`, restaurantId: r.id, menuItemId: it.id });
-          }
-        }
-        audit(`qidiruv: restoran "${params.query}" -> ${found.length}`);
-        return { ok: true, message: `${found.length} ta topildi`, extra: { cards: found.slice(0, 12) } };
-      }
-      // 🛒 bazar — same reasoning as restoran above: need shopId per product for
-      // createMarketOrder, which the AI's plain AiCard.id (bare productId) doesn't carry.
+      // 🛒 bazar needs a richer card than the AI's AiCard{id,title,subtitle} gives: createMarketOrder
+      // wants shopId per product, which the plain AiCard.id (bare productId) doesn't carry.
       if (params.providerKey === "bazar") {
         const q = params.query.toLowerCase();
         const rows = await prisma.product.findMany({
@@ -145,20 +120,8 @@ export async function dispatchAction(
       audit(`qidiruv: ${params.providerKey} "${params.query}" -> ${cards.length}`);
       return { ok: true, message: `${cards.length} ta topildi`, extra: { cards } };
     }
-    case "order_food": {
-      if (!params.restaurantId || !params.foodItems?.length || !params.address) return { ok: false, message: "restoran/taomlar/manzil kerak" };
-      const { createFoodOrder } = await import("./restoranService");
-      const r = await createFoodOrder(memberId, params.restaurantId, params.foodItems, params.address, "", `Operator: ${operatorName}`, !!params.isPickup);
-      audit(`ovqat-buyurtma: rest=${params.restaurantId} items=${params.foodItems.length} ok=${r.ok}`);
-      if (!r.ok) return { ok: false, message: `Bajarilmadi: ${r.reason ?? "xato"}` };
-      if (r.notice) {
-        const { getBotInstance } = await import("../botInstance");
-        const bot = getBotInstance();
-        if (bot) await (await import("../bot/restoran")).notifyOwnerNewFoodOrder(bot, r.notice).catch(() => undefined);
-      }
-      await push(`🍽 <b>Buyurtmangiz qabul qilindi!</b> #${r.orderId}\n💵 Jami: ${(r.totalSom ?? 0).toLocaleString("ru-RU")} so'm (naqd)`);
-      return { ok: true, message: `✅ Buyurtma #${r.orderId} — ${(r.totalSom ?? 0).toLocaleString("ru-RU")} so'm` };
-    }
+    // 🍽 "order_food" 2026-08-15 da olib tashlandi: restoran endi hamkorning tashqi mini-appi,
+    // operator bizning tizim orqali taom buyurtma qila olmaydi (bizda menyu ham, narx ham yo'q).
     case "order_bazar": {
       if (!params.shopId || !params.bazarItems?.length || !params.address) return { ok: false, message: "do'kon/mahsulot/manzil kerak" };
       const { createMarketOrder } = await import("./marketOrderService");
@@ -223,14 +186,8 @@ export async function dispatchAction(
       audit("hardunban");
       return { ok: r.ok, message: r.message };
     }
-    case "cancel_food": {
-      if (!params.orderId) return { ok: false, message: "orderId kerak" };
-      const { rejectFoodOrder } = await import("./restoranService");
-      const r = await rejectFoodOrder(params.orderId, params.reason || `Operator: ${operatorName}`);
-      audit(`ovqat-bekor: #${params.orderId} ok=${r.ok}`);
-      if (r.ok && r.notice) await push(`❌ <b>Buyurtmangiz bekor qilindi</b> (#${params.orderId}) — ${r.notice.restaurantName}. Naqd to'lov bo'lgani uchun pul yechilmagan.`);
-      return { ok: r.ok, message: r.ok ? "✅ Bekor qilindi" : `Bekor qilinmadi (${r.reason ?? "xato"})` };
-    }
+    // 🍽 "cancel_food" ham olib tashlandi (order_food bilan birga) — hamkor buyurtmasini faqat
+    // hamkorning o'zi bekor qila oladi, bizda u buyurtma haqida hech qanday yozuv yo'q.
     case "cancel_bazar": {
       if (!params.orderId) return { ok: false, message: "orderId kerak" };
       const { rejectMarketOrder } = await import("./marketOrderService");
@@ -280,9 +237,11 @@ export async function dispatchAction(
 // ─── 📡 Nazorat — live ops dashboard ────────────────────────────────────────
 // One merged, age-sorted view of everything currently active across modules, each row a
 // direct read of the SAME tables/sources their own existing admin list views already use
-// (getLiveBookings, FoodOrder, MarketOrder, IntercityTrip) — no new tracking, just a merge.
+// (getLiveBookings, MarketOrder, IntercityTrip) — no new tracking, just a merge.
+// 🍽 "food" moduli 2026-08-15 da chiqarildi: restoran endi hamkorning tashqi mini-appi,
+// jonli buyurtmalar U YERDA — bizda kuzatadigan qator yo'q.
 export interface OpsRow {
-  module: "taxi" | "food" | "bazar" | "reys";
+  module: "taxi" | "bazar" | "reys";
   id: number | string;
   memberId?: number;
   title: string;
@@ -291,18 +250,17 @@ export interface OpsRow {
   stuck: boolean;
 }
 
-const STUCK_THRESHOLD_MIN: Record<OpsRow["module"], number> = { taxi: 5, food: 15, bazar: 15, reys: 30 };
+const STUCK_THRESHOLD_MIN: Record<OpsRow["module"], number> = { taxi: 5, bazar: 15, reys: 30 };
 
 export async function getOpsDashboard(): Promise<OpsRow[]> {
   const now = Date.now();
   const ageMin = (d: Date): number => Math.floor((now - d.getTime()) / 60_000);
 
-  const [taxi, foodRows, bazarRows, tripRows] = await Promise.all([
+  const [taxi, bazarRows, tripRows] = await Promise.all([
     (async () => {
       const { getLiveBookings } = await import("./adminOps");
       return getLiveBookings().catch(() => []);
     })(),
-    prisma.foodOrder.findMany({ where: { status: { in: ["pending", "accepted", "preparing", "delivering"] } }, orderBy: { createdAt: "asc" }, take: 100 }),
     prisma.marketOrder.findMany({ where: { status: { in: ["pending", "accepted", "delivering"] } }, orderBy: { createdAt: "asc" }, take: 100 }),
     prisma.intercityTrip.findMany({ where: { status: { in: ["OPEN", "BOARDING", "DEPARTED"] } }, orderBy: { createdAt: "asc" }, take: 100 }),
   ]);
@@ -310,10 +268,6 @@ export async function getOpsDashboard(): Promise<OpsRow[]> {
   const rows: OpsRow[] = [];
   for (const b of taxi) {
     rows.push({ module: "taxi", id: b.id, title: b.addressName || b.phone, status: b.status, ageMin: b.ageMin, stuck: b.ageMin >= STUCK_THRESHOLD_MIN.taxi && !b.hasDriver });
-  }
-  for (const o of foodRows) {
-    const a = ageMin(o.createdAt);
-    rows.push({ module: "food", id: o.id, memberId: o.memberId, title: `#${o.id} — ${o.totalSom.toLocaleString("ru-RU")} so'm`, status: o.status, ageMin: a, stuck: a >= STUCK_THRESHOLD_MIN.food });
   }
   for (const o of bazarRows) {
     const a = ageMin(o.createdAt);

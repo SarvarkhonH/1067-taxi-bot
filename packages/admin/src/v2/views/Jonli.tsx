@@ -1,8 +1,9 @@
-// ◉ JONLI — hozir nima ketayotgani. Bitta ekranda taksi · ovqat · bozor · reys.
+// ◉ JONLI — hozir nima ketayotgani. Bitta ekranda taksi · bozor · reys.
 //
-// Manba: mavjud `getOpsDashboard()` (taksi/ovqat/bozor/reys allaqachon
+// Manba: mavjud `getOpsDashboard()` (taksi/bozor/reys allaqachon
 // birlashtirilgan, "uzoq kutmoqda" belgisi bilan) + kas'ning jonli
 // buyurtmalari. Yangi backend ishi YO'Q.
+// 🍽 Ovqat 2026-08-15 da chiqdi — restoran hamkorning tashqi mini-appi, jonli buyurtmalar u yerda.
 import { useEffect, useState } from "react";
 import type { AdminLiveBooking } from "@t1067/shared";
 import { adminApi, type OprOpsRow } from "../../api";
@@ -12,7 +13,6 @@ import { mins, num } from "../../lib/fmt";
 
 const MODULE_LABEL: Record<OprOpsRow["module"], string> = {
   taxi: "🚕 Taksi",
-  food: "🍽 Ovqat",
   bazar: "🛒 Bozor",
   reys: "🚐 Reys",
 };
@@ -47,8 +47,8 @@ export function Jonli() {
   const doCancel = async (r: OprOpsRow): Promise<void> => {
     setBusy(true);
     // Har modul o'z bekor-amaliga ega (hammasi mavjud funksiyalarni qayta
-    // ishlatadi: rejectFoodOrder / rejectMarketOrder / adminForceCancelTrip).
-    const action = r.module === "food" ? "cancel_food" : r.module === "bazar" ? "cancel_bazar" : r.module === "reys" ? "cancel_intercity" : "cancel_taxi";
+    // ishlatadi: rejectMarketOrder / adminForceCancelTrip).
+    const action = r.module === "bazar" ? "cancel_bazar" : r.module === "reys" ? "cancel_intercity" : "cancel_taxi";
     const params = r.module === "reys" ? { tripId: Number(r.id) } : { orderId: Number(r.id) };
     try {
       const res = await adminApi.oprAct(r.memberId ?? null, null, action, params);
@@ -132,7 +132,6 @@ export function Jonli() {
           chips={[
             { label: "Hammasi", active: filt === "all", onClick: () => setFilt("all") },
             { label: "⚠ Tiqilgan", active: filt === "stuck", onClick: () => setFilt("stuck") },
-            { label: "🍽 Ovqat", active: filt === "food", onClick: () => setFilt("food") },
             { label: "🛒 Bozor", active: filt === "bazar", onClick: () => setFilt("bazar") },
             { label: "🚕 Taksi", active: filt === "taxi", onClick: () => setFilt("taxi") },
             { label: "🚐 Reys", active: filt === "reys", onClick: () => setFilt("reys") },
@@ -157,11 +156,9 @@ export function Jonli() {
             <span className="a2-dim">
               {cancel?.module === "bazar"
                 ? "Tanga to'langan bo'lsa — avtomatik qaytariladi, mahsulot omborga qaytadi."
-                : cancel?.module === "food"
-                  ? "Naqd to'lov — pul yechilmagan, faqat holat o'zgaradi."
-                  : cancel?.module === "reys"
-                    ? "Reysdagi barcha yo'lovchilar bekor qilinadi, chegirma tangasi qaytariladi."
-                    : "Faol taksi buyurtmasi bekor qilinadi."}
+                : cancel?.module === "reys"
+                  ? "Reysdagi barcha yo'lovchilar bekor qilinadi, chegirma tangasi qaytariladi."
+                  : "Faol taksi buyurtmasi bekor qilinadi."}
             </span>
           </div>
         }

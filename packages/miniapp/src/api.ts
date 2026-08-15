@@ -234,17 +234,10 @@ export const api = {
   shopReviewSubmit: (p: { productId: number; thumb: "up" | "down"; rating?: number; text?: string; photos?: string[] }) =>
     post<import("@t1067/shared").ShopReviewSubmitResponse>("/api/shop/review", p),
   shopReviewDelete: (productId: number) => del<{ ok: boolean }>(`/api/shop/review/${productId}`),
-  // 🍽 restoran (feature "restoran") — R1: katalog o'qish only
-  restoranList: () => get<import("@t1067/shared").RestoranListResponse>("/api/restoran/list"),
+  // 🍽 restoran API'lari 2026-08-15 da olib tashlandi — tab endi hamkorning tashqi mini-appiga
+  // eshik (restoran.tsx), bizda katalog ham, buyurtma ham yo'q, demak so'raladigan narsa ham yo'q.
   // 🏠 home feed aggregate (feature "newhome", Bosqich 2) — one call for the premium home
   homeFeed: () => get<import("@t1067/shared").HomeFeedResponse>("/api/home/feed"),
-  restoranDetail: (id: number) => get<import("@t1067/shared").RestoranDetailResponse>(`/api/restoran/${id}`),
-  restoranOrder: (b: import("@t1067/shared").FoodOrderCreateBody) => post<import("@t1067/shared").FoodOrderCreateResponse>("/api/restoran/order", b),
-  restoranOrders: () => get<{ orders: import("@t1067/shared").FoodOrderView[] }>("/api/restoran/orders"),
-  restoranCancel: (orderId: number) => post<{ ok: boolean; reason?: string }>(`/api/restoran/orders/${orderId}/cancel`),
-  restoranReviews: (id: number) => get<import("@t1067/shared").RestaurantReviewsResponse>(`/api/restoran/${id}/reviews`),
-  restoranReviewSubmit: (id: number, stars: number, text?: string) => post<import("@t1067/shared").RestaurantReviewSubmitResponse>(`/api/restoran/${id}/review`, { stars, text }),
-  restoranReviewDelete: (id: number) => del<{ ok: boolean }>(`/api/restoran/${id}/review`),
   // 🎀 ravella (feature "ravella") — bezak konstruktori. Narx SERVERDA hisoblanadi: order body'da
   // hech qanday summa YO'Q, faqat id'lar + "chegirmani xohlayman" bayrog'i.
   ravellaCatalog: () => get<import("@t1067/shared").RavellaCatalogResponse>("/api/ravella/catalog"),

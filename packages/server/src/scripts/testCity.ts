@@ -5,7 +5,6 @@
 import "../env";
 import { prisma } from "../db";
 import { __registerForTest, activeProviders, providerByKey } from "../services/ai/providers";
-import { restoranProvider } from "../services/ai/providers/restoranProvider";
 import type { AiProvider } from "../services/ai/providers/types";
 
 let pass = 0;
@@ -35,19 +34,15 @@ async function main(): Promise<void> {
 
   // registry
   check("providerByKey topadi", providerByKey("teststub")?.title === "test xizmati");
-  check("restoran registrda", providerByKey("restoran") === restoranProvider);
+  // 🍽 restoranProvider 2026-08-15 da o'chirildi (restoran = hamkorning tashqi mini-appi) —
+  // ro'yxatda BO'LMASLIGI endi tekshiriladi, "bor" emas.
+  check("restoran registrda YO'Q", providerByKey("restoran") === undefined);
   const active = await activeProviders();
   check("stub (flag'siz) active", active.some((p) => p.key === "teststub"));
-  // flag-gate: provider ro'yxatda FAQAT moduli yoqiq bo'lsa (2026-07-22: restoran jonli ON)
-  const { featureOn } = await import("../services/featureFlags");
-  const restoranOn = await featureOn("restoran");
-  check(`restoran gate flag'ga mos (flag=${restoranOn ? "ON" : "OFF"})`, active.some((p) => p.key === "restoran") === restoranOn);
-
-  // real katalog qidiruvi (read-only): flag ON bo'lsa "osh" kamida 1 natija berishi kerak
-  const oshCards = await restoranProvider.search("osh");
-  check(restoranOn ? "jonli katalogda «osh» topiladi" : "flag-off search=[]", restoranOn ? oshCards.length > 0 : oshCards.length === 0, oshCards[0]?.title ?? "");
+  check("restoran active ro'yxatda ham YO'Q", !active.some((p) => p.key === "restoran"));
 
   // xizmatProvider — "basen kerak" bug fixi: xizmatlar bazasidan basseyn topilishi kerak
+  const { featureOn } = await import("../services/featureFlags");
   const { xizmatProvider } = await import("../services/ai/providers/xizmatProvider");
   const xizmatOn = await featureOn("xizmatlar");
   check("xizmatProvider registrda", providerByKey("xizmat")?.key === "xizmat");
