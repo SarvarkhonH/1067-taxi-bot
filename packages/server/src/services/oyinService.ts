@@ -67,6 +67,7 @@ import {
   type OyinPrizeCard,
   type OyinPrizeCardsResponse,
   type OyinAvatarOptInResult,
+  type OyinCardVerifyResponse,
   type OyinSeasonPlan,
   type OyinSetCardNoteResult,
   type OyinLeaderRow,
@@ -92,6 +93,7 @@ import crypto from "node:crypto";
 import { prisma } from "../db";
 import { env } from "../env";
 import { resolveTelegramFileUrl } from "./driverPhotoService";
+import { encodeCardCode, decodeCardCode } from "./cardCode";
 import { getBonusEcon } from "./bonusConfig";
 import { featureOn } from "./featureFlags";
 import { weekKey } from "./missionService";
@@ -1388,22 +1390,23 @@ export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse
   if (!season.configured) return { tickets: [], drawIso: null };
   const byKey = new Map(catalog.map((p) => [p.key, p]));
   const minPct = econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
-  const tickets = parseTickets(row?.value)
-
-    .map((t) => {
+  const tickets = (await Promise.all(parseTickets(row?.value)
+    .map(async (t) => {
       const p = byKey.get(t.prizeKey);
       // 🛡 Sovrin katalogdan o'chirilgan bo'lsa (`p` yo'q) — qoidasi bilinmaydi, xavfsiz
       // taraf: `willDraw: true` (bekor qilib bo'lmaydi, admin qo'lida qoladi).
       const sold = soldMap.get(t.prizeKey) ?? 0;
       const minSell = p ? minSellOf(p.limit, minPct) : 0;
       const willDraw = !p || minSell <= 0 || sold >= minSell;
+      const gno = t.gno ?? t.no; // eski chiptalarda global raqam yo'q — sovrin-ichi raqami ko'rsatiladi
       return {
         prizeKey: t.prizeKey,
         // Sovrin katalogdan o'chirilgan bo'lsa ham chipta YO'QOLMAYDI — kalitni ko'rsatamiz.
         prizeName: p?.name ?? t.prizeKey,
         prizeIcon: p?.icon ?? "🎟",
         photoUrl: p?.photoUrl ?? null,
-        gno: t.gno ?? t.no, // eski chiptalarda global raqam yo'q — sovrin-ichi raqami ko'rsatiladi
+        gno,
+        code: await encodeCardCode(gno), // 🔐 K1 — ko'rinadigan raqam
         no: t.no,
         at: t.ts,
         price: t.priceAtPurchase,
@@ -1415,7 +1418,7 @@ export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse
         ...(t.result ? { result: t.result } : {}),
         willDraw,
       };
-    })
+    })))
     .sort((a, b) => Date.parse(b.at) - Date.parse(a.at));
   return { tickets, drawIso: season.endIso };
 }
@@ -1730,7 +1733,9 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
       // Xarid sig'imni kamaytiradi, ya'ni chegaradan tushishning eng ehtimolli lahzasi shu.
       // Yiqilsa xarid BEKOR QILINMAYDI: mijoz kartasini oldi, navbat esa keyingi safar ochiladi.
       void autoOpenPrizes().catch((e2) => console.warn("[oyin] autoOpen yiqildi:", e2));
-      return { ok: true, ticketNo, gno, prizeKey: prize.key, ballLeft: ball - prize.price };
+      // 🔐 K1 — bayram-oynasi ko'rsatadigan kod Kartalarim/karta-sahifasidagi BILAN BIR XIL
+      // manba (yuqoridagi izoh: bitta chipta ikki xil raqam bilan chiqmasin).
+      return { ok: true, ticketNo, gno, code: await encodeCardCode(gno), prizeKey: prize.key, ballLeft: ball - prize.price };
     } catch (e) {
       await releaseSoldSlot(prize.key).catch(() => undefined);
       throw e;
@@ -4609,8 +4614,10 @@ export async function getCardDetail(gno: number, viewerMemberId: number | null):
   const noteVisible = mine || r.notePublic === true;
   const avatar = await getAvatarState(r.memberId);
   const photoVisible = mine || avatar.optIn;
+  const resolvedGno = r.gno ?? r.no;
   return {
-    gno: r.gno ?? r.no,
+    gno: resolvedGno,
+    code: await encodeCardCode(resolvedGno), // 🔐 K1
     no: r.no,
     prizeKey: r.prizeKey,
     prizeName: prize?.name ?? r.prizeKey,
@@ -4625,6 +4632,33 @@ export async function getCardDetail(gno: number, viewerMemberId: number | null):
     notePublic: r.notePublic === true,
     ownerPhotoUrl: photoVisible && avatar.fileId ? await resolveTelegramFileUrl(avatar.fileId) : null,
     avatarOptIn: avatar.optIn,
+  };
+}
+
+/** 🌐 Ochiq tekshiruv sahifasi (K1, `birjoy.online/?karta=<kod>`) — PAROLSIZ, HAR KIM ko'radi.
+ *  Shuning uchun `getCardDetail`dan MUSTAQIL: telefon/familiya/qayd (note) hech qachon, faqat
+ *  plan §1 sanagan maydonlar (karta·sovg'a·egasi·holat). Kod noto'g'ri/Luhn mos kelmasa yoki
+ *  karta topilmasa — `null` (klient "topilmadi" deb ko'rsatadi, farqlanmaydi — soxtalashtirish
+ *  urinishiga qaysi sabab ekanini aytmaymiz). */
+export async function getPublicCardVerify(codeRaw: string): Promise<OyinCardVerifyResponse | null> {
+  const gno = await decodeCardCode(codeRaw);
+  if (gno == null) return null;
+  const [catalog, season, rows] = await Promise.all([getCatalog(), getSeason(), allTicketRows()]);
+  const r = rows.find((x) => x.gno === gno) ?? rows.find((x) => x.gno === null && x.no === gno);
+  if (!r) return null;
+  const prize = catalog.find((p) => p.key === r.prizeKey);
+  const names = await ownerNames([r.memberId]);
+  const avatar = await getAvatarState(r.memberId);
+  return {
+    code: await encodeCardCode(gno),
+    prizeName: prize?.name ?? r.prizeKey,
+    prizeIcon: prize?.icon ?? "🎟",
+    prizePhotoUrl: prize?.photoUrl ?? null,
+    ownerName: names.get(r.memberId) ?? "Mijoz",
+    ownerPhotoUrl: avatar.optIn && avatar.fileId ? await resolveTelegramFileUrl(avatar.fileId) : null,
+    at: r.ts,
+    result: r.result ?? null,
+    drawIso: season.endIso,
   };
 }
 

@@ -75,12 +75,21 @@ setInterval(() => { void checkForNewBuild(); }, 60_000);
 const trackToken = new URLSearchParams(location.search).get("track");
 const TrackView = lazy(() => import("./TrackView").then((m) => ({ default: m.TrackView })));
 
+// 🌐 K1 (2026-08-14, OYIN_KARTA_PLAN.md §1) — ochiq karta tekshiruv sahifasi. `?track=` bilan
+// BIR XIL naqsh: parolsiz, Telegram context'siz ochiladi.
+const cardVerifyCode = new URLSearchParams(location.search).get("karta");
+const CardVerifyView = lazy(() => import("./CardVerifyView").then((m) => ({ default: m.CardVerifyView })));
+
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ErrorBoundary>
       {trackToken ? (
         <Suspense fallback={null}>
           <TrackView token={trackToken} />
+        </Suspense>
+      ) : cardVerifyCode ? (
+        <Suspense fallback={null}>
+          <CardVerifyView code={cardVerifyCode} />
         </Suspense>
       ) : (
         <App />

@@ -462,7 +462,9 @@
 .oyk-tkt.is-test { border-style: dashed; border-color: var(--oyk-text-3); opacity: .92; }
 .oyk-tkt.is-test .oyk-tkt-stub { background: linear-gradient(135deg, #4b5563 0%, #1f2937 100%); }
 .oyk-tkt.is-test .oyk-tkt-brand { opacity: 1; letter-spacing: .06em; }
-.oyk-tkt-no { font-size: 20px; font-weight: 900; letter-spacing: .03em; margin-top: 4px; }
+/* 🔐 2026-08-14: avval 6 xonali `gno` (20px) edi, endi "KO-XXX-XXX-XXXX" (16 belgi) — torroq
+   qurilmada sig'ishi uchun font kichraytirildi, geometriya bilan tekshirilgan. */
+.oyk-tkt-no { font-size: 15.5px; font-weight: 900; letter-spacing: .02em; margin-top: 4px; }
 .oyk-tkt-side {
   position: absolute; right: 0; top: 0; bottom: 0; width: 52px;
   border-left: 2px dashed rgba(255, 255, 255, .42);
@@ -1240,7 +1242,9 @@
   background:var(--oyk-violet-grad)}
 .oyk-cert.is-empty .oyk-cert-stub{background:var(--oyk-fill);color:var(--oyk-text-2)}
 .oyk-cert-lbl{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;opacity:.82}
-.oyk-cert-no{font-size:25px;font-weight:900;letter-spacing:.04em;margin:6px 0 5px;
+/* 🔐 2026-08-14: avval xom `gno` (6-7 xona, 25px) edi, endi "KO-XXX-XXX-XXXX" (16 belgi) —
+   kichraytirildi, geometriya bilan tekshirilgan. */
+.oyk-cert-no{font-size:17px;font-weight:900;letter-spacing:.03em;margin:6px 0 5px;
   font-variant-numeric:tabular-nums}
 .oyk-cert-pz{font-size:13px;font-weight:700;opacity:.95}
 .oyk-cert-st{display:inline-flex;align-items:center;gap:5px;margin-top:11px;font-size:10.5px;font-weight:900;

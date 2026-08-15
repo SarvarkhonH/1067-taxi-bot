@@ -30,6 +30,7 @@ import type {
   OyinBuyResult,
   OyinCardDetail,
   OyinAvatarOptInResult,
+  OyinCardVerifyResponse,
   OyinSetCardNoteResult,
   OyinPrizeCardsResponse,
   OyinJamoamResponse,
@@ -323,6 +324,8 @@ export const api = {
     post<OyinSetCardNoteResult>(`/api/oyin/card/${gno}/note`, { note, isPublic }),
   // 👤 K4 — o'z Telegram avatarini o'yin kartasida ko'rsatish/yashirish.
   oyinSetAvatarOptIn: (optIn: boolean) => post<OyinAvatarOptInResult>("/api/oyin/avatar-optin", { optIn }),
+  // 🌐 K1 — ochiq tekshiruv (PAROLSIZ, `/api/track` bilan bir xil naqsh — Telegram shart emas).
+  oyinVerifyCard: (code: string) => get<OyinCardVerifyResponse>(`/api/oyin/verify/${encodeURIComponent(code)}`),
   oyinJamoam: () => get<OyinJamoamResponse>("/api/oyin/jamoam"),
   // 🤝 Gap-jamoa (gashtak) — guruh tuzish/qo'shilish/chiqish. Ball ko'chirish YO'Q.
   oyinJamoa: () => get<OyinJamoaView>("/api/oyin/jamoa"),

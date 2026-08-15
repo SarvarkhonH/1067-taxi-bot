@@ -1040,6 +1040,8 @@ export interface OyinPrizeView {
  *  abadiy yo'qolardi — odam 600 ball to'lab qo'lida hech narsa qolmasdi. */
 export interface OyinMyTicket {
   gno: number; // 🎟 GLOBAL noyob raqam (№ 729475) — chipta "ko'rinadigan buyum" bo'lgani uchun
+  /** 🔐 K1 — ko'rinadigan raqam ("KO-XXX-XXX-XXXX"), `OyinCardDetail.code` bilan BIR XIL manba. */
+  code: string;
   prizeKey: string;
   prizeName: string;
   prizeIcon: string;
@@ -1159,6 +1161,10 @@ export interface OyinBuyResult {
   // AYNAN O'ZI bo'lishi shart. Avval bayramda sovrin-ichi tartib raqami ("№0002"), ro'yxatda
   // esa global raqam ("№ 729476") chiqardi — bitta chipta ikki xil raqam bilan.
   gno?: number;
+  /** 🔐 K1 (2026-08-14) — `gno`ning ko'rinadigan kodi, Kartalarim/karta-sahifasida ko'rinadigan
+   *  BILAN AYNAN BIR XIL manba (xuddi `gno`ning o'zi kabi — ikkalasi ham bitta chiptani
+   *  ikki xil raqam bilan ko'rsatmasligi shart). */
+  code?: string;
   prizeKey?: OyinPrizeKey;
   ballLeft?: number;
 }
@@ -1503,6 +1509,10 @@ export interface OyinPrizeCardsResponse {
  *  shuning uchun bu yerda telefon, familiya, `memberId` va ball YO'Q. */
 export interface OyinCardDetail {
   gno: number;
+  /** 🔐 K1 — ko'rinadigan/og'zaki o'qiladigan raqam ("KO-XXX-XXX-XXXX"). `gno` ICHKI qoladi
+   *  (API yo'llari, `/api/oyin/card/:gno`, o'zgarmadi) — bu maydon FAQAT ekranda ko'rsatish
+   *  va ochiq tekshiruv sahifasi (`?karta=`) uchun. */
+  code: string;
   no: number;
   prizeKey: string;
   prizeName: string;
@@ -1548,6 +1558,22 @@ export interface OyinAvatarOptInResult {
   /** Rozilik yoqildi, LEKIN Telegram'da ochiq profil-rasm topilmadi — bo'sh va'da bermaslik uchun
    *  klientga aniq aytiladi (DIZAYN_QOIDALARI #7). */
   photoFound: boolean;
+}
+
+/** 🌐 Ochiq tekshiruv sahifasi (OYIN_KARTA_PLAN.md §1: "birjoy.online/karta/<kod>, parolsiz").
+ *  Parolsiz — shuning uchun bu yerda TELEFON, FAMILIYA, `memberId`, qayd (note) HECH QACHON.
+ *  Faqat plan §1 aniq sanagan maydonlar: karta · sovg'a · egasi (qisqartirilgan ism + rozilik
+ *  bo'lsa avatar) · holat. */
+export interface OyinCardVerifyResponse {
+  code: string;
+  prizeName: string;
+  prizeIcon: string;
+  prizePhotoUrl: string | null;
+  ownerName: string;
+  ownerPhotoUrl: string | null;
+  at: string;
+  result: "won" | "lost" | null;
+  drawIso: string | null;
 }
 
 /** Vitrina filtri. Ega: «bir kartalik · ko'p kartalik · kam kartalik · qimmat · arzon ·

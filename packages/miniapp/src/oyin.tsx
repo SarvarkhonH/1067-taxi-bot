@@ -588,7 +588,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const [posterBusy, setPosterBusy] = useState(false);
   // `ticketNo` — GLOBAL raqam (`gno`). Avval bu yerga sovrin-ichi tartib raqami tushardi va
   // bayramda "№0002", Chiptalarim'da esa "№ 729476" chiqardi — bitta chipta, ikki xil raqam.
-  const [celebrate, setCelebrate] = useState<{ prize: OyinPrizeView; ticketNo: number; count: number } | null>(null);
+  const [celebrate, setCelebrate] = useState<{ prize: OyinPrizeView; ticketNo: number; code: string; count: number } | null>(null);
   // Rasm-havolasi buzilgan sovrinlar — React-xavfsiz fallback (DOM'dan `remove()` qilish
   // React boshqaradigan tugunni tashqaridan o'chiradi va keyingi render'da qulashi mumkin;
   // bundan tashqari o'chirilgan blok ichida sovrin NOMI va NARXI ham qolib ketardi).
@@ -1061,6 +1061,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     // (jim "muvaffaqiyat" ko'rsatib qolgan pulni yeb qo'yish — eng yomon xatolardan).
     let got = 0;
     let lastGno: number | null = null;
+    let lastCode: string | null = null;
     let stopReason: string | undefined;
     // ⚠️ Miqdor SHU YERDA ham qisqartiriladi. Varaq `qty` ni (limit/qoldiq/ball bo'yicha
     // qisqartirilgan) ko'rsatadi, lekin xom `buyQty` bilan tsikl qilinsa ular ayri ketadi:
@@ -1071,14 +1072,14 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     try {
       for (let i = 0; i < want; i++) {
         const r = await api.oyinBuyTicket(buyKey);
-        if (r.ok && r.gno != null) { got++; lastGno = r.gno; continue; }
+        if (r.ok && r.gno != null) { got++; lastGno = r.gno; lastCode = r.code ?? null; continue; }
         stopReason = r.reason;
         break;
       }
       setSheet(null);
-      if (got > 0 && lastGno != null && prize) {
+      if (got > 0 && lastGno != null && lastCode != null && prize) {
         haptic();
-        setCelebrate({ prize, ticketNo: lastGno, count: got });
+        setCelebrate({ prize, ticketNo: lastGno, code: lastCode, count: got });
         // ⚠️ Chiptalar keshini BEKOR qilamiz — aks holda mijoz Chiptalarim tabiga o'tib
         // "Hali chiptangiz yo'q" ni o'qiydi (kesh bir marta yuklanib qotib qolardi).
         setTickets(null);
@@ -1980,8 +1981,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                           haqiqiy deb o'ylab tirajni kutardi va "nega yutmadim" savoli javobsiz
                           qolardi (DIZAYN_QOIDALARI: ekran yolg'on va'da bermaydi). */}
                       <div className="oyk-tkt-brand">{t.test ? "🧪 TEST KARTA — QATNASHMAYDI" : "BIRJOY SODIQLIK KARTASI"}</div>
-                      <div className="oyk-tkt-no">№ {t.gno}</div>
-                      <div className="oyk-tkt-side">{t.gno}</div>
+                      {/* 🔐 K1 (2026-08-14): ko'rinadigan raqam endi haqiqiy `gno` emas, uning
+                          Feistel+Luhn kodi — o'zi uzunroq, shuning uchun yon-tomondagi TAKROR
+                          raqam (avval `.oyk-tkt-side`, tor tik chiziqda) olib tashlandi — bitta
+                          joyda bir marta yetarli. */}
+                      <div className="oyk-tkt-no">{t.code}</div>
                     </div>
                     <div className="oyk-tkt-body">
                       {/* Sovrin RASMI chiptada — ma'lumot serverdan kelardi va tashlab
@@ -2387,7 +2391,9 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                         <div className="oyk-cert">
                           <div className="oyk-cert-stub">
                             <div className="oyk-cert-lbl">BirJoy karta</div>
-                            <div className="oyk-cert-no">№ {cardData.gno}</div>
+                            {/* 🔐 K1 (2026-08-14) — ko'rinadigan raqam endi Feistel+Luhn kodi
+                                (`code`), xom `gno` emas. `gno` API yo'llari uchun ICHKI qoladi. */}
+                            <div className="oyk-cert-no">{cardData.code}</div>
                             <div className="oyk-cert-pz">{cardData.prizeIcon} {cardData.prizeName}</div>
                             <div className={`oyk-cert-st${cardData.result === "won" ? " is-won" : ""}`}>
                               {cardData.result === "won" ? "🏆 Yutdi" : cardData.result === "lost" ? "O'ynadi" : "⏳ O'yinda"}
@@ -2885,10 +2891,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 ? <img src={celebrate.prize.photoUrl} alt="" onError={() => markBadPhoto(celebrate.prize.key)} />
                 : celebrate.prize.icon}
             </div>
-            {/* ⚠️ Bu raqam GLOBAL (`gno`) — Chiptalarim tabida ko'rinadigan raqamning AYNAN
-                O'ZI. Avval bu yerda sovrin-ichi tartib raqami turardi ("№0002"), ro'yxatda esa
-                global raqam ("№ 729476") — mijoz skrinshot qilgan raqam uniki emas edi. */}
-            <div className="oyk-ticket-no">KARTA № {celebrate.ticketNo}</div>
+            {/* ⚠️ Bu kod Kartalarim tabida ko'rinadigan raqamning AYNAN O'ZI (2026-08-14: xom
+                `gno` o'rniga endi Feistel+Luhn kodi — `code`). Avval bu yerda sovrin-ichi
+                tartib raqami turardi ("№0002"), ro'yxatda esa global raqam — mijoz skrinshot
+                qilgan raqam uniki emas edi. Shu bug qaytarilmasin uchun manba BIR XIL. */}
+            <div className="oyk-ticket-no">{celebrate.code}</div>
             <div className="oyk-ticket-name">{celebrate.prize.name}</div>
             <div className="oyk-ticket-sub">
               {celebrate.count > 1 ? `${celebrate.count} ta karta oldingiz — ` : ""}mukofot kunida qatnashasiz — davr oxirida jonli efir!

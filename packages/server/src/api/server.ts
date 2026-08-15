@@ -1541,6 +1541,15 @@ export function createApiServer(opts: ApiOptions = {}) {
     const b = req.body as { optIn?: boolean };
     res.json(await setAvatarOptIn(memberId, b?.optIn === true));
   });
+  // 🌐 K1 — ochiq tekshiruv sahifasi (`/api/track/:token` bilan BIR XIL naqsh: PAROLSIZ, faqat
+  // o'qish, hech qanday shaxsiy ma'lumot). Rate-limit — ketma-ket kod taxmin qilishning oldini
+  // oladi (Luhn ham yordam beradi: 10 xonadan 9tasi tasodifiy bo'lsa ham ~90% urinish "not_found").
+  app.get("/api/oyin/verify/:code", rateLimit(30), async (req, res) => {
+    const { getPublicCardVerify } = await import("../services/oyinService");
+    const r = await getPublicCardVerify(String(req.params.code ?? ""));
+    if (!r) { res.status(404).json({ error: "not_found" }); return; }
+    res.json(r);
+  });
   // ⛔ `/api/oyin/board` OLIB TASHLANDI (ega qarori 2026-08-03): reyting ball
   // QOLDIG'I bo'yicha saralanardi — chipta olgan odamning o'rni TUSHARDI, ya'ni to'g'ri
   // xatti-harakat jazolanardi. O'rniga `/api/oyin/bell` — ball qayerdan kelgani.

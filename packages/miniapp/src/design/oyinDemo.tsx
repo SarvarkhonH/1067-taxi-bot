@@ -56,8 +56,9 @@ const MOCK_BELL: OyinActivityResponse = { rows: [], total: 0, page: 1, pageSize:
 // HALI YETMAGAN (`willDraw:false`, "bekor qilish" tugmasi ko'rinishi kerak) — QA uchun.
 const MOCK_TICKETS: OyinMyTicketsResponse = {
   tickets: [
-    { gno: 729480, prizeKey: "p1", prizeName: "Nonstick qadoq to'plami", prizeIcon: "🍳", photoUrl: null, no: 3, at: "2026-08-04T10:00:00.000Z", price: 1200, willDraw: true },
-    { gno: 729481, prizeKey: "uzum-iphone-12-4", prizeName: "Apple iPhone 12, 64GB", prizeIcon: "📱", photoUrl: null, no: 1, at: "2026-08-05T09:00:00.000Z", price: 450000, willDraw: false },
+    // 🔐 K1 QA: haqiqiy Feistel emas (backend yo'q) — shunchaki formatga mos taxminiy kod.
+    { gno: 729480, code: "KO-421-308-7480", prizeKey: "p1", prizeName: "Nonstick qadoq to'plami", prizeIcon: "🍳", photoUrl: null, no: 3, at: "2026-08-04T10:00:00.000Z", price: 1200, willDraw: true },
+    { gno: 729481, code: "KO-552-914-6231", prizeKey: "uzum-iphone-12-4", prizeName: "Apple iPhone 12, 64GB", prizeIcon: "📱", photoUrl: null, no: 1, at: "2026-08-05T09:00:00.000Z", price: 450000, willDraw: false },
   ],
   drawIso: "2026-09-15T00:00:00+05:00",
 };
@@ -134,7 +135,8 @@ function mockPrizeCards(key: string): OyinPrizeCardsResponse {
 function mockCard(gno: number): OyinCardDetail {
   const mine = gno === 729477 || gno === 729492;
   return {
-    gno, no: gno - 729400, prizeKey: MOCK_VITRINA.prizes[0]!.key,
+    gno, code: `KO-${String(gno).padStart(9, "0").slice(0, 3)}-${String(gno).padStart(9, "0").slice(3, 6)}-${String(gno).padStart(9, "0").slice(6, 9)}0`,
+    no: gno - 729400, prizeKey: MOCK_VITRINA.prizes[0]!.key,
     prizeName: MOCK_VITRINA.prizes[0]!.name, prizeIcon: MOCK_VITRINA.prizes[0]!.icon,
     photoUrl: MOCK_VITRINA.prizes[0]!.photoUrl,
     ownerName: mine ? "Sarvarxon" : DEMO_NAMES[gno % DEMO_NAMES.length]!,
