@@ -570,6 +570,11 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // Bo'sh (hali sotilmagan) katakka bosilganda: haqiqiy karta yo'q (gno faqat xariddan keyin
   // tug'iladi), shuning uchun serverga so'rov yubormaymiz — faqat joy raqamini ko'rsatamiz.
   const [emptySlotNo, setEmptySlotNo] = useState<number | null>(null);
+  // 🗒 K2/K3 (2026-08-14, karta="xotira") — egasining o'z qaydi. `cardData` yuklanganda
+  // sinxronlanadi (pastdagi useEffect); tahrirlash faqat `cardData.mine` bo'lganda ko'rinadi.
+  const [noteText, setNoteText] = useState("");
+  const [notePublic, setNotePublic] = useState(false);
+  const [noteBusy, setNoteBusy] = useState(false);
   const [filter, setFilter] = useState<OyinPrizeFilter>("hammasi");
   const [archOpen, setArchOpen] = useState(false);
   const [buyKey, setBuyKey] = useState<string | null>(null);
@@ -965,6 +970,29 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
       .then((d) => { if (cardReqRef.current === gno) setCardData(d); })
       .catch(() => { if (cardReqRef.current === gno) setCardErr(true); });
   }, []);
+  // 🗒 K2/K3 — har safar YANGI karta yuklanganda tahrir-maydoni o'sha kartaning o'z qaydiga
+  // sinxronlanadi (avvalgi kartadan "qoldiq" matn ko'rinib qolmasin).
+  useEffect(() => {
+    if (cardData) { setNoteText(cardData.note ?? ""); setNotePublic(cardData.notePublic); }
+  }, [cardData]);
+  const saveCardNote = useCallback(async () => {
+    if (!cardData) return;
+    haptic();
+    setNoteBusy(true);
+    try {
+      const r = await api.oyinSetCardNote(cardData.gno, noteText.trim(), notePublic);
+      if (r.ok) {
+        setCardData({ ...cardData, note: noteText.trim() || null, notePublic });
+        showToast(noteText.trim() ? "Qayd saqlandi" : "Qayd o'chirildi");
+      } else {
+        showToast(r.reason === "too_long" ? "Qayd juda uzun — 140 belgigacha" : "Saqlanmadi");
+      }
+    } catch {
+      showToast("Saqlanmadi — aloqa uzildi");
+    } finally {
+      setNoteBusy(false);
+    }
+  }, [cardData, noteText, notePublic]);
   // 🆕 Bo'sh katakka bosilganda (ega talabi 2026-08-12: «har bir karta yasalgan payt ham
   // kirib ko'rib bo'lishi kerak, egasiz bo'lsa ham»). Serverga so'rov YO'Q — `gno` faqat
   // xariddan tug'iladi (K1 rejasi), shuning uchun bu joyda haqiqiy karta ma'lumoti yo'q,
@@ -2372,6 +2400,29 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                             <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">🎟</span><span>Bu safar chiqmadi — lekin karta kolleksiyangizda saqlanib qoladi.</span></div>
                           )}
                         </div>
+                        {/* 🗒 K2/K3 (2026-08-14, "karta=xotira") — faqat egasi tahrirlaydi.
+                            Standart maxfiy: boshqa odam faqat `notePublic:true` bo'lsa ko'radi
+                            (qaror serverda — getCardDetail, klient hech narsani yashirmaydi). */}
+                        {cardData.mine ? (
+                          <div className="oyk-note-edit">
+                            <div className="oyk-note-edit-lbl">🗒 Sizning qaydingiz</div>
+                            <textarea
+                              className="oyk-note-edit-ta" value={noteText} maxLength={140} rows={2}
+                              placeholder="Masalan: «BirJoydagi birinchi kartam ❤️» (ixtiyoriy)"
+                              onChange={(e) => setNoteText(e.target.value)}
+                            />
+                            <div className="oyk-note-edit-row">
+                              <button type="button" className={`oyk-note-priv${notePublic ? " is-on" : ""}`} onClick={() => { haptic(); setNotePublic((v) => !v); }}>
+                                {notePublic ? "🌐 Hammaga ko'rinadi" : "🔒 Faqat siz ko'rasiz"}
+                              </button>
+                              <button type="button" className="oyk-note-save" disabled={noteBusy || noteText.trim() === (cardData.note ?? "") && notePublic === cardData.notePublic} onClick={() => void saveCardNote()}>
+                                {noteBusy ? "…" : "Saqlash"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : cardData.note && (
+                          <div className="oyk-note-view">🗒 <b>{cardData.ownerName}</b>: «{cardData.note}»</div>
+                        )}
                       </>
                     )}
                   </>

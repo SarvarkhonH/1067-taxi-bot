@@ -29,6 +29,7 @@ import type {
   TierBenefitsResponse,
   OyinBuyResult,
   OyinCardDetail,
+  OyinSetCardNoteResult,
   OyinPrizeCardsResponse,
   OyinJamoamResponse,
   OyinJamoaResult,
@@ -316,6 +317,9 @@ export const api = {
   // `oyinCard` BOSHQA odamning kartasini ham ochadi — javobda faqat ochiq ma'lumot.
   oyinPrizeCards: (key: string) => get<OyinPrizeCardsResponse>(`/api/oyin/prize/${encodeURIComponent(key)}/cards`),
   oyinCard: (gno: number) => get<OyinCardDetail>(`/api/oyin/card/${gno}`),
+  // 🗒 K2/K3 — egasi o'z kartasiga qisqa qayd yozadi/o'chiradi, maxfiylikni tanlaydi.
+  oyinSetCardNote: (gno: number, note: string, isPublic: boolean) =>
+    post<OyinSetCardNoteResult>(`/api/oyin/card/${gno}/note`, { note, isPublic }),
   oyinJamoam: () => get<OyinJamoamResponse>("/api/oyin/jamoam"),
   // 🤝 Gap-jamoa (gashtak) — guruh tuzish/qo'shilish/chiqish. Ball ko'chirish YO'Q.
   oyinJamoa: () => get<OyinJamoaView>("/api/oyin/jamoa"),

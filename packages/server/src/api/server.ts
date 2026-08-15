@@ -1522,6 +1522,16 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!r) { res.status(404).json({ error: "not_found" }); return; }
     res.json(r);
   });
+  // 🗒 K2/K3 (2026-08-14, karta="xotira") — egasi o'z kartasiga qisqa qayd yozadi/o'chiradi.
+  // Egalik tekshiruvi `setCardNote` ICHIDA (memberId → o'z `oyin:tickets:` qatori) — boshqa
+  // odamning kartasiga yozib bo'lmaydi.
+  app.post("/api/oyin/card/:gno/note", requireUser, rateLimit(20), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { setCardNote } = await import("../services/oyinService");
+    const b = req.body as { note?: string; isPublic?: boolean };
+    res.json(await setCardNote(memberId, Number(req.params.gno), String(b?.note ?? ""), b?.isPublic === true));
+  });
   // ⛔ `/api/oyin/board` OLIB TASHLANDI (ega qarori 2026-08-03): reyting ball
   // QOLDIG'I bo'yicha saralanardi — chipta olgan odamning o'rni TUSHARDI, ya'ni to'g'ri
   // xatti-harakat jazolanardi. O'rniga `/api/oyin/bell` — ball qayerdan kelgani.

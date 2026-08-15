@@ -1514,6 +1514,26 @@ export interface OyinCardDetail {
   /** `null` = hali o'ynalmagan. */
   result: "won" | "lost" | null;
   drawIso: string | null;
+  /** 🗒 Ega talabi (2026-08-14, karta="xotira"): egasining ixtiyoriy qisqa qaydi (≤140 belgi).
+   *  Standart — faqat egasiga ko'rinadi. `notePublic:true` bo'lsagina BOSHQA odam ham ko'radi
+   *  (server shu yerda hal qiladi — klient ikkalasini ham qaror qabul qilmaydi). `mine:false`
+   *  bo'lganda va notePublic bo'lmasa — `null`. */
+  note: string | null;
+  /** Faqat `mine:true` bo'lganda mazmunli — o'z qaydining hozirgi maxfiylik holati. */
+  notePublic: boolean;
+}
+
+/** 🗒 Karta qaydini o'zgartirish (faqat egasi, faqat o'z kartasi). */
+export interface OyinSetCardNoteInput {
+  gno: number;
+  note: string; // bo'sh satr = o'chirish
+  isPublic: boolean;
+}
+export interface OyinSetCardNoteResult {
+  ok: boolean;
+  // ⚠️ "boshqa odamning kartasi" ATAYLAB "not_found" bilan bir xil sabab qaytaradi (maxfiylik:
+  // egaga tegishli bo'lmagan `gno`ning umuman mavjud emasligi bilan bir xil ko'rinsin).
+  reason?: "not_found" | "too_long";
 }
 
 /** Vitrina filtri. Ega: «bir kartalik · ko'p kartalik · kam kartalik · qimmat · arzon ·

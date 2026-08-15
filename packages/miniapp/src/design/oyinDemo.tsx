@@ -141,6 +141,10 @@ function mockCard(gno: number): OyinCardDetail {
     mine, at: "2026-08-08T14:20:00.000Z",
     // Demo'da natija ko'rsatilmaydi (mavsum hali tugamagan) — «O'yinda» holati chiziladi.
     result: null, drawIso: MOCK_STATE.season?.endIso ?? null,
+    // 🗒 K2/K3 QA: o'z kartada bo'sh qayd (tahrir-forma ko'rinishini tekshirish uchun),
+    // boshqa kartada oldindan yozilgan ochiq qayd (ko'rish-holatini tekshirish uchun).
+    note: mine ? null : "BirJoydagi birinchi kartam ❤️",
+    notePublic: !mine,
   };
 }
 
@@ -159,6 +163,11 @@ function installOyinMock(): void {
     if (cardsM) return jsonRes(mockPrizeCards(decodeURIComponent(cardsM[1] ?? "")));
     const cardM = /^\/api\/oyin\/card\/(\d+)$/.exec(path);
     if (cardM) return jsonRes(mockCard(Number(cardM[1])));
+    // 🗒 K2/K3 (2026-08-14) — demo'da HAQIQIY yozilmaydi (backend yo'q), lekin "muvaffaqiyat"
+    // qaytaradi, shunda tahrir-forma UI oqimini sinash mumkin.
+    if (/^\/api\/oyin\/card\/\d+\/note$/.test(path) && init?.method === "POST") {
+      return jsonRes({ ok: true });
+    }
     if (path in MOCK_GET) return jsonRes(MOCK_GET[path]);
     // 🤝 Gashtak boshliq amallari (kick/add/turn/message/rotate/disband) — demo'da HAQIQIY
     // guruh o'zgarmaydi (backend yo'q), lekin tugma "ishladi" deb javob qaytaradi, shunda

@@ -67,6 +67,7 @@ import {
   type OyinPrizeCard,
   type OyinPrizeCardsResponse,
   type OyinSeasonPlan,
+  type OyinSetCardNoteResult,
   type OyinLeaderRow,
   type OyinVitals,
   type OyinDrawCard,
@@ -132,7 +133,16 @@ interface AppStateRow { key: string; value: string }
 // `notifiedLoss` — 2026-08-12: yutmagan kartaga push yuborilgani belgisi. Faqat "lost" uchun
 // (g'olibning o'zi alohida `OyinWinner.notifiedAt` bilan kuzatiladi — u yerda telefon/hash
 // kabi qo'shimcha bayonnoma ma'lumoti bor, shuning uchun ikkalasi bitta maydonga sig'maydi).
-interface TicketRecord { prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string; test?: boolean; result?: "won" | "lost"; notifiedLoss?: boolean }
+interface TicketRecord {
+  prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string; test?: boolean;
+  result?: "won" | "lost"; notifiedLoss?: boolean;
+  // 🗒 2026-08-14 (karta="xotira", K2/K3): egasining ixtiyoriy qaydi. Standart — maxfiy
+  // (`notePublic` yo'q/`false`). Uzunlik CHEKLANADI yozishda (`setCardNote`), o'qishda ham
+  // qayta cheklanadi (buzuq/eski qator himoyasi — parseTickets qoidasi: hech narsa tashlanmaydi).
+  note?: string;
+  notePublic?: boolean;
+}
+const CARD_NOTE_MAX = 140;
 
 // ⚠️ VALIDATSIYA, sof `as` o'girish EMAS. Avval JSON massiv to'g'ridan-to'g'ri `TicketRecord[]`
 // deb e'lon qilinardi — tiplar YOLG'ON edi va bitta buzuq qator butun iqtisodni chalkashtirardi:
@@ -171,6 +181,8 @@ function parseTickets(raw: string | undefined): TicketRecord[] {
         // o'qiladi, mijozga hech qanday soxta natija ko'rsatilmasin.
         ...(t.result === "won" || t.result === "lost" ? { result: t.result } : {}),
         ...(t.notifiedLoss === true ? { notifiedLoss: true as const } : {}),
+        ...(typeof t.note === "string" && t.note.trim() ? { note: t.note.trim().slice(0, CARD_NOTE_MAX) } : {}),
+        ...(t.notePublic === true ? { notePublic: true as const } : {}),
       });
     }
     return out;
@@ -4510,7 +4522,7 @@ export async function adminSetSeasonPlan(input: Partial<OyinSeasonPlan>): Promis
 // Narxi: `oyin:tickets:` prefiksi bo'yicha skan — bugun 854 a'zo, ya'ni arzon. Chegara:
 // ~50 000 kartadan yoki p95 > 300 ms dan keyin alohida jadval kerak bo'ladi (OYIN_KARTA_PLAN §1).
 const PRIZE_CARDS_TTL_MS = 30_000;
-let prizeCardsCache: { at: number; rows: { prizeKey: string; no: number; gno: number | null; memberId: number; ts: string; result?: "won" | "lost" }[] } | null = null;
+let prizeCardsCache: { at: number; rows: { prizeKey: string; no: number; gno: number | null; memberId: number; ts: string; result?: "won" | "lost"; note?: string; notePublic?: boolean }[] } | null = null;
 
 async function allTicketRows(): Promise<NonNullable<typeof prizeCardsCache>["rows"]> {
   if (prizeCardsCache && Date.now() - prizeCardsCache.at < PRIZE_CARDS_TTL_MS) return prizeCardsCache.rows;
@@ -4522,7 +4534,12 @@ async function allTicketRows(): Promise<NonNullable<typeof prizeCardsCache>["row
     for (const t of parseTickets(r.value)) {
       // 🧪 Sinov kartasi panjarada KO'RSATILADI (yashirish «ega o'z tirajida qatnashdi»
       // ayblovini keltiradi), lekin egasi sifatida ochiq «sinov» deb yoziladi.
-      out.push({ prizeKey: t.prizeKey, no: t.no, gno: t.gno ?? null, memberId, ts: t.ts, ...(t.result ? { result: t.result } : {}) });
+      out.push({
+        prizeKey: t.prizeKey, no: t.no, gno: t.gno ?? null, memberId, ts: t.ts,
+        ...(t.result ? { result: t.result } : {}),
+        ...(t.note ? { note: t.note } : {}),
+        ...(t.notePublic ? { notePublic: true as const } : {}),
+      });
     }
   }
   prizeCardsCache = { at: Date.now(), rows: out };
@@ -4583,6 +4600,10 @@ export async function getCardDetail(gno: number, viewerMemberId: number | null):
   if (!r) return null;
   const prize = catalog.find((p) => p.key === r.prizeKey);
   const names = await ownerNames([r.memberId]);
+  const mine = viewerMemberId != null && r.memberId === viewerMemberId;
+  // 🔒 Maxfiylik QARORI shu yerda, klientda EMAS — egasi bo'lmagan tomoshabinga qaydning o'zi
+  // umuman uzatilmaydi (notePublic bo'lmasa), klient "yashirish" bilan shug'ullanmaydi.
+  const noteVisible = mine || r.notePublic === true;
   return {
     gno: r.gno ?? r.no,
     no: r.no,
@@ -4591,9 +4612,27 @@ export async function getCardDetail(gno: number, viewerMemberId: number | null):
     prizeIcon: prize?.icon ?? "🎟",
     photoUrl: prize?.photoUrl ?? null,
     ownerName: names.get(r.memberId) ?? "Mijoz",
-    mine: viewerMemberId != null && r.memberId === viewerMemberId,
+    mine,
     at: r.ts,
     result: r.result ?? null,
     drawIso: season.endIso,
+    note: noteVisible && r.note ? r.note : null,
+    notePublic: r.notePublic === true,
   };
+}
+
+/** 🗒 K2/K3 — egasi o'z kartasiga qisqa qayd yozadi/o'chiradi, maxfiylikni tanlaydi.
+ *  Faqat EGASI — boshqa a'zoning kartasiga yozib bo'lmaydi (`memberId` mos kelishi shart). */
+export async function setCardNote(memberId: number, gno: number, noteRaw: string, isPublic: boolean): Promise<OyinSetCardNoteResult> {
+  const note = (noteRaw || "").trim();
+  if (note.length > CARD_NOTE_MAX) return { ok: false, reason: "too_long" };
+  const key = `oyin:tickets:${memberId}`;
+  const row = await prisma.appState.findUnique({ where: { key } });
+  const tickets = parseTickets(row?.value);
+  const t = tickets.find((x) => (x.gno ?? x.no) === gno);
+  if (!t) return { ok: false, reason: "not_found" };
+  if (note) { t.note = note; t.notePublic = isPublic; } else { delete t.note; delete t.notePublic; }
+  await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
+  prizeCardsCache = null; // darhol ko'rinsin — 30s TTL kutilmaydi
+  return { ok: true };
 }
