@@ -496,8 +496,12 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
                 barobar noldan boshlanadi — lekin kartaga aylantirgan ballingiz kartada
                 saqlanib qoladi. Ball yo'qolmaydi: u yo kartaga aylanadi, yo mavsum bilan
                 yopiladi. Tanlov sizda.</li>
-              <li>Sodiqlik kartalari o'chmaydi — ular ro'yxatda abadiy qoladi, mavsum
-                tugashi ularga ta'sir qilmaydi.</li>
+              {/* 🔴 K9 (OYIN_KARTA_PLAN.md §12.1) — "abadiy" so'zi huquqiy yumshatildi: karta
+                   "mulk" emas, akkauntga BIRIKTIRILGAN yozuv — egasi o'zgarmaydi/qayta berilmaydi,
+                   lekin akkaunt o'chsa arxivlanadi (cheksiz kafolat va'da qilinmaydi). */}
+              <li>Sodiqlik kartasi akkauntingizga biriktirilgan — egasi o'zgartirilmaydi va karta
+                qayta berilmaydi. Mavsum tugashi kartaga ta'sir qilmaydi. Akkaunt o'chirilsa,
+                karta arxivlangan holatda qoladi.</li>
               <li>Bir odam bitta mukofot uchun ko'pi bilan {maxPerPrize} ta karta ola oladi.</li>
             </ul>
           </RuleSec>
@@ -2427,7 +2431,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                             <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">📺</span><span><b>{uzDate(cardData.drawIso)}</b> kuni, Telegram jonli efirida o'ynaydi.</span></div>
                           )}
                           {cardData.result === null && (
-                            <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">🤝</span><span>Endigina olgan bo'lsangiz — qisqa vaqt ichida bekor qilib ballingizni qaytarib olishingiz mumkin (Kartalarim). Undan keyin karta abadiy sizniki bo'lib qoladi.</span></div>
+                            <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">🤝</span><span>Endigina olgan bo'lsangiz — qisqa vaqt ichida bekor qilib ballingizni qaytarib olishingiz mumkin (Kartalarim). Undan keyin karta akkauntingizga biriktiriladi — egasi o'zgartirilmaydi va qayta berilmaydi.</span></div>
                           )}
                           {cardData.result === "won" && (
                             <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">🏆</span><span>Tabriklaymiz — bu karta g'olib chiqdi! Sovrinni olish uchun sizga bog'lanishadi.</span></div>
