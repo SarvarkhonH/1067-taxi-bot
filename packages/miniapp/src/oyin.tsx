@@ -1762,10 +1762,23 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     <>Hozir navbat: <b>{jamoa.jamoa.members.find((m) => m.isNavbatchi)?.name ?? "—"}</b> · gashtak {jamoa.jamoa.ridesThisMonth} safar qildi</>
                   )}
                 </div>
+                {/* 🎨 2026-08-14 (ega audit topgan bo'shliq: xom emoji 👑/🎯/✓/•/🧪 matn ichida,
+                    badge yo'q edi — Jamoam ro'yxatidagi rangli avatar+belgi uslubi bu yerda
+                    hali yo'q edi, ega buni "eskirib qolgan" deb topdi). `avatarClass` — Do'stlarim
+                    ro'yxatida ALLAQACHON ishlatilgan funksiya, shu yerda ham ayni o'sha. */}
                 <div className="oyk-jamoa-list">
                   {jamoa.jamoa.members.map((m) => (
                     <div key={m.memberId} className={`oyk-jamoa-row${m.isNavbatchi ? " is-turn" : ""}`}>
-                      <span className="oyk-jamoa-who">{m.isNavbatchi ? "🎯" : m.hadTurn ? "✓" : "•"} {m.isTest && "🧪 "}{m.name}{m.isTest && <small> (sinov)</small>}{m.isLeader && <span className="oyk-jamoa-crown">👑<small> boshliq</small></span>}</span>
+                      <div className={`oyk-avatar is-sm ${avatarClass(m.memberId)}`}>
+                        {m.name[0] ?? "?"}
+                        {m.isLeader && <span className="oyk-jamoa-crown-dot" aria-hidden="true">👑</span>}
+                      </div>
+                      <span className="oyk-jamoa-who">
+                        {m.name}
+                        {m.isNavbatchi ? <span className="oyk-jamoa-tag is-turn">🎯 navbatda</span>
+                          : m.hadTurn && <span className="oyk-jamoa-tag is-done">✓ navbati o'tdi</span>}
+                        {m.isTest && <span className="oyk-jamoa-tag">🧪 sinov</span>}
+                      </span>
                       <span className="oyk-jamoa-rides">{m.ridesThisMonth} safar · {m.ballEarnedTotal} ball</span>
                       {jamoa.jamoa!.isLeader && !m.isLeader && (
                         <button type="button" className="oyk-jamoa-kick" disabled={jamoaBusy} aria-label={`${m.name}ni chiqarish`} title="Chiqarish" onClick={() => { void doGashtakKick(m.memberId); }}>✕</button>
@@ -1773,11 +1786,12 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     </div>
                   ))}
                 </div>
-                <div className="oyk-jamoa-note">
-                  Boshliq «⚙️ Boshqarish»dan istalgan payt navbatni boshqa a'zoga o'tkaza oladi. Gashtakning
-                  umumiy safarlari navbatchiga ball olib keladi — har safar <b>{jamoa.jamoa.ballPerRide} ball</b>,
-                  oyiga eng ko'pi {jamoa.jamoa.maxBall}.
-                  {jamoa.jamoa.members.length < jamoa.minSize && <> Gashtak {jamoa.minSize} kishidan boshlanadi — yana {jamoa.minSize - jamoa.jamoa.members.length} kishi qo'shilsin.</>}
+                <div className="oyk-cert-teach">
+                  <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">🎯</span><span>Gashtakning umumiy safarlari <b>navbatdagi a'zoga</b> ball olib keladi — har safar <b>{jamoa.jamoa.ballPerRide} ball</b>, oyiga eng ko'pi {jamoa.jamoa.maxBall}.</span></div>
+                  <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">🔁</span><span>Boshliq «⚙️ Boshqarish»dan <b>istalgan payt</b> navbatni boshqa a'zoga o'tkaza oladi.</span></div>
+                  {jamoa.jamoa.members.length < jamoa.minSize && (
+                    <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">👥</span><span>Gashtak {jamoa.minSize} kishidan boshlanadi — yana {jamoa.minSize - jamoa.jamoa.members.length} kishi qo'shilsin.</span></div>
+                  )}
                 </div>
                 <div className="oyk-jamoa-foot">
                   {jamoa.jamoa.isLeader && (
@@ -1934,9 +1948,14 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                             (DIZAYN_QOIDALARI #11). «Mukofot:» bilan balandlik eski holicha. */}
                         <div className="oyk-tkt-when">Mukofot: {uzDate(tickets.drawIso)}{drawTime ? `, ${drawTime}` : ""}</div>
                       </div>
-                      {/* Holat QOTIRILGAN "AKTIV" emas — mukofot kunidan keyin karta aktiv EMAS.
-                          «QATNASHDI» ham o'lchandi — u kengroq bo'lib sana qatorini ikkiga bo'lardi. */}
-                      <span className={`oyk-tkt-badge${ended ? " is-done" : ""}`}>{ended ? "TUGADI" : "KUCHDA"}</span>
+                      {/* ⚠️ 2026-08-14 (ega audit topgan teshik): `result` maydoni 2026-08-12 dan
+                          beri serverdan kelib turardi (`t.result`), lekin bu yerda HECH QACHON
+                          o'qilmasdi — g'olib chiqqan mijoz ham har doim "TUGADI" ko'rardi, karta
+                          detaliga alohida kirmasa bilmasdi. Endi natija ustuvor: karta sahifasidagi
+                          BIR XIL uch holat (o'yinda/yutdi/o'ynadi) shu yerda ham. */}
+                      <span className={`oyk-tkt-badge${t.result === "won" ? " is-won" : t.result === "lost" ? " is-lost" : ended ? " is-done" : ""}`}>
+                        {t.result === "won" ? "🏆 Yutdi" : t.result === "lost" ? "O'ynadi" : ended ? "TUGADI" : "KUCHDA"}
+                      </span>
                     </div>
                     {/* 🎟 2026-08-06 (ega qarori): FAQAT hozircha chegaraga yetmagan (tirajga
                         tayyor EMAS) sovrindan bekor qilish mumkin — ball "abadiy band" bo'lib
@@ -2615,6 +2634,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 {gashtakSheetTab === "ball" && (
                   <div className="oyk-gashtak-block">
                     <div className="oyk-gashtak-label">🎯 Kimga ball yig'amiz</div>
+                    {/* ⚠️ 2026-08-14 (ega audit topgan bo'shliq): tuzilma (chip-tanlov) yaxshi
+                        edi, lekin "bosilsa nima bo'ladi" hech qayerda aytilmagan edi. */}
+                    <div className="oyk-cert-teach">
+                      <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">ℹ️</span><span>Kimni tanlasangiz, <b>shu paytdan e'tiboran</b> gashtakning har safari o'sha a'zoga ball olib keladi. Oldingi navbatchining to'plagan balli o'zida qoladi — yo'qolmaydi.</span></div>
+                    </div>
                     <div className="oyk-chip-row">
                       {jamoa.jamoa.members.map((m) => (
                         <button key={m.memberId} type="button" className={`oyk-chip${gashtakTurnTarget === m.memberId ? " is-active" : ""}`} onClick={() => { haptic(); setGashtakTurnTarget(m.memberId); }}>
@@ -2675,9 +2699,15 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 {gashtakSheetTab === "settings" && (
                   <div className="oyk-gashtak-block">
                     <div className="oyk-gashtak-label">⚙️ Sozlama</div>
-                    <div className="oyk-gashtak-danger">
+                    {/* ⚠️ 2026-08-14 (ega audit topgan bo'shliq): ikkala tugma ham qaytarib
+                        bo'lmaydigan amal, lekin oqibat hech qayerda yozilmagan edi. */}
+                    <div className="oyk-gashtak-danger-row">
                       <button type="button" className="oyk-jamoa-copy is-ghost" disabled={jamoaBusy} onClick={() => { void doGashtakRotate(); }}>🔄 Kodni yangilash</button>
+                      <div className="oyk-gashtak-danger-note">Eski kod/havola darhol ishlamay qoladi — hali qo'shilmagan do'stlaringizga yangisini yuboring.</div>
+                    </div>
+                    <div className="oyk-gashtak-danger-row">
                       <button type="button" className="oyk-jamoa-leave" disabled={jamoaBusy} onClick={() => { void doGashtakDisband(); }}>🗑 Gashtakni tarqatish</button>
+                      <div className="oyk-gashtak-danger-note">Barcha a'zolar chiqariladi. Bu qaytarib bo'lmaydi.</div>
                     </div>
                   </div>
                 )}

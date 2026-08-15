@@ -492,6 +492,8 @@
   background: rgba(31, 157, 85, .12); color: var(--oyk-green); flex-shrink: 0; align-self: flex-start;
 }
 .oyk-tkt-badge.is-done { background: var(--oyk-fill); color: var(--oyk-text-3); }
+.oyk-tkt-badge.is-won { background: var(--oyk-warn); color: #4a3300; }
+.oyk-tkt-badge.is-lost { background: var(--oyk-fill); color: var(--oyk-text-3); }
 /* 🎟 2026-08-06: bekor qilish — endi ANIQ QIZIL X belgi bilan (ega talabi), matn esa to'liq
    qoladi (faqat X icon — nima bosilishi noaniq bo'lardi, DIZAYN_QOIDALARI #14 ruhi). */
 .oyk-tkt-cancel {
@@ -1048,6 +1050,13 @@
 .oyk-jamoa-rides { flex-shrink: 0; color: var(--oyk-text-2); font-variant-numeric: tabular-nums; }
 /* 👑 Boshliq belgisi — ism yonida, kichik. */
 .oyk-jamoa-crown { margin-left: 4px; font-size: 11px; }
+/* 🎨 2026-08-14 — a'zolar ro'yxatiga Do'stlarim'dagi rangli avatar kiritildi (`.oyk-avatar`,
+   `avatarClass()` — funksiya ALLAQACHON bor, faqat bu ekranda ishlatilmagan edi). */
+.oyk-avatar.is-sm { width: 28px; height: 28px; font-size: 11px; position: relative; }
+.oyk-jamoa-crown-dot { position: absolute; top: -6px; right: -4px; font-size: 11px; filter: drop-shadow(0 1px 1px rgba(0,0,0,.3)); }
+.oyk-jamoa-tag { display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; font-size: 9.5px; font-weight: 800; color: var(--oyk-text-2); background: var(--oyk-surface); border-radius: 99px; padding: 2px 8px; }
+.oyk-jamoa-tag.is-turn { color: var(--oyk-accent-deep); }
+.oyk-jamoa-tag.is-done { color: var(--oyk-text-3); }
 /* 👑 Havola + Nusxa — ikkalasi ham teng vaznda, "Havola" birlamchi (ulashish endi asosiy yo'l). */
 .oyk-jamoa-head-acts { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
 /* ✕ Chiqarish — kichik, o'chirilgan holatda ko'zga tashlanmaydi, faqat boshliqqa ko'rinadi. */
@@ -1076,8 +1085,11 @@
   border: 1px solid var(--oyk-line); border-radius: 11px; background: var(--oyk-page);
   color: var(--oyk-text); resize: vertical;
 }
-.oyk-gashtak-danger { display: flex; gap: 8px; margin-top: 16px; }
-.oyk-gashtak-danger .oyk-jamoa-copy, .oyk-gashtak-danger .oyk-jamoa-leave { flex: 1; margin-top: 0; }
+/* 🎨 2026-08-14 (ega audit topgan bo'shliq: "bosilsa nima bo'ladi" hech qayerda aytilmagan
+   edi) — yonma-yon 2 tugma o'rniga har birining o'z oqibat-matni bilan qator. */
+.oyk-gashtak-danger-row { margin-top: 12px; }
+.oyk-gashtak-danger-row .oyk-jamoa-copy, .oyk-gashtak-danger-row .oyk-jamoa-leave { width: 100%; }
+.oyk-gashtak-danger-note { margin-top: 5px; font-size: 10.5px; line-height: 1.45; color: var(--oyk-text-3); }
 
 /* 🧭 Segmentlangan navigatsiya — "⚙️ Boshqarish" varag'i (2026-08-05, "qulayroq interfeys"
    so'ralgach). Admin paneldagi OYIN_SECTIONS bilan bir xil g'oya: bitta vaqtda bitta bo'lim. */
