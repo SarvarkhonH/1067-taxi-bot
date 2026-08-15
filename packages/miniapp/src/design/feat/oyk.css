@@ -321,6 +321,17 @@
 .oyk-fin-row b { color: var(--oyk-accent-deep); font-weight: 900; font-variant-numeric: tabular-nums; }
 .oyk-fin-sub { position: relative; font-size: 12.5px; line-height: 1.5; color: var(--oyk-text-2); margin-top: 12px; }
 
+/* ── 🎁 "Keyingi navbatdagilar" — bosh ekranga kichik oldindan-ko'rish (2026-08-14, ega
+   talabi: "biroz qo'sh, chiroy uchun"). Bosilmaydi — sof dekorativ, Sovg'alar tabiga
+   o'tish pastki tab orqali. */
+.oyk-next { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.oyk-next-lbl { font-size: 11px; font-weight: 800; color: var(--oyk-text-2); }
+.oyk-next-row { display: flex; gap: 8px; }
+.oyk-next-card { flex: 1; min-width: 0; background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 13px; padding: 8px; text-align: center; box-shadow: var(--oyk-shadow); }
+.oyk-next-ic { width: 100%; height: 44px; border-radius: 9px; background: var(--oyk-fill); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 6px; overflow: hidden; }
+.oyk-next-ic img { width: 100%; height: 100%; object-fit: cover; opacity: .85; }
+.oyk-next-nm { font-size: 9.5px; font-weight: 800; line-height: 1.25; color: var(--oyk-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 /* ── 🤝 "Rahmat ayt" kartasi va tugmasi ───────────────────────────────────────────────── */
 /* ⚠️ 2026-08-06 (mustaqil tekshiruv topdi): gold→accent(ko'k) ko'chishda bu ikkalasi
    "quti eski oltin, matn yangi ko'k" holatiga tushib qolgan edi — ICHKI ZIDDIYAT. Bu
@@ -1205,22 +1216,37 @@
 .oyk-sw.is-mine{background:var(--oyk-accent);border-color:var(--oyk-accent)}
 .oyk-cards-msg{font-size:12.5px;color:var(--oyk-text-2);margin-top:10px;line-height:1.5}
 
-/* Karta — sertifikat. Raqam sahifaning qahramoni: u jonli efirda OVOZ CHIQARIB o'qiladi,
-   shuning uchun eng katta, tabular va keng oraliqli. */
-.oyk-cert{border:1px solid var(--oyk-accent);border-radius:14px;padding:16px 12px;text-align:center;
-  background:var(--oyk-surface)}
+/* 🎨 2026-08-14 (ega talabi: "karta juda xunik va kam malumot") — Kartalarim'dagi
+   `.oyk-tkt-stub` bilan BIR XIL vizual til (violet-chipta) qayta ishlatildi, o'zi
+   uchun yangi rang o'ylab topilmadi. Raqam sahifaning qahramoni bo'lib qoladi: jonli
+   efirda OVOZ CHIQARIB o'qiladi, shuning uchun eng katta, tabular va keng oraliqli. */
+.oyk-cert{border-radius:16px;overflow:hidden;background:var(--oyk-surface);
+  box-shadow:var(--oyk-shadow);border:1px solid var(--oyk-line)}
 /* Bo'sh joy — chizilgan chegara: "hali real emas" (haqiqiy karta emas, taklif). */
-.oyk-cert.is-empty{border-style:dashed;background:transparent}
-.oyk-cert-lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--oyk-accent);font-weight:700}
-.oyk-cert-no{font-size:26px;font-weight:800;letter-spacing:.06em;margin:6px 0 4px;
-  font-variant-numeric:tabular-nums;color:var(--oyk-text)}
-.oyk-cert-pz{font-size:13px;color:var(--oyk-text-2)}
-.oyk-cert-st{display:inline-block;margin-top:11px;font-size:11px;font-weight:700;letter-spacing:.08em;
-  text-transform:uppercase;border:1px solid var(--oyk-line);color:var(--oyk-text-2);border-radius:99px;padding:3px 11px}
-.oyk-cert-st.is-won{border-color:var(--oyk-accent);color:var(--oyk-accent)}
+.oyk-cert.is-empty{background:transparent;border-style:dashed;box-shadow:none}
+.oyk-cert-stub{position:relative;padding:17px 16px 18px;color:#fff;text-align:center;
+  background:var(--oyk-violet-grad)}
+.oyk-cert.is-empty .oyk-cert-stub{background:var(--oyk-fill);color:var(--oyk-text-2)}
+.oyk-cert-lbl{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;opacity:.82}
+.oyk-cert-no{font-size:25px;font-weight:900;letter-spacing:.04em;margin:6px 0 5px;
+  font-variant-numeric:tabular-nums}
+.oyk-cert-pz{font-size:13px;font-weight:700;opacity:.95}
+.oyk-cert-st{display:inline-flex;align-items:center;gap:5px;margin-top:11px;font-size:10.5px;font-weight:900;
+  background:rgba(255,255,255,.18);border-radius:99px;padding:5px 12px}
+.oyk-cert.is-empty .oyk-cert-st{background:var(--oyk-surface);box-shadow:var(--oyk-shadow)}
+.oyk-cert-st.is-won{background:var(--oyk-warn);color:#4a3300}
+.oyk-cert-rows{padding:2px 15px 12px}
 .oyk-cert-row{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  border-bottom:1px solid var(--oyk-line);padding:10px 2px;font-size:13px}
+  border-bottom:1px solid var(--oyk-line);padding:9px 0;font-size:12.5px}
+.oyk-cert-row:last-child{border-bottom:0}
 .oyk-cert-row span{color:var(--oyk-text-2)}
+/* 🎟 O'rgatuvchi blok — avval umuman yo'q edi: "bu karta nima beradi / qachon o'ynaydi /
+   keyin nima bo'ladi" savollariga javob shu yerda, karta sahifasining o'zida. */
+.oyk-cert-teach{display:flex;flex-direction:column;gap:9px;background:var(--oyk-fill);
+  border-radius:14px;padding:12px 13px;margin-top:11px}
+.oyk-cert-teach-li{display:flex;gap:9px;font-size:11.5px;line-height:1.5;color:var(--oyk-text-2)}
+.oyk-cert-teach-li b{color:var(--oyk-text)}
+.oyk-cert-teach-em{flex-shrink:0;font-size:14px}
 
 /* ── 📖 O'YIN STORY — 5 mini-vidjet (2026-08-12, `story.css` .st-scene ichida) ─────────────────
    ⚠️ Story oq fonli (`story.css` `.st{background:#fff}`) — bu ATAYLAB, taxiStory bilan bir xil
