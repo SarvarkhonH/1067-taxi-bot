@@ -211,22 +211,51 @@ async function main(): Promise<void> {
 
       if (env.WEBHOOK_URL) {
         const url = `${env.WEBHOOK_URL.replace(/\/$/, "")}${webhookPath}`;
+        const HOOK_OPTS = {
+          drop_pending_updates: true,
+          allowed_updates: ["message", "callback_query", "my_chat_member", "chat_member"],
+        } as const;
+        // 2026-08-16 hodisa: Spaceship DNS oraliq SERVFAIL berdi → 6 tez urinish yomon oynaga
+        // tushib yiqildi va bot ABADIY taslim bo'ldi (ega qo'lda tikladi). Endi tez urinishlar
+        // tugagach ham taslim bo'lmaymiz: fonda har 5 daqiqada tekshirib qayta o'rnatamiz —
+        // DNS oynasi ochilishi bilan webhook O'ZI tiklanadi, restart shart emas.
         void (async () => {
           for (let i = 0; i < RETRIES; i++) {
             try {
-              await bot.api.setWebhook(url, {
-                drop_pending_updates: true,
-                allowed_updates: ["message", "callback_query", "my_chat_member", "chat_member"],
-              });
+              await bot.api.setWebhook(url, HOOK_OPTS);
               console.log(`[bot] webhook set → ${url}`);
               return;
             } catch (e) {
               const msg = e instanceof Error ? e.message : String(e);
               console.error(`[bot] setWebhook failed (${i + 1}/${RETRIES}): ${msg}`);
-              if (i === RETRIES - 1) { await alertFatal("webhook o'rnatishi", msg); return; }
+              if (i === RETRIES - 1) {
+                console.error(`[bot] webhook tez urinishlarda ${RETRIES}× yiqildi — fonga o'tamiz`);
+                const { alertAdmins } = await import("./services/economyService");
+                await alertAdmins(
+                  `⚠️ <b>Bot webhook hali o'rnatilmadi</b> (${RETRIES}× urinish yiqildi): ${msg}\n` +
+                    `Sabab ehtimol DNS. Fonda har 5 daqiqada qayta urinaman — tuzalishi bilan O'ZI tiklanadi (restart shart emas).`,
+                ).catch(() => undefined);
+                break;
+              }
               await backoff(i);
             }
           }
+          // SELF-HEAL: tez urinishlar tugadi, lekin to'xtamaymiz — sekin fonda tiklashda davom.
+          const timer = setInterval(() => {
+            void (async () => {
+              try {
+                const info = await bot.api.getWebhookInfo();
+                if (info.url === url && !info.last_error_message) { clearInterval(timer); return; }
+              } catch { /* getWebhookInfo ham DNS'ga bog'liq — keyingi tsiklda qayta urinamiz */ }
+              try {
+                await bot.api.setWebhook(url, HOOK_OPTS);
+                clearInterval(timer);
+                console.log(`[bot] webhook self-healed → ${url}`);
+                const { alertAdmins } = await import("./services/economyService");
+                await alertAdmins(`✅ <b>Bot webhook o'zini tikladi</b> — DNS oynasi ochildi, xabar qabul qilinmoqda.`).catch(() => undefined);
+              } catch { /* hali yomon oyna — keyingi 5 daqiqada yana */ }
+            })();
+          }, 5 * 60_000);
         })();
       } else {
         void (async () => {
