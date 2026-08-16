@@ -376,8 +376,14 @@
 .oyk-vcard { background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px; box-shadow: var(--oyk-shadow); padding: 14px; display: flex; flex-direction: column; gap: 9px; }
 .oyk-vcard.is-soldout { opacity: .55; }
 /* Afisha: karta tepasi to'liq mahsulot-foto, pastdan qoraytirish bilan nom va narx o'qiladi */
-.oyk-vcard-photo { position: relative; margin: -14px -14px 2px; height: 200px; overflow: hidden; border-radius: 19px 19px 0 0; }
-.oyk-vcard-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.oyk-vcard-photo { position: relative; margin: -14px -14px 2px; height: 200px; overflow: hidden; border-radius: 19px 19px 0 0;
+  background: var(--oyk-fill); }
+/* 🔴 F2 (2026-08-16 audit): avval `cover` edi — Uzum rasmlari turli nisbatda (ko'pi kvadratga
+   yaqin), 200px baland KENG bannerga majburan kesilganda mahsulotning yarmi kesilib ketardi
+   (ega shikoyati: "oversize and only show half"). `contain` — rasm HECH QACHON kesilmaydi,
+   DIZAYN_QOIDALARI #10 ("jismoniy narsa = real rasm") ustuvor; bo'sh chekka `--oyk-fill` bilan
+   to'ldiriladi (yangi rang emas, mavjud token). */
+.oyk-vcard-photo img { width: 100%; height: 100%; object-fit: contain; display: block; }
 /* Rasmsiz sovrin ham AFISHA o'lchamida (rangli fon + katta emoji), kulrang kvadrat EMAS (#10) */
 .oyk-vcard-photo.is-emoji {
   display: flex; align-items: center; justify-content: center;
