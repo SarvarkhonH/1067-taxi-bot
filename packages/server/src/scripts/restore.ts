@@ -6,8 +6,13 @@
 // are BigInt, no hardcoded list to keep in sync).
 //
 // Usage: tsx restore.ts <snapshot.json>
+//   ⚠️ Run with a SUPERUSER DATABASE_URL — the `SET session_replication_role = replica` below
+//   needs superuser. The app role 'birjoy' is NOT one; on the VPS run as postgres, e.g.
+//   `sudo -u postgres env DATABASE_URL=postgres://postgres@localhost:5432/birjoy npx tsx restore.ts …`
 // SAFETY: run this ONLY against an empty/target DB — it does not wipe existing rows first
 // (skipDuplicates:true means it silently skips rows whose PK already exists).
+// After inserting, it re-syncs Postgres sequences (see SEQUENCE FIX) so the restored DB accepts
+// new writes; without that step the first insert into each table collides on the PK.
 import "../env";
 import { readFileSync } from "node:fs";
 import { Prisma, PrismaClient } from "@prisma/client";
@@ -64,6 +69,39 @@ async function main(): Promise<void> {
     },
     { timeout: 10 * 60_000, maxWait: 60_000 },
   );
+
+  // ── SEQUENCE FIX (2026-08-16 audit) — CRITICAL, MUST run after every restore ────────────
+  // createMany above inserts rows with their ORIGINAL autoincrement ids, but Postgres identity
+  // sequences stay at 1. Without this, the FIRST insert into every restored table collides on
+  // the PK (unique_violation) and the recovered DB silently rejects all new writes — i.e. the
+  // disaster-recovery path produces a broken DB exactly when it matters. Re-sync each serial
+  // sequence to MAX(id). Runs OUTSIDE the transaction (data already committed) so one edge case
+  // can't roll back the restore; each setval is guarded so a missing sequence just logs.
+  let seqFixed = 0;
+  for (const model of Prisma.dmmf.datamodel.models) {
+    const idField = model.fields.find(
+      (f) =>
+        f.isId &&
+        f.type === "Int" &&
+        !!f.default &&
+        typeof f.default === "object" &&
+        "name" in f.default &&
+        (f.default as { name?: string }).name === "autoincrement",
+    );
+    if (!idField) continue;
+    const table = model.dbName ?? model.name;
+    const col = idField.dbName ?? idField.name;
+    try {
+      await prisma.$executeRawUnsafe(
+        `SELECT setval(pg_get_serial_sequence('"${table}"', '${col}'), GREATEST((SELECT COALESCE(MAX("${col}"), 0) FROM "${table}"), 1))`,
+      );
+      seqFixed += 1;
+    } catch (e) {
+      console.warn(`  ⚠️  setval skipped for ${table}.${col}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  console.log(`✅ sequences re-synced: ${seqFixed}`);
+
   await prisma.$disconnect();
 }
 

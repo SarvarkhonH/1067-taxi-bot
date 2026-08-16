@@ -30,3 +30,15 @@ _pushHelper.mjs
 PUSH_QILISH.bat
 zaxira-*/
 packages/server/src/scripts/renewSystemRental.ts
+
+# 2026-08-16 audit: prod-irrelevant / sensitive artifacts. A `git add -A` on main auto-deploys,
+# so these must never be sweepable into a commit (financial reports, decompiled client, local sim).
+BIRJOY_*.pdf
+*_HISOBOT_*.pdf
+*_QOLLANMA.pdf
+client-apk-decomp/
+packages/server/src/sim/
+sim-out/
+birjoy_sim.py
+twa.js
+PROMPT_SHABLON.md

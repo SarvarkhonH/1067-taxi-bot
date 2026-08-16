@@ -356,8 +356,19 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.use(express.json({ limit: "6mb" }));
   app.set("etag", "strong"); // T2: shartli so'rovlar uchun ETag (304)
 
-  app.get("/health", (_req, res) => {
-    res.json({ ok: true, mode: env.KAS_MODE, bot: env.hasBot });
+  app.get("/health", async (_req, res) => {
+    // 2026-08-16 audit: was a static 200 that hid Postgres-down / broken-migration from BOTH the
+    // external monitor (health.yml) AND the deploy gate (deploy.sh `curl -sf`). Now a real readiness
+    // probe — a fast SELECT 1 with a 3s timeout. DB unreachable → 503, so the monitor alerts and a
+    // broken release aborts instead of being rubber-stamped. (Liveness alone was the reason the
+    // 2026-08-16 webhook outage stayed invisible to monitoring.)
+    const timeout = new Promise<never>((_, rej) => setTimeout(() => rej(new Error("db probe timeout")), 3000));
+    try {
+      await Promise.race([prisma.$queryRawUnsafe("SELECT 1"), timeout]);
+      res.json({ ok: true, mode: env.KAS_MODE, bot: env.hasBot, db: "up" });
+    } catch (e) {
+      res.status(503).json({ ok: false, mode: env.KAS_MODE, bot: env.hasBot, db: "down", error: e instanceof Error ? e.message : String(e) });
+    }
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {

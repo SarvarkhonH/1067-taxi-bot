@@ -71,6 +71,7 @@ async function main(): Promise<void> {
     missionProgress: () => prisma.missionProgress.findMany(),
     notifyLog: () => prisma.notifyLog.findMany(),
     organization: () => prisma.organization.findMany(),
+    oyinComment: () => prisma.oyinComment.findMany(),
     peakHour: () => prisma.peakHour.findMany(),
     platformLedger: () => prisma.platformLedger.findMany(),
     product: () => prisma.product.findMany(),

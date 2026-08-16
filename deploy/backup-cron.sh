@@ -63,6 +63,14 @@ echo "-- 3/4 rotatsiya (${KEEP_DAYS} kundan eskisi ochiriladi)"
 find "$DIR" -name 'pg-*.dump'       -mtime +$KEEP_DAYS -delete
 find "$DIR" -name 'snapshot-*.json' -mtime +$KEEP_DAYS -delete
 
+# Disk to'lish qo'riqchisi (2026-08-16 audit): to'liq disk Postgres yozuvini JIMGINA buzadi —
+# bot "ishlab" turaveradi, /health 200 qaytaraveradi. Bu box'da swap yo'q va zaxira/build disk yeydi.
+# 85% oshsa nightly alertga qo'shiladi (note_fail ERRORS'ga yozadi, quyida bitta xabar bo'lib ketadi).
+DISK_PCT=$(df --output=pcent / 2>/dev/null | tail -1 | tr -dc '0-9')
+if [ -n "$DISK_PCT" ] && [ "$DISK_PCT" -ge 85 ]; then
+  note_fail "disk / ${DISK_PCT}% to'lgan — tozalash kerak (to'liq disk = Postgres yozuvi buziladi)"
+fi
+
 # ── OFFSITE: shifrlangan nusxa Telegram'ga ──────────────────────────────────
 # Bugungi dump+snapshot bitta tar.gz ga yig'iladi, AES-256 (PBKDF2, 200k iter) bilan
 # shifrlanadi va sendDocument bilan jo'natiladi. Bot ~50MB/fayl chegarasi bor: bundle

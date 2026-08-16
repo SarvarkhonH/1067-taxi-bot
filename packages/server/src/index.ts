@@ -211,49 +211,66 @@ async function main(): Promise<void> {
 
       if (env.WEBHOOK_URL) {
         const url = `${env.WEBHOOK_URL.replace(/\/$/, "")}${webhookPath}`;
-        const HOOK_OPTS = {
-          drop_pending_updates: true,
-          allowed_updates: ["message", "callback_query", "my_chat_member", "chat_member"],
-        } as const;
-        // 2026-08-16 hodisa: Spaceship DNS oraliq SERVFAIL berdi → 6 tez urinish yomon oynaga
-        // tushib yiqildi va bot ABADIY taslim bo'ldi (ega qo'lda tikladi). Endi tez urinishlar
-        // tugagach ham taslim bo'lmaymiz: fonda har 5 daqiqada tekshirib qayta o'rnatamiz —
-        // DNS oynasi ochilishi bilan webhook O'ZI tiklanadi, restart shart emas.
+        const allowed = ["message", "callback_query", "my_chat_member", "chat_member"] as const;
+        const BOOT_OPTS = { drop_pending_updates: true, allowed_updates: allowed } as const;
+        const HEAL_OPTS = { drop_pending_updates: false, allowed_updates: allowed } as const; // mid-run: keep queued msgs
+        // 2026-08-16 hodisa: Spaceship DNS oraliq SERVFAIL berdi. Bot yiqilishining IKKI shakli bor —
+        // (1) boot'da setWebhook yiqilishi, (2) bot SOG'LOM ishlab turганда webhook keyin o'lishi
+        // (o'sha kuni AYNAN shunday bo'ldi). Shuning uchun: boot'da tez o'rnatamiz, SO'NG holatdan
+        // qat'i nazar har 5 daqiqada getWebhookInfo bilan kuzatamiz va nosozlikni O'ZI tuzatadi.
         void (async () => {
+          let bootOk = false;
           for (let i = 0; i < RETRIES; i++) {
             try {
-              await bot.api.setWebhook(url, HOOK_OPTS);
+              await bot.api.setWebhook(url, BOOT_OPTS);
               console.log(`[bot] webhook set → ${url}`);
-              return;
+              bootOk = true;
+              break;
             } catch (e) {
               const msg = e instanceof Error ? e.message : String(e);
               console.error(`[bot] setWebhook failed (${i + 1}/${RETRIES}): ${msg}`);
               if (i === RETRIES - 1) {
-                console.error(`[bot] webhook tez urinishlarda ${RETRIES}× yiqildi — fonga o'tamiz`);
+                console.error(`[bot] webhook tez urinishlarda ${RETRIES}× yiqildi — fon kuzatuviga o'tamiz`);
                 const { alertAdmins } = await import("./services/economyService");
                 await alertAdmins(
                   `⚠️ <b>Bot webhook hali o'rnatilmadi</b> (${RETRIES}× urinish yiqildi): ${msg}\n` +
-                    `Sabab ehtimol DNS. Fonda har 5 daqiqada qayta urinaman — tuzalishi bilan O'ZI tiklanadi (restart shart emas).`,
+                    `Sabab ehtimol DNS. Har 5 daqiqada o'zim kuzatib qayta urinaman — tuzalishi bilan O'ZI tiklanadi (restart shart emas).`,
                 ).catch(() => undefined);
-                break;
+              } else {
+                await backoff(i);
               }
-              await backoff(i);
             }
           }
-          // SELF-HEAL: tez urinishlar tugadi, lekin to'xtamaymiz — sekin fonda tiklashda davom.
-          const timer = setInterval(() => {
+          // ── STEADY-STATE WATCHDOG — HAR DOIM armlanadi (boot muvaffaqiyatidan qat'i nazar), chunki
+          // hodisaning asl shakli mid-run webhook o'limi edi. Faqat nosozlikda harakat qiladi: url
+          // o'zgargan / last_error bor / bo'sh bo'lsa qayta o'rnatadi. Nosozlik→tuzalish o'tishida
+          // BITTADAN alert (spam yo'q). getWebhookInfo'ning o'zi yiqilsa (DNS) — keyingi tsiklga o'tamiz.
+          let lastHealthy = bootOk;
+          setInterval(() => {
             void (async () => {
+              const info = await bot.api.getWebhookInfo().catch(() => null);
+              if (!info) return; // getWebhookInfo yiqildi (DNS?) — yolg'on alert bermaymiz, keyingi tsikl
+              const healthy = info.url === url && !info.last_error_message;
+              if (healthy) {
+                if (!lastHealthy) {
+                  const { alertAdmins } = await import("./services/economyService");
+                  await alertAdmins(`✅ <b>Bot webhook tiklandi</b> — xabar qabul qilinmoqda.`).catch(() => undefined);
+                }
+                lastHealthy = true;
+                return;
+              }
+              const wasHealthy = lastHealthy;
+              lastHealthy = false;
               try {
-                const info = await bot.api.getWebhookInfo();
-                if (info.url === url && !info.last_error_message) { clearInterval(timer); return; }
-              } catch { /* getWebhookInfo ham DNS'ga bog'liq — keyingi tsiklda qayta urinamiz */ }
-              try {
-                await bot.api.setWebhook(url, HOOK_OPTS);
-                clearInterval(timer);
-                console.log(`[bot] webhook self-healed → ${url}`);
-                const { alertAdmins } = await import("./services/economyService");
-                await alertAdmins(`✅ <b>Bot webhook o'zini tikladi</b> — DNS oynasi ochildi, xabar qabul qilinmoqda.`).catch(() => undefined);
+                await bot.api.setWebhook(url, HEAL_OPTS);
+                console.log(`[bot] webhook re-set by watchdog → ${url}`);
               } catch { /* hali yomon oyna — keyingi 5 daqiqada yana */ }
+              if (wasHealthy) {
+                const { alertAdmins } = await import("./services/economyService");
+                await alertAdmins(
+                  `⚠️ <b>Bot webhook nosoz aniqlandi</b> (${info.last_error_message || "bo'sh/o'zgargan url"}) — qayta o'rnatyapman, fonda kuzataman.`,
+                ).catch(() => undefined);
+              }
             })();
           }, 5 * 60_000);
         })();
@@ -335,16 +352,24 @@ async function main(): Promise<void> {
   }, 60_000);
   let periodicBusy = false;
   let reconcileTick = 0;
+  let periodicFails = 0; // 2026-08-16 audit: throttled alert on repeated periodic-tick aborts
   const timer = setInterval(async () => {
     if (periodicBusy) return; // skip if the previous tick is still running
     periodicBusy = true;
     try {
       if (env.KAS_MODE === "live") {
-        const { checked, deltas } = await refreshLinkedMembers();
-        if (deltas.length) console.log(`[refresh] ${checked} users → ${deltas.length} cashback updates`);
-        if (bot) {
-          await notifyCashback(bot, deltas);
-          await notifyNewAchievements(bot);
+        // 2026-08-16 audit: these three were UNGUARDED — a transient DB error here jumped straight to
+        // the outer catch and SKIPPED every job below (payWeeklyPrizes, retryPendingMoney real-money
+        // recovery, backups, self-check…). Isolate them so one failure can't abort the whole tick.
+        try {
+          const { checked, deltas } = await refreshLinkedMembers();
+          if (deltas.length) console.log(`[refresh] ${checked} users → ${deltas.length} cashback updates`);
+          if (bot) {
+            await notifyCashback(bot, deltas);
+            await notifyNewAchievements(bot);
+          }
+        } catch (e) {
+          console.error("[refresh/notify] failed:", e instanceof Error ? e.message : e);
         }
         await payWeeklyPrizes(notifyUser).catch(async (e) => {
           console.error("[weekly] payout failed:", e);
@@ -450,8 +475,20 @@ async function main(): Promise<void> {
         await notifyBadges();
         console.log(`[sync] mock: ${s.membersSeen} members`);
       }
+      periodicFails = 0; // tick completed without throwing — clear the failure streak
     } catch (e) {
       console.error("[periodic] failed:", e instanceof Error ? e.message : e);
+      // 2026-08-16 audit: this catch used to be console-only, so a persistent failure here
+      // (e.g. Postgres down) silently froze ALL background money/backup jobs with no owner signal.
+      // Alert on the 1st failure and then ~every 3h so a sustained outage can't hide.
+      periodicFails += 1;
+      if (periodicFails === 1 || periodicFails % 12 === 0) {
+        const { alertAdmins } = await import("./services/economyService");
+        await alertAdmins(
+          `🛑 <b>Periodic tick yiqildi</b> (${periodicFails}× ket-ket): ${e instanceof Error ? e.message : String(e)}\n` +
+            `Ehtimol DB uzilishi — fon joblar (pul-tiklash, zaxira, self-check) to'xtagan bo'lishi mumkin.`,
+        ).catch(() => undefined);
+      }
     } finally {
       periodicBusy = false;
     }
