@@ -686,6 +686,40 @@ export async function getBall(memberId: number): Promise<number> {
   return map.get(memberId)?.breakdown.ball ?? 0;
 }
 
+/** 🔴 F4 (2026-08-16 audit): safar-yakun xabari uchun o'yin-progress qatori. `bookingNotifier.ts`
+ *  har SAFAR-YAKUNIDA (allaqachon bir martalik hisob-kitob nuqtasi — roll/waitComp shu yerda ham
+ *  qilinadi) chaqiradi, HAR TIKDA emas — qo'shimcha og'irlik yo'q.
+ *
+ *  Standart maqsad TAXMIN QILINMAYDI ("iPhone 17 Pro Max" kabi qattiq kod YO'Q — bu haqiqiy
+ *  pulga bog'liq mahsulot qarori): a'zoning O'Z `goalPrizeKey`i bo'lsa o'sha, bo'lmasa mavjud
+ *  "eng arzon ochiq sovrin" mantig'i (`cheapestOpenPrize`, Dastur tabida allaqachon ishlatiladi).
+ *  Katalog bo'sh/hammasi to'lgan bo'lsa — bo'sh qator (jimgina yo'q, xato emas).
+ *
+ *  Bu ball qanchasi ANIQ SHU safardan kelgani DEB DA'VO QILMAYDI (buni aniq bilish uchun
+ *  computeBallMap'ni ikki marta — safar oldidan va keyin — chaqirish kerak bo'lardi, ortiqcha
+ *  og'irlik) — o'rniga JORIY UMUMIY holat va maqsadgacha qolgan masofa ko'rsatiladi, bu ham
+ *  foydali va HAR DOIM rost. */
+export async function rideFinishBallLine(memberId: number): Promise<string> {
+  try {
+    if (!(await featureOn("oyin"))) return "";
+    const season = await getSeason();
+    if (season.phase !== "active") return "";
+    const goalRow = await prisma.appState.findUnique({ where: { key: `${GOAL_PREFIX}${memberId}` } });
+    const catalog = goalRow ? await getCatalog() : null;
+    const ownGoal = catalog?.find((p) => p.key === goalRow!.value && p.active && p.queued !== true);
+    const target = ownGoal ?? (await cheapestOpenPrize());
+    if (!target) return "";
+    const ball = await getBall(memberId);
+    if (ball >= target.price) {
+      return `\n🎮 Sizda <b>${ball} ball</b> — <b>${target.name}</b> uchun yetarli, 🎟 kartaga aylantiring!`;
+    }
+    return `\n🎮 Sizda <b>${ball} ball</b> — <b>${target.name}</b>ga yana <b>${target.price - ball} ball</b> kerak.`;
+  } catch (e) {
+    console.error("[oyin] rideFinishBallLine:", e);
+    return ""; // best-effort — safar-yakun xabarining asosiy qismini HECH QACHON to'xtatmaydi
+  }
+}
+
 /** 🔥 Haftalik zanjir: kun-ro'yxatidan BUGUNDAN orqaga ketma-ket kunlar soni. Yangi saqlash YO'Q. */
 function streakFrom(days: string[], todayKey: string): number {
   const set = new Set(days);

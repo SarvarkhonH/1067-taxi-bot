@@ -790,6 +790,11 @@ export async function pushBookingUpdates(
         cardSent = true; // marker exists → card already sent on a prior (transient) pass
       }
       if (!cardSent) {
+        // 🎮 F4 (2026-08-16 audit): o'yin-progress qatori — avval bu yerda UMUMAN yo'q edi
+        // (o'yin ball haqida bir harf ham). ENG TEPADA (DIZAYN_QOIDALARI: eng ko'rinadigan
+        // joy), qolgan qatorlar (pastda) O'CHIRILMAYDI — har biri real pul/ball xabari,
+        // olib tashlash "mijozdan mukofotni yashirish" bo'lib qolishi mumkin.
+        const oyinBallLine = await (await import("./oyinService")).rideFinishBallLine(m.id).catch(() => "");
         const tipKb = new InlineKeyboard();
         // 🪙 one-tap "pay the fare with tanga" → reuses the tip transfer (rider's tanga → driver as tanga).
         // Only when BOTH the driver member id AND the fare are known (graceful: no button otherwise).
@@ -817,6 +822,7 @@ export async function pushBookingUpdates(
           chatId,
           "ride_finish",
           "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
+            oyinBallLine +
             fareLine +
             rollLine +
             waitCompLine +
