@@ -287,8 +287,7 @@ export function initTelegram(): void {
   // Stop Telegram's vertical swipe-to-close/minimize from hijacking in-app scrolling — without this,
   // scrolling a long sheet (ORZU, Detallar, bozor) drags the whole Mini App closed ("pasga-tepaga ochib yopib").
   tg.disableVerticalSwipes?.();
-  tg.setHeaderColor?.("#0b0f1a");
-  tg.setBackgroundColor?.("#0b0f1a");
+  syncTelegramTheme();
   syncInsets();
   // Telegram fills the insets slightly AFTER ready() on some clients (same lag as initData) —
   // re-read on every relevant event, plus two cheap catch-up ticks so the first paint is never stale.
@@ -297,6 +296,20 @@ export function initTelegram(): void {
   }
   setTimeout(syncInsets, 300);
   setTimeout(syncInsets, 1200);
+}
+
+// 🎨 Telegram WebView xromini (header + orqa fon) JORIY temaning sahifa rangiga moslaydi.
+// Ilgari qattiq "#0b0f1a" (eski qora tema) edi — light/vibrant temada HTML yuklanishidan OLDIN
+// Telegram aynan shu qorani chizib, har sahifaga kirganda qora flash berardi. Yagona manba —
+// `--gl-page` (tokens.css). CSS hali qo'llanmagan bo'lsa (juda erta chaqiruv) tema→rang xaritasi
+// zaxira sifatida ishlaydi. `applyTheme` (theme.ts) ham buni chaqiradi — tema runtime'da
+// almashtirilganda Telegram xromi ham darhol yangilanadi.
+export function syncTelegramTheme(): void {
+  const theme = document.documentElement.getAttribute("data-theme") || "dark";
+  let color = "";
+  try { color = getComputedStyle(document.documentElement).getPropertyValue("--gl-page").trim(); } catch { /* ignore */ }
+  if (!color) color = ({ dark: "#0A1220", light: "#EEF3F9", vibrant: "#12082A" } as Record<string, string>)[theme] || "#0A1220";
+  try { tg?.setHeaderColor?.(color); tg?.setBackgroundColor?.(color); } catch { /* eski klient metodoni qo'llamaydi — jim */ }
 }
 
 export function haptic(): void {

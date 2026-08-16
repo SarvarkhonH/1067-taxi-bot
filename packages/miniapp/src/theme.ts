@@ -4,7 +4,7 @@
 // zanjir hosil bo'lardi: App → profile → wallet (961 qator) — ya'ni Hamyon va Profil ekranlari
 // hech kim ularni ochmasa ham HAR safar birinchi paint bilan yuklanardi. Endi App faqat shu
 // kichkina faylni oladi; profile.tsx va wallet.tsx lazy chunk'larga chiqdi.
-import { cloudGet, cloudSet } from "./telegram";
+import { cloudGet, cloudSet, syncTelegramTheme } from "./telegram";
 import { tg } from "./telegram";
 
 export const THEME_KEY = "birjoy_theme";
@@ -12,6 +12,9 @@ export const THEMES = ["dark", "light", "vibrant"];
 
 export function applyTheme(t: string): void {
   try { document.documentElement.setAttribute("data-theme", t); } catch { /* SSR-safe */ }
+  // Telegram WebView xromi (header + orqa fon) ham temaga ergashsin — aks holda tema
+  // almashtirilgach ilova ichi yangi rangda, Telegram paneli/orqa foni esa eski qorada qolardi.
+  syncTelegramTheme();
 }
 
 export function initTheme(): void {
