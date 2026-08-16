@@ -746,5 +746,19 @@ tuzatiladi). 5-9 — mustaqil, kichik, xavfsiz UI qo'shimchalar (parallel qilini
 F8'ning matni ham xuddi shu `goalPrizeKey` tushunchasiga tayanadi) — shuning uchun oxirida,
 avvalgilar tugagach.
 
+## 16.1 Holat (2026-08-16, kechqurun) — 9/13 tayyor va deploy qilingan
+
+✅ **1-9 band TO'LIQ:** B2, B1, R1, B3, F6, F1, F3, F5, F2 — hammasi kod yozilgan, typecheck
+toza (4/4 paket), `pnpm --filter @t1067/shared test` 187/187, pul/sig'im-ga tegadigan banlar
+(B1/B2/R1) izolyatsiyalangan test-bazada isbotlangan (2x ketma-ket yashil), UI-banlar
+(F1/F2/F3/F5/F6) brauzerda DOM-darajasida tekshirilgan, HAMMASI commit+push+jonli deploy
+tasdiqlangan (VPS git HEAD + `/health` solishtirilgan har band uchun).
+
+⏳ **Qolgan 3 kod-band (10-12: F7, F4, F8)** — bog'liq, kattaroq ishlar, hali boshlanmagan.
+
+**R2** — kod-tuzatish emasligi sababli alohida turadi, "keyingi qadam" emas — bu SIZGA
+taklif: katalog joriy holda byudjetdan ~255× oshgan, flag yoqilishidan oldin qaysi
+sovrinlarni kamaytirish/navbatga qo'yish kerakligini muhokama qilish kerak.
+
 **Tasdiq so'ramayman — TO'G'RIDAN-TO'G'RI shu tartibda boshlayman**, agar qarshi bo'lmasangiz.
 Har band tugagach qisqa xabar beraman (nima qilindi + isbot), keyingisiga o'taman.
