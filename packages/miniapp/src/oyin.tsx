@@ -952,9 +952,14 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     haptic();
     try {
       const r = await api.referral();
-      const topPrize = [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
-      const text = nudge ?? (topPrize
-        ? `🎁 BirJoy sodiqlik dasturi — bosh mukofot: ${topPrize.name}!\n\nHech narsa to'lamaysan: shunchaki taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot egalari aniqlanadi.\n\nMening havolam bilan kirsang — ikkalamizga ham ball tushadi 🤝`
+      // 🎯 F8 (2026-08-16, ega misoli: "men iPhone 17 olish uchun ball yig'moqdaman —
+      // mening uchun 1067dan foydalan va yutishimga hissa qo'sh"): O'Z maqsadi bo'lsa — SHU
+      // sovrin nomi bilan shaxsiy, birinchi shaxs ohangida. Maqsad tanlanmagan/tugagan bo'lsa
+      // — avvalgi "bosh mukofot" e'lon ohangiga tushiladi (yangi mijozda hali maqsad yo'q).
+      const myPrize = vitrina?.prizes.find((p) => p.key === state?.goalPrizeKey && !p.soldOut)
+        ?? [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
+      const text = nudge ?? (myPrize
+        ? `🎮 Men ${myPrize.name} uchun ball yig'moqdaman — mening havolam bilan BirJoydan foydalan va yutishimga hissa qo'sh!\n\nHech narsa to'lamaysan: shunchaki taksida yur, ball yig', sodiqlik kartasini ol. Mening havolam bilan kirsang — ikkalamizga ham ball tushadi 🤝`
         : "🎁 BirJoy sodiqlik dasturi — taksida yur, ball yig', jonli efirda mukofot egasi bo'l. Mening havolam bilan kirsang, ikkalamizga ham ball tushadi 🤝");
       // `inviteLandingUrl` — landing sahifa OG-kartasi bilan (rasm + sarlavha). Xom bot
       // havolasi ulashilsa Telegram quruq, rasmsiz preview chizadi.
@@ -962,7 +967,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     } catch {
       showToast("Havolani ochib bo'lmadi — birozdan keyin urinib ko'ring");
     }
-  }, [showToast, vitrina]);
+  }, [showToast, vitrina, state]);
 
   // 🚕⏰ "Turtki"/"Uyg'ot" — ANIQ do'stning chatini ochish, tayyor matn bilan (2026-08-06, ega
   // talabi). Username bo'lsa to'g'ridan-to'g'ri o'sha odamning suhbati ochiladi; bo'lmasa (ko'p
@@ -1263,10 +1268,12 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     haptic();
     try {
       const r = await api.referral();
-      const topPrize = [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
+      // 🎯 F8 — xuddi `inviteFriend`dagidek: o'z maqsadi bo'lsa shu sovrin nomi bilan shaxsiy ohang.
+      const myPrize = vitrina?.prizes.find((p) => p.key === state?.goalPrizeKey && !p.soldOut)
+        ?? [...(vitrina?.prizes ?? [])].sort((a, b) => b.price - a.price)[0];
       const link = inviteLandingUrl(r.link);
-      const text = topPrize
-        ? `🎁 BirJoy sodiqlik dasturi — bosh mukofot: ${topPrize.name}!
+      const text = myPrize
+        ? `🎮 Men ${myPrize.name} uchun ball yig'moqdaman — sen ham BirJoydan foydalanib menga hissa qo'sh!
 
 Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot egalari aniqlanadi. Mening havolam bilan kirsang — ikkalamizga ham ball 🤝`
         : "🎁 BirJoy sodiqlik dasturi — taksida yur, ball yig', jonli efirda mukofot egasi bo'l 🤝";
