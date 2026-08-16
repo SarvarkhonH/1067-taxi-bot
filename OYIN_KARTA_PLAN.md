@@ -462,3 +462,19 @@ qo'lda (`prisma migrate diff` → o'qish → `prisma db push`).
 6. Admin `Komentariyalar.tsx` + `Nazorat.tsx` qatori.
 7. D12–D13 (typecheck + test), commit + push (owner tasdig'i bilan, odatdagidek).
 8. D14 — ega QABULI, shundan keyingina "K8 — done".
+
+## 13.8 Holat (2026-08-16) — READY FOR VERIFICATION
+
+Qurilgan va isbotlangan: D1 (VPS'da `prisma migrate diff` o'qildi → faqat `CREATE TABLE`
+`OyinComment` + 2 indeks, boshqa jadvalga tegmagan → `prisma db push` muvaffaqiyatli → o'qish
+so'rovi bilan tasdiqlandi, 0 qator), D11 (yangi CSS blokida `#hex` yo'q — mavjud `.oyk-note-*`
+qatori aynan qayta ishlatilgan), D12 (`pnpm -r typecheck` — 4/4 paket toza, faqat aloqasiz
+oldindan mavjud `sim/config/arms.ts` xatosi qoladi), D13 (`pnpm --filter @t1067/shared test` —
+187/187). Brauzerda (`#oyindemo`, demo mock orqali) yozish→ro'yxatda ko'rinish, o'chirish,
+shikoyat qilish uch oqimi ham sinaldi — hammasi ishladi.
+
+Isbotlanmagan (keyingi qadam ega tomonidan): D2–D10 REAL API orqali (faqat kod-o'qish bilan
+tekshirilgan, avtomatlashtirilgan test yozilmadi — vaqt siqilgani uchun, xohlasa keyinroq
+qo'shiladi), D14 (ega QABULI — jonli Telegram orqali). Push qilindi (`53ada234`), CI
+shield→deploy avtomatik yuguradi; schema OLDINDAN qo'llanilgani uchun deploy "ustun yo'q"
+sababli yiqilmaydi.
