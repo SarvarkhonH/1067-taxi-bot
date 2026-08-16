@@ -502,3 +502,91 @@ to'g'ri so'rov yuborib yoza olar edi — "dark feature" kafolati buzilgan edi. T
 qarori (qachon flag yoqiladi), muhandislik emas.
 
 **Xulosa: K8 — READY FOR VERIFICATION, ega QABULidan tashqari hammasi isbotlangan.**
+
+---
+
+# 14. TOPILGAN KAMCHILIKLAR — TUZATISH TIKETLARI
+
+_2026-08-16 · 6-agentli audit (gashtak/ball/kartalar/admin panel), har topilma mustaqil ikkinchi
+agent tomonidan qayta tekshirilgan (kodni o'zi qayta o'qib, jonli buyruqni o'zi qayta yurgizib) —
+hammasi CONFIRMED. Holat: **rejalashtirilmoqda** — ega qo'shimcha kamchiliklarni qo'shgach,
+birgalikda aniq reja tuziladi, keyin tuzatiladi. Hali kod O'ZGARTIRILMAGAN._
+
+## B1 🔴 — Gashtakda sinov-a'zo real navbatchi bo'lib qolishi (ustuvor — jonli xavf bor)
+
+**Nima buzuq:** `applySetTurn` (`oyinService.ts:3117`) navbatchi qilib belgilanayotgan a'zoning
+haqiqiy (musbat ID) yoki admin qo'shgan sinov (manfiy ID) a'zo ekanini tekshirmaydi. Bundan
+tashqari `adminAddTestMember` (`:3036`) sinov-a'zoni guruhga qo'shganda uni AVTOMATIK navbat
+aylanishiga ham qo'shib qo'yadi (`assignTurn`, izoh: "virtual a'zo ham navbat oladi").
+
+**Nega xavfli:** o'sha oy uchun `creditGashtakLedger` haqiqiy safar ballini sinov-a'zoning
+`GashtakReward` yozuviga yozadi — bu ball hech kimga qaytarib bo'lmaydi.
+
+**Jonli holat (2026-08-16 tekshirildi):** guruh `JHJ7DR`da sinov-a'zolarga 2026-oktabr, noyabr,
+dekabr va 2027-fevral, mart, aprel oylari uchun navbat ALLAQACHON band qilingan. Joriy oy (avgust)
+to'g'ri — real a'zo #6da. Lekin yuqoridagi oylar kelganida, HECH KIM qo'lda tuzatmasa, xato
+avtomatik ishga tushadi.
+
+**Tuzatish yo'nalishi (muhokama uchun, hali qaror emas):** `applySetTurn` + `assignTurn` +
+`navbatchiOf` uch joyda ham "faqat musbat (haqiqiy) ID" qo'riqni qo'shish; ikkala pikker (mijoz va
+admin) sinov-a'zolarni tanlov ro'yxatidan olib tashlashi kerakmi yoki faqat ko'rinib-tanlanmasin
+qilinsinmi — muhokama kerak. **Zudlik bilan:** hozirgi band qilingan kelajak oylarni qo'lda
+tekshirib/tozalash (bu KOD tuzatishidan oldin ham qilinishi mumkin, chunki bu — DATA fix, kod fix
+emas).
+
+## B2 🔴 — Karta bekor qilishda poyga-holati — cheklamdan ortiq sotilish mumkin
+
+**Nima buzuq:** `cancelOwnTicket` (`:1435`), `adminCancelTicket` (`:3721`),
+`adminCancelPrizeTickets` (`:2176`) — uchalasi ham `buyTicket`ning `withMemberLock` qulfisiz
+(`:1661`) bir xil `oyin:tickets:<memberId>` qatorini o'qib-yozadi.
+
+**Isbot:** izolyatsiyalangan test-bazada (app DB'ga tegilmagan) qayta hosil qilindi — bitta
+biletni ikki marta bir vaqtda (`Promise.all`) bekor qilish `sold` sonini 6dan 4ga tushirdi (5
+bo'lishi kerak edi) — ya'ni sovrin o'rni IKKI MARTA bo'shadi. Amalda: mijoz "bekor qilish"ni ikki
+marta bossa (yoki ilova avtomatik qayta urinsa), admin qo'ygan limitdan bir o'rin ortiq sotilishi
+mumkin.
+
+**Tuzatish yo'nalishi:** uchala funksiyani ham `withMemberLock`ga o'rash — `buyTicket` bilan bir
+xil naqsh, qo'shimcha infratuzilma kerak emas.
+
+## B3 🟠 — Admin panel v2: narx-tavsiya vositasi "Ball jadvali" knoblarini sezmaydi
+
+**Nima buzuq:** `Mukofotlar.tsx`dagi `oyinCardPlan`/`oyinSuggestTier` chaqiruvlari (4 joyda: 214,
+299, 408, 686-qatorlar) `oyinRideBall`/`oyinPrizeMultiplier` qiymatlarini uzatmaydi — qattiq
+kodlangan standart (35, 3×) ishlatiladi. Eski (v1, `App.tsx`) panel esa `adminApi.bonusEconomy()`
+orqali jonli qiymatni to'g'ri uzatadi — bu v2 qayta qurishda tushib qolgan regressiya.
+
+**Nega muhim:** `Sozlama.tsx`da bu ikkala knobni o'zgartirsangiz, v2 narx-tavsiya vositasi buni
+SEZMAYDI — narx tavsiyasi eski iqtisodga asoslanib chiqadi. Hozircha "jim" (knoblar hali standart
+qiymatda), lekin birortasini o'zgartirgan zahoti simptom chiqadi.
+
+**Tuzatish yo'nalishi:** `Mukofotlar.tsx`ga `adminApi.bonusEconomy()` chaqiruvini qo'shish, 4 ta
+chaqiruv joyiga uzatish — v1 panelning aynan qilgan ishi.
+
+## R1 🟡 — `adminAdjustBall` chegarasiz — bitta bosish bilan cheksiz ball
+
+**Holat:** bu xavf `OYIN_KARTA_PLAN.md §9`da OLDINDAN yozilgan edi ("shiftsiz — bitta bosish bilan
++75 000 ball"), taklif qilingan tuzatish (≤2× realistik shift + mavsum jami chegarasi +
+`drawExport`da bayroq) hali qilinmagan. Jonli misol: a'zo #26ning mavsum ballining 82% qo'lda
+kiritilgan (`adjustHeavy` xavf-bayrog'i bilan belgilangan), lekin `drawExport` (tirajga
+tayyorlanayotgan ro'yxat) bu xavf-bahosini UMUMAN o'qimaydi — demak og'ir tuzatilgan a'zo
+tirajdan chiqarib tashlanmaydi/bayroqlanmaydi.
+
+**Tuzatish yo'nalishi:** plan §9dagi taklif — shift chegarasi + mavsum-jami chegarasi +
+`drawExport`ga xavf-bayrog'i qo'shish.
+
+## R2 🟡 — Jonli katalog o'z byudjetidan ~255× oshib ketgan, kod hech narsani to'xtatmaydi
+
+**Holat:** `adminBudget` byudjet/katalog nisbatini TO'G'RI hisoblaydi va `overBudget:true`
+qaytaradi, lekin `buyTicket`/`adminUpsertPrize`/`adminSetPrizeActive` — hech biri bu qiymatni
+o'qimaydi. Bu — kod xatosi emas (raqam halol hisoblanadi va ko'rsatiladi), balki jonli-ma'lumot
+tayyorgarlik masalasi: flag bugun yoqilsa, real safar daromadi ko'tara olmaydigan miqdorda sovrin
+va'da qilingan bo'ladi.
+
+**Muhokama kerak:** bu kod-tuzatish emas, balki KATALOG-TOZALASH (qimmat/ortiqcha sovrinlarni
+kamaytirish yoki navbatga qo'yish) — mahsulot qarori.
+
+---
+**Keyingi qadam:** ega qo'shimcha kamchiliklarni qo'shadi → birgalikda muhokama → har tiket uchun
+aniq DoD (qabul mezoni + tekshiruv buyrug'i) yoziladi → TASDIQ → kod yoziladi → agentlar bilan
+qayta tekshiriladi → deploy.
