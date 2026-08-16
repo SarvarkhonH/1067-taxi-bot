@@ -364,6 +364,12 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // chiptasini sotib olishi mumkin edi. Pul xavfi yo'q (seasonClose 500 tanga bilan cheklaydi),
   // lekin tiraj adolati buzilardi — bitta odam butun sovrinni egallab olardi.
   { key: "oyinMaxTicketsPerPrize", label: "⚖️ Bitta odam bitta sovrindan max chipta", def: 3, min: 1, max: 50, step: 1, group: "Koson O'yini" },
+  // 🛡 R1 (2026-08-16 audit): `adminAdjustBall` avval CHEGARASIZ edi — bitta bosish bilan
+  // +75 000 ball (OYIN_KARTA_PLAN.md §9'da oldindan yozilgan xavf). Ikkita mustaqil chegara:
+  // BITTA tuzatish (tasodifiy/xato bosishdan himoya) va MAVSUM JAMI (ko'p kichik tuzatish
+  // yig'ilib ketishidan himoya). Ikkalasi ham admin-tunable knob — qattiq kod EMAS.
+  { key: "oyinAdjustMaxPerAction", label: "🛡 Ball tuzatish — bitta amal maksimumi", def: 3000, min: 1, max: 20000, step: 100, group: "Koson O'yini" },
+  { key: "oyinAdjustMaxPerSeason", label: "🛡 Ball tuzatish — mavsum jami maksimumi (a'zo boshiga)", def: 10000, min: 0, max: 100000, step: 500, group: "Koson O'yini" },
 ];
 // 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
 const TIER_MULT_KNOB: Record<number, string> = {

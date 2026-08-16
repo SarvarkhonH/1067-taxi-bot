@@ -567,6 +567,12 @@ export interface OyinDrawExport {
   // 🛡 Chegaraga yetmagani uchun O'YNALMAYDIGAN sovrinlar. Eksportdan jimgina tushib qolmaydi —
   // nomi, sotilgani va kerakli soni bilan alohida sanaladi (jonli efirda savol berilsa javob bor).
   skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[];
+  // 🛡 R1 (2026-08-16 audit): oldin xavf-bahosi FAQAT `oyinLeaderboard`da ko'rinardi — admin
+  // aynan shu eksport (jonli efirda o'qiladigan HUJJAT)ni ochsa, hech qanday ogohlantirish
+  // ko'rmasdi. Chiqarilmaydi/bloklanmaydi — faqat ochiq ro'yxat, admin jonli chiqishdan oldin
+  // ko'rib chiqishi uchun. `ballWithoutRides`/`cardHoarding`/`adjustHeavy` (referBurst emas —
+  // bu eksport ma'lumotidan hisoblanadi, qo'shimcha so'rov kerak emas).
+  riskyMembers: { memberId: number; name: string; reasons: string[] }[];
 }
 
 // ── 💡 KUNLIK MASLAHAT (ega g'oyasi 2026-08-04: "hintlar doim bo'ladi va ularga foydadek
@@ -827,7 +833,9 @@ export interface OyinBallAdjustInput {
 }
 export interface OyinAdminActionResult {
   ok: boolean;
-  reason?: "not_found" | "bad_input" | "frozen" | "not_ticket";
+  // 🛡 R1 (2026-08-16): "too_large" — bitta tuzatish `oyinAdjustMaxPerAction`dan katta;
+  // "season_cap" — shu mavsumdagi tuzatishlar yig'indisi `oyinAdjustMaxPerSeason`dan oshadi.
+  reason?: "not_found" | "bad_input" | "frozen" | "not_ticket" | "too_large" | "season_cap";
   ball?: number; // yangi balans (ball tuzatishdan keyin)
 }
 /** 🔒 Tiraj muzlatish holati. Muzlatilgach chipta xaridi HAMMA uchun yopiladi (ega ham). */

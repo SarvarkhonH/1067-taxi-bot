@@ -169,12 +169,22 @@ function OdamDrawer({ memberId, onClose, onChanged }: { memberId: number; onClos
   const d = useLoad(() => adminApi.oyinMember(memberId), [memberId]);
   const [busy, setBusy] = useState(false);
 
-  const act = async (fn: () => Promise<{ ok: boolean }>, okMsg: string): Promise<void> => {
+  // 🛡 R1 (2026-08-16): `reason` ixtiyoriy — mavjud chaqiruvchilar buzilmaydi, lekin
+  // `oyinAdjustBall`ning yangi "too_large"/"season_cap" kabi sabablari endi ko'rinadi
+  // ("Bajarilmadi — qayta urinib ko'ring" chalg'itardi — qayta urinish yordam BERMAYDI).
+  const ADJUST_REASON_TEXT: Record<string, string> = {
+    too_large: "Bitta tuzatish chegaradan katta — Sozlama → Ball jadvali'da chegarani ko'ring/oshiring",
+    season_cap: "Bu a'zoga shu mavsumda tuzatishlar jami chegaraga yetdi",
+    bad_input: "Raqam yoki sabab noto'g'ri",
+    frozen: "Tiraj muzlatilgan — tuzatish yopiq",
+    not_found: "Topilmadi",
+  };
+  const act = async (fn: () => Promise<{ ok: boolean; reason?: string }>, okMsg: string): Promise<void> => {
     setBusy(true);
     try {
       const r = await fn();
       if (r.ok) { toast(okMsg, "ok"); d.reload(); onChanged(); }
-      else toast("Bajarilmadi — qayta urinib ko'ring", "bad");
+      else toast(ADJUST_REASON_TEXT[r.reason ?? ""] ?? "Bajarilmadi — qayta urinib ko'ring", "bad");
     } catch (e) {
       toast(e instanceof Error ? e.message : "Xato", "bad");
     } finally { setBusy(false); }

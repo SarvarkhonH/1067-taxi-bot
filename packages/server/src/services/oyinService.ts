@@ -2107,7 +2107,7 @@ export async function drawExport(): Promise<OyinDrawExport> {
     getSoldMap(),
     getBonusEcon(),
   ]);
-  const empty = { generatedAt: new Date().toISOString(), tickets: [], frozenAt: freeze.at, excludedTest: 0, excludedBanned: 0, excludedStaff: 0, skippedPrizes: [] };
+  const empty = { generatedAt: new Date().toISOString(), tickets: [], frozenAt: freeze.at, excludedTest: 0, excludedBanned: 0, excludedStaff: 0, skippedPrizes: [], riskyMembers: [] };
   if (!season.configured) return empty;
 
   // 🛡 TIRAJ QO'RIG'I: chegaraga yetmagan sovrin O'YNALMAYDI. Bu eksportda hal qilinadi, chunki
@@ -2171,7 +2171,33 @@ export async function drawExport(): Promise<OyinDrawExport> {
     });
   });
   tickets.sort((a, b) => a.prizeKey.localeCompare(b.prizeKey) || a.ticketNo - b.ticketNo);
-  return { generatedAt: new Date().toISOString(), tickets, frozenAt: freeze.at, excludedTest, excludedBanned, excludedStaff, skippedPrizes };
+
+  // 🛡 R1 (2026-08-16 audit): xavf-bahosi — FAQAT ogohlantirish, chiqarilmaydi/bloklanmaydi.
+  // `getLeaderboard`dagi bilan BIR XIL `oyinRiskScore`, lekin `maxReferralsInADay` bu yerda
+  // hisoblanmaydi (qo'shimcha so'rov talab qilardi — bu eksport uchun ortiqcha og'irlik), shuning
+  // uchun `referBurst` bayrog'i bu ro'yxatda HECH QACHON chiqmaydi (leaderboard'da chiqadi).
+  const cardsInDrawByMember = new Map<number, Map<string, number>>();
+  for (const t of tickets) {
+    let perPrize = cardsInDrawByMember.get(t.memberId);
+    if (!perPrize) { perPrize = new Map(); cardsInDrawByMember.set(t.memberId, perPrize); }
+    perPrize.set(t.prizeKey, (perPrize.get(t.prizeKey) ?? 0) + 1);
+  }
+  const ballMapD = await computeBallMap();
+  const riskyMembers: { memberId: number; name: string; reasons: string[] }[] = [];
+  for (const [memberId, perPrize] of cardsInDrawByMember) {
+    const row = ballMapD.get(memberId);
+    if (!row) continue;
+    let maxOnOnePrize = 0;
+    for (const n of perPrize.values()) if (n > maxOnOnePrize) maxOnOnePrize = n;
+    const risk = oyinRiskScore({
+      earned: row.breakdown.earned, seasonRides: row.seasonRides, adjust: row.breakdown.adjust,
+      maxCardsOnOnePrize: maxOnOnePrize, maxReferralsInADay: 0,
+    });
+    if (risk.score > 0) riskyMembers.push({ memberId, name: nameByMember.get(memberId) ?? "Mijoz", reasons: risk.reasons });
+  }
+  riskyMembers.sort((a, b) => b.reasons.length - a.reasons.length);
+
+  return { generatedAt: new Date().toISOString(), tickets, frozenAt: freeze.at, excludedTest, excludedBanned, excludedStaff, skippedPrizes, riskyMembers };
 }
 
 /** 🛡 Sovrinning HAMMA chiptasini bekor qilish — ball egalariga qaytadi (jonli hisob:
@@ -3745,10 +3771,22 @@ export async function adminAdjustBall(input: OyinBallAdjustInput): Promise<OyinA
   if (!Number.isFinite(ball) || ball === 0 || !reason) return { ok: false, reason: "bad_input" };
   const memberId = Number(input.memberId);
   if (!Number.isFinite(memberId)) return { ok: false, reason: "bad_input" };
+  // 🛡 R1 (2026-08-16 audit): ikkita mustaqil chegara — OYIN_KARTA_PLAN.md §9'da oldindan
+  // yozilgan xavf ("shiftsiz — bitta bosish bilan +75 000 ball"). Ikkalasi ham admin-tunable
+  // knob (Sozlama.tsx "Ball jadvali"da ko'rinadi/tahrirlanadi), qattiq kod EMAS.
+  const econ = await getBonusEcon();
+  const maxPerAction = econ.oyinAdjustMaxPerAction ?? 3000;
+  if (Math.abs(ball) > maxPerAction) return { ok: false, reason: "too_large" };
   return withMemberLock(memberId, async () => {
     const key = `${ADJ_PREFIX}${memberId}`;
     const row = await prisma.appState.findUnique({ where: { key } });
     const cur = parseAdjust(row?.value);
+    // Mavsum-jami chegara: shu mavsum ICHIDAGI tuzatishlar yig'indisi (eski mavsumlarniki
+    // `computeBallMap`ning o'zi ham qo'shmaydi — `oyinSumInWindow` bilan bir xil oyna).
+    const season = await getSeason();
+    const seasonSoFar = oyinSumInWindow(cur.log, season.startMs ?? -Infinity, Date.now());
+    const maxPerSeason = econ.oyinAdjustMaxPerSeason ?? 10000;
+    if (Math.abs(seasonSoFar + ball) > maxPerSeason) return { ok: false, reason: "season_cap" };
     const log = [...cur.log, { ball, reason, at: new Date().toISOString() }];
     const value = JSON.stringify({ total: cur.total + ball, log });
     await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
