@@ -2345,6 +2345,30 @@ export async function creditGashtakLedger(riderId: number, rideRewardId: number)
     const monthKey = monthKeyOf(new Date());
     const navbatchi = navbatchiOf(j, monthKey);
     if (navbatchi == null) return;
+    // 🔴 B1 (2026-08-16 audit): navbatchi SINOV (virtual, manfiy ID) a'zo bo'lishi mumkin —
+    // bu ATAYLAB ruxsat etilgan (`applySetTurn`/`assignTurn`, `simGuards.ts:157` tomonidan
+    // tekshirilgan, ONGLI qaror — "ikkinchi yo'l yo'q"). Lekin BU YERDA — HAQIQIY safar balli
+    // yozilayotgan joyda — sinov a'zoga yozish ballni ABADIY undirib bo'lmaydigan hisobga
+    // yashiradi (Member/TelegramUser yo'q, hech kim bu GashtakReward'ni hech qachon ko'rmaydi).
+    // Shuning uchun bu holatda ball KREDITLANMAYDI (yo'qolmaydi — shunchaki bu ride uchun hech
+    // kimga yozilmaydi), o'rniga ega guruh+oy uchun BIR MARTA ogohlantiriladi (marker bilan —
+    // keyingi har safar uchun jim qaytadi, spam bo'lmasin) — boshliq navbatni haqiqiy a'zoga
+    // o'tkazishi mumkin, keyingi safardan to'g'ri kishiga tushadi.
+    if (navbatchi < 0) {
+      const alertKey = `oyin:testturn_alert:${j.id}:${monthKey}`;
+      try {
+        await prisma.appState.create({ data: { key: alertKey, value: "1" } });
+        const { alertAdmins } = await import("./economyService");
+        await alertAdmins(
+          `⚠️ <b>Gashtak «${j.name}» ${monthKey} oyi uchun navbatchi SINOV a'zo</b>\n` +
+          `Real safar balli hozircha hech kimga tushmayapti (yo'qolmayapti — shunchaki kutmoqda). ` +
+          `Boshliqqa aytib, «⚙️ Boshqarish → 🎯 Ball»dan navbatni haqiqiy a'zoga o'tkazing.`,
+        ).catch(() => undefined);
+      } catch {
+        // marker allaqachon bor — bu oy uchun ogohlantirish ALLAQACHON ketgan, jim qaytiladi
+      }
+      return;
+    }
     const maxBall = econ.oyinJamoaMaxBall ?? 3600;
     const sofar = await prisma.gashtakReward.aggregate({
       where: { memberId: navbatchi, jamoaId: j.id, monthKey },
