@@ -1042,6 +1042,9 @@ export interface OyinPrizeView {
   // (sotuv to'xtadi), `drawn` = g'olib ALLAQACHON yozilgan (`oyin:winner:<key>` mavjud).
   // To'lgan-lekin-hali-o'ynalmagan sovrin ENG QIZIG'I — arxivga YASHIRILMASLIGI kerak.
   drawn: boolean;
+  // 🔴 F3 (2026-08-16 audit): "N kishi maqsad qilgan" — ijtimoiy isbot. `oyin:goal:<memberId>`
+  // agregatsiyasidan (yangi jadval kerak emas).
+  goalCount: number;
 }
 
 /** 🎟 Mijozning MAVSUM chiptalari. Avval chipta raqami bayram-oynasida bir marta ko'rinib

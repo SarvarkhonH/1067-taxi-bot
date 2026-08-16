@@ -22,10 +22,12 @@ type LoadState = "loading" | "done" | "notfound" | "error";
 export function CardVerifyView({ code }: { code: string }) {
   const [data, setData] = useState<OyinCardVerifyResponse | null>(null);
   const [state, setState] = useState<LoadState>("loading");
+  const [photoErr, setPhotoErr] = useState(false); // F6 — buzuq rasm bo'lsa jimgina yashiriladi
 
   useEffect(() => {
     setState("loading");
     setData(null);
+    setPhotoErr(false);
     api.oyinVerifyCard(code)
       .then((d) => { setData(d); setState("done"); })
       .catch((e: unknown) => {
@@ -52,7 +54,10 @@ export function CardVerifyView({ code }: { code: string }) {
         {data && (
           <div style={{ width: "100%" }}>
             <div className="oyk-cert">
-              <div className="oyk-cert-stub">
+              <div className={`oyk-cert-stub${data.prizePhotoUrl && !photoErr ? " has-photo" : ""}`}>
+                {data.prizePhotoUrl && !photoErr && (
+                  <img className="oyk-cert-stub-img" src={data.prizePhotoUrl} alt="" loading="lazy" onError={() => setPhotoErr(true)} />
+                )}
                 <div className="oyk-cert-lbl">BirJoy karta</div>
                 <div className="oyk-cert-no">{data.code}</div>
                 <div className="oyk-cert-pz">{data.prizeIcon} {data.prizeName}</div>

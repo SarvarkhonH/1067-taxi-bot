@@ -960,7 +960,7 @@ function minSellOf(limit: number, pct: number): number {
 }
 
 export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse> {
-  const [season, catalog, soldMap, ticketsRow, sponsor, econV, winnerKeys] = await Promise.all([
+  const [season, catalog, soldMap, ticketsRow, sponsor, econV, winnerKeys, goalRows] = await Promise.all([
     getSeason(),
     getCatalog(),
     getSoldMap(),
@@ -972,8 +972,14 @@ export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse>
     // «Arxiv» — FAQAT allaqachon O'YNALGAN (g'olib yozilgan) sovrinlar uchun. Bitta so'rov —
     // har sovrinni alohida tekshirish N+1 bo'lardi.
     prisma.appState.findMany({ where: { key: { startsWith: WINNER_PREFIX } }, select: { key: true } }),
+    // 🔴 F3 (2026-08-16 audit): "N kishi maqsad qilgan" — yangi jadval kerak emas, mavjud
+    // `oyin:goal:<memberId>` qatorlarini agregatsiya qilish yetarli (bu tabga har kirishda
+    // qayta hisoblanadi — kesh shart emas, odatda bir necha yuz qator).
+    prisma.appState.findMany({ where: { key: { startsWith: GOAL_PREFIX } }, select: { value: true } }),
   ]);
   const drawnKeys = new Set(winnerKeys.map((r) => r.key.slice(WINNER_PREFIX.length)));
+  const goalCounts = new Map<string, number>();
+  for (const r of goalRows) goalCounts.set(r.value, (goalCounts.get(r.value) ?? 0) + 1);
   const minPct = econV.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
   // `mine` FAQAT joriy mavsum chiptalaridan — aks holda toza-boshlashdan keyin `sold: 0` bo'lgan
   // sovrinda "Sizniki: 3" ko'rinardi (ochiq-oydin yolg'on).
@@ -1006,6 +1012,7 @@ export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse>
         // 🔴 `soldOut` ≠ `drawn` — sold>=limit "o'rinlar tugadi" degani, tiraj (g'olib yozilishi)
         // esa BUTUNLAY BOSHQA hodisa (odatda mavsum oxirida). Arxiv shu maydonga qaraydi.
         drawn: drawnKeys.has(p.key),
+        goalCount: goalCounts.get(p.key) ?? 0,
       };
     });
   return { prizes, sponsor: { name: sponsor.name, photoUrl: sponsor.photoUrl } };

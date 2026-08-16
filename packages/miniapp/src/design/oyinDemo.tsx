@@ -42,12 +42,12 @@ const MOCK_STATE: OyinStateResponse = {
 const MOCK_VITRINA: OyinVitrinaResponse = {
   sponsor: { name: "BirJoy", photoUrl: null },
   prizes: [
-    { key: "p1", icon: "🍳", name: "Nonstick qadoq to'plami", valueLabel: "480 000 so'm", price: 1200, limit: 20, sold: 12, remaining: 8, soldOut: false, mine: 1, chancePct: 5, photoUrl: null, minSell: 10, willDraw: true, drawn: false },
+    { key: "p1", icon: "🍳", name: "Nonstick qadoq to'plami", valueLabel: "480 000 so'm", price: 1200, limit: 20, sold: 12, remaining: 8, soldOut: false, mine: 1, chancePct: 5, photoUrl: null, minSell: 10, willDraw: true, drawn: false, goalCount: 7 },
     // 🔴 QA uchun (2026-08-12): to'lgan-lekin-hali-o'ynalmagan holat — Arxivga TUSHMASLIGI
     // kerak (soldOut:true, drawn:false). Bu ANIQ oldingi bug'ni tekshiradi.
-    { key: "p2", icon: "🎧", name: "Simsiz naushnik", valueLabel: "220 000 so'm", price: 400, limit: 8, sold: 8, remaining: 0, soldOut: true, mine: 0, chancePct: null, photoUrl: null, minSell: 6, willDraw: true, drawn: false },
+    { key: "p2", icon: "🎧", name: "Simsiz naushnik", valueLabel: "220 000 so'm", price: 400, limit: 8, sold: 8, remaining: 0, soldOut: true, mine: 0, chancePct: null, photoUrl: null, minSell: 6, willDraw: true, drawn: false, goalCount: 0 },
     // O'ynalgan (g'olib yozilgan) — FAQAT shu Arxivga tushishi kerak.
-    { key: "p3", icon: "🎁", name: "Konditsioner", valueLabel: "3 200 000 so'm", price: 1000, limit: 10, sold: 10, remaining: 0, soldOut: true, mine: 1, chancePct: 10, photoUrl: null, minSell: 8, willDraw: true, drawn: true },
+    { key: "p3", icon: "🎁", name: "Konditsioner", valueLabel: "3 200 000 so'm", price: 1000, limit: 10, sold: 10, remaining: 0, soldOut: true, mine: 1, chancePct: 10, photoUrl: null, minSell: 8, willDraw: true, drawn: true, goalCount: 2 },
   ],
 };
 

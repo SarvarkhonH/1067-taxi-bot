@@ -131,7 +131,9 @@ export function OyinStory({ hints, cheapestName, cheapestPrice, onClose }: Props
 function body(id: CardId, h: OyinStateResponse["hints"], cheapestName: string | null, cheapestPrice: number | null) {
   switch (id) {
     case "ball":
-      return <>Taksi chaqirasiz — hisobingizga <b>+{h.rideBall} ball</b> tushadi. Ball uchun alohida pul to'lamaysiz, safar narxi o'zgarmaydi. Do'stingiz sizning havolangiz bilan yursa — sizga ham ball.</>;
+      // 🔴 F5 (2026-08-16 audit): "botdan yoki 1067ga qo'ng'iroq qilib" — eng birinchi
+      // o'rgatuvchi kartada, eng ko'p so'raladigan savolga darhol javob.
+      return <>Taksi chaqirasiz (botdan yoki 1067ga qo'ng'iroq qilib) — hisobingizga <b>+{h.rideBall} ball</b> tushadi. Ball uchun alohida pul to'lamaysiz, safar narxi o'zgarmaydi. Do'stingiz sizning havolangiz bilan yursa — sizga ham ball.</>;
     case "karta":
       return <>Ball yetganda kartaga almashtirasiz — panjaradan bo'sh raqamni <b>o'zingiz tanlaysiz</b>. Karta — bitta sovg'a uchun o'ynaydigan joyingiz, <b>«Kartalarim»</b>da doim turadi.</>;
     case "tiraj":

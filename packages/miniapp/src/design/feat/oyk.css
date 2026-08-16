@@ -385,6 +385,12 @@
 }
 .oyk-vcard-photo-emoji { font-size: 76px; line-height: 1; }
 .oyk-vcard-photo-fade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(10, 8, 22, .88)); }
+/* 🔴 F3 (2026-08-16 audit): "N kishi maqsad qilgan" — kichik dumaloq belgi, rasm ustida
+   (ijtimoiy isbot). Fade'dan OLDIN DOM'da turadi — z-index shart emas, keyingi qatlam ustidan
+   avtomatik chiqadi (fade uning ustidan bosilmasin uchun `z-index:1` ham qo'shildi). */
+.oyk-vcard-goal { position: absolute; top: 10px; left: 10px; z-index: 1; display: flex; align-items: center;
+  gap: 3px; background: rgba(10, 8, 22, .55); backdrop-filter: blur(4px); color: #fff;
+  font-size: 10.5px; font-weight: 900; border-radius: 99px; padding: 4px 9px 4px 7px; }
 .oyk-vcard-photo-name {
   position: absolute; left: 14px; right: 96px; bottom: 12px;
   font-size: 19px; font-weight: 900; color: var(--oyk-on); line-height: 1.2;
@@ -1241,6 +1247,15 @@
 .oyk-cert-stub{position:relative;padding:17px 16px 18px;color:#fff;text-align:center;
   background:var(--oyk-violet-grad)}
 .oyk-cert.is-empty .oyk-cert-stub{background:var(--oyk-fill);color:var(--oyk-text-2)}
+/* 🔴 F6 (2026-08-16 audit): server sovrin rasmini yuboradi (`photoUrl`/`prizePhotoUrl`), lekin
+   bu yerda HECH QACHON chizilmasdi — "dizayn dabdala" shikoyatining sababi shu edi. Rasm
+   gradient ORQASIGA qo'yiladi (DIZAYN_QOIDALARI #10: jismoniy narsa = real rasm), gradient esa
+   yarim shaffof qoplama bo'lib qoladi — matn HAR QANDAY rasm ustida ham o'qiladigan bo'lib qoladi. */
+.oyk-cert-stub-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0}
+/* Rasm ustidagi qoplama — `--oyk-violet-grad`ning O'ZI (#6b5bf0/#5b46f0), faqat shaffoflik
+   qo'shilgan (yangi rang YO'Q, mavjud tokendan olingan). */
+.oyk-cert-stub.has-photo{background:linear-gradient(140deg,rgba(107,91,240,.78),rgba(91,70,240,.88))}
+.oyk-cert-stub>*:not(.oyk-cert-stub-img){position:relative;z-index:1}
 .oyk-cert-lbl{font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:900;opacity:.82}
 /* 🔐 2026-08-14: avval xom `gno` (6-7 xona, 25px) edi, endi "KO-XXX-XXX-XXXX" (16 belgi) —
    kichraytirildi, geometriya bilan tekshirilgan. */

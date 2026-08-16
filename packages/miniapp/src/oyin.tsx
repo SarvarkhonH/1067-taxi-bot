@@ -200,7 +200,9 @@ function ballRows(h: OyinStateResponse["hints"]): BallRow[] {
     ["🔥", "3 kun ketma-ket safar", h.streakBall, "har 3 kun ketma-ket yursangiz"],
     ["🤝", "Do'stingizning har safari", h.referRideBall, "cheksiz — u yurgani sari"],
     ["👥", "Do'stingiz raqamini uladi", h.referJoinBall, "har do'st uchun bir marta"],
-    ["🚕", "O'z safaringiz", h.rideBall, "cheksiz"],
+    // 🔴 F5 (2026-08-16 audit): botdan yoki 1067ga qo'ng'iroq qilib — bir xil ball (kas —
+    // ikkala kanal uchun yagona manba). Eng ko'p so'raladigan savol shu qatorda javob topadi.
+    ["🚕", "O'z safaringiz", h.rideBall, "cheksiz — botdan yoki 1067ga qo'ng'iroq qilib"],
     ["📱", "Telefon tasdiqlash", h.phoneBall, "bir marta"],
     ["📤", "Ulashish", h.shareBall, "kuniga bir marta"],
     ["🗓", "Kunlik kirish", h.loginBall, "kuniga bir marta"],
@@ -411,6 +413,12 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
             (7-band) orqali guruh bo'lib yig'ilgan ball. Har manbaning aniq miqdori dastur
             ichida — "Ball yig'ish" varag'ida — ko'rsatiladi va ehtiyojga qarab o'zgarishi
             mumkin.
+            {/* 🔴 F5 (2026-08-16 audit): tekshirildi — ball-berish mexanizmi buyurtma
+                botdan yoki 1067ga qo'ng'iroq qilib yaratilganidan qat'iy nazar bir xil
+                ishlaydi (kas — ikkala kanal uchun yagona manba), lekin bu hech qayerda
+                aytilmagan edi. */}{" "}
+            <b>1067ga qo'ng'iroq qilib taksi chaqirsangiz ham</b> — botdan chaqirgandek xuddi
+            shu ball tushadi, farqi yo'q.
           </RuleSec>
 
           <RuleSec n={6} t="Sodiqlik kartasi nima">
@@ -1617,15 +1625,22 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   <div className="oyk-next">
                     <div className="oyk-next-lbl">Keyingi navbatdagilar</div>
                     <div className="oyk-next-row">
+                      {/* 🔴 F1 (2026-08-16 audit): avval faqat KO'RSATARDI, bosilganda hech
+                          narsa bo'lmasdi. Endi Mukofotlar tabiga o'tkazadi (DIZAYN_QOIDALARI:
+                          yozuv harakat va'da qilsa — tugma; kartaning o'zi ko'rinishi harakat
+                          va'da qiladi). */}
                       {nextUp.map((p) => (
-                        <div key={p.key} className="oyk-next-card">
+                        <button
+                          key={p.key} type="button" className="oyk-next-card"
+                          onClick={() => { haptic(); setTab("vitrina"); }}
+                        >
                           <div className="oyk-next-ic">
                             {p.photoUrl && !badPhoto.has(p.key)
                               ? <img src={p.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(p.key)} />
                               : <span>{p.icon}</span>}
                           </div>
                           <div className="oyk-next-nm">{p.name}</div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1711,6 +1726,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   {showPhoto ? (
                     <div className="oyk-vcard-photo">
                       <img src={p.photoUrl ?? ""} alt="" loading="lazy" onError={() => markBadPhoto(p.key)} />
+                      {/* 🔴 F3 (2026-08-16 audit): ijtimoiy isbot — "N kishi shuni xohlaydi". */}
+                      {p.goalCount > 0 && <div className="oyk-vcard-goal">🎯 {p.goalCount}</div>}
                       <div className="oyk-vcard-photo-fade" />
                       <div className="oyk-vcard-photo-name">{p.name}</div>
                       <div className="oyk-vcard-photo-price">{p.price} <small>ball</small></div>
@@ -1718,6 +1735,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   ) : (
                     <div className="oyk-vcard-photo is-emoji">
                       <span className="oyk-vcard-photo-emoji">{p.icon}</span>
+                      {p.goalCount > 0 && <div className="oyk-vcard-goal">🎯 {p.goalCount}</div>}
                       <div className="oyk-vcard-photo-fade" />
                       <div className="oyk-vcard-photo-name">{p.name}</div>
                       <div className="oyk-vcard-photo-price">{p.price} <small>ball</small></div>
@@ -2450,7 +2468,12 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                             beradi/qachon o'ynaydi/keyin nima" o'rgatuvchi blok — avval umuman
                             yo'q edi. */}
                         <div className="oyk-cert">
-                          <div className="oyk-cert-stub">
+                          <div className={`oyk-cert-stub${cardData.photoUrl && !badPhoto.has(`cert${cardData.gno}`) ? " has-photo" : ""}`}>
+                            {/* 🔴 F6 (2026-08-16 audit): sovrin rasmi serverdan kelardi, lekin
+                                bu yerda HECH QACHON chizilmasdi. */}
+                            {cardData.photoUrl && !badPhoto.has(`cert${cardData.gno}`) && (
+                              <img className="oyk-cert-stub-img" src={cardData.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(`cert${cardData.gno}`)} />
+                            )}
                             <div className="oyk-cert-lbl">BirJoy karta</div>
                             {/* 🔐 K1 (2026-08-14) — ko'rinadigan raqam endi Feistel+Luhn kodi
                                 (`code`), xom `gno` emas. `gno` API yo'llari uchun ICHKI qoladi. */}
