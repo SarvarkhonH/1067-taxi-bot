@@ -674,6 +674,10 @@ export interface OyinJamoaView {
      *  matni — HAMMA a'zoga ko'rinadi (2026-08-05, ega talabi: "hammaga bilinishi kerak").
      *  `null` = hali hech kim belgilamagan, avtomatik navbat ko'rsatiladi. */
     turnNote: string | null;
+    // 🔴 F7 (2026-08-16 audit): navbatchining O'Z maqsad-sovrini (agar tanlagan bo'lsa) —
+    // "bu gashtak nimaga ball yig'yapti" savolini rasm bilan javob beradi. `null` = navbatchi
+    // hali maqsad tanlamagan (standart TAXMIN QILINMAYDI — faqat aniq tanlov ko'rsatiladi).
+    navbatchiGoal: { key: string; name: string; icon: string; photoUrl: string | null } | null;
   } | null;
   minSize: number;
   maxSize: number;

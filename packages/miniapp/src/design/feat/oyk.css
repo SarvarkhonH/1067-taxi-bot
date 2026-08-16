@@ -1054,6 +1054,22 @@
 /* Navbat SIZDA bo'lgan holat — yagona urg'u. Har doim yonib tursa urg'u ma'nosini yo'qotadi. */
 .oyk-jamoa-turn.is-mine { background: var(--oyk-accent-fill); color: var(--oyk-text); }
 .oyk-jamoa-turn b { color: var(--oyk-text); }
+/* 🔴 F7 (2026-08-16 audit): navbatchining maqsad-sovrini — "nimaga yig'yapmiz" savoliga
+   rasm bilan javob. `.oyk-jamoa-turn` bilan bir xil vizual og'irlik (mos keluvchi qator). */
+.oyk-jamoa-goal {
+  width: 100%; margin-top: 8px; padding: 8px 12px 8px 8px; border-radius: 11px; border: 0;
+  background: var(--oyk-fill); display: flex; align-items: center; gap: 9px; cursor: pointer;
+  font-family: inherit; text-align: left;
+}
+.oyk-jamoa-goal:active { transform: scale(.98); }
+.oyk-jamoa-goal-ic {
+  width: 32px; height: 32px; border-radius: 9px; overflow: hidden; flex-shrink: 0;
+  background: var(--oyk-surface); display: flex; align-items: center; justify-content: center; font-size: 16px;
+}
+.oyk-jamoa-goal-ic img { width: 100%; height: 100%; object-fit: contain; }
+.oyk-jamoa-goal-tx { flex: 1; min-width: 0; font-size: 12.5px; color: var(--oyk-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oyk-jamoa-goal-tx b { color: var(--oyk-text); font-weight: 800; }
+.oyk-jamoa-goal-go { color: var(--oyk-text-2); font-size: 15px; flex-shrink: 0; }
 .oyk-jamoa-list { margin-top: 10px; display: flex; flex-direction: column; gap: 1px; }
 .oyk-jamoa-row {
   display: flex; align-items: center; gap: 8px;

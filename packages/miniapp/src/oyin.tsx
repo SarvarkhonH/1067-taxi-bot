@@ -1894,6 +1894,22 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     <>Hozir navbat: <b>{jamoa.jamoa.members.find((m) => m.isNavbatchi)?.name ?? "—"}</b> · gashtak {jamoa.jamoa.ridesThisMonth} safar qildi</>
                   )}
                 </div>
+                {/* 🔴 F7 (2026-08-16 audit): gashtakda sovrin bilan bog'liqlik umuman yo'q edi —
+                    a'zo "biz nimaga yig'yapmiz" javobini bilish uchun Mukofotlar tabiga o'tishi
+                    kerak edi. Navbatchi O'Z maqsadini tanlagan bo'lsa (standart TAXMIN
+                    QILINMAYDI), shu yerda rasmi bilan ko'rinadi — F3'dagi rasm-ko'rsatish
+                    naqshi qayta ishlatiladi. */}
+                {jamoa.jamoa.navbatchiGoal && (
+                  <button type="button" className="oyk-jamoa-goal" onClick={() => { haptic(); setTab("vitrina"); }}>
+                    <span className="oyk-jamoa-goal-ic">
+                      {jamoa.jamoa.navbatchiGoal.photoUrl && !badPhoto.has(`jgoal${jamoa.jamoa.navbatchiGoal.key}`)
+                        ? <img src={jamoa.jamoa.navbatchiGoal.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(`jgoal${jamoa.jamoa!.navbatchiGoal!.key}`)} />
+                        : <span>{jamoa.jamoa.navbatchiGoal.icon}</span>}
+                    </span>
+                    <span className="oyk-jamoa-goal-tx"><b>{jamoa.jamoa.navbatchiGoal.name}</b>ga yig'ilmoqda</span>
+                    <span className="oyk-jamoa-goal-go" aria-hidden="true">›</span>
+                  </button>
+                )}
                 {/* 🎨 2026-08-14 (ega audit topgan bo'shliq: xom emoji 👑/🎯/✓/•/🧪 matn ichida,
                     badge yo'q edi — Jamoam ro'yxatidagi rangli avatar+belgi uslubi bu yerda
                     hali yo'q edi, ega buni "eskirib qolgan" deb topdi). `avatarClass` — Do'stlarim

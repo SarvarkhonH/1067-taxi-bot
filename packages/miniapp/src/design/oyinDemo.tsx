@@ -91,6 +91,8 @@ const MOCK_JAMOA: OyinJamoaView = {
     ridesThisMonth: 34, ballPerRide: 6, navbatchiBall: 204, maxBall: 3600,
     isMine: false, isLeader: true,
     turnNote: "Sardorga karta uchun",
+    // 🔴 F7 — navbatchi (Sardor) o'z maqsadini "Nonstick qadoq to'plami" qilib belgilagan.
+    navbatchiGoal: { key: "p1", name: "Nonstick qadoq to'plami", icon: "🍳", photoUrl: null },
     members: [
       { memberId: 501, name: "Siz", isLeader: true, isNavbatchi: false, hadTurn: true, turnMonth: "2026-06", joinedAt: "2026-06-01T00:00:00.000Z", ridesThisMonth: 9, ridesLifetime: 41, ballEarnedTotal: 1200, isTest: false },
       { memberId: 502, name: "Sardor Aliyev", isLeader: false, isNavbatchi: true, hadTurn: false, turnMonth: "2026-08", joinedAt: "2026-06-14T00:00:00.000Z", ridesThisMonth: 14, ridesLifetime: 30, ballEarnedTotal: 0, isTest: false },

@@ -2774,14 +2774,21 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
   if (!j) return { jamoa: null, ...base };
   const econ = await getBonusEcon();
   const monthKey = monthKeyOf(new Date());
-  const [tus, stats] = await Promise.all([
+  const navbatchi = navbatchiOf(j, monthKey);
+  const [tus, stats, navbatchiGoalRow, catalogForGoal] = await Promise.all([
     prisma.telegramUser.findMany({ where: { memberId: { in: j.members } }, select: { memberId: true, firstName: true, lastName: true, username: true } }),
     jamoaMemberStats(j),
+    // 🔴 F7 — navbatchining O'Z maqsad-sovrini (agar bo'lsa). Sinov (manfiy ID) navbatchida
+    // haqiqiy maqsad bo'lishi mumkin emas (`oyin:goal:` faqat haqiqiy a'zo miniapp orqali
+    // yozadi) — `findUnique` shunchaki topmaydi, alohida qo'riq shart emas.
+    navbatchi != null ? prisma.appState.findUnique({ where: { key: `${GOAL_PREFIX}${navbatchi}` } }) : Promise.resolve(null),
+    navbatchi != null ? getCatalog() : Promise.resolve(null),
   ]);
   const nameBy = new Map<number, string>();
   for (const tu of tus) if (tu.memberId) nameBy.set(tu.memberId, shortName(tu));
-
-  const navbatchi = navbatchiOf(j, monthKey);
+  const navbatchiGoalPrize = navbatchiGoalRow && catalogForGoal
+    ? catalogForGoal.find((p) => p.key === navbatchiGoalRow.value && p.active && p.queued !== true)
+    : undefined;
   // 🟡 S7-10 (nazoratchi 2026-08-04): `hadTurn` `i < turnIdx` bilan hisoblanardi — a'zolik
   // o'zgarishi bilan XATO bo'lardi va o'z navbatini kutayotgan odamga "navbating o'tib
   // bo'lgan" deb ko'rsatardi. Endi yozib qo'yilgan `turns` dan o'qiladi.
@@ -2825,6 +2832,9 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
       // `turnOverrides` bo'lsa o'sha ko'rsatiladi, bo'lmasa `null` (miniapp avtomatik
       // navbat matnini chizadi).
       turnNote: j.turnOverrides[monthKey] ?? null,
+      navbatchiGoal: navbatchiGoalPrize
+        ? { key: navbatchiGoalPrize.key, name: navbatchiGoalPrize.name, icon: navbatchiGoalPrize.icon, photoUrl: navbatchiGoalPrize.photoUrl }
+        : null,
     },
     ...base,
   };
