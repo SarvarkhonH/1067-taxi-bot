@@ -599,19 +599,19 @@ Dastur tabidagi "keyingi navbatdagilar" oldindan ko'rish qatori (bu sessiyada qo
 faqat KO'RSATADI, bosilganda hech narsa qilmaydi. Kerak: bosilsa Mukofotlar tabiga o'tsin (kerak
 bo'lsa o'sha sovringa scroll qilib).
 
-## F2 — Mukofotlar tabida sovrin rasmi noto'g'ri kesiladi (MUHOKAMA kerak)
+## F2 — Mukofotlar tabida sovrin rasmi noto'g'ri kesiladi → QAROR: `contain`
 
-**Tekshirildi:** ikkala joy ham `object-fit: cover` ishlatadi (`oyk.css:216` maqsad-doira 124×124
-kvadrat, `oyk.css:380` Mukofotlar karta 200px baland, KENG karta). **Sabab shu — bir xil rasm
-kvadratga kesilganda markazi to'g'ri chiqadi, keng-past bannerga kesilganda esa Uzum
-rasmining pastki/tepasi kesilib ketishi mumkin** (mahsulot rasmning markazida emas). Bu kod
-xatosi emas, aspekt-nisbat farqidan kelib chiqadigan dizayn muammosi.
+**Sabab:** `.oyk-vcard-photo` (Mukofotlar karta, `oyk.css:379-380`) 200px baland, KENG banner —
+`object-fit: cover`. `.oyk-goalc-img` (maqsad-doira) 124×124 KVADRAT — bir xil `cover`. Bir xil
+manba-rasm kvadratga kesilganda markazi to'g'ri chiqadi, keng-past bannerga kesilganda esa Uzum
+rasmining tepasi/pasti kesilib ketadi (mahsulot rasmning markazida emas).
 
-**MUHOKAMA kerak:** (a) Mukofotlar kartasida ham kvadratroq/kichikroq rasm balandligi qilinsinmi,
-(b) `object-fit: contain` + orqa fon bilan to'ldirilsinmi (rasm butunlay ko'rinadi, lekin
-atrofida bo'sh joy bo'ladi), yoki (c) rasm serverda oldindan qayta o'lchamlansinmi (yangi
-infratuzilma). Bitta aniq misol rasm bilan ko'rsatib bersangiz, tezroq to'g'ri variantni
-tanlayman.
+**Qaror:** `object-fit: contain` (rasm HECH QACHON kesilmaydi, butun mahsulot ko'rinadi) + orqa
+fon `var(--oyk-surface)` (mavjud token, `.oyk-goalc-img` xuddi shunday qiladi — `oyk.css:213`).
+Sabab: DIZAYN_QOIDALARI #10 "jismoniy narsa = real rasm" — mahsulotning yarmi kesilib ketishi bu
+qoidani buzadi, atrofida bo'sh joy qolishi kichikroq muammo. 30 ta turli Uzum-rasm orasida
+qaysi biri markazlashgan, qaysi emasligini oldindan bilib bo'lmaydi — `contain` HAMMASI uchun
+xavfsiz, `cover` esa har birida tasodifiy natija beradi.
 
 ## F3 — «N kishi maqsad qilgan» belgisi sovrin kartasida yo'q
 
@@ -620,19 +620,34 @@ qilib belgilagan" (`setGoalPrize`/`oyin:goal:<memberId>` ma'lumotidan hisoblanad
 kerak emas, mavjud AppState skanidan agregatsiya). Ijtimoiy isbot ("N kishi shuni xohlaydi")
 — xarid qarorini kuchaytiradi.
 
-## F4 — Safar/buyurtma xabarlarida o'yin-progress + standart maqsad (MUHOKAMA kerak)
+## F4 — Safar-yakun xabarida o'yin-progress qatori → QAROR
 
-Talab: taxi chaqirilganda va safar tugaganda, xabarda "siz [maqsad sovrin]ga necha ball
-yig'dingiz" ko'rsatilsin, standart maqsad — **iPhone 17 Pro Max**. Bundan tashqari safar-yakun
-xabaridagi "ortiqcha keraksiz" qatorlar olib tashlansin.
+**Tekshirildi: bu qator HOZIR UMUMAN YO'Q** — `bookingNotifier.ts`ning safar-yakun xabarida
+(`ride_finish`, ~819-827 qator) yo'l haqi/tasodifiy cashback/kutish-kompensatsiya/ETA-taxmin/
+streak/quest-eslatma bor, lekin O'YIN BALL haqida BIR HARF ham yo'q. Bu — matn-tozalash emas,
+HAQIQIY YETISHMOVCHILIK.
 
-**⚠️ Tekshirildi: katalogda "iPhone 17 Pro Max" YO'Q** (`shared/oyin.ts` seed'ida faqat
-`uzum-iphone-12-4` bor). Standart maqsad qilish uchun avval bu sovrinni katalogga QO'SHISH kerak
-— narx/limit/rasm bilan (admin panelda). **MUHOKAMA kerak:** (a) narx qancha bo'lsin (haqiqiy
-Uzum narxidan hisoblanadimi), (b) nechta karta/limit, (c) rasm manbai, (d) safar-yakun xabaridagi
-qaysi aniq qatorlar "keraksiz" deb hisoblanadi — hozir u yerda: yo'l haqi, tasodifiy cashback,
-kutish kompensatsiyasi, ETA-taxmin natijasi, streak, quest-yutuqlari kabi bir nechta qator bor;
-qaysilari qoladi, qaysilari olib tashlanadi — aniq ro'yxat kerak.
+**Qaror — "iPhone 17 Pro Max" QATTIQ KODLANMAYDI.** Katalogda bunday sovrin yo'q
+(`shared/oyin.ts` seedida faqat `uzum-iphone-12-4` bor) va narx/limit/rasmni O'ZIM
+o'ylab topib qo'yishim — real pulga bog'liq mahsulot qarori, kod qarori emas (ayniqsa R2
+allaqachon katalog byudjetdan 255× oshib ketganini ko'rsatgan holda — yana bitta qimmat
+telefon qo'shish buni battarroq qiladi). Buning o'rniga: standart-maqsad MEXANIZMI qurilib,
+mavjud "arzon/eng issiq sovrin" mantig'idan (`cheapestOpenPrize`, Dastur tabida allaqachon
+ishlatiladi) foydalanadi — a'zo o'z maqsadini tanlagan bo'lsa o'shani, tanlamagan bo'lsa
+shu standart mantiqni ko'rsatadi. **Siz "iPhone 17 Pro Max"ni admin panel orqali (allaqachon
+to'liq ishlaydi — audit tasdiqladi) katalogga real narx bilan qo'shsangiz, mexanizm avtomatik
+o'shani ko'rsata boshlaydi** — kod o'zgarishi shart emas.
+
+**Qaror — hech qanday mavjud qator OLIB TASHLANMAYDI.** Har bir qator (yo'l haqi, cashback,
+kutish-kompensatsiya, ETA-yutuq, streak, quest) — REAL pul/ballni bildiruvchi xabar. Buni olib
+tashlash "mijozdan mukofotni yashirish" bo'lib qolishi mumkin — DIZAYN_QOIDALARI'ning "bo'sh
+va'da bermaslik"/shaffoflik ruhiga zid. **O'rniga:** yangi 🎮 qator ENG TEPAGA (salomlashuvdan
+keyin, birinchi) qo'shiladi — xabarning eng ko'rinadigan joyi shu bilan bandi, qolgan qatorlar
+o'z joyida qoladi. Agar tajribada haqiqatan uzun/ko'p ko'rinsa, keyinroq alohida qaror bilan
+qisqartiramiz — hozir taxmin bilan pul-xabarini o'chirib qo'ymayman.
+
+**Texnik izoh:** ball-progress hisoblash safar-YAKUN paytida (allaqachon boshqa bir martalik
+hisob-kitoblar — roll/waitComp shu yerda qilinadi, yangi og'irlik qo'shmaydi), HAR TIKDA emas.
 
 ## F5 — «1067ga telefon qilib chaqirish ham bir xil ball beradi» — TASDIQLANDI: bu FAQAT matn masalasi, funksiya buzuq EMAS
 
@@ -653,29 +668,83 @@ matn (belgi, raqam, sovrin nomi+emoji, holat). Ma'lumot bor, faqat ko'rsatilmaga
 tekshiruv-sahifasidagi kabi — `CardVerifyView.tsx`da HAM xuddi shu maydon bor va HAM
 ishlatilmagan, ikkalasi birga tuzatilishi kerak).
 
-## F7 — Gashtak bo'limi hali eski dizaynda
+## F7 — Gashtak bo'limi → QAROR: aniq, kichik qo'shimcha (kodni qayta o'qidim, "dabdala" joyni topa olmadim)
 
-Kartalarim/karta-tafsilot bu sessiyada premium dizaynga o'tkazildi (`.oyk-cert-*`,
-`.oyk-jamoa-tag*` kabi), lekin Gashtak varag'ining qolgan qismi (a'zolar ro'yxati, boshqarish
-paneli) hali eski uslubda qolgan joylari bor. Kattaroq dizayn-tozalash ishi — alohida
-ko'rib chiqish kerak (skrinshot/misol bilan "qayerlari dabdala" ko'rsatib bersangiz aniqroq
-reja tuzaman).
+**Tekshirildi to'liq:** Jamoam tabi (a'zolar ro'yxati) VA "⚙️ Boshqarish" varag'i — ikkalasi ham
+2026-08-14'da ALLAQACHON `.oyk-cert-teach`, rangli avatarlar (`avatarClass`), `.oyk-jamoa-tag*`,
+`.oyk-gashtak-danger-row/note` bilan yangilangan (kodda sana bilan izohlangan). Men bu ikkitasida
+yana "eski uslub" element topa olmadim — ehtimol jonli ilovada boshqacha ko'rinayotgandir yoki
+men tushunmagan aniq joy bor.
 
-## F8 — Do'stga taklif matni + rasm (MUHOKAMA kerak: yangi rasm — asset kerak)
+**Shuning uchun taxminiy "qayta dizayn" QILMAYMAN** (buni noto'g'ri joyga sarflash xavfi bor) —
+o'rniga aniq, asosli KAMCHILIK topdim: **gashtak sahifasida sovrin bilan bog'liqlik umuman
+YO'Q** — a'zo Jamoam tabida turib "biz nimaga ball yig'yapmiz" savolining javobini (sovrin rasmi/
+nomi) ko'rmaydi, buni bilish uchun Mukofotlar tabiga o'tishi kerak. **Qaror:** navbatchi
+a'zoning `goalPrizeKey`i bo'lsa, Jamoam tabi tepasida kichik sovrin-rasmli chip qo'shiladi
+("🎯 [Rasm] [Sovrin nomi]ga yig'ilmoqda") — F3'dagi rasm-ko'rsatish naqshi qayta ishlatiladi,
+yangi uslub o'ylab topilmaydi. Bu — aniq, kodlashga tayyor.
 
-Taklif qilingan matn namunasi: *"Men [sovrin nomi]ni yutish uchun ball yig'moqdaman — 1067dan
-foydalaning va yutishimga hissangizni qo'shing!"* — qisqa, aniq maqsadga bog'langan, hozirgi
-matndan farqli (hozirgi umumiy "BirJoy bilan yuring" matni). **MUHOKAMA kerak:** (a) matn
-foydalanuvchining O'Z tanlagan maqsad-sovriniga (`goalPrizeKey`) moslashtirilib avtomatik
-yasalsinmi, (b) "yangi rasm" — buni SIZ tayyorlaysizmi (fayl/dizayn) yoki mendan avtomatik
-generatsiya (sovrin rasmi ustiga matn qo'yilgan kartochka) kerakmi.
+**Agar hali ham biror joy "dabdala" ko'rinsa** — skrinshot bilan ko'rsating, men uni ALOHIDA,
+aniq tiket qilib qo'shaman (taxmin qilib umumiy "qayta dizayn" qilishdan ko'ra shu ancha to'g'ri).
+
+## F8 — Do'stga taklif matni + rasm → QAROR
+
+**Tekshirildi:** hozirgi matn (`oyin.tsx:948-950`, `inviteFriend`) — umumiy, uchinchi shaxsda
+("BirJoy sodiqlik dasturi — bosh mukofot: X!"), eng qimmat sovringa ("topPrize") bog'langan, HAR
+DOIM bir xil — a'zoning o'z maqsadiga (`goalPrizeKey`) bog'lanmagan.
+
+**Qaror — matn:** birinchi shaxsga o'tkaziladi, a'zoning O'Z `goalPrizeKey`iga bog'lanadi
+(tanlamagan bo'lsa — hozirgi `topPrize` orqaga qaytish sifatida qoladi): *"Men [sovrin]ni yutish
+uchun ball yig'moqdaman — 1067dan foydalaning va yutishimga hissangizni qo'shing! 🤝"*
+
+**Qaror — rasm:** "yangi rasm" ikki darajada mumkin:
+1. **Hozir qurish mumkin (yangi asset kerak emas):** `/j/` OG-taklif-sahifasi hozir STATIK
+   ("Sodiqlik kartasi" umumiy poster, `telegram.ts:493-500`, v5). Buni `?prize=<key>` parametri
+   bilan kengaytirib, sahifa o'sha SOVRINNING O'Z RASMINI (`photoUrl`, katalogda allaqachon bor)
+   `og:image` qilib ko'rsatishini qurish mumkin — do'st havolani ochganda ANIQ o'sha telefon/
+   noutbuk rasmini ko'radi, umumiy poster emas. Bu — mavjud ma'lumotdan, yangi dizayn-fayl
+   kerak emas.
+2. **Alohida, kattaroq ish:** professional bezatilgan poster (matn+brend ustiga qo'yilgan) —
+   bu haqiqiy dizayn-asset, men ishonchli avtomatik yasay olmayman. Agar buni xohlasangiz,
+   alohida so'rov sifatida ko'rib chiqamiz (Canva-uslubidagi vosita bilan yoki tashqi dizaynerdan).
+
+**Bajaraman:** matn + variant-1 (dinamik sovrin-rasmli OG karta). Variant-2 — agar alohida
+xohlasangiz keyinroq.
 
 ---
-**Xulosa:** F1, F3, F5, F6 — aniq, kodga tayyor (qaror kerak emas). F2, F4, F7, F8 — dizayn/
-mahsulot qarori kerak, yuqorida aniq savollar bilan belgilandi. Javob bering — shulardan keyin
-B1-B3/R1-R2 bilan birga TO'LIQ ijro reja va tartib tuzamiz.
 
----
-**Keyingi qadam:** ega qo'shimcha kamchiliklarni qo'shadi → birgalikda muhokama → har tiket uchun
-aniq DoD (qabul mezoni + tekshiruv buyrug'i) yoziladi → TASDIQ → kod yoziladi → agentlar bilan
-qayta tekshiriladi → deploy.
+# 16. TO'LIQ IJRO REJASI — tartib va DoD
+
+_Barcha 13 tiket (B1-B3, R1-R2, F1-F8) endi ANIQ qaror bilan. Kod hali yozilmagan. Quyidagi
+tartibda: avval pul/sig'im-integriteti (B/R), keyin mustaqil kichik qo'shimchalar (F), oxirida
+o'zaro bog'liq kattaroq ishlar._
+
+| # | Tiket | Nima qilinadi | Xavf darajasi | Tekshiruv |
+|---|---|---|---|---|
+| 1 | B2 | `cancelOwnTicket`/`adminCancelTicket`/`adminCancelPrizeTickets` → `withMemberLock`ga o'raladi | 🔴 sig'im-integriteti | Izolyatsiyalangan test-bazada bekor-poyga qayta hosil qilingan holat endi YUZ BERMASLIGINI isbotlash (avvalgi skript qayta ishlatiladi) |
+| 2 | B1 | `applySetTurn`/`assignTurn`/`navbatchiOf` — faqat musbat (haqiqiy) a'zo navbatchi bo'la oladi qo'rig'i + JHJ7DR guruhidagi band qilingan kelajak-oy sinov-yozuvlarini tozalash (data-fix) | 🔴 jonli xavf | Kod: sinov-a'zoni navbatchi qilishga urinish rad etilishini test-bazada isbotlash. Data: jonli guruhda kelajak oylar endi faqat haqiqiy a'zolarga ishora qilishini tekshirish |
+| 3 | R1 | `adminAdjustBall`ga shift-chegara (≤2× realistik) + mavsum-jami chegara qo'shiladi; `drawExport`ga xavf-bayrog'i (`oyinRiskScore`) qo'shiladi | 🟡 | Chegaradan oshgan urinish rad etilishi; xavf-bayrog'i bor a'zo `drawExport` chiqishida ko'rinishi |
+| 4 | B3 | `Mukofotlar.tsx`ning 4 ta `oyinCardPlan`/`oyinSuggestTier` chaqiruviga `adminApi.bonusEconomy()`dan `rideBall`/`multiplier` uzatiladi | 🟡 admin tooling | Sozlama.tsx'da knobni o'zgartirib, narx-tavsiya o'zgarishini ko'rish |
+| 5 | F6 | `.oyk-cert-stub` + `CardVerifyView.tsx` — `photoUrl`/`prizePhotoUrl` bo'lsa rasm qo'shiladi | ⚪ | Brauzerda (`#oyindemo`) karta ochib rasm ko'rinishini tekshirish |
+| 6 | F1 | «Keyingi navbatdagilar» qatori bosilganda `setTab("vitrina")` | ⚪ | Brauzerda bosib tekshirish |
+| 7 | F3 | Sovrin kartasida "N kishi maqsad qilgan" kichik belgi (`oyin:goal:` skanidan agregatsiya, kesh bilan — har karta-ro'yxat so'rovida qayta hisoblanmasin) | ⚪ | Live: bir nechta a'zo turli sovrinni maqsad qilib, son to'g'ri chiqishini tekshirish |
+| 8 | F5 | "1067ga qo'ng'iroq qilib ham ball olasiz" matni — onboarding story, Ball-yig'ish varag'i, Dastur qoidalari §5ga qo'shiladi | ⚪ | Brauzerda uch joyda ham matn borligini tekshirish |
+| 9 | F2 | `.oyk-vcard-photo img` → `object-fit: contain` + `background: var(--oyk-surface)` | ⚪ | Brauzerda turli o'lchamdagi rasmlar bilan tekshirish (kesilish yo'qligi) |
+| 10 | F7 | Jamoam tabiga navbatchining `goalPrizeKey` rasmli chipi qo'shiladi | ⚪ | Live/demo: maqsad belgilangan a'zo bilan tekshirish |
+| 11 | F4 | Safar-yakun xabariga 🎮 ball-progress qatori (standart-maqsad mantig'i bilan) | 🟡 push-matn, ehtiyot kerak | Demo: turli holatlar (maqsad bor/yo'q, ball yetarli/yetarsiz) uchun matnni ko'rish; jonli — flag yoqilgach ega o'zi safar qilib tekshiradi |
+| 12 | F8 | `inviteFriend` matni shaxsiylashtiriladi; `/j/` OG-sahifasi `?prize=`ni qo'llab-quvvatlaydi | ⚪ | Havolani ochib, Telegram preview-kartasida to'g'ri sovrin-rasmi chiqishini tekshirish |
+| — | R2 | Kod-tuzatish EMAS — sizga alohida "katalog 255× byudjetdan oshgan, qaysi sovrinlarni kamaytiramiz/navbatga qo'yamiz" muhokamasi taklif qilaman, flag yoqilishidan OLDIN | — | — |
+
+**Umumiy DoD har band uchun:** `pnpm -r typecheck` toza + `pnpm --filter @t1067/shared test`
+187/187 (yoki band shared-testga tegsa +N) + brauzer/demo tekshiruvi (skrinshot) + (pul/sig'im-
+ga tegadigan banlar uchun, ya'ni B1/B2/R1) izolyatsiyalangan test-baza skripti + jonli deploy
+tasdig'i (commit+CI+VPS holat solishtiruvi, bu sessiyada K7/K8'da ishlatilgan naqsh).
+
+**Ketma-ketlik sababi:** 1-4 — pul/sig'im/admin-tooling integriteti (eng yuqori xavf, eng tez
+tuzatiladi). 5-9 — mustaqil, kichik, xavfsiz UI qo'shimchalar (parallel qilinishi mumkin). 10-12
+— bir-biriga bog'liq (F7 F3'ning rasm-naqshini, F4 standart-maqsad mantig'ini qayta ishlatadi,
+F8'ning matni ham xuddi shu `goalPrizeKey` tushunchasiga tayanadi) — shuning uchun oxirida,
+avvalgilar tugagach.
+
+**Tasdiq so'ramayman — TO'G'RIDAN-TO'G'RI shu tartibda boshlayman**, agar qarshi bo'lmasangiz.
+Har band tugagach qisqa xabar beraman (nima qilindi + isbot), keyingisiga o'taman.
