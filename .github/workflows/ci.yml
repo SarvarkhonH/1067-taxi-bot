@@ -1,12 +1,13 @@
 name: CI shield
 
-# T8 shield — the merge gate. Three checks that need NO secrets and NO live DB, so
-# they run safely on every push/PR and block on regression:
+# T8 shield — the merge gate + release builder. Runs with NO secrets and NO live DB:
 #   1. typecheck every package (catches type/contract breaks)
-#   2. vitest money-math unit suite (pure clamp/knob/booking helpers in @t1067/shared)
-#   3. the Monte-Carlo economy sim (proves the ≤350/ride BUZILMAS rule still holds)
-# The DB-integration E2E (testE2E.ts) hits live Neon + writes TAG'd rows, so it is
-# run locally / pre-release (see packages/server/src/scripts/testE2E.ts), NOT here.
+#   2. vitest money-math unit suite (@t1067/shared)
+#   3. Monte-Carlo economy/loyalty/guards sims (≤350/ride BUZILMAS rule holds)
+#   4. (2026-08-16 audit) BUILD both frontends here — a build-breaking change now fails the GATE
+#      instead of surfacing mid-deploy on the prod box. The built dist is shipped to the VPS as an
+#      artifact so the swapless VPS never runs the memory-heavy Vite build (was an OOM risk).
+# The DB-integration E2E hits a live DB and is run pre-release, NOT here.
 
 on:
   push:
@@ -43,40 +44,61 @@ jobs:
       - name: Economy invariant — Monte-Carlo sim (≤350/ride, no DB)
         run: pnpm --filter @t1067/server exec tsx src/scripts/simEconomy.ts
 
-      # 🎁 Sodiqlik dasturi iqtisodi. `simEconomy.ts` da `oyin` so'zi UMUMAN yo'q — ya'ni u
-      # yashil bo'lishi ball/mukofot o'zgarishi haqida HECH NARSA demasdi (nazoratchi agent
-      # 2026-08-04 topdi). Bu sinov m=3 kafolatini, NaN/Infinity qo'riqlarini va bepul yo'l
-      # chegarasini tekshiradi. DB kerak emas.
       - name: Loyalty invariant — m=3 kafolati + chekka qiymatlar (no DB)
         run: pnpm --filter @t1067/server exec tsx src/scripts/simLoyalty.ts
 
-      # 🛡 Nazoratchi qo'riqlari. `simFullGame.ts` ball formulasining QAYTA YOZILGAN nusxasini
-      # sinardi — shuning uchun 2026-08-04 dagi 18 ta topilmaning BIRORTASINI ushlamadi.
-      # Bu sinov faqat MODULDAN IMPORT QILINGAN qiymatlarni tekshiradi (nusxa yo'q):
-      # arxiv ro'yxati ball manbaini kuydirmasligi · narx→daraja moslashuvi · jamoa balli
-      # navbat saqlanmagunga qadar 0 ekani. Kod o'zgarsa sinov ham o'zgaradi.
       - name: Qo'riqlar — arxiv/daraja/jamoa, haqiqiy kodga qarshi (no DB)
         run: pnpm --filter @t1067/server exec tsx src/scripts/simGuards.ts
 
-  # CI-gated deploy (2026-07-21 incident): a red shield must block the release —
-  # previously a push with a missing file deployed anyway and the bot crash-looped.
-  # 2026-07-25: target moved from Render to the Contabo VPS. deploy.sh pulls, builds
-  # the frontends, restarts bot1067 and health-checks; it exits non-zero on failure,
-  # so a bad release fails THIS job — visible in GitHub, not silent on the server.
+      # 🏗 Frontendlarni SHU YERDA quramiz (gate + relizga artefakt). VPS'da build endi YO'Q.
+      # VITE_API_URL public (maxfiy emas) — Caddyfile'dagi bilan bir xil.
+      - name: Build frontends (gate + ship to VPS)
+        env:
+          VITE_API_URL: https://api.birjoy.online
+        run: |
+          pnpm --filter @t1067/miniapp build
+          pnpm --filter @t1067/admin build
+          mkdir -p ci-dist/miniapp ci-dist/admin
+          cp -r packages/miniapp/dist/. ci-dist/miniapp/
+          cp -r packages/admin/dist/. ci-dist/admin/
+
+      - name: Upload built frontends for the deploy job
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: ci-dist
+          retention-days: 3
+          if-no-files-found: error
+
+  # CI-gated deploy (2026-07-21 incident): a red shield must block the release.
+  # 2026-08-16: frontends are built above and shipped here as a pre-built artifact — the VPS only
+  # rsyncs + restarts (no build). deploy.sh auto-ROLLS the server BACK to the previous commit if the
+  # new code fails its health check, so a bad release can't leave the bot down.
   deploy:
     needs: shield
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to VPS over SSH
+      - name: Download built frontends
+        uses: actions/download-artifact@v4
+        with:
+          name: frontend-dist
+          path: dist-artifact
+
+      - name: Deploy to VPS over SSH (ship dist + run deploy.sh)
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
         run: |
           set -euo pipefail
-          mkdir -p ~/.ssh && chmod 700 ~/.ssh
-          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -t ed25519 "$VPS_HOST" >> ~/.ssh/known_hosts 2>/dev/null
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes "root@$VPS_HOST" \
-            'bash /opt/app/deploy/deploy.sh'
+          mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/deploy_key"
+          chmod 600 "$HOME/.ssh/deploy_key"
+          ssh-keyscan -t ed25519 "$VPS_HOST" >> "$HOME/.ssh/known_hosts" 2>/dev/null
+          SSH="ssh -i $HOME/.ssh/deploy_key -o StrictHostKeyChecking=yes"
+          # fresh staging dir on the VPS, then ship the CI-built dist
+          $SSH "root@$VPS_HOST" 'rm -rf /opt/app-dist && mkdir -p /opt/app-dist/miniapp /opt/app-dist/admin'
+          rsync -az --delete -e "$SSH" dist-artifact/miniapp/ "root@$VPS_HOST:/opt/app-dist/miniapp/"
+          rsync -az --delete -e "$SSH" dist-artifact/admin/  "root@$VPS_HOST:/opt/app-dist/admin/"
+          # deploy.sh uses the pre-built dist ($PREBUILT_DIST) and self-rolls-back on health failure
+          $SSH "root@$VPS_HOST" 'PREBUILT_DIST=/opt/app-dist bash /opt/app/deploy/deploy.sh'
