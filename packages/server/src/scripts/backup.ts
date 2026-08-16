@@ -39,10 +39,12 @@ async function main(): Promise<void> {
     driverDebtPayment: () => prisma.driverDebtPayment.findMany(),
     driverRecruit: () => prisma.driverRecruit.findMany(),
     driverSession: () => prisma.driverSession.findMany(),
+    employee: () => prisma.employee.findMany(),
     familyMember: () => prisma.familyMember.findMany(),
     foodOrder: () => prisma.foodOrder.findMany(),
     gap: () => prisma.gap.findMany(),
     gapMember: () => prisma.gapMember.findMany(),
+    gashtakReward: () => prisma.gashtakReward.findMany(),
     homeFeatured: () => prisma.homeFeatured.findMany(),
     intercityBooking: () => prisma.intercityBooking.findMany(),
     intercityCity: () => prisma.intercityCity.findMany(),
@@ -57,6 +59,7 @@ async function main(): Promise<void> {
     item: () => prisma.item.findMany(),
     itemListing: () => prisma.itemListing.findMany(),
     itemType: () => prisma.itemType.findMany(),
+    leaveRequest: () => prisma.leaveRequest.findMany(),
     mahalla: () => prisma.mahalla.findMany(),
     marketDemand: () => prisma.marketDemand.findMany(),
     marketOrder: () => prisma.marketOrder.findMany(), // V2a — schema-commiti bilan birga commit qilinadi
@@ -67,6 +70,7 @@ async function main(): Promise<void> {
     menuItem: () => prisma.menuItem.findMany(),
     missionProgress: () => prisma.missionProgress.findMany(),
     notifyLog: () => prisma.notifyLog.findMany(),
+    organization: () => prisma.organization.findMany(),
     peakHour: () => prisma.peakHour.findMany(),
     platformLedger: () => prisma.platformLedger.findMany(),
     product: () => prisma.product.findMany(),
@@ -96,9 +100,11 @@ async function main(): Promise<void> {
     servicePriceItem: () => prisma.servicePriceItem.findMany(),
     serviceRequest: () => prisma.serviceRequest.findMany(),
     serviceReview: () => prisma.serviceReview.findMany(),
+    shiftSwapRequest: () => prisma.shiftSwapRequest.findMany(),
     shopPurchase: () => prisma.shopPurchase.findMany(),
     shopStory: () => prisma.shopStory.findMany(),
     shopStoryView: () => prisma.shopStoryView.findMany(),
+    staffLedger: () => prisma.staffLedger.findMany(),
     streak: () => prisma.streak.findMany(),
     supportMsg: () => prisma.supportMsg.findMany(),
     syncRun: () => prisma.syncRun.findMany(),
@@ -108,6 +114,7 @@ async function main(): Promise<void> {
     weeklyScore: () => prisma.weeklyScore.findMany(),
     wheelSpin: () => prisma.wheelSpin.findMany(),
     withdrawal: () => prisma.withdrawal.findMany(),
+    workSession: () => prisma.workSession.findMany(),
   };
 
   // ── HARDENING-P0.1 schema-vs-backup-list parity check ────────────────────
