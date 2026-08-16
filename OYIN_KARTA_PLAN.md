@@ -463,18 +463,42 @@ qo'lda (`prisma migrate diff` → o'qish → `prisma db push`).
 7. D12–D13 (typecheck + test), commit + push (owner tasdig'i bilan, odatdagidek).
 8. D14 — ega QABULI, shundan keyingina "K8 — done".
 
-## 13.8 Holat (2026-08-16) — READY FOR VERIFICATION
+## 13.8 Holat (2026-08-16) — to'liq tekshirildi
 
-Qurilgan va isbotlangan: D1 (VPS'da `prisma migrate diff` o'qildi → faqat `CREATE TABLE`
-`OyinComment` + 2 indeks, boshqa jadvalga tegmagan → `prisma db push` muvaffaqiyatli → o'qish
-so'rovi bilan tasdiqlandi, 0 qator), D11 (yangi CSS blokida `#hex` yo'q — mavjud `.oyk-note-*`
-qatori aynan qayta ishlatilgan), D12 (`pnpm -r typecheck` — 4/4 paket toza, faqat aloqasiz
-oldindan mavjud `sim/config/arms.ts` xatosi qoladi), D13 (`pnpm --filter @t1067/shared test` —
-187/187). Brauzerda (`#oyindemo`, demo mock orqali) yozish→ro'yxatda ko'rinish, o'chirish,
-shikoyat qilish uch oqimi ham sinaldi — hammasi ishladi.
+**Birinchi push'dan keyin topilgan va tuzatilgan haqiqiy xato:** `postComment`/`reportComment`
+`featureOn("oyin")`ni TEKSHIRMAS edi — `buyTicket`/`setGoalPrize`/`reportAd` kabi barcha birodar
+yozuv-funksiyalari bu tekshiruvni qiladi (`preview=isAdmin` bilan aylanib o'tiladi), K8 esa
+yo'q edi. Amalda: flag hozir jonli o'chiq, lekin marshrut shaklini bilgan har kim to'g'ridan-
+to'g'ri so'rov yuborib yoza olar edi — "dark feature" kafolati buzilgan edi. Tuzatildi
+(`8ec647a4`), `listComments`/`deleteOwnComment` esa ATAYLAB gate'siz qoldirildi
+(`getCardDetail`/`cancelOwnTicket` bilan bir xil: o'qish/o'z-o'chirish xavfsiz).
 
-Isbotlanmagan (keyingi qadam ega tomonidan): D2–D10 REAL API orqali (faqat kod-o'qish bilan
-tekshirilgan, avtomatlashtirilgan test yozilmadi — vaqt siqilgani uchun, xohlasa keyinroq
-qo'shiladi), D14 (ega QABULI — jonli Telegram orqali). Push qilindi (`53ada234`), CI
-shield→deploy avtomatik yuguradi; schema OLDINDAN qo'llanilgani uchun deploy "ustun yo'q"
-sababli yiqilmaydi.
+**Isbotlangan, jonli tizimda (2026-08-16):**
+- D1 — VPS'da `prisma migrate diff` o'qildi (faqat `CREATE TABLE OyinComment` + 2 indeks) →
+  `db push` → o'qish so'rovi bilan tasdiqlandi.
+- Deploy: CI shield yashil, jonli commit `git log` bilan solishtirildi, `/health` `{"ok":true}`,
+  jonli `GET /api/admin/oyin/comments` (admin token bilan haqiqiy HTTPS so'rov) → `{"rows":[]}`,
+  `commentsPending` vitals javobida to'g'ri (0). Jonli miniapp bandle (`assets/oyin-*.js`,
+  lazy-chunk — asosiy `index-*.js` EMAS) "Fikrlar" matnini o'z ichiga oladi — UI ham deploy
+  qilingan.
+- **⚠️ Bitta CI "deploy" ishi (`8ec647a4` uchun) `failure` deb belgilandi**, lekin to'g'ridan-
+  to'g'ri tekshiruv shuni ko'rsatdiki VPS'dagi holat TO'LIQ TO'G'RI edi (to'g'ri commit, jonli
+  bandle, sog'lom health, xatosiz jurnal) — sabab, ehtimol, `deploy.sh`ning bitta urinishli
+  (retry'siz) health-tekshiruvi o'sha payt MEN QO'LDA VPS'da og'ir Prisma buyruqlarini (`db push`
+  boshqa bazaga) parallel yurgizganim bilan mos kelib qolgani. Bu O'ZIM YARATGAN sharoit — endi
+  bilaman: CI push'idan keyin darhol o'sha VPS'ga og'ir buyruq yuborilmaydi, birinchi CI tugashi
+  kutiladi. Mahsulotga zarar YO'Q, faqat bitta yolg'on-qizil CI belgisi.
+- **Yozish/moderatsiya to'liq yashab-o'lchovi** — `testK8Comments.ts` (endi repo'da doimiy,
+  `testElonlar.ts` naqshi): TEST_DATABASE_URL (`birjoy_test`, VPS'da ALLAQACHON bor edi —
+  ilgarigi "TEST_DATABASE_URL yo'q" eslatmasi ESKIRGAN, memory tuzatildi) ga qarshi 32 tekshiruv,
+  2× ketma-ket yashil. App DB (`birjoy`) tekshiruv OLDIN va KEYIN 0 qatorligi bilan tasdiqlandi —
+  ishlab chiqarish ma'lumotiga HECH QACHON tegilmagan. Qamrab olingan: yozish/tahrir/`@@unique`,
+  140-belgi chegarasi, **flag ON/OFF + admin-preview aylanib o'tish** (yangi tuzatish shu yerda
+  isbotlandi), 3-shikoyat→hidden, bitta kishi ikki marta shikoyat qilolmasligi, admin
+  approve (reports reset)/remove (abadiy, qayta yozib bo'lmaydi), bloklash (yozish yopiladi, eski
+  matn qoladi, blokdan chiqarish), o'z-o'chirish (begonaniki himoyalangan).
+
+**Hali isbotlanmagan:** D14 — ega QABULI (jonli Telegram orqali, flag yoqilgach). Bu — mahsulot
+qarori (qachon flag yoqiladi), muhandislik emas.
+
+**Xulosa: K8 — READY FOR VERIFICATION, ega QABULidan tashqari hammasi isbotlangan.**
