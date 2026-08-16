@@ -1563,7 +1563,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
     const { postComment } = await import("../services/oyinCommentService");
     const b = req.body as { text?: string };
-    res.json(await postComment(memberId, String(req.params.key ?? ""), String(b?.text ?? "")));
+    res.json(await postComment(memberId, String(req.params.key ?? ""), String(b?.text ?? ""), oyinPreviewOf(res)));
   });
   app.delete("/api/oyin/comments/:id", requireUser, rateLimit(20), async (req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
@@ -1575,7 +1575,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
     const { reportComment } = await import("../services/oyinCommentService");
-    res.json(await reportComment(Number(req.params.id), memberId));
+    res.json(await reportComment(Number(req.params.id), memberId, oyinPreviewOf(res)));
   });
   // ⛔ `/api/oyin/board` OLIB TASHLANDI (ega qarori 2026-08-03): reyting ball
   // QOLDIG'I bo'yicha saralanardi — chipta olgan odamning o'rni TUSHARDI, ya'ni to'g'ri

@@ -24,6 +24,7 @@ import type {
   OyinAdminCommentActionResult,
 } from "@t1067/shared";
 import { ownerNames, getCatalog } from "./oyinService";
+import { featureOn } from "./featureFlags";
 
 const TEXT_MAX = 140; // K2 (egasining karta qaydi) bilan bir xil chegara — izchillik
 const REPORTS_TO_HIDE = 3; // classifiedService.ts (`REPORTS_TO_HIDE`) bilan BIR XIL — bir xil his
@@ -59,8 +60,13 @@ export async function listComments(prizeKey: string, viewerMemberId: number | nu
 
 /** ✍️ Yozish/tahrirlash. 1 kishi/sovringa BITTA qator — qayta yuborish shu qatorni yangilaydi,
  *  holat (`status`)/shikoyat-hisoblagichga TEGMAYDI (aks holda bitta so'z tuzatish yashiringan
- *  komentariyani jimgina qayta ko'rinadigan qilib qo'yardi — faqat admin `approve` shunga haqli). */
-export async function postComment(memberId: number, prizeKey: string, textRaw: string): Promise<OyinPostCommentResult> {
+ *  komentariyani jimgina qayta ko'rinadigan qilib qo'yardi — faqat admin `approve` shunga haqli).
+ *  `preview` — `buyTicket`/`setGoalPrize` bilan BIR XIL naqsh (`oyinService.ts`dagi 10+ funksiya):
+ *  flag "oyin" o'chiq bo'lsa YOZISH rad etiladi (admin `oyinPreviewOf` bilan aylanib o'tadi) —
+ *  `listComments`/`deleteOwnComment` esa `getCardDetail`/`cancelOwnTicket` kabi ATAYLAB gate'siz
+ *  (o'qish/o'z-o'chirish xavfsiz, dark-feature xavfi faqat YANGI yozuv yaratishda). */
+export async function postComment(memberId: number, prizeKey: string, textRaw: string, preview = false): Promise<OyinPostCommentResult> {
+  if (!preview && !(await featureOn("oyin"))) return { ok: false, reason: "off" };
   const text = textRaw.trim();
   if (!text) return { ok: false, reason: "empty" };
   if (text.length > TEXT_MAX) return { ok: false, reason: "too_long" };
@@ -83,8 +89,10 @@ export async function deleteOwnComment(memberId: number, commentId: number): Pro
 }
 
 /** 🚩 1 shikoyat/kishi/komentariya (AppState marker, `elonrep:` naqshi); 3-chegara `hidden`ga
- *  tushiradi — ro'yxatdan darhol yo'qoladi, admin navbatiga tushadi. */
-export async function reportComment(commentId: number, memberId: number): Promise<OyinReportCommentResult> {
+ *  tushiradi — ro'yxatdan darhol yo'qoladi, admin navbatiga tushadi. `preview` — `reportAd`
+ *  (classifiedService.ts) bilan bir xil naqsh. */
+export async function reportComment(commentId: number, memberId: number, preview = false): Promise<OyinReportCommentResult> {
+  if (!preview && !(await featureOn("oyin"))) return { ok: false, reason: "off" };
   try {
     await prisma.appState.create({ data: { key: `oyin:commentrep:${commentId}:${memberId}`, value: "1" } });
   } catch {

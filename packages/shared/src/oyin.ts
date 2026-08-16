@@ -1600,11 +1600,12 @@ export interface OyinCommentListResponse {
 }
 export interface OyinPostCommentResult {
   ok: boolean;
-  reason?: "too_long" | "empty" | "banned" | "not_linked";
+  reason?: "too_long" | "empty" | "banned" | "not_linked" | "off";
   comment?: OyinComment;
 }
 export interface OyinReportCommentResult {
   ok: boolean;
+  reason?: "off";
   /** Shu shikoyat 3-chegarani yopib, komentariyani ro'yxatdan yashirdimi. */
   hidden?: boolean;
 }
