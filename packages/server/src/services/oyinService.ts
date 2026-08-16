@@ -1437,45 +1437,51 @@ export async function cancelOwnTicket(memberId: number, gno: number): Promise<Oy
   if (season.phase !== "active") return { ok: false, reason: "season_off" };
   if (season.endMs != null && season.endMs - Date.now() <= OYIN_FINAL_LOCK_MS) return { ok: false, reason: "final_lock" };
 
-  const key = `oyin:tickets:${memberId}`;
-  const row = await prisma.appState.findUnique({ where: { key } });
-  if (!row) return { ok: false, reason: "not_found" };
-  const tickets = parseTickets(row.value);
-  const idx = tickets.findIndex((t) => (t.gno ?? t.no) === gno);
-  if (idx < 0) return { ok: false, reason: "not_ticket" };
-  const target = tickets[idx];
-  if (!target) return { ok: false, reason: "not_ticket" };
-  // 🔴 O11 (2026-08-12, jonli tekshiruvda topilgan): O'TGAN mavsumda olingan karta ATAYLAB
-  // rad etiladi. Sabab: `spent` joriy mavsum oynasidan filtrlanadi (yuqoridagi izoh) — o'tgan
-  // mavsum kartasining narxi hozirgi balansda UMUMAN hisobga olinmaydi. Uni bekor qilish shu
-  // sababdan mijozga bir tiyin ham ball qaytarmaydi (qaytaradigan narsa yo'q), lekin
-  // `releaseSoldSlot` baribir sovg'aning umumiy sotuv sanog'ini kamaytiradi — ya'ni to'lib
-  // kelayotgan (keyingi mavsumga o'tgan) sovg'a ORQAGA tepadi, mijoz esa kartasini bekorga
-  // yo'qotadi. Karta faqat O'Z mavsumida bekor qilinadi.
-  if (target.ts && Date.parse(target.ts) < (season.startMs ?? -Infinity)) {
-    return { ok: false, reason: "past_season" };
-  }
-  // 🔒 BEKOR QILISH OYNASI (2026-08-12, ega talabi — "karta bekor qilib bo'lopti" — jonlida
-  // buzilgan holat topildi). Avval bu yerda hech qanday vaqt cheklovi YO'Q edi: `sold<minSell`
-  // bo'lgan ekan, karta OYLAR OLDIN olingan bo'lsa ham bekor bo'lardi. Reja (§2) buni "faqat
-  // barmoq xatosi uchun qisqa oyna, keyin abadiy" deb belgilagan — busiz mijoz yangi (jozibali)
-  // sovg'a ochilganda eskisidan ko'chib o'tishi mumkin edi, eski sovg'a esa hech qachon to'lmasdi.
-  if (target.ts && Date.now() - Date.parse(target.ts) > OYIN_CANCEL_WINDOW_MS) {
-    return { ok: false, reason: "too_late" };
-  }
+  // 🔒 B2 (2026-08-16 audit): `buyTicket` bilan BIR XIL a'zo-qulfi. Avval bu yerda qulf YO'Q edi —
+  // ikkita bekor qilish (masalan ikki marta bosish/qayta urinish) BIR XIL kartani PARALEL o'qib-
+  // yozardi va `releaseSoldSlot` IKKI MARTA chaqirilardi (bitta bekor qilish ikkita o'rinni
+  // bo'shatardi — izolyatsiyalangan test-bazada qayta hosil qilingan, isbotlangan xato).
+  return withMemberLock(memberId, async () => {
+    const key = `oyin:tickets:${memberId}`;
+    const row = await prisma.appState.findUnique({ where: { key } });
+    if (!row) return { ok: false, reason: "not_found" };
+    const tickets = parseTickets(row.value);
+    const idx = tickets.findIndex((t) => (t.gno ?? t.no) === gno);
+    if (idx < 0) return { ok: false, reason: "not_ticket" };
+    const target = tickets[idx];
+    if (!target) return { ok: false, reason: "not_ticket" };
+    // 🔴 O11 (2026-08-12, jonli tekshiruvda topilgan): O'TGAN mavsumda olingan karta ATAYLAB
+    // rad etiladi. Sabab: `spent` joriy mavsum oynasidan filtrlanadi (yuqoridagi izoh) — o'tgan
+    // mavsum kartasining narxi hozirgi balansda UMUMAN hisobga olinmaydi. Uni bekor qilish shu
+    // sababdan mijozga bir tiyin ham ball qaytarmaydi (qaytaradigan narsa yo'q), lekin
+    // `releaseSoldSlot` baribir sovg'aning umumiy sotuv sanog'ini kamaytiradi — ya'ni to'lib
+    // kelayotgan (keyingi mavsumga o'tgan) sovg'a ORQAGA tepadi, mijoz esa kartasini bekorga
+    // yo'qotadi. Karta faqat O'Z mavsumida bekor qilinadi.
+    if (target.ts && Date.parse(target.ts) < (season.startMs ?? -Infinity)) {
+      return { ok: false, reason: "past_season" };
+    }
+    // 🔒 BEKOR QILISH OYNASI (2026-08-12, ega talabi — "karta bekor qilib bo'lopti" — jonlida
+    // buzilgan holat topildi). Avval bu yerda hech qanday vaqt cheklovi YO'Q edi: `sold<minSell`
+    // bo'lgan ekan, karta OYLAR OLDIN olingan bo'lsa ham bekor bo'lardi. Reja (§2) buni "faqat
+    // barmoq xatosi uchun qisqa oyna, keyin abadiy" deb belgilagan — busiz mijoz yangi (jozibali)
+    // sovg'a ochilganda eskisidan ko'chib o'tishi mumkin edi, eski sovg'a esa hech qachon to'lmasdi.
+    if (target.ts && Date.now() - Date.parse(target.ts) > OYIN_CANCEL_WINDOW_MS) {
+      return { ok: false, reason: "too_late" };
+    }
 
-  const [catalog, soldMap, econ] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon()]);
-  const prize = catalog.find((p) => p.key === target.prizeKey);
-  const minPct = econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
-  const minSell = prize ? minSellOf(prize.limit, minPct) : 0;
-  const sold = soldMap.get(target.prizeKey) ?? 0;
-  if (!prize || minSell <= 0 || sold >= minSell) return { ok: false, reason: "will_draw" };
+    const [catalog, soldMap, econ] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon()]);
+    const prize = catalog.find((p) => p.key === target.prizeKey);
+    const minPct = econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
+    const minSell = prize ? minSellOf(prize.limit, minPct) : 0;
+    const sold = soldMap.get(target.prizeKey) ?? 0;
+    if (!prize || minSell <= 0 || sold >= minSell) return { ok: false, reason: "will_draw" };
 
-  tickets.splice(idx, 1);
-  await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
-  await releaseSoldSlot(target.prizeKey, target.test === true).catch(() => undefined);
-  invalidateBallCache();
-  return { ok: true, ball: await getBall(memberId) };
+    tickets.splice(idx, 1);
+    await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
+    await releaseSoldSlot(target.prizeKey, target.test === true).catch(() => undefined);
+    invalidateBallCache();
+    return { ok: true, ball: await getBall(memberId) };
+  });
 }
 
 /** 👀 Mehmon-teaser: sovrinlar + mavsum holati. A'zo ma'lumoti YO'Q, shuning uchun auth kerak emas. */
@@ -2178,16 +2184,28 @@ export async function adminCancelPrizeTickets(prizeKey: string): Promise<{ ok: b
   let cancelled = 0;
   let members = 0;
   for (const row of rows) {
-    const tickets = parseTickets(row.value);
-    const keep = tickets.filter((t) => t.prizeKey !== prizeKey);
-    if (keep.length === tickets.length) continue;
-    const gone = tickets.length - keep.length;
-    await prisma.appState.update({ where: { key: row.key }, data: { value: JSON.stringify(keep) } });
-    for (const t of tickets) {
-      if (t.prizeKey === prizeKey) await releaseSoldSlot(prizeKey, t.test === true).catch(() => undefined);
+    const memberId = Number(row.key.slice("oyin:tickets:".length));
+    if (!Number.isFinite(memberId)) continue;
+    // 🔒 B2 — shu a'zoning `cancelOwnTicket`/`adminCancelTicket` bilan bir vaqtda ishlab
+    // ketishining oldini oladi (ikkalasi ham xuddi shu qatorni o'qib-yozadi).
+    const gone = await withMemberLock(memberId, async () => {
+      // Qulf ICHIDA qayta o'qiladi — tashqaridagi `row.value` navbatda kutayotganda eskirgan
+      // bo'lishi mumkin edi (masalan mijoz shu oraliqda o'zi boshqa karta bekor qilgan bo'lsa).
+      const fresh = await prisma.appState.findUnique({ where: { key: row.key } });
+      if (!fresh) return 0;
+      const tickets = parseTickets(fresh.value);
+      const keep = tickets.filter((t) => t.prizeKey !== prizeKey);
+      if (keep.length === tickets.length) return 0;
+      await prisma.appState.update({ where: { key: row.key }, data: { value: JSON.stringify(keep) } });
+      for (const t of tickets) {
+        if (t.prizeKey === prizeKey) await releaseSoldSlot(prizeKey, t.test === true).catch(() => undefined);
+      }
+      return tickets.length - keep.length;
+    });
+    if (gone > 0) {
+      cancelled += gone;
+      members += 1;
     }
-    cancelled += gone;
-    members += 1;
   }
   invalidateBallCache();
   return { ok: true, cancelled, members };
@@ -3719,18 +3737,21 @@ export async function adminAdjustBall(input: OyinBallAdjustInput): Promise<OyinA
  *  qaytadi — `spent` chiptalardan JONLI hisoblanadi, ya'ni alohida "qaytarish" operatsiyasi
  *  YO'Q va ikki marta qaytarish imkonsiz. */
 export async function adminCancelTicket(memberId: number, gno: number): Promise<OyinAdminActionResult> {
-  const key = `oyin:tickets:${memberId}`;
-  const row = await prisma.appState.findUnique({ where: { key } });
-  if (!row) return { ok: false, reason: "not_found" };
-  const tickets = parseTickets(row.value);
-  const idx = tickets.findIndex((t) => (t.gno ?? t.no) === gno);
-  if (idx < 0) return { ok: false, reason: "not_ticket" };
-  const [gone] = tickets.splice(idx, 1);
-  if (!gone) return { ok: false, reason: "not_ticket" };
-  await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
-  await releaseSoldSlot(gone.prizeKey, gone.test === true).catch(() => undefined);
-  invalidateBallCache();
-  return { ok: true, ball: await getBall(memberId) };
+  // 🔒 B2 — `cancelOwnTicket` bilan bir xil a'zo-qulfi (izoh o'sha yerda).
+  return withMemberLock(memberId, async () => {
+    const key = `oyin:tickets:${memberId}`;
+    const row = await prisma.appState.findUnique({ where: { key } });
+    if (!row) return { ok: false, reason: "not_found" };
+    const tickets = parseTickets(row.value);
+    const idx = tickets.findIndex((t) => (t.gno ?? t.no) === gno);
+    if (idx < 0) return { ok: false, reason: "not_ticket" };
+    const [gone] = tickets.splice(idx, 1);
+    if (!gone) return { ok: false, reason: "not_ticket" };
+    await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
+    await releaseSoldSlot(gone.prizeKey, gone.test === true).catch(() => undefined);
+    invalidateBallCache();
+    return { ok: true, ball: await getBall(memberId) };
+  });
 }
 
 /** 🚫 O'yindan chetlatish / qaytarish. Ball yig'ilishiga TEGMAYDI (tarix buzilmasin) — chetlatish
