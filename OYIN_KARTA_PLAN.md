@@ -587,6 +587,95 @@ va'da qilingan bo'ladi.
 kamaytirish yoki navbatga qo'yish) — mahsulot qarori.
 
 ---
+
+# 15. EGA FIKR-MULOHAZASI (2026-08-16, ikkinchi to'lqin) — F-tiketlar
+
+_Kod hali o'zgarmagan. Har biri tez tekshirilib (grep/o'qish), aniq bo'lgani "tasdiqlangan",
+qaror kerakligi "MUHOKAMA" deb belgilangan._
+
+## F1 — «Keyingi navbatdagilar» (Dastur) bosilmaydi
+
+Dastur tabidagi "keyingi navbatdagilar" oldindan ko'rish qatori (bu sessiyada qo'shilgan) hozir
+faqat KO'RSATADI, bosilganda hech narsa qilmaydi. Kerak: bosilsa Mukofotlar tabiga o'tsin (kerak
+bo'lsa o'sha sovringa scroll qilib).
+
+## F2 — Mukofotlar tabida sovrin rasmi noto'g'ri kesiladi (MUHOKAMA kerak)
+
+**Tekshirildi:** ikkala joy ham `object-fit: cover` ishlatadi (`oyk.css:216` maqsad-doira 124×124
+kvadrat, `oyk.css:380` Mukofotlar karta 200px baland, KENG karta). **Sabab shu — bir xil rasm
+kvadratga kesilganda markazi to'g'ri chiqadi, keng-past bannerga kesilganda esa Uzum
+rasmining pastki/tepasi kesilib ketishi mumkin** (mahsulot rasmning markazida emas). Bu kod
+xatosi emas, aspekt-nisbat farqidan kelib chiqadigan dizayn muammosi.
+
+**MUHOKAMA kerak:** (a) Mukofotlar kartasida ham kvadratroq/kichikroq rasm balandligi qilinsinmi,
+(b) `object-fit: contain` + orqa fon bilan to'ldirilsinmi (rasm butunlay ko'rinadi, lekin
+atrofida bo'sh joy bo'ladi), yoki (c) rasm serverda oldindan qayta o'lchamlansinmi (yangi
+infratuzilma). Bitta aniq misol rasm bilan ko'rsatib bersangiz, tezroq to'g'ri variantni
+tanlayman.
+
+## F3 — «N kishi maqsad qilgan» belgisi sovrin kartasida yo'q
+
+Yangi funksiya: har sovrin kartasida kichik dumaloq belgi — "shu sovrinni necha kishi maqsad
+qilib belgilagan" (`setGoalPrize`/`oyin:goal:<memberId>` ma'lumotidan hisoblanadi — yangi jadval
+kerak emas, mavjud AppState skanidan agregatsiya). Ijtimoiy isbot ("N kishi shuni xohlaydi")
+— xarid qarorini kuchaytiradi.
+
+## F4 — Safar/buyurtma xabarlarida o'yin-progress + standart maqsad (MUHOKAMA kerak)
+
+Talab: taxi chaqirilganda va safar tugaganda, xabarda "siz [maqsad sovrin]ga necha ball
+yig'dingiz" ko'rsatilsin, standart maqsad — **iPhone 17 Pro Max**. Bundan tashqari safar-yakun
+xabaridagi "ortiqcha keraksiz" qatorlar olib tashlansin.
+
+**⚠️ Tekshirildi: katalogda "iPhone 17 Pro Max" YO'Q** (`shared/oyin.ts` seed'ida faqat
+`uzum-iphone-12-4` bor). Standart maqsad qilish uchun avval bu sovrinni katalogga QO'SHISH kerak
+— narx/limit/rasm bilan (admin panelda). **MUHOKAMA kerak:** (a) narx qancha bo'lsin (haqiqiy
+Uzum narxidan hisoblanadimi), (b) nechta karta/limit, (c) rasm manbai, (d) safar-yakun xabaridagi
+qaysi aniq qatorlar "keraksiz" deb hisoblanadi — hozir u yerda: yo'l haqi, tasodifiy cashback,
+kutish kompensatsiyasi, ETA-taxmin natijasi, streak, quest-yutuqlari kabi bir nechta qator bor;
+qaysilari qoladi, qaysilari olib tashlanadi — aniq ro'yxat kerak.
+
+## F5 — «1067ga telefon qilib chaqirish ham bir xil ball beradi» — TASDIQLANDI: bu FAQAT matn masalasi, funksiya buzuq EMAS
+
+**Tekshirildi:** ball-berish mexanizmi (`bookingNotifier.ts`ning sweep'i) kas'ning FAOL
+buyurtmalar ro'yxatini TELEFON RAQAMI bo'yicha a'zoga bog'laydi — buyurtma botdan yoki operatorga
+qo'ng'iroq qilib yaratilganidan QAT'IY NAZAR, agar telefon raqami mos kelsa, ball xuddi shunday
+beriladi (kas — ikkala kanal uchun ham YAGONA dispetcher manbai). **Demak funksiyada muammo yo'q
+— faqat bu HECH QAYERDA aytilmagan.** Kerakli joylar: onboarding story, "Ball yig'ish" varag'i,
+Dastur qoidalari — "1067ga qo'ng'iroq qilib chaqirsangiz ham xuddi shunday ball olasiz" qatori
+qo'shiladi.
+
+## F6 — Karta ochilganda sovrin rasmi ko'rinmaydi — TASDIQLANDI: haqiqiy kamchilik
+
+**Tekshirildi:** server `OyinCardDetail.photoUrl` maydonini YUBORADI (sovrinning rasmi), lekin
+`oyin.tsx`dagi karta-tafsilot varag'i (`.oyk-cert-stub`) buni HECH QACHON chizmaydi — faqat
+matn (belgi, raqam, sovrin nomi+emoji, holat). Ma'lumot bor, faqat ko'rsatilmagan. Tuzatish:
+`.oyk-cert-stub`ga `cardData.photoUrl` bo'lsa fon-rasm/tepa-rasm sifatida qo'shish (K1
+tekshiruv-sahifasidagi kabi — `CardVerifyView.tsx`da HAM xuddi shu maydon bor va HAM
+ishlatilmagan, ikkalasi birga tuzatilishi kerak).
+
+## F7 — Gashtak bo'limi hali eski dizaynda
+
+Kartalarim/karta-tafsilot bu sessiyada premium dizaynga o'tkazildi (`.oyk-cert-*`,
+`.oyk-jamoa-tag*` kabi), lekin Gashtak varag'ining qolgan qismi (a'zolar ro'yxati, boshqarish
+paneli) hali eski uslubda qolgan joylari bor. Kattaroq dizayn-tozalash ishi — alohida
+ko'rib chiqish kerak (skrinshot/misol bilan "qayerlari dabdala" ko'rsatib bersangiz aniqroq
+reja tuzaman).
+
+## F8 — Do'stga taklif matni + rasm (MUHOKAMA kerak: yangi rasm — asset kerak)
+
+Taklif qilingan matn namunasi: *"Men [sovrin nomi]ni yutish uchun ball yig'moqdaman — 1067dan
+foydalaning va yutishimga hissangizni qo'shing!"* — qisqa, aniq maqsadga bog'langan, hozirgi
+matndan farqli (hozirgi umumiy "BirJoy bilan yuring" matni). **MUHOKAMA kerak:** (a) matn
+foydalanuvchining O'Z tanlagan maqsad-sovriniga (`goalPrizeKey`) moslashtirilib avtomatik
+yasalsinmi, (b) "yangi rasm" — buni SIZ tayyorlaysizmi (fayl/dizayn) yoki mendan avtomatik
+generatsiya (sovrin rasmi ustiga matn qo'yilgan kartochka) kerakmi.
+
+---
+**Xulosa:** F1, F3, F5, F6 — aniq, kodga tayyor (qaror kerak emas). F2, F4, F7, F8 — dizayn/
+mahsulot qarori kerak, yuqorida aniq savollar bilan belgilandi. Javob bering — shulardan keyin
+B1-B3/R1-R2 bilan birga TO'LIQ ijro reja va tartib tuzamiz.
+
+---
 **Keyingi qadam:** ega qo'shimcha kamchiliklarni qo'shadi → birgalikda muhokama → har tiket uchun
 aniq DoD (qabul mezoni + tekshiruv buyrug'i) yoziladi → TASDIQ → kod yoziladi → agentlar bilan
 qayta tekshiriladi → deploy.
