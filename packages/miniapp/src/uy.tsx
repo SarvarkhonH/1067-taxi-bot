@@ -163,30 +163,6 @@ function GlIcon({ n, size = 20 }: { n: string; size?: number }) {
   }
 }
 
-/** ∞ BirJoy belgisi — ko'k→yashil gradient. Ranglar `<stop>` larga CSS orqali beriladi
- *  (`.gl-logo .s1…s4`), shuning uchun bu faylda birorta ham hex kod yo'q. */
-function BirJoyMark() {
-  return (
-    <svg className="gl-logo" viewBox="0 0 120 72" aria-hidden="true">
-      <defs>
-        <linearGradient id="gl-mark" x1="0" y1="0" x2="1" y2="0">
-          <stop className="s1" offset="0%" />
-          <stop className="s2" offset="38%" />
-          <stop className="s3" offset="62%" />
-          <stop className="s4" offset="100%" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M30 36C30 16 54 16 60 36C66 56 90 56 90 36C90 16 66 16 60 36C54 56 30 56 30 36Z"
-        fill="none"
-        stroke="url(#gl-mark)"
-        strokeWidth="13"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-
 // 🎮 Koson O'yini — uy-ekran SOVG'A paneli: sahifadagi YAGONA to'q yuza (ierarxiya shu bilan
 // aytiladi). Ikki holat, IKKALASI HAM bir xil balandlikda (`--gl-gift-min` + `.gl-ghead`
 // min-height): (a) ball YO'Q → "BEPUL SOVG'ALAR" taklifi; (b) ball BOR → "Keyingi sovg'a"
@@ -475,8 +451,6 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
   const go = (t: string) => { haptic(); onNav(t); };
   const tapRail = (r: (typeof rail)[number]) => (r.locked ? onBanner?.(COMING_SOON_MSG) : go(r.nav));
   const badgeLabel = (b?: string) => (b === "top" ? "🔥 TOP" : b === "new" ? "Yangi" : b === "disc" ? "Chegirma" : "");
-  // Ism — birinchi so'z (to'liq ism uch bo'lakli bo'lishi mumkin, salomlashuvga uzun).
-  const firstName = (me.member.fullName || "").trim().split(/\s+/)[0] ?? "";
 
   return (
     <div className="gl-view">
@@ -489,10 +463,8 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
       </div>
 
       <header className="gl-top">
-        <div className="gl-brand">
-          <BirJoyMark />
-          <span className="gl-bname">Bir<i>Joy</i></span>
-        </div>
+        {/* Logotip + «BirJoy» nomi ATAYLAB YO'Q (ega qarori: kognitiv yuk — uy ekranida
+            brend takrorlanishi keraksiz). Yuqori satrda faqat balans chiplari qoladi. */}
         {/* Balans chiplari — IKKI XIL narsa, hech qachon aralashmaydi (Revolut-tanqidi):
             TANGA (ko'k, yechiladi → hamyon) va BALL (yashil, sovg'aga → o'yin). Ega qarori
             2026-08-10: cashback o'rniga BALL ko'rsatiladi — cashback tanga ichida ko'rinadi,
@@ -509,10 +481,10 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
       </header>
 
       <div className="gl-hi">
-        <div className="gl-hi-t">
-          <div className="gl-hi-a">{firstName ? `Salom, ${firstName}` : "Salom!"}</div>
-          <div className="gl-hi-b">Bir shahar. Ko'plab xizmatlar.</div>
-        </div>
+        {/* Salomlashuv (ism) va «Bir shahar. Ko'plab xizmatlar.» tagline ATAYLAB YO'Q
+            (ega qarori: kognitiv yuk). Bo'sh spacer «Hamyon/Yechish» tugmasini avvalgidek
+            o'ng chetda ushlab turadi — tugma ega talabi bilan qoldirildi. */}
+        <div className="gl-hi-t" />
         {/* ⚠️ Yangi mijozda yechadigan hech narsa YO'Q — unga "Yechish" deb va'da qilish
             yolg'on tugma (#14/#8): bosadi, hamyonda 0 turadi. Shu holatda tugma o'z nomi
             bilan "Hamyon" bo'ladi — bir xil ekran, halol yozuv. */}

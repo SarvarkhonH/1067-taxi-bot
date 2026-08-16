@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView, type WheelSpinResponse } from "@t1067/shared";
+import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
@@ -312,40 +312,6 @@ async function shareTrip(d: BookingDriverView): Promise<void> {
   const w = tg as { openTelegramLink?: (u: string) => void } | undefined;
   if (w?.openTelegramLink) w.openTelegramLink(url);
   else window.open(url, "_blank");
-}
-
-// ── E6: in-trip (status=started) — one in-ride roulette ──
-// DISPLAY-ONLY money-wise. The roulette calls the existing /api/wheel which is
-// in-ride-gated AND idempotent per booking (1 spin/ride) — the server is the
-// single source of the grant; the Mini App just shows the prize.
-function InTripExtras({ rideStartedAt }: { rideStartedAt: string | null }) {
-  const [spin, setSpin] = useState<WheelSpinResponse | null>(null);
-  const [spinning, setSpinning] = useState(false);
-  void rideStartedAt;
-
-  const doSpin = async (): Promise<void> => {
-    if (spinning || spin) return;
-    setSpinning(true);
-    haptic();
-    const r = await api.spinWheel().catch(() => null);
-    if (r) setSpin(r);
-    setSpinning(false);
-  };
-
-  return (
-    <div className="b3-intrip">
-      {spin && !spin.noRide && spin.prize ? (
-        <div className="b3-spin-done">
-          {spin.alreadySpun ? "🎡 Bu safar omadingiz: " : "🎉 "}
-          <b>{spin.prize.emoji} {spin.alreadySpun ? spin.prize.label : `+${formatNumber(spin.prize.amount)} 🪙`}</b>
-        </div>
-      ) : (
-        <button className="b3-spin-btn" disabled={spinning} onClick={doSpin}>
-          {spinning ? "🎡 Aylanyapti…" : "🎡 Omadni sina — safar sovg'asi"}
-        </button>
-      )}
-    </div>
-  );
 }
 
 export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => void }) {
@@ -2436,7 +2402,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                   {active.status === "started" && speedKmh > 0 ? (
                     <div className="b3-fare-row"><span>🚗 Tezlik</span><b>~{speedKmh} km/soat</b></div>
                   ) : null}
-                  {active.status === "started" ? <InTripExtras rideStartedAt={active.rideStartedAt ?? null} /> : null}
+                  {/* 🎡 Safar g'ildiragi (in-ride roulette) ATAYLAB YO'Q (ega qarori: safar
+                      paytida g'ildirak kerak emas). Yangi kartadan allaqachon olingan edi
+                      (yuqoridagi izohga qarang) — endi eski oqimdan ham olindi. */}
                   <div className="b3-acts">
                     {active.driver.phone ? <a className="b3-act b3-act-call" href={`tel:${active.driver.phone}`}>📞 Qo'ng'iroq</a> : null}
                     <button className="b3-act" onClick={() => { if (active.driver) void shareTrip(active.driver); }}>🛡 Ulashish</button>
