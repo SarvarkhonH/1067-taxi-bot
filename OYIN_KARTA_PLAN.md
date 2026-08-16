@@ -331,3 +331,134 @@ Shuning uchun K1–K9 dan **oldin** halqa yopilishi shart:
 3. «Imkoniyat %» olib tashlansin, o'rniga **«yana 3 safar»** (foiz kuniga 0,7% siljiydi — bu sezish chegarasidan past va harakatsizlikni o'lchab beradigan asbobga aylanadi)
 
 Va kartaga **tirajdan mustaqil qiymat** berilsa — u haqiqiy mulkka aylanadi. Masalan: kartani ko'rsatgan mijozga bepul yetkazib berish, yoki ko'rinadigan maqom. Aks holda u faqat tuyg'u.
+
+---
+
+# 13. K8 — Sovg'alar tabida komentariya: REJA + DoD
+
+_2026-08-16 · kodlashdan OLDIN yozilgan, TASDIQ kutmoqda (CLAUDE.md protokoli)._
+
+K8 ro'yxatdagi yagona qurilmagan band (K1–K7, K9 — tayyor, deploy qilingan). Plan o'zi buni
+🔴 **"eng og'ir"** deb belgilagan — sabab yangi jadval + moderatsiya + tezlik chegarasi + shikoyat +
+bloklash BIRGALIKDA. Quyida — mavjud kodda ALLAQACHON ishlayotgan xuddi shu besh narsaning
+naqshini (`ClassifiedAd`/`AdReaction`/`ProductReview`) qayta ishlatib qurilgan reja.
+
+## 13.1 Qayta ishlatiladigan naqshlar (yangidan o'ylab topilmaydi)
+
+| Ehtiyoj | Qayerda ALLAQACHON bor | Naqsh |
+|---|---|---|
+| Moderatsiya holati | `ClassifiedAd.status` (`classifiedService.ts:499-525`) | `pending → active → rejected`, admin `approve`/`reject`, status-guard = qo'sh-bosishdan himoya |
+| Shikoyat (yangi jadvalsiz) | `ClassifiedAd.reports` + `reportAd()` (`classifiedService.ts:530-544`) | 1 shikoyat/user = AppState marker (`elonrep:<id>:<tgId>`), N=3 da avto-yashirish + moderatsiya navbatiga qaytarish |
+| 1 sharh/kishi, qayta yuborish = tahrir | `ProductReview` (`schema.prisma:550-564`, `@@unique([productId, memberId])`) | Yangi qator EMAS, upsert |
+| Tezlik chegarasi | `rateLimit(maxPerMin)` (`server.ts:213`, `/api/link/contact`da `rateLimit(6)` kabi 30+ marta ishlatilgan) | Middleware, yangi mexanizm shart emas |
+| Admin navbati sahifasi | `Nazorat.tsx`/`Mukofotlar.tsx` (`packages/admin/src/oyin/`, `Konsol.tsx:30` dagi `OyinView` ro'yxati) | Yangi `OyinView` a'zosi + yangi fayl, mavjud konsolga qo'shiladi |
+
+**Xulosa:** yangi jadval — ha (matn saqlanadigan joy shart), lekin moderatsiya/shikoyat/tezlik
+uchun yangi MEXANIZM YO'Q — barchasi yuqoridagi to'rttasining qayta chaqiruvi.
+
+## 13.2 ⚠️ Ega tasdig'i kerak bo'lgan qarorlar (kod yozishdan OLDIN)
+
+Plandagi K8 qatori bitta jumla — quyidagilar mahsulot qarori, muhandislik emas, shu sabab
+taxmin qilinmaydi:
+
+1. **Kim komentariya qoldira oladi?** _Tavsiya: faqat shu sovrin uchun kamida bitta karta OLGAN
+   (yoki olgan bo'lgan) a'zo_ — spam yuzasini butun mijozlar bazasidan haqiqiy ishtirokchilarga
+   toraytiradi (plan o'zi belgilagan 🟠 spam xavfini kamaytiradi), tekshirish bepul
+   (`allTicketRows()` allaqachon bor). Muqobil: hamma yoza oladi (kengroq, lekin spam xavfi yuqori).
+2. **Moderatsiya: OLDINDAN (pending→admin ko'radi→active) yoki KEYIN (darhol active,
+   shikoyat/N=3 yashiradi)?** _Tavsiya: KEYIN — `reportAd` naqshi._ Sabab: oldindan moderatsiya
+   ega uchun doimiy navbat-yuki (yana bitta 24/7 ish), sekin (komentariya darhol ko'rinmaydi =
+   engagement o'ladi). Xavfi: yomon so'z bir necha daqiqa jonli turishi mumkin — bu tavakkalni
+   ega qabul qiladimi, aniq TASDIQ kerak (bu yuridik/obro' savoli, muhandislik emas).
+3. **Komentariya uzunligi.** _Tavsiya: 140 belgi_ — K2 (egasining qaydi) bilan bir xil chegara,
+   izchillik uchun.
+4. **"Bloklash" qanday ko'rinishda?** _Tavsiya: faqat KOMENTariya huquqidan mahrum qilish_
+   (`Member.banned` GLOBAL — botdan, safardan, o'yindan butunlay chiqarib yuboradi, bu yerga OShIQCHA
+   qattiq), yangi ustun YO'Q — `oyin:commentban:<memberId>` AppState bayrog'i (K1-K7dagi avatar/
+   qayd bayroqlari bilan bir xil naqsh).
+
+**Bu uchtasi ("kim yoza oladi" / "oldin-keyin moderatsiya" / "bloklash og'irligi") TASDIQSIZ
+kod yozilmaydi — CLAUDE.md DoD-protokoli qoidasi #2.**
+
+**✅ EGA TASDIG'I (2026-08-16):**
+1. **Kim yoza oladi — HAMMA** (karta egaligi sharti YO'Q). Demak spam himoyasi butunlay
+   rate-limit + 1-komentariya/kishi/sovrin + shikoyat-hisoblagichga tayanadi (13.6 D2 shunga mos yangilandi).
+2. **Moderatsiya — KEYIN + 3-shikoyat avto-yashirish** (tavsiya qilingan variant, qarshilik bildirilmadi — aniq inkor bo'lmagani uchun shu holicha qurildi; keyinroq "oldin" ga o'zgartirish mumkin, arxitektura buni to'sqinlik qilmaydi).
+3. **Bloklash — HA, kerak.** `oyin:commentban:<memberId>` AppState bayrog'i (global `Member.banned` EMAS) — admin panelida yoqiladi/o'chiriladi.
+
+## 13.3 Ma'lumotlar modeli — yangi jadval (1 ta, minimal)
+
+```prisma
+model OyinComment {
+  id         Int      @id @default(autoincrement())
+  prizeKey   String                                  // qaysi sovrin ostida
+  memberId   Int
+  authorName String                                  // yozilgan paytdagi ism-sharh (snapshot)
+  text       String                                  // ≤140 belgi (server tekshiradi)
+  reports    Int      @default(0)
+  status     String   @default("active")             // active | hidden (shikoyat N=3) | removed (admin)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([prizeKey, memberId])                      // 1 komentariya/kishi/sovrin — qayta yuborish = tahrir
+  @@index([prizeKey, status, createdAt])
+}
+```
+Shikoyat uchun ALOHIDA jadval YO'Q — `oyin:commentrep:<commentId>:<memberId>` AppState marker
+(`elonrep:` bilan bir xil naqsh). Migratsiya — CLAUDE.md qoidasi: **VPS'da, kod push'idan OLDIN**,
+qo'lda (`prisma migrate diff` → o'qish → `prisma db push`).
+
+## 13.4 Fayllar ro'yxati
+
+| Fayl | Nima |
+|---|---|
+| `packages/server/prisma/schema.prisma` | `OyinComment` modeli (yangi) |
+| `packages/server/src/services/oyinCommentService.ts` | **YANGI FAYL** — `oyinService.ts` allaqachon 4000+ qator, yana bitta subtizim uni yanada og'irlashtirmaydi. `postComment`/`myComment`/`listComments`/`deleteOwnComment`/`reportComment`/adminlar |
+| `packages/server/src/api/server.ts` | `GET/POST /api/oyin/prize/:key/comments`, `DELETE /api/oyin/comments/:id`, `POST /api/oyin/comments/:id/report` (hammasi `requireUser`+`rateLimit`) + admin marshrutlar |
+| `packages/shared/src/oyin.ts` | `OyinComment`, `OyinCommentListResponse`, `OyinPostCommentInput/Result`, admin turlari |
+| `packages/miniapp/src/oyin.tsx` | Mukofotlar tabidagi sovrin kartasiga «💬 N ta fikr» kirish nuqtasi + yangi `sheet === "comments"` varag'i (mavjud `.oyk-note-edit` vizual tilidan) |
+| `packages/miniapp/src/api.ts` | Yangi so'rov o'ramlari |
+| `packages/miniapp/src/design/feat/oyk.css` | `.oyk-comment-*` — **yangi rang YO'Q**, mavjud `--oyk-*` tokenlar |
+| `packages/miniapp/src/design/oyinDemo.tsx` | Demo mock handlerlar (backendsiz vizual QA) |
+| `packages/admin/src/oyin/Komentariyalar.tsx` | **YANGI FAYL** — moderatsiya navbati (shikoyat qilinganlar) + bloklash tugmasi, `Mukofotlar.tsx`/`Odamlar.tsx` bilan bir uslub |
+| `packages/admin/src/oyin/Konsol.tsx` | `OyinView` ro'yxatiga `"komentariya"` qo'shiladi |
+| `packages/admin/src/oyin/Nazorat.tsx` | "🔔 Bugun nima qilish kerak" ro'yxatiga «N ta shikoyat qilingan komentariya» qatori (mavjud `Task{go:OyinView}` naqshi) |
+
+## 13.5 Xavflar
+
+| Xavf | Yumshatish |
+|---|---|
+| 🟠 Spam/troll toshqini | 13.2-band-1 (faqat karta egalari yozadi) + `rateLimit` + 1/kishi/sovrin unique-cheklov |
+| 🟠 Haqoratli matn jonli ko'rinishi (KEYIN-moderatsiya tanlansa) | N=3 shikoyat = avto-yashirish (daqiqalar ichida, `reportAd` bilan bir xil tezlik) + admin istalgan payt `removed` qila oladi (shikoyat kutmasdan) |
+| 🟡 Admin yuki | Faqat shikoyat qilinganlar navbatga tushadi (hammasi emas) — `elonlarSlaTick` kabi alohida SLA-eslatma **kerak emas** (hajm kichik boshlanadi, kerak bo'lsa keyin qo'shiladi) |
+| 🟡 `oyinService.ts` yana kattalashishi | Alohida `oyinCommentService.ts` fayli — mavjud faylga QO'SHILMAYDI |
+
+## 13.6 DoD — har band buyruq+natija bilan isbotlanadi
+
+| # | Qabul mezoni | Tekshiruv buyrug'i |
+|---|---|---|
+| D1 | `OyinComment` jadvali VPS'da bor, app boshqa hech narsani buzmagan | VPS: `prisma migrate diff --from-schema-datasource ... --script` (diff o'qiladi) → `prisma db push` → `/health` 200 |
+| D2 | Istalgan bog'langan a'zo (karta shart emas) komentariya yoza oladi | `POST /api/oyin/prize/:key/comments` kartasiz a'zo tokeni bilan → 200/ok |
+| D3 | 1 kishi 1 sovringa faqat 1 komentariya — qayta yuborish TAHRIR qiladi, yangi qator ochmaydi | Ketma-ket ikki `POST` bir xil `(prizeKey, memberId)` bilan → DB'da bitta qator, `updatedAt` yangilangan |
+| D4 | 140 belgidan uzun matn rad etiladi | `POST` 141 belgili matn bilan → 400 |
+| D5 | Tezlik chegarasi ishlaydi | Bitta a'zo N+1 marta ketma-ket `POST` (limitdan tez) → oxirgisi 429 |
+| D6 | 3-shikoyat avto-yashiradi | 3 xil a'zo bitta komentariyani `report` qiladi → `status` `hidden`ga o'tadi, ommaviy `GET`da endi ko'rinmaydi |
+| D7 | Bitta a'zo bir komentariyani 2 marta shikoyat qila olmaydi | Ketma-ket ikki `report` bir xil (`commentId`,`memberId`) → `reports` faqat 1 marta oshadi |
+| D8 | Admin `hidden`ni qayta faollashtira oladi (`approve`) | Admin panel: shikoyat navbatida "✅ Qaytarish" → `status` `active`, ommaviy `GET`da qayta ko'rinadi |
+| D9 | Admin istalgan komentariyani shikoyatsiz ham o'chira oladi (`removed`) | Admin: "🗑 O'chirish" → `status` `removed`, hech qachon qayta ko'rinmaydi (approve tugmasi bo'lmaydi) |
+| D10 | Bloklangan a'zo yangi komentariya yoza olmaydi (eskilari qoladi) | Admin bloklaydi → o'sha a'zo `POST` → 403; eski komentariyalari `GET`da hali ko'rinadi |
+| D11 | UI: "no new colors" | `grep -n "#[0-9a-fA-F]\{3,6\}" packages/miniapp/src/design/feat/oyk.css` — yangi qo'shilgan `.oyk-comment-*` bloklarida 0 ta natija (faqat `var(--oyk-*)`) |
+| D12 | Typecheck butun repo bo'ylab toza | `pnpm -r typecheck` — server/shared/miniapp/admin 4tasi ham 0 xato (K8ga oid) |
+| D13 | Mavjud testlar buzilmagan | `pnpm --filter @t1067/shared test` — 187/187 (yoki yangi comment-mantiq shared'ga tushsa, +N) |
+| D14 | Live tekshiruv | VPS deploydan keyin: real Telegram orqali 1 ta komentariya yozish → admin panelda ko'rinishi → shikoyat qilish → yashirilishi (ega o'zi sinaydi, QABUL) |
+
+## 13.7 Qurilish tartibi
+
+1. 13.2 dagi 3 ta qarorga ega TASDIG'I.
+2. Schema + VPS migratsiya (D1) — **kod push'idan oldin, alohida qadam** (CLAUDE.md).
+3. `oyinCommentService.ts` (post/list/report/admin) + shared turlar — D2–D10 shu bosqichda isbotlanadi (avval skript bilan, keyin API orqali).
+4. `server.ts` marshrutlari.
+5. Miniapp UI (sheet + kirish nuqtasi) + demo mock — D11.
+6. Admin `Komentariyalar.tsx` + `Nazorat.tsx` qatori.
+7. D12–D13 (typecheck + test), commit + push (owner tasdig'i bilan, odatdagidek).
+8. D14 — ega QABULI, shundan keyingina "K8 — done".

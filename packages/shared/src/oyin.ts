@@ -1283,6 +1283,7 @@ export const OYIN_AUDIT_ACTIONS = [
   "freeze.set", "capacity.open",
   "ball.adjust", "ticket.cancel", "member.ban",
   "story.review", "gashtak.kick", "gashtak.disband", "gashtak.turn",
+  "comment.approve", "comment.remove", "comment.ban",
 ] as const;
 export type OyinAuditAction = (typeof OYIN_AUDIT_ACTIONS)[number];
 
@@ -1319,6 +1320,8 @@ export interface OyinVitals {
   prizesFilled: number;
   storiesPending: number;
   riskCount: number;
+  /** 💬 K8 — shikoyat qilib `hidden`ga tushgan, admin ko'rib chiqishni kutayotgan komentariyalar. */
+  commentsPending: number;
   frozen: boolean;
   /** Hisob qachon olingani — panel «eskirgan raqam» ko'rsatmasligi uchun. */
   at: string;
@@ -1575,6 +1578,53 @@ export interface OyinCardVerifyResponse {
   result: "won" | "lost" | null;
   drawIso: string | null;
 }
+
+// ── 💬 K8 — sovg'a ostidagi ochiq komentariya (OYIN_KARTA_PLAN.md §13) ──────────────────────────
+// Moderatsiya: KEYIN (darhol active), 3-shikoyatda avto `hidden`. `memberId` ATAYLAB yo'q —
+// `OyinCardDetail` bilan bir xil intizom: klientga ichki ID chiqarilmaydi, faqat `mine`.
+export interface OyinComment {
+  id: number;
+  authorName: string;
+  text: string;
+  createdAt: string;
+  /** Shu foydalanuvchining o'zi yozgan komentariyami — «o'chirish» tugmasi shu bilan boshqariladi. */
+  mine: boolean;
+}
+export interface OyinCommentListResponse {
+  prizeKey: string;
+  comments: OyinComment[];
+  /** Chaqiruvchining shu sovrin ostidagi o'z matni bo'lsa — tahrir maydonini oldindan to'ldirish uchun. */
+  myText: string | null;
+  /** Bloklangan bo'lsa yozish maydoni ko'rsatilmaydi (eski komentariyalari ro'yxatda qoladi). */
+  banned: boolean;
+}
+export interface OyinPostCommentResult {
+  ok: boolean;
+  reason?: "too_long" | "empty" | "banned" | "not_linked";
+  comment?: OyinComment;
+}
+export interface OyinReportCommentResult {
+  ok: boolean;
+  /** Shu shikoyat 3-chegarani yopib, komentariyani ro'yxatdan yashirdimi. */
+  hidden?: boolean;
+}
+
+/** 🛡 Admin — moderatsiya navbati satri (`status:"hidden"` — shikoyat qilinganlar; `all=1` bilan hammasi). */
+export interface OyinAdminCommentRow {
+  id: number;
+  prizeKey: string;
+  prizeName: string;
+  memberId: number;
+  authorName: string;
+  text: string;
+  reports: number;
+  status: "active" | "hidden" | "removed";
+  createdAt: string;
+  /** Shu a'zo hozir komentariyadan bloklanganmi (moderatsiya navbatida bloklash tugmasi shu bilan). */
+  banned: boolean;
+}
+export interface OyinAdminCommentListResponse { rows: OyinAdminCommentRow[] }
+export interface OyinAdminCommentActionResult { ok: boolean }
 
 /** Vitrina filtri. Ega: «bir kartalik · ko'p kartalik · kam kartalik · qimmat · arzon ·
  *  yutilishiga kam qolganlari». */

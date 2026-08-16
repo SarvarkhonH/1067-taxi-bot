@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, OYIN_CANCEL_WINDOW_MS, OYIN_JAMOA_MIN, OYIN_JAMOA_MAX, OYIN_PRIZE_FILTERS, oyinFilterPrizes, oyinHintOf, type OyinCardDetail, type OyinPrizeCardsResponse, type OyinPrizeFilter, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, OYIN_CANCEL_WINDOW_MS, OYIN_JAMOA_MIN, OYIN_JAMOA_MAX, OYIN_PRIZE_FILTERS, oyinFilterPrizes, oyinHintOf, type OyinCardDetail, type OyinCommentListResponse, type OyinPrizeCardsResponse, type OyinPrizeFilter, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
 import { OyinStory } from "./oyinStory";
@@ -528,7 +528,7 @@ type OyinTab = "home" | "vitrina" | "tickets" | "jamoam";
 // (Dastur/Jamoam/Mukofotlar tablaridan) — hub o'zi faqat qo'shimcha qavat edi.
 // 🗑 "how" (statik "Qanday ishlaydi?" varag'i) OLIB TASHLANDI 2026-08-13 — kirish tugmasi
 // endi story'ni ochadi (`setOnboard`), sheet emas.
-type SheetKind = "buy" | "ball" | "earn" | "bell" | "rules" | "gashtak" | "cards" | "card" | null;
+type SheetKind = "buy" | "ball" | "earn" | "bell" | "rules" | "gashtak" | "cards" | "card" | "comments" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?: string | null } = {}) {
@@ -566,6 +566,14 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const [cardsPrize, setCardsPrize] = useState<OyinPrizeView | null>(null);
   const [cardData, setCardData] = useState<OyinCardDetail | null>(null);
   const [cardErr, setCardErr] = useState(false);
+  // 💬 K8 — sovg'a ostidagi ochiq komentariya. `commentsPrize` "cardsPrize" bilan bir xil rol
+  // (qaysi sovg'a uchun ochilgani), `card`/`cards` sheetlaridan ATAYLAB ALOHIDA state — ikkalasi
+  // bir vaqtda ochiq bo'lmaydi, lekin aralashtirib qo'yish (masalan yopishda) osonlik uchun emas.
+  const [commentsData, setCommentsData] = useState<OyinCommentListResponse | null>(null);
+  const [commentsErr, setCommentsErr] = useState(false);
+  const [commentsPrize, setCommentsPrize] = useState<OyinPrizeView | null>(null);
+  const [commentText, setCommentText] = useState("");
+  const [commentBusy, setCommentBusy] = useState(false);
   // 🛡 Panjaradan tez-tez katak almashtirilsa (yopib-boshqasini ochish), eski so'rov KECHROQ
   // qaytishi mumkin va yangi kartani eskisining ma'lumoti bilan bosib yozib qo'yishi mumkin
   // edi. `gno` shu yerda "so'nggi so'ralgan" sifatida saqlanadi — javob kelganda mos kelmasa
@@ -1021,6 +1029,53 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
       setAvatarBusy(false);
     }
   }, [cardData]);
+  // 💬 K8 — sovg'a ostidagi ochiq komentariyalar. `openCards`/`openCard` bilan bir xil naqsh.
+  const openComments = useCallback((p: OyinPrizeView) => {
+    haptic();
+    setCommentsData(null); setCommentsErr(false); setCommentsPrize(p); setCommentText(""); setSheet("comments");
+    void api.oyinComments(p.key).then((d) => { setCommentsData(d); setCommentText(d.myText ?? ""); }).catch(() => setCommentsErr(true));
+  }, []);
+  const saveComment = useCallback(async () => {
+    if (!commentsPrize || !commentText.trim()) return;
+    haptic();
+    setCommentBusy(true);
+    try {
+      const r = await api.oyinPostComment(commentsPrize.key, commentText.trim());
+      if (r.ok && r.comment) {
+        setCommentsData((d) => d ? { ...d, myText: r.comment!.text, comments: [r.comment!, ...d.comments.filter((c) => !c.mine)] } : d);
+        showToast("Fikringiz qo'shildi");
+      } else {
+        showToast(r.reason === "too_long" ? "Juda uzun — 140 belgigacha" : r.reason === "banned" ? "Bu sovrinda yozish sizga yopilgan" : "Yuborilmadi");
+      }
+    } catch {
+      showToast("Yuborilmadi — aloqa uzildi");
+    } finally {
+      setCommentBusy(false);
+    }
+  }, [commentsPrize, commentText, showToast]);
+  const deleteComment = useCallback(async (id: number) => {
+    haptic();
+    try {
+      const r = await api.oyinDeleteComment(id);
+      if (r.ok) {
+        setCommentsData((d) => d ? { ...d, myText: null, comments: d.comments.filter((c) => c.id !== id) } : d);
+        setCommentText("");
+        showToast("O'chirildi");
+      }
+    } catch {
+      showToast("O'chirilmadi — aloqa uzildi");
+    }
+  }, [showToast]);
+  const reportComment = useCallback(async (id: number) => {
+    haptic();
+    try {
+      await api.oyinReportComment(id);
+      setCommentsData((d) => d ? { ...d, comments: d.comments.filter((c) => c.id !== id) } : d); // darhol ko'zdan yashiriladi — server 3-shikoyatda haqiqatan yashiradi
+      showToast("Shikoyat qabul qilindi");
+    } catch {
+      showToast("Yuborilmadi — aloqa uzildi");
+    }
+  }, [showToast]);
   // 🆕 Bo'sh katakka bosilganda (ega talabi 2026-08-12: «har bir karta yasalgan payt ham
   // kirib ko'rib bo'lishi kerak, egasiz bo'lsa ham»). Serverga so'rov YO'Q — `gno` faqat
   // xariddan tug'iladi (K1 rejasi), shuning uchun bu joyda haqiqiy karta ma'lumoti yo'q,
@@ -1727,6 +1782,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                         ochiladi va egasi bor-yo'qligi ko'rsatiladi». To'lgan sovg'ada ham
                         ochiladi — u eng kuchli ijtimoiy isbot. */}
                     <button type="button" className="oyk-goal-btn" aria-label="Kartalarni ko'rish" title="Kartalarni ko'rish" onClick={() => openCards(p)}><Icon name="cards" size={19} /></button>
+                    {/* 💬 K8 — sovg'a ostidagi ochiq komentariya (OYIN_KARTA_PLAN.md §13). */}
+                    <button type="button" className="oyk-goal-btn" aria-label="Fikrlar" title="Fikrlar" onClick={() => openComments(p)}><Icon name="chat" size={19} /></button>
                     {/* 🚕 `needsRide` tugmaning O'ZIDA aytiladi — server bu holatda `no_ride`
                         qaytaradi, ekran esa avval bu haqda hech narsa demasdi va mijoz uni
                         faqat "Tasdiqlash" dan KEYIN bilib olardi (G3). */}
@@ -2477,6 +2534,62 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   className={`oyk-sheet-ok${emptySlotNo !== null && cardsPrize ? " is-ghost" : ""}`}
                   onClick={() => setSheet(null)}
                 >Yopish</button>
+              </>
+            )}
+
+            {/* 💬 K8 — sovg'a ostidagi ochiq komentariya (OYIN_KARTA_PLAN.md §13, ega tasdig'i
+                2026-08-16: HAMMA yoza oladi). `.oyk-cards-head`/`.oyk-note-edit`/`.oyk-cards-msg`
+                — yangi uslub o'ylab topilmadi, K1/K2/K3 bilan bir xil vizual til. */}
+            {sheet === "comments" && (
+              <>
+                <div className="oyk-cards-head">
+                  <div className="oyk-cards-ico">
+                    {commentsPrize?.photoUrl ? <img src={commentsPrize.photoUrl} alt="" /> : <span>{commentsPrize?.icon ?? "💬"}</span>}
+                  </div>
+                  <div className="oyk-cards-head-name">{commentsPrize?.name ?? "Fikrlar"}</div>
+                </div>
+                {commentsErr && <div className="oyk-cards-msg">Fikrlarni yuklab bo'lmadi — aloqa uzildi.</div>}
+                {!commentsErr && !commentsData && <div className="oyk-cards-msg">Yuklanmoqda…</div>}
+                {commentsData && (
+                  <>
+                    {commentsData.banned ? (
+                      <div className="oyk-cards-msg">Bu sovrinda yozish sizga yopilgan.</div>
+                    ) : (
+                      <div className="oyk-note-edit">
+                        <textarea
+                          className="oyk-note-edit-ta" value={commentText} maxLength={140} rows={2}
+                          placeholder="Shu sovrin haqida fikringiz…"
+                          onChange={(e) => setCommentText(e.target.value)}
+                        />
+                        <div className="oyk-note-edit-row">
+                          <button
+                            type="button" className="oyk-comment-send"
+                            disabled={commentBusy || !commentText.trim() || commentText.trim() === (commentsData.myText ?? "")}
+                            onClick={() => void saveComment()}
+                          >{commentBusy ? "…" : commentsData.myText ? "Yangilash" : "Yuborish"}</button>
+                        </div>
+                      </div>
+                    )}
+                    {commentsData.comments.length === 0 ? (
+                      <div className="oyk-cards-msg">Hali fikr yo'q — birinchi bo'ling.</div>
+                    ) : (
+                      <div className="oyk-comment-list">
+                        {commentsData.comments.map((c) => (
+                          <div key={c.id} className="oyk-comment-row">
+                            <div className="oyk-comment-top">
+                              <span className="oyk-comment-name">{c.authorName}{c.mine ? " (siz)" : ""}</span>
+                              {c.mine
+                                ? <button type="button" className="oyk-comment-flag" onClick={() => void deleteComment(c.id)}>O'chirish</button>
+                                : <button type="button" className="oyk-comment-flag" onClick={() => void reportComment(c.id)}>🚩</button>}
+                            </div>
+                            <div className="oyk-comment-text">{c.text}</div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                <button type="button" className="oyk-sheet-ok" onClick={() => setSheet(null)}>Yopish</button>
               </>
             )}
 

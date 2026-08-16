@@ -14,7 +14,7 @@ import { useCallback } from "react";
 import { OyinView } from "../oyin";
 import type {
   OyinStateResponse, OyinVitrinaResponse, OyinActivityResponse, OyinMyTicketsResponse,
-  OyinJamoamResponse, OyinJamoaView, OyinPrizeCardsResponse, OyinCardDetail,
+  OyinJamoamResponse, OyinJamoaView, OyinPrizeCardsResponse, OyinCardDetail, OyinComment,
 } from "@t1067/shared";
 
 const MOCK_STATE: OyinStateResponse = {
@@ -154,6 +154,22 @@ function mockCard(gno: number): OyinCardDetail {
   };
 }
 
+// 💬 K8 (2026-08-16) — sovg'a ostidagi ochiq komentariya. Boshqa demo-mock'lardan farqli, BU
+// haqiqatan mutatsiyalanadi (yozish→ro'yxatda ko'rinish→o'chirish) — sheet UI oqimini backendsiz
+// to'liq sinash uchun (jamoa/kartadagi kabi faqat "ok:true" qaytarish yetarli emas edi, chunki
+// K8 sheet o'z holatini shu javobdan quradi).
+const MOCK_COMMENTS: Record<string, OyinComment[]> = {};
+function mockCommentsFor(key: string): OyinComment[] {
+  if (!MOCK_COMMENTS[key]) {
+    MOCK_COMMENTS[key] = [
+      { id: 1, authorName: "Mehri", text: "Bu sovg'a juda chiroyli, umid qilaman menga chiqadi!", createdAt: "2026-08-10T09:00:00.000Z", mine: false },
+      { id: 2, authorName: "Bekzod", text: "3 ta karta oldim, omadim kelsin 🤞", createdAt: "2026-08-12T14:30:00.000Z", mine: false },
+    ];
+  }
+  return MOCK_COMMENTS[key]!;
+}
+let mockCommentSeq = 100;
+
 let mockedOnce = false;
 function installOyinMock(): void {
   if (mockedOnce) return;
@@ -179,6 +195,34 @@ function installOyinMock(): void {
     if (path === "/api/oyin/avatar-optin" && init?.method === "POST") {
       const body = JSON.parse(String(init.body ?? "{}")) as { optIn?: boolean };
       return jsonRes({ ok: true, optIn: body.optIn === true, photoFound: false });
+    }
+    // 💬 K8 (2026-08-16) — sovg'a ostidagi ochiq komentariya.
+    const commentsListM = /^\/api\/oyin\/prize\/([^/]+)\/comments$/.exec(path);
+    if (commentsListM && (!init?.method || init.method === "GET")) {
+      const key = decodeURIComponent(commentsListM[1] ?? "");
+      const list = mockCommentsFor(key);
+      const mine = list.find((c) => c.mine);
+      return jsonRes({ prizeKey: key, comments: list, myText: mine?.text ?? null, banned: false });
+    }
+    if (commentsListM && init?.method === "POST") {
+      const key = decodeURIComponent(commentsListM[1] ?? "");
+      const body = JSON.parse(String(init.body ?? "{}")) as { text?: string };
+      const text = String(body.text ?? "").trim().slice(0, 140);
+      if (!text) return jsonRes({ ok: false, reason: "empty" });
+      const list = mockCommentsFor(key);
+      const idx = list.findIndex((c) => c.mine);
+      const row: OyinComment = { id: idx >= 0 ? list[idx]!.id : ++mockCommentSeq, authorName: "Sarvarxon", text, createdAt: new Date().toISOString(), mine: true };
+      if (idx >= 0) list[idx] = row; else list.unshift(row);
+      return jsonRes({ ok: true, comment: row });
+    }
+    const commentDelM = /^\/api\/oyin\/comments\/(\d+)$/.exec(path);
+    if (commentDelM && init?.method === "DELETE") {
+      const id = Number(commentDelM[1]);
+      for (const key of Object.keys(MOCK_COMMENTS)) MOCK_COMMENTS[key] = MOCK_COMMENTS[key]!.filter((c) => c.id !== id);
+      return jsonRes({ ok: true });
+    }
+    if (/^\/api\/oyin\/comments\/\d+\/report$/.test(path) && init?.method === "POST") {
+      return jsonRes({ ok: true });
     }
     if (path in MOCK_GET) return jsonRes(MOCK_GET[path]);
     // 🤝 Gashtak boshliq amallari (kick/add/turn/message/rotate/disband) — demo'da HAQIQIY

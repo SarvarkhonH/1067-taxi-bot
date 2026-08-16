@@ -29,6 +29,8 @@ import type {
   OyinActivityAction,
   OyinActivityResponse,
   OyinAdminActionResult,
+  OyinAdminCommentListResponse,
+  OyinAdminCommentActionResult,
   OyinAdminMemberDetail,
   OyinAdminMemberHit,
   OyinAdminPrizeRow,
@@ -185,6 +187,11 @@ export const adminApi = {
     postJson<OyinAdminActionResult>("/api/admin/oyin/ticket/cancel", { memberId, gno }),
   oyinSetBan: (memberId: number, banned: boolean, reason: string) =>
     postJson<OyinAdminActionResult>("/api/admin/oyin/ban", { memberId, banned, reason }),
+  // 💬 K8 — komentariya moderatsiyasi. `status` berilmasa server standart "hidden" (navbat) qaytaradi.
+  oyinComments: (status?: string) => req<OyinAdminCommentListResponse>(`/api/admin/oyin/comments${status ? `?status=${status}` : ""}`),
+  oyinCommentApprove: (id: number) => postJson<OyinAdminCommentActionResult>(`/api/admin/oyin/comments/${id}/approve`, {}),
+  oyinCommentRemove: (id: number) => postJson<OyinAdminCommentActionResult>(`/api/admin/oyin/comments/${id}/remove`, {}),
+  oyinSetCommentBan: (memberId: number, banned: boolean) => postJson<OyinAdminCommentActionResult>(`/api/admin/oyin/commenters/${memberId}/ban`, { banned }),
   oyinFreeze: () => req<OyinFreezeState>("/api/admin/oyin/freeze"),
   setOyinFreeze: (frozen: boolean) => postJson<OyinFreezeState>("/api/admin/oyin/freeze", { frozen }),
   setOyinSponsor: (name: string, photoUrl: string | null, active: boolean) =>

@@ -19,6 +19,7 @@ import { num, short } from "../lib/fmt";
 import { Gashtak } from "./Gashtak";
 import { Hikoyalar } from "./Hikoyalar";
 import { Kartalar } from "./Kartalar";
+import { Komentariyalar } from "./Komentariyalar";
 import { Mukofotlar } from "./Mukofotlar";
 import { Nazorat } from "./Nazorat";
 import { Odamlar } from "./Odamlar";
@@ -27,7 +28,7 @@ import { Sozlama } from "./Sozlama";
 import { ToastHost, useLoad } from "./ui";
 import "./oyin.css";
 
-export type OyinView = "nazorat" | "odamlar" | "mukofot" | "kartalar" | "hikoya" | "gashtak" | "reja" | "sozlama";
+export type OyinView = "nazorat" | "odamlar" | "mukofot" | "kartalar" | "hikoya" | "gashtak" | "komentariya" | "reja" | "sozlama";
 
 interface ModDef { id: OyinView; ico: string; label: string }
 const MODULES: ModDef[] = [
@@ -37,6 +38,7 @@ const MODULES: ModDef[] = [
   { id: "kartalar", ico: "💳", label: "Kartalar & Tiraj" },
   { id: "hikoya", ico: "📸", label: "Hikoyalar" },
   { id: "gashtak", ico: "👑", label: "Gashtak" },
+  { id: "komentariya", ico: "💬", label: "Komentariyalar" },
   { id: "reja", ico: "🔮", label: "Reja" },
   { id: "sozlama", ico: "⚙", label: "Sozlama & Audit" },
 ];
@@ -47,6 +49,7 @@ function modCount(id: OyinView, v: OyinVitals | null): { n: number; hot: boolean
   if (!v) return null;
   if (id === "hikoya") return v.storiesPending > 0 ? { n: v.storiesPending, hot: true } : null;
   if (id === "odamlar") return v.riskCount > 0 ? { n: v.riskCount, hot: true } : null;
+  if (id === "komentariya") return v.commentsPending > 0 ? { n: v.commentsPending, hot: true } : null;
   if (id === "kartalar") return { n: v.cardsIssued, hot: false };
   return null;
 }
@@ -99,6 +102,7 @@ export function Konsol() {
         {view === "kartalar" && <Kartalar onChanged={() => vitals.reload()} />}
         {view === "hikoya" && <Hikoyalar onChanged={() => vitals.reload()} />}
         {view === "gashtak" && <Gashtak />}
+        {view === "komentariya" && <Komentariyalar onChanged={() => vitals.reload()} />}
         {view === "reja" && <Reja />}
         {view === "sozlama" && <Sozlama onChanged={() => vitals.reload()} onGo={go} />}
 
@@ -195,6 +199,7 @@ function Palette({ open, onClose, onGo }: { open: boolean; onClose: () => void; 
     { label: "🎬 Mukofot kuni — tiraj", hint: "", run: () => onGo("kartalar") },
     { label: "📸 Hikoyalarni tekshirish", hint: "moderatsiya", run: () => onGo("hikoya") },
     { label: "👑 Gashtak guruhlari", hint: "", run: () => onGo("gashtak") },
+    { label: "💬 Komentariya shikoyatlari", hint: "moderatsiya", run: () => onGo("komentariya") },
     { label: "🔮 Reja — nima bo'ladi?", hint: "proyeksiya", run: () => onGo("reja") },
     { label: "📜 Faoliyat jurnali", hint: "mijoz balli", run: () => onGo("odamlar") },
     { label: "🧾 Audit jurnali", hint: "admin amallari", run: () => onGo("sozlama") },

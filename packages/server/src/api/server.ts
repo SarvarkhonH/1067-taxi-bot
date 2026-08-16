@@ -1550,6 +1550,33 @@ export function createApiServer(opts: ApiOptions = {}) {
     if (!r) { res.status(404).json({ error: "not_found" }); return; }
     res.json(r);
   });
+  // 💬 K8 (OYIN_KARTA_PLAN.md §13, ega tasdig'i 2026-08-16) — sovg'a ostidagi ochiq komentariya.
+  // HAMMA bog'langan a'zo yoza oladi (karta egaligi sharti YO'Q). Ro'yxat `requireUser` — o'z
+  // matni/bloklanganlik holatini bilish uchun, lekin ko'rish o'zi PUBLIC bo'lgan mazmun.
+  app.get("/api/oyin/prize/:key/comments", requireUser, rateLimit(60), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    const { listComments } = await import("../services/oyinCommentService");
+    res.json(await listComments(String(req.params.key ?? ""), memberId));
+  });
+  app.post("/api/oyin/prize/:key/comments", requireUser, rateLimit(6), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { postComment } = await import("../services/oyinCommentService");
+    const b = req.body as { text?: string };
+    res.json(await postComment(memberId, String(req.params.key ?? ""), String(b?.text ?? "")));
+  });
+  app.delete("/api/oyin/comments/:id", requireUser, rateLimit(20), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { deleteOwnComment } = await import("../services/oyinCommentService");
+    res.json(await deleteOwnComment(memberId, Number(req.params.id)));
+  });
+  app.post("/api/oyin/comments/:id/report", requireUser, rateLimit(10), async (req, res) => {
+    const memberId = await getMemberId(res.locals.telegramId as string);
+    if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    const { reportComment } = await import("../services/oyinCommentService");
+    res.json(await reportComment(Number(req.params.id), memberId));
+  });
   // ⛔ `/api/oyin/board` OLIB TASHLANDI (ega qarori 2026-08-03): reyting ball
   // QOLDIG'I bo'yicha saralanardi — chipta olgan odamning o'rni TUSHARDI, ya'ni to'g'ri
   // xatti-harakat jazolanardi. O'rniga `/api/oyin/bell` — ball qayerdan kelgani.
@@ -2689,6 +2716,44 @@ export function createApiServer(opts: ApiOptions = {}) {
       await alertAdmins(b?.banned
         ? `🚫 <b>O'yindan chetlatildi</b>\n#${Number(b?.memberId)}\nSabab: ${String(b?.reason ?? "")}\nChiptalari tirajdan chiqarildi.`
         : `✅ <b>O'yinga qaytarildi</b>\n#${Number(b?.memberId)}`).catch(() => undefined);
+    }
+    res.json(r);
+  });
+  // 💬 K8 — komentariya moderatsiyasi. Standart `status` yo'q so'rov = faqat `hidden` (shikoyat
+  // navbati). `adminSetBan` (yuqorida) dan ATAYLAB ALOHIDA: bu yerdagi bloklash faqat komentariya
+  // yozishdan mahrum qiladi, o'yindan chetlatmaydi (`adminSetCommentBan` izohiga qarang).
+  app.get("/api/admin/oyin/comments", requireAdmin, async (req, res) => {
+    const { adminListComments } = await import("../services/oyinCommentService");
+    res.json(await adminListComments(req.query?.status ? String(req.query.status) : undefined));
+  });
+  app.post("/api/admin/oyin/comments/:id/approve", requireAdmin, rateLimit(30), async (req, res) => {
+    const { adminApproveComment } = await import("../services/oyinCommentService");
+    const r = await adminApproveComment(Number(req.params.id));
+    if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({ action: "comment.approve", actor: auditActor(res), target: `#${req.params.id}`, changes: [{ field: "holat", from: "hidden", to: "active" }] });
+    }
+    res.json(r);
+  });
+  app.post("/api/admin/oyin/comments/:id/remove", requireAdmin, rateLimit(30), async (req, res) => {
+    const { adminRemoveComment } = await import("../services/oyinCommentService");
+    const r = await adminRemoveComment(Number(req.params.id));
+    if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({ action: "comment.remove", actor: auditActor(res), target: `#${req.params.id}`, changes: [{ field: "holat", from: "active/hidden", to: "removed" }] });
+    }
+    res.json(r);
+  });
+  app.post("/api/admin/oyin/commenters/:memberId/ban", requireAdmin, rateLimit(30), async (req, res) => {
+    const b = req.body as { banned?: boolean };
+    const { adminSetCommentBan } = await import("../services/oyinCommentService");
+    const r = await adminSetCommentBan(Number(req.params.memberId), b?.banned !== false);
+    if (r.ok) {
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        action: "comment.ban", actor: auditActor(res), target: `#${req.params.memberId}`,
+        changes: [{ field: "komentariya-bloklangan", from: String(b?.banned === false), to: String(b?.banned !== false) }],
+      });
     }
     res.json(r);
   });

@@ -32,6 +32,9 @@ import type {
   OyinAvatarOptInResult,
   OyinCardVerifyResponse,
   OyinSetCardNoteResult,
+  OyinCommentListResponse,
+  OyinPostCommentResult,
+  OyinReportCommentResult,
   OyinPrizeCardsResponse,
   OyinJamoamResponse,
   OyinJamoaResult,
@@ -326,6 +329,11 @@ export const api = {
   oyinSetAvatarOptIn: (optIn: boolean) => post<OyinAvatarOptInResult>("/api/oyin/avatar-optin", { optIn }),
   // 🌐 K1 — ochiq tekshiruv (PAROLSIZ, `/api/track` bilan bir xil naqsh — Telegram shart emas).
   oyinVerifyCard: (code: string) => get<OyinCardVerifyResponse>(`/api/oyin/verify/${encodeURIComponent(code)}`),
+  // 💬 K8 — sovg'a ostidagi ochiq komentariya. HAMMA yoza oladi (karta egaligi sharti yo'q).
+  oyinComments: (prizeKey: string) => get<OyinCommentListResponse>(`/api/oyin/prize/${encodeURIComponent(prizeKey)}/comments`),
+  oyinPostComment: (prizeKey: string, text: string) => post<OyinPostCommentResult>(`/api/oyin/prize/${encodeURIComponent(prizeKey)}/comments`, { text }),
+  oyinDeleteComment: (id: number) => del<{ ok: boolean }>(`/api/oyin/comments/${id}`),
+  oyinReportComment: (id: number) => post<OyinReportCommentResult>(`/api/oyin/comments/${id}/report`, {}),
   oyinJamoam: () => get<OyinJamoamResponse>("/api/oyin/jamoam"),
   // 🤝 Gap-jamoa (gashtak) — guruh tuzish/qo'shilish/chiqish. Ball ko'chirish YO'Q.
   oyinJamoa: () => get<OyinJamoaView>("/api/oyin/jamoa"),

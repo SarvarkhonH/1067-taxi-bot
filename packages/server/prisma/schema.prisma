@@ -259,6 +259,26 @@ model GashtakReward {
   @@index([jamoaId, monthKey])
 }
 
+// 💬 K8 (OYIN_KARTA_PLAN.md §13) — sovg'a ostidagi ochiq komentariya. Moderatsiya `ClassifiedAd`
+// naqshi bilan BIR XIL: KEYIN (darhol active), `reports` hisoblagich 3ga yetsa avto `hidden`
+// (alohida Report jadvali YO'Q — `oyin:commentrep:<id>:<memberId>` AppState marker, `elonrep:`
+// bilan bir xil). Admin istalgan payt shikoyatsiz ham `removed` qila oladi. Bloklash ham yangi
+// ustun EMAS — `oyin:commentban:<memberId>` AppState bayrog'i (K1-K7 naqshi).
+model OyinComment {
+  id         Int      @id @default(autoincrement())
+  prizeKey   String
+  memberId   Int
+  authorName String // yozilgan paytdagi ism (snapshot)
+  text       String // ≤140 belgi, server tekshiradi
+  reports    Int      @default(0)
+  status     String   @default("active") // active | hidden (3-shikoyat) | removed (admin)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([prizeKey, memberId]) // 1 komentariya/kishi/sovrin — qayta yuborish TAHRIR qiladi
+  @@index([prizeKey, status, createdAt])
+}
+
 // 🪙 Wait compensation (feature "waitcomp"): tanga paid for search time before a driver accepted,
 // scaled by a grace→ceiling ramp and gated on active play (score>0). OUTSIDE the 350/ride clamp
 // (rollRideCashback) — this is compensation for OUR failure to find a driver fast, not stacked

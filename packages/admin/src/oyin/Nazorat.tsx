@@ -109,6 +109,7 @@ function buildTasks(v: OyinVitals, catalog: OyinAdminPrizeRow[], cap: OyinCapaci
   if (v.overBudget) t.push({ tone: "bad", text: <>Katalog byudjetdan <b>{short(v.catalogSom - v.budgetSom)} so'm</b> oshib ketdi.</>, go: "mukofot" });
   if (v.frozen) t.push({ tone: "warn", text: <><b>Tiraj muzlatilgan</b> — hech kim (siz ham) karta ola olmaydi.</>, go: "kartalar" });
   if (v.storiesPending > 0) t.push({ tone: "warn", text: <><b>{v.storiesPending} ta hikoya</b> tekshiruvni kutmoqda.</>, go: "hikoya" });
+  if (v.commentsPending > 0) t.push({ tone: "warn", text: <><b>{v.commentsPending} ta komentariya</b> shikoyat qilingan — ko'rib chiqing.</>, go: "komentariya" });
   if (v.riskCount > 0) t.push({ tone: "warn", text: <><b>{v.riskCount} kishi</b> shubhali ro'yxatda — qo'lda ko'rib chiqing.</>, go: "odamlar" });
 
   if (t.length === 0) t.push({ tone: "ok", text: <><b>Hammasi joyida</b> — bugun aralashuv kerak emas.</> });

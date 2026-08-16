@@ -1065,7 +1065,9 @@ function parseCatalog(raw: string | undefined): OyinCatalogPrize[] {
   }
 }
 
-async function getCatalog(): Promise<OyinCatalogPrize[]> {
+// `export` — K8 (`oyinCommentService.ts`) sovrin nomini komentariya-admin qatorida ko'rsatish
+// uchun qayta ishlatadi.
+export async function getCatalog(): Promise<OyinCatalogPrize[]> {
   const row = await prisma.appState.findUnique({ where: { key: CATALOG_KEY } });
   if (!row) {
     // NUSXA qaytariladi: `adminUpsertPrize` `Object.assign(existing, …)` / `catalog.push()`
@@ -4303,7 +4305,7 @@ let vitalsCache: { at: number; val: OyinVitals } | null = null;
 export async function adminVitals(): Promise<OyinVitals> {
   if (vitalsCache && Date.now() - vitalsCache.at < 20_000) return vitalsCache.val;
 
-  const [season, cap, budget, freeze, catalog, soldMap, leaders, stories] = await Promise.all([
+  const [season, cap, budget, freeze, catalog, soldMap, leaders, stories, commentsPending] = await Promise.all([
     getSeason(),
     getCapacity(),
     adminBudget(),
@@ -4315,6 +4317,12 @@ export async function adminVitals(): Promise<OyinVitals> {
     // lekin vital panelda `null` ustuni yo'q, shuning uchun xato log'ga chiqadi va 0 qo'yiladi.
     import("./oyinStory").then((m) => m.adminListStories("pending")).then((r) => r.length).catch((e) => {
       console.error("[oyin] vitals: hikoya navbati o'qilmadi:", e);
+      return 0;
+    }),
+    // 💬 K8 — dinamik import: `oyinCommentService.ts` bu faylning `ownerNames`/`getCatalog`sini
+    // import qiladi, aylanma bog'liqlik (circular import) yasamaslik uchun bu yerda STATIK EMAS.
+    import("./oyinCommentService").then((m) => m.pendingCommentCount()).catch((e) => {
+      console.error("[oyin] vitals: komentariya navbati o'qilmadi:", e);
       return 0;
     }),
   ]);
@@ -4345,6 +4353,7 @@ export async function adminVitals(): Promise<OyinVitals> {
     prizesFilled,
     storiesPending: stories,
     riskCount: leaders.filter((l) => l.risk.score > 0).length,
+    commentsPending,
     frozen: freeze.frozen,
     at: new Date().toISOString(),
   };
@@ -4597,8 +4606,10 @@ async function allTicketRows(): Promise<NonNullable<typeof prizeCardsCache>["row
 }
 
 /** Egalarning KO'RSATILADIGAN ismi. Ega qarori 2026-08-12: «oddiy telegram ismlari turishi
- *  yaxshi». Telefon, familiya va `memberId` HECH QACHON chiqmaydi. */
-async function ownerNames(memberIds: number[]): Promise<Map<number, string>> {
+ *  yaxshi». Telefon, familiya va `memberId` HECH QACHON chiqmaydi.
+ *  `export` — K8 (`oyinCommentService.ts`) komentariya muallifi ismi uchun ham shu funksiyani
+ *  qayta ishlatadi, ikkinchi nusxa yozilmaydi. */
+export async function ownerNames(memberIds: number[]): Promise<Map<number, string>> {
   const ids = [...new Set(memberIds)];
   if (ids.length === 0) return new Map();
   const rows = await prisma.telegramUser.findMany({
