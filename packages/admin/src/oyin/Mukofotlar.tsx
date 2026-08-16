@@ -8,7 +8,7 @@
 //   · ikkita QARAMA-QARSHI narx formulasi bir qatorga ikki xil «to'g'ri narx» berardi
 import { useMemo, useState } from "react";
 import type { OyinAdminPrizeRow, OyinBulkPrizeInput, OyinPrizeVelocity } from "@t1067/shared";
-import { OYIN_BULK_MAX, OYIN_SOM_PER_BALL, oyinCardPlan, oyinSuggestTier } from "@t1067/shared";
+import { OYIN_BULK_MAX, OYIN_PRIZE_MULTIPLIER, OYIN_SOM_PER_BALL, oyinCardPlan, oyinSuggestTier } from "@t1067/shared";
 import { adminApi } from "../api";
 import { csvName, downloadCsv } from "../lib/csv";
 import { ago, num, short } from "../lib/fmt";
@@ -29,6 +29,17 @@ function parseSum(label: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 const stageOf = (p: OyinAdminPrizeRow): Stage => (!p.active ? "hidden" : p.queued === true ? "queued" : p.limit > 0 && p.sold >= p.limit ? "filled" : "open");
+
+// 🛡 B3 (2026-08-16 audit): `oyinCardPlan`/`oyinSuggestTier` jonli `oyinRideBall`/
+// `oyinPrizeMultiplier` knoblarini o'qimasdan qattiq kodlangan standartga (35, 3×) tushib
+// qolgan edi — Sozlama.tsx "Ball jadvali"da bu ikkalasini o'zgartirsangiz ham narx-tavsiya
+// SEZMASDI (v1 panel to'g'ri o'qirdi, v2 qayta qurishda tushib qolgan). Bitta joydan olinadi.
+function econRates(values: Record<string, number> | undefined): { rideBall: number; multiplier: number } {
+  return {
+    rideBall: Number(values?.oyinRideBall ?? 35) || 35,
+    multiplier: Number(values?.oyinPrizeMultiplier ?? OYIN_PRIZE_MULTIPLIER) || OYIN_PRIZE_MULTIPLIER,
+  };
+}
 
 export function Mukofotlar({ onChanged }: { onChanged: () => void }) {
   const [sub, setSub] = useState<Sub>("katalog");
@@ -56,6 +67,7 @@ export function Mukofotlar({ onChanged }: { onChanged: () => void }) {
 /* ── 🎁 KATALOG ────────────────────────────────────────────────────────────────────────────── */
 function Katalog({ prizes, reload }: { prizes: OyinAdminPrizeRow[]; reload: () => void }) {
   const toast = useToast();
+  const econ = useLoad(() => adminApi.bonusEconomy(), []); // B3 — jonli rideBall/multiplier
   const [stage, setStage] = useState<Stage>("all");
   const [q, setQ] = useState("");
   const [sel, setSel] = useState<Set<string>>(new Set());
@@ -211,7 +223,8 @@ function Katalog({ prizes, reload }: { prizes: OyinAdminPrizeRow[]; reload: () =
               <Btn sm disabled={busy} onClick={() => void bulkAct("narxi qayta hisoblandi", (p) => {
                 const s = parseSum(p.valueLabel);
                 if (!s) return {};
-                const plan = oyinCardPlan(s, oyinSuggestTier(s));
+                const { rideBall, multiplier } = econRates(econ.data?.values);
+                const plan = oyinCardPlan(s, oyinSuggestTier(s, rideBall, multiplier), rideBall, multiplier);
                 return { price: plan.ballPrice, limit: Math.max(plan.slots, p.sold) };
               })}>🧮 Narxni qayta hisobla</Btn>
               <span className="oy-spacer"><Btn sm variant="ghost" onClick={() => setSel(new Set())}>Bekor</Btn></span>
@@ -252,6 +265,7 @@ function Katalog({ prizes, reload }: { prizes: OyinAdminPrizeRow[]; reload: () =
 /* ── MUKOFOT DRAWER ────────────────────────────────────────────────────────────────────────── */
 function PrizeDrawer({ prize, onClose, reload }: { prize: OyinAdminPrizeRow; onClose: () => void; reload: () => void }) {
   const toast = useToast();
+  const econ = useLoad(() => adminApi.bonusEconomy(), []); // B3 — jonli rideBall/multiplier
   const [d, setD] = useState({ icon: prize.icon, name: prize.name, valueLabel: prize.valueLabel, price: String(prize.price), limit: String(prize.limit), photoUrl: prize.photoUrl ?? "" });
   const [busy, setBusy] = useState(false);
 
@@ -296,7 +310,8 @@ function PrizeDrawer({ prize, onClose, reload }: { prize: OyinAdminPrizeRow; onC
     if (!som) { toast("Avval real narxni yozing", "warn"); return; }
     // Bitta manba: `oyinCardPlan` — «🧮 Narxlash» dagi ikkinchi formula OLIB TASHLANDI.
     const tier = months <= 3 ? "kichik" : months <= 6 ? "orta" : months <= 10 ? "katta" : "bosh";
-    const plan = oyinCardPlan(som, tier);
+    const { rideBall, multiplier } = econRates(econ.data?.values);
+    const plan = oyinCardPlan(som, tier, rideBall, multiplier);
     setD((x) => ({ ...x, price: String(plan.ballPrice), limit: String(Math.max(plan.slots, prize.sold)) }));
     toast(`📐 ${plan.ballPrice} ball × ${plan.slots} o'rin qo'yildi (${tier})`, "ok");
   };
@@ -391,6 +406,7 @@ interface PlanRow { kind: "add" | "chg" | "err"; name: string; reason?: string; 
 
 function ImportWizard({ open, onClose, prizes, reload }: { open: boolean; onClose: () => void; prizes: OyinAdminPrizeRow[]; reload: () => void }) {
   const toast = useToast();
+  const econ = useLoad(() => adminApi.bonusEconomy(), []); // B3 — jonli rideBall/multiplier
   const [step, setStep] = useState(1);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -402,16 +418,19 @@ function ImportWizard({ open, onClose, prizes, reload }: { open: boolean; onClos
     return { name: (parts[0] ?? "").slice(0, 60), som: parseSum(parts[1] ?? ""), icon: parts[2] || "🎁", photoUrl: parts[3] || null, raw: line };
   }), [text]);
 
-  const plan: PlanRow[] = useMemo(() => parsed.map((r) => {
+  const plan: PlanRow[] = useMemo(() => {
+    const { rideBall, multiplier } = econRates(econ.data?.values);
+    return parsed.map((r) => {
     if (!r.name) return { kind: "err", name: r.raw.slice(0, 40), reason: "nom bo'sh", icon: r.icon, photoUrl: r.photoUrl };
     if (r.som == null) return { kind: "err", name: r.name, reason: "narx o'qilmadi", icon: r.icon, photoUrl: r.photoUrl };
-    const p = oyinCardPlan(r.som, oyinSuggestTier(r.som));
+    const p = oyinCardPlan(r.som, oyinSuggestTier(r.som, rideBall, multiplier), rideBall, multiplier);
     const existing = prizes.find((x) => x.name.toLowerCase() === r.name.toLowerCase());
     if (existing) {
       return { kind: "chg", name: r.name, som: r.som, price: p.ballPrice, limit: Math.max(p.slots, existing.sold), oldPrice: existing.price, oldLimit: existing.limit, key: existing.key, icon: r.icon, photoUrl: r.photoUrl };
     }
     return { kind: "add", name: r.name, som: r.som, price: p.ballPrice, limit: p.slots, icon: r.icon, photoUrl: r.photoUrl };
-  }), [parsed, prizes]);
+    });
+  }, [parsed, prizes, econ.data]);
 
   const ok = plan.filter((p) => p.kind !== "err");
   const errs = plan.filter((p) => p.kind === "err");
@@ -674,6 +693,7 @@ function Tarix({ reload }: { reload: () => void }) {
 // saqlandi — ega hech qachon ball-narxni qo'lda o'ylab topmaydi.
 function AddPrize({ open, onClose, reload }: { open: boolean; onClose: () => void; reload: () => void }) {
   const toast = useToast();
+  const econ = useLoad(() => adminApi.bonusEconomy(), []); // B3 — jonli rideBall/multiplier
   const [icon, setIcon] = useState("🎁");
   const [name, setName] = useState("");
   const [somRaw, setSomRaw] = useState("");
@@ -683,7 +703,8 @@ function AddPrize({ open, onClose, reload }: { open: boolean; onClose: () => voi
 
   const som = parseSum(somRaw);
   const tier = months <= 3 ? "kichik" : months <= 6 ? "orta" : months <= 10 ? "katta" : "bosh";
-  const plan = som ? oyinCardPlan(som, tier) : null;
+  const { rideBall, multiplier } = econRates(econ.data?.values);
+  const plan = som ? oyinCardPlan(som, tier, rideBall, multiplier) : null;
   const cover = som && plan ? (plan.slots * plan.ballPrice * OYIN_SOM_PER_BALL) / som : null;
 
   const close = (): void => { setName(""); setSomRaw(""); setPhoto(""); setIcon("🎁"); setMonths(6); onClose(); };

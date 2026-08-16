@@ -20,9 +20,10 @@ async function main(): Promise<void> {
 
   const adjKey = `oyin:adj:${MEMBER}`;
   const ticketsKey = `oyin:tickets:${MEMBER}`;
+  const soldKey = `oyin_sold:${PRIZE_KEY}`;
 
   const cleanup = async (): Promise<void> => {
-    await prisma.appState.deleteMany({ where: { key: { in: [adjKey, ticketsKey] } } });
+    await prisma.appState.deleteMany({ where: { key: { in: [adjKey, ticketsKey, soldKey] } } });
   };
   await cleanup();
   await setFeature("oyin", true);
@@ -56,18 +57,37 @@ async function main(): Promise<void> {
   ok(seasonBlocked, `3. Mavsum-jami chegarasiga yetgach rad etiladi (season_cap) — yig'indi: ${sumSoFar}/${maxPerSeason}`);
 
   // ── Test 4: drawExport riskyMembers — og'ir admin-tuzatilgan a'zo (adjustHeavy) ko'rinadi
-  // Karta olib, uni tirajga chiqarib (minSell=0 qiladigan darajada emas — shunchaki tickets qatoriga qo'shamiz)
+  // ⚠️ computeBallMap() `TelegramUser` jadvalini AYLANADI (AppState emas) — sinov-memberId
+  // (manfiy, DB qatorisiz) unda HECH QACHON ko'rinmaydi. Shu bitta tekshiruv uchun HAQIQIY
+  // (lekin izolyatsiyalangan test-bazadagi) Member+TelegramUser qatori kerak.
+  const KAS_TAG = "R1TEST_KASID";
+  await prisma.telegramUser.deleteMany({ where: { id: "9009009001" } });
+  await prisma.member.deleteMany({ where: { kasId: KAS_TAG } });
+  const realMember = await prisma.member.create({ data: { type: "client", kasId: KAS_TAG, fullName: "R1 Sinov A'zo" } });
+  await prisma.telegramUser.create({ data: { id: "9009009001", memberId: realMember.id, firstName: "R1Sinov" } });
+  const adjKey2 = `oyin:adj:${realMember.id}`;
+  const ticketsKey2 = `oyin:tickets:${realMember.id}`;
+  // ⚠️ drawExport FAQAT "tayyor" (sold >= minSell) sovrinlarni chiqaradi — soldKey ATAYLAB
+  // limitga (15) tenglashtiriladi, aks holda ticket "skippedPrizes"ga tushib riskyMembers'da
+  // umuman ko'rinmaydi (bu chegara bilan aloqasi yo'q, faqat ticket eksportga tushishi uchun).
+  await prisma.appState.create({ data: { key: soldKey, value: "15" } });
   await prisma.appState.create({
-    data: { key: ticketsKey, value: JSON.stringify([{ prizeKey: PRIZE_KEY, no: 1, gno: 555555100, priceAtPurchase: 100, ts: new Date().toISOString() }]) },
+    data: { key: ticketsKey2, value: JSON.stringify([{ prizeKey: PRIZE_KEY, no: 1, gno: 555555100, priceAtPurchase: 100, ts: new Date().toISOString() }]) },
   });
+  // Real a'zoga ham xuddi shu tarzda (chegara ichida) og'ir tuzatish — earned'ning katta qismi adjust'dan
+  await svc.adminAdjustBall({ memberId: realMember.id, ball: maxPerAction, reason: "test-real" });
   const exportRes = await svc.drawExport();
-  const flagged = exportRes.riskyMembers.find((r) => r.memberId === MEMBER);
-  ok(!!flagged, `4. drawExport.riskyMembers'da ${MEMBER} bor (${exportRes.riskyMembers.length} ta jami)`);
+  const flagged = exportRes.riskyMembers.find((r) => r.memberId === realMember.id);
+  ok(!!flagged, `4. drawExport.riskyMembers'da real a'zo (#${realMember.id}) bor (${exportRes.riskyMembers.length} ta jami)`);
   ok(!!flagged && flagged.reasons.some((r) => r.includes("qo'lda qo'shilgan")), `4b. Sabab "adjustHeavy" turkumidan (${flagged?.reasons.join(" · ")})`);
 
   await cleanup();
-  const remaining = await prisma.appState.count({ where: { key: { in: [adjKey, ticketsKey] } } });
-  ok(remaining === 0, "5. Tozalashdan keyin test qatorlari qolmadi");
+  await prisma.appState.deleteMany({ where: { key: { in: [adjKey2, ticketsKey2] } } });
+  await prisma.telegramUser.deleteMany({ where: { id: "9009009001" } });
+  await prisma.member.deleteMany({ where: { kasId: KAS_TAG } });
+  const remaining = await prisma.appState.count({ where: { key: { in: [adjKey, ticketsKey, soldKey, adjKey2, ticketsKey2] } } });
+  const remainingMembers = await prisma.member.count({ where: { kasId: KAS_TAG } });
+  ok(remaining === 0 && remainingMembers === 0, "5. Tozalashdan keyin test qatorlari qolmadi");
 
   console.log(process.exitCode ? "\n❌ BA'ZI TEKSHIRUVLAR YIQILDI" : "\n✅ HAMMA TEKSHIRUV O'TDI — R1 tuzatildi");
 }
