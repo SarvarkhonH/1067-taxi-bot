@@ -580,11 +580,69 @@ tirajdan chiqarib tashlanmaydi/bayroqlanmaydi.
 **Holat:** `adminBudget` byudjet/katalog nisbatini TO'G'RI hisoblaydi va `overBudget:true`
 qaytaradi, lekin `buyTicket`/`adminUpsertPrize`/`adminSetPrizeActive` — hech biri bu qiymatni
 o'qimaydi. Bu — kod xatosi emas (raqam halol hisoblanadi va ko'rsatiladi), balki jonli-ma'lumot
-tayyorgarlik masalasi: flag bugun yoqilsa, real safar daromadi ko'tara olmaydigan miqdorda sovrin
-va'da qilingan bo'ladi.
+tayyorgarlik masalasi.
 
-**Muhokama kerak:** bu kod-tuzatish emas, balki KATALOG-TOZALASH (qimmat/ortiqcha sovrinlarni
-kamaytirish yoki navbatga qo'yish) — mahsulot qarori.
+### 🔬 2026-08-17 — jonli o'lchov (`dumpOyinBudget.ts`, READ-ONLY)
+
+```
+30 kunlik safar: 649 · mavsum 46 kun · proyeksiya 995 safar
+daromad 1 990 000 so'm · byudjet (15%) 298 500 so'm
+katalog (active && !queued) 74 317 620 so'm → 249×
+sig'im: xalq qo'lida 9 860 ball · ochiq sovrinlarda 11 063 314 ball → 1122× (sog'lom ≤1.5×)
+ochiq 29 ta · navbatda 6 ta · TO'LGAN 0 ta
+```
+
+**⚠️ «249×» — NOTO'G'RI O'LCHOV.** U `OYIN_TARGET_COST_PCT` ga tayanadi, u esa kodda
+`@deprecated` ([oyin.ts:68](packages/shared/src/oyin.ts:68)). Amaldagi kafolat — HAR SOVRIN
+uchun alohida: `price × limit × 20 so'm ≥ m × narx` (m = `oyinPrizeMultiplier`, jonli qiymat 3).
+Shu o'lchov bilan **29 tadan 23 tasi sog'lom** — katalog moliyaviy jihatdan buzuq emas.
+
+**Ikkita HAQIQIY pul-teshigi (ikkalasi ham kiritish xatosi, kod xatosi emas):**
+
+| Sovrin | m | Sabab |
+|---|---|---|
+| TECNO SPARK Go 3 | **0.02** | `limit=2` — 1,39 mln so'mlik telefon 1 200 ballga (≈34 safar) to'lardi |
+| Power Bank | **0.60** | `limit=5` |
+
+Yana to'rttasi past: WellStars 2.63 · muzlatgich 2.29 · DONTECH 2.07 · Samsung A57 1.75.
+
+**🔴 ASL MUAMMO — teskari tomonda: HECH KIM HECH QACHON YUTMAYDI.**
+Butun ochiq katalogni to'ldirish uchun **11 069 074 ball** kerak; bir mavsumda safardan
+tug'iladigan ball ~34 825 → **~318 mavsum**. `oyinMinSellPct=100` bo'lgani uchun to'lmagan
+sovrin UMUMAN o'ynalmaydi. Ya'ni mijoz 3 600 ball (103 safar) sarflab olgan iPhone 12 kartasi
+abadiy o'lik yotadi. Jonli holat buni tasdiqlaydi: **to'lgan sovrin — 0 ta.**
+
+**Eng og'ir haqiqat:** iPhone 17 Pro — 16,7 mln so'm, mavsumning BUTUN daromadi esa 1,99 mln.
+Bitta sovrin butun mavsum daromadidan 8,4× qimmat — uni halol berishning matematik yo'li yo'q.
+Bugungi raqamlarda eng katta HALOL sovrin ~500–700 ming so'm (2-3 mavsumda to'ladigan, m≥3).
+
+### ✅ EGA QARORI (2026-08-17)
+
+1. **Yumshoq yo'l** — katalog HAJMI qisqartirilmaydi; faqat kafolat buzilgan sovrinlar
+   tuzatiladi. «Hech kim yutmaydi» muammosi ONGLI ravishda ochiq qoldiriladi.
+2. **Kod qo'rig'i — ogohlantirish, BLOKLAMAYDI**: `m<3` sovrin saqlansa admin panelida qizil
+   bayroq chiqadi, lekin saqlashga ruxsat beriladi (ega moslashuvchanligi saqlanadi).
+
+**Vosita:** `fixPrizeMultiplier.ts` (commit 91a7ed05) — standart QURUQ YURISH, yozish `--apply`.
+Xavfsizlik: limit FAQAT oshiriladi va sotilgan kartasi bor sovrin CHETLAB O'TILADI (oshirish
+karta egasining yutish ehtimolini jim pasaytiradi). `adminUpsertPrize` har maydonni qayta
+yozgani uchun mavjud nom/narx/rasm to'liq uzatiladi va yozuvdan keyin buzilmagani tasdiqlanadi.
+
+**Quruq yurish natijasi (2026-08-17):**
+
+| Sovrin | limit | m |
+|---|---|---|
+| Samsung A57 5G | 35 → 61 | 1.75 → 3.05 |
+| Ikki kamerali muzlatgich | 200 → 262 | 2.29 → 3.00 |
+| WellStars suv sovutgichi | 120 → 137 | 2.63 → 3.01 |
+| DONTECH suv sovutgichi | 3 → 5 | 2.07 → 3.45 |
+| Power Bank | 5 → 25 | 0.60 → 3.00 |
+| ~~TECNO SPARK Go 3~~ | 2 → 347 | 0.02 → 3.00 — **CHETLAB O'TILDI: 1 ta karta sotilgan** |
+
+TECNO kartasi egasi — `memberId=26`, Telegram `@Sarvarxonh` (EGANING O'Z sinov xaridi,
+2026-08-12), haqiqiy mijoz emas → limitni oshirish hech kimning ehtimolini buzmaydi.
+
+**⏳ HOLAT: `--apply` hali YURGIZILMAGAN — ega tasdig'i kutilmoqda** (jonli katalogga yozuv).
 
 ---
 
@@ -766,6 +824,37 @@ routing konfiguratsiyasini o'zgartirish, tasdiqsiz qilinmadi. OG-rasm hozircha u
 "Sodiqlik kartasi" poster (`invite-poster.jpg`, o'zgarishsiz) — agar dinamik per-sovrin rasm
 haqiqatan kerak bo'lsa, bu alohida, kichik infra-tiket sifatida ko'rib chiqiladi.
 
-**R2** — kod-tuzatish emasligi sababli hali ochiq, yagona qolgan band: katalog joriy holda
-byudjetdan ~255× oshgan, flag yoqilishidan oldin qaysi sovrinlarni kamaytirish/navbatga
-qo'yish kerakligini muhokama qilish kerak — bu SIZGA taklif, kod bilan hal qilinmaydi.
+## 16.2 Qo'shimcha tuzatish (2026-08-17) — rasm kesilishi yana ikki joyda
+
+Ega: «kartalim tabida rasm sig'mayopti». F2 (Mukofotlar) dagi AYNAN o'sha `object-fit: cover`
+nuqsoni yana ikki joyda qolgan ekan. Brauzerda O'LCHANDI (941×1672 manba rasm bilan):
+
+| Joy | Quti | Kesilardi |
+|---|---|---|
+| `.oyk-tkt-pic` (Kartalarim) | 64×64 kvadrat | **44%** |
+| `.oyk-buy-hero` (xarid oynasi — ball SARFLASH ekrani) | 347×168 keng | **73%** |
+
+Ikkalasi → `object-fit: contain` + `background: var(--oyk-surface)` (mavjud token,
+`.oyk-goalc-img` ham shuni ishlatadi — yangi rang qo'shilmadi). Fon FAQAT `<img>` ga qo'yildi,
+quti gradienti emoji-fallback uchun saqlandi. Uy sahifasidagi `.oyk-goalc-img` ATAYLAB
+tegilmadi (ega: «uy sahifasida chiroyli ko'rinopti») — jonli bundle'da hamon `cover`.
+
+Commit `ee6bc818`. Jonli isbot — `/var/www/miniapp/assets/oyk-CvyTwO8v.css` (2026-08-17 20:41):
+```
+oyk-tkt-pic img{...object-fit:contain;background:var(--oyk-surface)}
+oyk-buy-hero img{...object-fit:contain;background:var(--oyk-surface)}
+oyk-vcard-photo img{...object-fit:contain;display:block}      ← F2, hamon joyida
+oyk-goalc-img img{...object-fit:cover;display:block}          ← ataylab tegilmagan
+```
+
+⚠️ **Eslatma keyingi agentga:** `oyk.css` endi ALOHIDA `assets/oyk-*.css` chunk'iga quriladi.
+`assets/oyin-*.css` fayllari — ESKI, o'chirilmagan qoldiqlar (immutable-kesh sababli 7 kun
+saqlanadi). Jonli CSS ni tekshirganda `oyk-*.css` ga qarang, `oyin-*.css` ga EMAS — aks holda
+«tuzatish deploy bo'lmabdi» degan XATO xulosa chiqadi.
+
+## 16.3 Yagona ochiq band — R2
+
+**R2** — §14 da to'liq o'lchandi va ega qarori olindi (yumshoq yo'l + ogohlantiruvchi qo'riq).
+Vosita tayyor va quruq yurishda tekshirilgan (`fixPrizeMultiplier.ts`, commit 91a7ed05).
+**Qolgan yagona qadam: ega tasdig'i bilan `--apply` yurgizish** (jonli katalogga yozuv) +
+admin panelida `m<3` ogohlantirish bayrog'ini qo'shish.
