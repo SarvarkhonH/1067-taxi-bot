@@ -2461,7 +2461,13 @@ body { background: var(--gl-page); }
 /* «3 safar qoldi» — kartadagi YAGONA yashil raqamli va'da, shuning uchun ball hisobidan qalinroq.
    Ikkalasi ham 13px (maket): o'lcham emas, RANG va QALINLIK ajratadi — aks holda ikki xil o'lcham
    qatorni qiyshaytiradi. */
-.gl-bar-m b { color: var(--gl-mint-2); font-weight: 900; }
+/* ⚪️ EGA 2026-08-10: «sizning sovg'angiz ... sal boshqacharoq edi rejada». Maketda bu qator —
+   kartaning ASOSIY HISSIY ILMOG'I (19px, yashil, 900), ball-hisobi esa uning yonida kichik
+   izoh. Jonlida ikkalasi ham 13px bo'lib, qaytgan odam kartasi jim chiqib qolgan edi:
+   yangi odamda 30px «BEPUL SOVG'ALAR» bor, qaytganda esa hech qanday baland element yo'q.
+   `align-items: baseline` tufayli katta `b` bir xil tayanch chiziqda o'tiradi — sakramaydi. */
+.gl-bar-m b { color: var(--gl-mint-2); font-weight: 900; font-size: clamp(17px, 4.6vw, 20px);
+  letter-spacing: -.02em; line-height: 1.1; }
 /* Sovrin fotolari — REAL rasm bo'lsa `img`, bo'lmasa GRADIENT blok + nom (emoji EMAS). */
 .gl-shots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
 .gl-shot { position: relative; height: 68px; border-radius: var(--gl-r-sm); overflow: hidden;
