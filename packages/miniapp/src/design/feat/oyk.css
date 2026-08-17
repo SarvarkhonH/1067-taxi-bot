@@ -493,7 +493,13 @@
   background: linear-gradient(150deg, var(--oyk-accent-pale), rgba(91, 70, 240, .12));
   box-shadow: 0 0 0 1px var(--oyk-line);
 }
-.oyk-tkt-pic img { width: 100%; height: 100%; object-fit: cover; }
+/* 🖼 2026-08-17 (ega: "kartalim tabida rasm sig'mayopti") — F2 dagi AYNAN o'sha nuqson.
+   64×64 kvadrat qutida `cover` bilan tik sovrin rasmining 44% i kesilib ketardi (o'lchandi:
+   941×1672 manba). `contain` — mahsulot HECH QACHON kesilmaydi (DIZAYN_QOIDALARI #10:
+   "jismoniy narsa = real rasm"). Bo'sh chekka `--oyk-surface` (mavjud token, `.oyk-goalc-img`
+   ham shuni ishlatadi) — fon FAQAT rasmga qo'yiladi, quti gradienti emoji-fallback uchun
+   o'z holicha qoladi. */
+.oyk-tkt-pic img { width: 100%; height: 100%; object-fit: contain; background: var(--oyk-surface); }
 .oyk-tkt-info { flex: 1; min-width: 0; }
 /* Uzun sovrin nomi kesilmaydi — 2 qatorga o'tadi (DIZAYN_QOIDALARI #12) */
 .oyk-tkt-prize {
@@ -842,7 +848,10 @@
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(150deg, var(--oyk-accent-pale), rgba(110, 90, 255, .12));
 }
-.oyk-buy-hero img { width: 100%; height: 100%; object-fit: cover; }
+/* 🖼 2026-08-17 — xuddi `.oyk-tkt-pic` dagidek, lekin BATTAR: 347×168 keng qutida tik rasmning
+   73% i kesilardi (o'lchandi). Bu — mijoz ballini SARFLASHGA qaror qiladigan ekran; mahsulotning
+   choragini ko'rsatib qaror so'rash mumkin emas. `contain` + `--oyk-surface` (mavjud token). */
+.oyk-buy-hero img { width: 100%; height: 100%; object-fit: contain; background: var(--oyk-surface); }
 .oyk-buy-hero-emoji { font-size: 72px; line-height: 1; }
 .oyk-buy-hero-fade { position: absolute; left: 0; right: 0; bottom: 0; height: 72px; background: linear-gradient(180deg, transparent, rgba(0, 0, 0, .62)); }
 .oyk-buy-hero-name {
