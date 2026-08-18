@@ -696,6 +696,27 @@
 }
 .oyk-poster-preview-img { width: 100%; max-width: 260px; border-radius: 12px; display: block; }
 .oyk-poster-preview-hint { font-size: 12px; color: var(--oyk-text-2); text-align: center; }
+/* 📸 Poster YIG'ILGAN qatori — bosilganda to'liq forma ochiladi (kognitiv yuk kamaytirildi). */
+.oyk-poster-toggle {
+  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 16px;
+  padding: 13px 14px; box-shadow: var(--oyk-shadow); cursor: pointer; transition: transform var(--dur-press);
+}
+.oyk-poster-toggle:active { transform: scale(.98); }
+.oyk-poster-toggle-ic {
+  width: 36px; height: 36px; flex: 0 0 auto; border-radius: 10px; background: var(--oyk-accent-pale);
+  display: grid; place-items: center; font-size: 18px;
+}
+.oyk-poster-toggle-tx { flex: 1; min-width: 0; }
+.oyk-poster-toggle-tx b { display: block; font-size: 13.5px; font-weight: 900; color: var(--oyk-text); }
+.oyk-poster-toggle-tx small { display: block; font-size: 11px; color: var(--oyk-text-3); margin-top: 1px; }
+.oyk-poster-toggle-go { flex: 0 0 auto; color: var(--oyk-text-3); font-size: 18px; }
+/* Ochiq poster sarlavhasidagi "yig'ish" tugmasi (▾) */
+.oyk-poster-x {
+  border: none; background: var(--oyk-fill); color: var(--oyk-text-2); border-radius: 8px;
+  width: 30px; height: 26px; font-size: 13px; cursor: pointer; flex: 0 0 auto; transition: transform var(--dur-press);
+}
+.oyk-poster-x:active { transform: scale(.9); }
 
 /* ── pastki tab-bar ───────────────────────────────────────────────────────────────────── */
 /* 💧 Liquid glass: tab-qatori ekran pastida SUZIB turadi va HAR DOIM ko'rinadi (ega 2026-08-02:
@@ -1142,6 +1163,17 @@
 }
 .oyk-gashtak-seg-btn.is-active { background: var(--oyk-surface); color: var(--oyk-text); box-shadow: var(--oyk-shadow); }
 .oyk-gashtak-seg-btn:active:not(.is-active) { transform: scale(.96); }
+
+/* 🧭 Jamoam tabi segmenti (Gashtak / Do'stlarim) — `.oyk-gashtak-seg` bilan bir xil vizual til,
+   lekin tab boshida (sheet emas): o'z marginsiz va bir oz balandroq bosish maydoni. */
+.oyk-jseg { display: flex; gap: 4px; padding: 3px; border-radius: 12px; background: var(--oyk-fill); }
+.oyk-jseg-btn {
+  flex: 1; min-height: 40px; border: none; border-radius: 9px; background: transparent;
+  color: var(--oyk-text-2); font-size: 12.5px; font-weight: 800; cursor: pointer;
+  transition: transform var(--dur-press);
+}
+.oyk-jseg-btn.is-active { background: var(--oyk-surface); color: var(--oyk-text); box-shadow: var(--oyk-shadow); }
+.oyk-jseg-btn:active:not(.is-active) { transform: scale(.96); }
 
 /* 🎯 Chip-tanlov — a'zo tanlash uchun NATIV `<select>` o'rniga (Telegram WebView'da OS-select
    qorong'i mavzu bilan mos kelmaydi; guruh ≤10 kishi bo'lgani uchun chip ro'yxati qulayroq). */

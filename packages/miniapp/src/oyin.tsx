@@ -600,6 +600,14 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [filter, setFilter] = useState<OyinPrizeFilter>("hammasi");
   const [archOpen, setArchOpen] = useState(false);
+  // 🧭 Jamoam tabi ichida segment: Gashtak (jamoaviy) va Do'stlarim (shaxsiy) endi bir vaqtda
+  // EMAS, navbat bilan ko'rinadi (kognitiv yuk: ikki mustaqil tizim bitta uzun skrollda ustma-ust
+  // turardi). Havola bilan kelgan odam (joinCode) to'g'ri Gashtakka tushadi. Mavsum tugagach
+  // gashtak yo'q — segment chizilmaydi, faqat Do'stlarim qoladi.
+  const [jamoamView, setJamoamView] = useState<"gashtak" | "friends">(joinCode ? "gashtak" : "friends");
+  // 📸 Hikoya-poster (20 rasm panjarasi + 2 URL maydoni) default YIG'ILGAN — Jamoam tabini
+  // qisqartiradi. "Hikoya qo'y" bosilganda ochiladi (yoki earn-varag'idagi havoladan `goToStory`).
+  const [posterOpen, setPosterOpen] = useState(false);
   const [buyKey, setBuyKey] = useState<string | null>(null);
   const [buyQty, setBuyQty] = useState(1); // 🎟 miqdor (max 3) — YAKUNIY DIZAYN §7 tafsilot ekrani
   const [busy, setBusy] = useState(false); // faqat CHIPTA XARIDI
@@ -1217,6 +1225,10 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   const goToStory = useCallback(() => { haptic(); setTab("jamoam"); setScrollToStoryPending(true); }, []);
   useEffect(() => {
     if (scrollToStoryPending && tab === "jamoam") {
+      // Poster endi Do'stlarim ko'rinishida va default yig'ilgan — havoladan kelgan odam
+      // to'g'ri ochiq formaga tushsin.
+      setJamoamView("friends");
+      setPosterOpen(true);
       storyAnchorRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       setScrollToStoryPending(false);
     }
@@ -1870,10 +1882,19 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
           </>
         )}
 
-        {/* 🤝 GAP-JAMOA — gashtak modeli. Jamoa tabining TEPASIDA: bu do'st-ro'yxatidan
-            kuchliroq mexanika (jamoa umumiy ishlaydi, navbatchi oladi) va u birinchi
-            ko'rinishi kerak. Ball KO'CHIRILMAYDI — bonusni tizim yaratadi. */}
+        {/* 🧭 Jamoam segmenti — Gashtak / Do'stlarim NAVBAT BILAN (kognitiv yuk kamaytirildi:
+            avval ikki mustaqil tizim bitta tabda ustma-ust turardi). Mavsum tugagach gashtak
+            yo'q — segment chizilmaydi, faqat Do'stlarim qoladi. */}
         {tab === "jamoam" && !ended && (
+          <div className="oyk-jseg">
+            <button type="button" className={`oyk-jseg-btn${jamoamView === "gashtak" ? " is-active" : ""}`} onClick={() => { haptic(); setJamoamView("gashtak"); }}>🤝 Gashtak</button>
+            <button type="button" className={`oyk-jseg-btn${jamoamView === "friends" ? " is-active" : ""}`} onClick={() => { haptic(); setJamoamView("friends"); }}>🔗 Do'stlarim</button>
+          </div>
+        )}
+
+        {/* 🤝 GAP-JAMOA — gashtak modeli. Segmentda "Gashtak" tanlanganda ko'rinadi (do'st-ro'yxatidan
+            kuchliroq mexanika: jamoa umumiy ishlaydi, navbatchi oladi). Ball KO'CHIRILMAYDI. */}
+        {tab === "jamoam" && !ended && jamoamView === "gashtak" && (
           <div className="oyk-jamoa">
             {jamoa === null ? (
               <div className="oyk-jamoa-empty">Yuklanmoqda…</div>
@@ -2143,14 +2164,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
           </>
         )}
 
-        {tab === "jamoam" && (
+        {tab === "jamoam" && (ended || jamoamView === "friends") && (
           <>
-            {/* R21 (audit): Gashtak (jamoaviy — yuqorida) va bu bo'lim (shaxsiy takliflar)
-                serverda ham, mantiqda ham mustaqil ikki tizim edi, lekin ekranda sarlavhasiz
-                ustma-ust turardi — mijoz "nega ikki xil ro'yxat bor" deb chalkashardi. Endi
-                aniq ajratuvchi + ikkinchisi endi "Jamoam" emas "Do'stlarim" (R17 — ikkalasi
-                "Jamoam" deb atalgani, tab nomi bilan ham to'qnashib, chalkashlik yaratardi). */}
-            {!ended && <div className="oyk-section-div" aria-hidden="true" />}
+            {/* Gashtak (jamoaviy) va Do'stlarim (shaxsiy takliflar) endi SEGMENT orqali
+                ajratilgan (yuqorida) — ustma-ust turmaydi, shuning uchun avvalgi bo'luvchi
+                chiziq va "nega ikki xil ro'yxat bor" chalkashligi yo'q (R21/R17 hal qilindi). */}
             <div className="oyk-j-title">🔗 Do'stlarim <span className="oyk-j-count">({jamoam?.friends.length ?? "…"})</span></div>
             <div className="oyk-j-sub">Sizning shaxsiy taklifingiz orqali qo'shilganlar — Gashtakdan mustaqil.</div>
             {jamoamErr ? (
@@ -2232,18 +2250,18 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 g'oyasini yashiradi: bir martalik bonus TUGAYDI, do'st safaridan keladigan oqim
                 esa TUGAMAYDI. Mijoz shu farqni raqamda ko'rmasa "do'st chaqirish" bir martalik
                 ish bo'lib tuyuladi — aslida butun iqtisod ikkinchi ustunga tayanadi. */}
+            {/* IKKI SUMMA — lekin endi ixcham (2 qator, avval 3 edi). §7 saqlanadi: OQIM ("do'st
+                safaridan") o'z qatorida ajralib turadi — asosiy g'oya shu (bir martalik bonus
+                TUGAYDI, oqim TUGAMAYDI). Bir martalik bonus jami qatorining kichik izohida
+                ko'rsatiladi — raqam yo'qolmaydi, faqat alohida qator band qilmaydi. */}
             {jamoam && jamoam.friends.length > 0 && (
               <div className="oyk-jsum">
-                <div className="oyk-jsum-row">
-                  <span className="oyk-jsum-lb">🎁 Bir martalik bonus<small>ulanish + birinchi safar</small></span>
-                  <b>+{jamoam.oneTimeBall}</b>
-                </div>
                 <div className="oyk-jsum-row is-flow">
-                  <span className="oyk-jsum-lb">🔁 Do'stlar safaridan<small>cheksiz — ular yurgani sari o'sadi</small></span>
+                  <span className="oyk-jsum-lb">🔁 Do'stlar safaridan<small>cheksiz oqim — ular yurgani sari o'sadi</small></span>
                   <b>+{jamoam.rideBall}</b>
                 </div>
                 <div className="oyk-jsum-row is-total">
-                  <span className="oyk-jsum-lb">{jamoam.friends.length} do'stdan jami</span>
+                  <span className="oyk-jsum-lb">{jamoam.friends.length} do'stdan jami<small>bir martalik +{jamoam.oneTimeBall} ball ham ichida</small></span>
                   <b>+{jamoam.totalBall} ball</b>
                 </div>
               </div>
@@ -2287,18 +2305,44 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 ⚠️ `!ended` sharti QO'SHILDI: mavsum tugagach ham blok chizilardi, mijoz poster
                 yasab, hikoyasiga qo'yib, havolasini yuborardi — server esa `season_off`
                 qaytarardi. Ya'ni ekran bajarib bo'lmaydigan ishga chaqirardi (G5b). */}
+            {/* 📸 Hikoya-poster — default YIG'ILGAN (kognitiv yuk: 20 rasm panjarasi + 2 URL
+                maydoni Jamoam tabini juda cho'zardi). Yig'ilganda bitta qator; "Hikoya qo'y"
+                bosilganda to'liq forma ochiladi. Limit/tekshiruv holatlarida forma yo'q —
+                shuning uchun ular oddiy karta bo'lib qolaveradi. `ref` tashqi o'ramda —
+                earn-varag'idan `goToStory` shu yerga scroll qiladi (poster ochilgan holda). */}
             {!ended && state.story.ballEach > 0 && (
-              <div className="oyk-poster" ref={storyAnchorRef}>
-                <div className="oyk-poster-head">
-                  <span className="oyk-poster-title">📸 Hikoya qo'y — <b>+{state.story.ballEach} ball</b></span>
-                  <span className="oyk-poster-count">{state.story.approved}/{state.story.limit}</span>
-                </div>
+              <div ref={storyAnchorRef}>
                 {state.story.approved >= state.story.limit ? (
-                  <div className="oyk-poster-note">✅ Bu davrda limitga yetdingiz — rahmat!</div>
+                  <div className="oyk-poster">
+                    <div className="oyk-poster-head">
+                      <span className="oyk-poster-title">📸 Hikoya qo'y — <b>+{state.story.ballEach} ball</b></span>
+                      <span className="oyk-poster-count">{state.story.approved}/{state.story.limit}</span>
+                    </div>
+                    <div className="oyk-poster-note">✅ Bu davrda limitga yetdingiz — rahmat!</div>
+                  </div>
                 ) : state.story.pending ? (
-                  <div className="oyk-poster-note">⏳ Tekshiruvda — 24 soat ichida javob beramiz</div>
+                  <div className="oyk-poster">
+                    <div className="oyk-poster-head">
+                      <span className="oyk-poster-title">📸 Hikoya qo'y — <b>+{state.story.ballEach} ball</b></span>
+                      <span className="oyk-poster-count">{state.story.approved}/{state.story.limit}</span>
+                    </div>
+                    <div className="oyk-poster-note">⏳ Tekshiruvda — 24 soat ichida javob beramiz</div>
+                  </div>
+                ) : !posterOpen ? (
+                  <button type="button" className="oyk-poster-toggle" onClick={() => { haptic(); setPosterOpen(true); }}>
+                    <span className="oyk-poster-toggle-ic" aria-hidden="true">📸</span>
+                    <span className="oyk-poster-toggle-tx">
+                      <b>Hikoya qo'y — +{state.story.ballEach} ball</b>
+                      <small>{state.story.approved}/{state.story.limit} · bosing → poster tanlang</small>
+                    </span>
+                    <span className="oyk-poster-toggle-go" aria-hidden="true">›</span>
+                  </button>
                 ) : (
-                  <>
+                  <div className="oyk-poster">
+                    <div className="oyk-poster-head">
+                      <span className="oyk-poster-title">📸 Hikoya qo'y — <b>+{state.story.ballEach} ball</b></span>
+                      <button type="button" className="oyk-poster-x" onClick={() => { haptic(); setPosterOpen(false); }} aria-label="Yig'ish">▾</button>
+                    </div>
                     <div className="oyk-poster-note">
                       Posterni yuklab oling, hikoyangizga qo'ying va havolasini shu yerga tashlang. Tekshirgach ball tushadi.
                     </div>
@@ -2354,7 +2398,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                         onClick={() => void submitStory(tgUrl, () => setTgUrl(""))}
                       >Yuborish</button>
                     </div>
-                  </>
+                  </div>
                 )}
               </div>
             )}
