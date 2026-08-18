@@ -1352,6 +1352,106 @@
 /* 👤 K4 (2026-08-14) — egasi roziligi bilan Telegram avatari. Standart: faqat ism. */
 .oyk-cert-owner { display: inline-flex; align-items: center; gap: 6px; }
 .oyk-cert-owner-av { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+
+/* ══ KARTA-ATOMI (2× redizayn) — bitta karta-atomi HAMMA joyda AYNAN bir obyekt ═══════════════
+   Portret 3:4 «trading-card»: tepa = real sovrin rasmi, past = oq «kamar» (nom + ball-chip),
+   o'ng-tepa 45° oltin folga-seriya, mount'da bir marta shine-sweep. Ranglar --oyk-* dan. */
+.oyk-atom { position: relative; border-radius: 18px; overflow: hidden; background: var(--oyk-surface);
+  box-shadow: var(--oyk-shadow), inset 0 0 0 1px rgba(255, 255, 255, .55); display: flex; flex-direction: column; }
+.oyk-atom.is-lift { box-shadow: var(--oyk-shadow-lift), inset 0 0 0 1px rgba(255, 255, 255, .6); }
+.oyk-atom-img { position: relative; flex: 0 0 62%; display: grid; place-items: center; font-size: 52px; overflow: hidden;
+  background: linear-gradient(150deg, var(--oyk-accent-pale), #f3eefe); }
+.oyk-atom-img img { width: 100%; height: 100%; object-fit: cover; }
+.oyk-atom-belt { flex: 1; background: var(--oyk-surface); padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
+.oyk-atom-nm { font-size: 14px; font-weight: 800; color: var(--oyk-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
+.oyk-atom-ball { align-self: flex-start; font-size: 11px; font-weight: 800; color: var(--oyk-warn-deep); background: var(--oyk-warn-pale); border-radius: 99px; padding: 2px 8px; }
+.oyk-atom-foil { position: absolute; top: 9px; right: -28px; transform: rotate(45deg); z-index: 2;
+  background: linear-gradient(135deg, #ffd75a, #e0a800); color: #2b1a00; font-size: 9px; font-weight: 900;
+  letter-spacing: .06em; padding: 3px 32px; box-shadow: 0 1px 3px rgba(20, 26, 46, .25); font-variant-numeric: tabular-nums; }
+.oyk-atom-shine { position: absolute; top: 0; left: 0; bottom: 0; width: 44%; pointer-events: none; z-index: 3;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, .55), transparent);
+  transform: translateX(-130%) skewX(-18deg); animation: oyk-shine 1s ease-out .2s 1 both; }
+@media (prefers-reduced-motion: reduce) { .oyk-atom-shine { display: none; } }
+
+/* ── Egalar RO'YXATi (kinoteatr-panjara o'rniga) ── */
+.oyk-coll-head { display: flex; align-items: center; gap: 11px; margin-bottom: 9px; }
+.oyk-coll-th { width: 44px; flex: 0 0 auto; aspect-ratio: 3 / 4; }
+.oyk-coll-th .oyk-atom-img { flex: 0 0 100%; font-size: 20px; }
+.oyk-coll-nm { font-size: 15px; font-weight: 900; }
+.oyk-coll-st { font-size: 11.5px; color: var(--oyk-text-3); margin-top: 2px; }
+.oyk-coll-meter { height: 6px; border-radius: 99px; background: var(--oyk-skel); overflow: hidden; margin-bottom: 4px; }
+.oyk-coll-meter i { display: block; height: 100%; border-radius: 99px; background: var(--oyk-accent); }
+.oyk-coll-min { font-size: 10.5px; color: var(--oyk-text-3); margin-bottom: 8px; }
+.oyk-orow { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; font-family: inherit;
+  border: 0; border-bottom: 1px solid var(--oyk-line); background: none; padding: 9px 4px; cursor: pointer;
+  transition: transform var(--dur-press); }
+.oyk-orow:active { transform: scale(.99); }
+.oyk-orow.is-me { background: var(--oyk-accent-fill); border-bottom: 0; border-left: 3px solid var(--oyk-accent);
+  border-radius: 0 10px 10px 0; padding-left: 9px; margin-bottom: 6px; }
+.oyk-orow .oyk-avatar { width: 32px; height: 32px; font-size: 13px; flex: 0 0 auto; }
+.oyk-orow-who { flex: 1; min-width: 0; font-size: 14px; font-weight: 500; color: var(--oyk-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.oyk-orow-who b { font-weight: 800; }
+.oyk-orow-sn { flex: 0 0 auto; font-size: 10.5px; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
+.oyk-orow-mine { flex: 0 0 auto; font-size: 9.5px; font-weight: 800; color: var(--oyk-accent); background: var(--oyk-surface); border-radius: 99px; padding: 2px 8px; }
+.oyk-coll-more { font-size: 11.5px; color: var(--oyk-text-3); text-align: center; padding: 9px 0 2px; }
+.oyk-coll-cta { margin-top: 12px; display: flex; align-items: center; gap: 10px; background: var(--oyk-surface);
+  border: 1px solid var(--oyk-line); border-radius: 14px; padding: 12px; box-shadow: var(--oyk-shadow); }
+.oyk-coll-cta-tx { flex: 1; min-width: 0; }
+.oyk-coll-cta-tx b { font-size: 13px; font-weight: 800; }
+.oyk-coll-cta-tx small { display: block; font-size: 11px; color: var(--oyk-text-3); }
+.oyk-coll-cta button { flex: 0 0 auto; border: 0; border-radius: 11px; background: var(--oyk-accent-grad);
+  color: var(--oyk-on); font-size: 12px; font-weight: 800; padding: 10px 13px; cursor: pointer; transition: transform var(--dur-press); }
+.oyk-coll-cta button:active { transform: scale(.96); }
+
+/* ── Karta-detali: atom + hairline «pass-orqa» ledger (kvitansiya o'rniga) ── */
+.oyk-atom-detail { width: 208px; max-width: 62%; aspect-ratio: 3 / 4; margin: 2px auto 12px; }
+.oyk-atom-detail .oyk-atom-img { flex-basis: 58%; }
+.oyk-dstatus { display: block; width: max-content; margin: -2px auto 12px; font-size: 11px; font-weight: 800;
+  border-radius: 99px; padding: 4px 12px; background: var(--oyk-warn-pale); color: var(--oyk-warn-deep); }
+.oyk-dstatus.is-won { background: var(--oyk-warn); color: #4a3300; }
+.oyk-dstatus.is-lost { background: var(--oyk-fill); color: var(--oyk-text-3); }
+.oyk-ledger { display: flex; flex-direction: column; margin-bottom: 2px; }
+.oyk-lrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 2px; border-top: 1px solid var(--oyk-line); }
+.oyk-lrow-k { font-size: 10.5px; font-weight: 700; color: var(--oyk-text-3); text-transform: uppercase; letter-spacing: .04em; flex: 0 0 auto; }
+.oyk-lrow-v { font-size: 13.5px; font-weight: 700; color: var(--oyk-text); font-variant-numeric: tabular-nums;
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0; text-align: right; }
+.oyk-lrow-v.is-mono { letter-spacing: .06em; }
+.oyk-lrow-v img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+/* Detal o'rgatuvchi bloki — kulrang qutiDAN chiqib, yengil hairline (kvitansiya emas). */
+.oyk-cert-teach.is-flat { background: none; padding: 12px 2px 2px; margin: 6px 0 0; border-top: 1px solid var(--oyk-line); }
+
+/* ── Katalog kartasi: atom-boshli (rasm TOZA qahramon — ustида matn yo'q; nom/narx kamarда) ── */
+.oyk-vimg { position: relative; height: 148px; margin: -14px -14px 0; border-radius: 19px 19px 0 0; overflow: hidden;
+  display: grid; place-items: center; background: linear-gradient(150deg, var(--oyk-accent-pale), #f3eefe); }
+.oyk-vimg img { width: 100%; height: 100%; object-fit: cover; }
+.oyk-vimg-emoji { font-size: 62px; line-height: 1; }
+.oyk-vbelt { display: flex; flex-direction: column; gap: 6px; padding: 10px 2px 0; }
+.oyk-vbelt-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.oyk-vbelt-top .oyk-atom-nm { font-size: 15px; }
+.oyk-vprog { height: 4px; border-radius: 99px; background: var(--oyk-skel); overflow: hidden; }
+.oyk-vprog i { display: block; height: 100%; border-radius: 99px; background: var(--oyk-accent); }
+.oyk-vprog-lb { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10.5px; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
+.oyk-vgoalmine { color: var(--oyk-violet-soft); font-weight: 800; }
+/* «N kishi xohlaydi» ijtimoiy-isbot badge rasm ustidа (goalCount) — mavjud oyk-vcard-goal qayta ishlatiladi. */
+
+/* ── Buy-varaq: karta-atomi hero + IJOBIY imkon-o'lchagich («3 limit» o'rniga) ── */
+.oyk-buy-atom { width: 146px; aspect-ratio: 3 / 4; margin: 2px auto 0; }
+.oyk-buy-opp { background: var(--oyk-accent-fill); border-radius: 12px; padding: 9px 12px; }
+.oyk-buy-opp-r { font-size: 12.5px; font-weight: 700; color: var(--oyk-accent-deep); }
+.oyk-buy-opp-r b { font-weight: 900; }
+.oyk-buy-opp small { display: block; font-size: 10.5px; font-weight: 600; color: var(--oyk-text-3); margin-top: 3px; }
+
+/* ── Bayram (celebrate): karta-atomi + «Karta sizniki!» (omad/qimor tili yo'q) ── */
+.oyk-cel-atom { width: 168px; aspect-ratio: 3 / 4; animation: oyk-pop .42s var(--ease-out) both; }
+@media (prefers-reduced-motion: reduce) { .oyk-cel-atom { animation: none; } }
+.oyk-cel-code { font-size: 11px; font-weight: 800; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+.oyk-cel-title { margin-top: 14px; font-size: 24px; font-weight: 900; letter-spacing: -.02em; color: #fff; text-align: center; }
+.oyk-cel-sub { margin-top: 8px; font-size: 12.5px; line-height: 1.5; color: rgba(255, 255, 255, .78); text-align: center; max-width: 262px; }
+.oyk-cel-acts { margin-top: 16px; display: flex; flex-direction: column; gap: 8px; width: 220px; }
+.oyk-cel-p { border: 0; border-radius: 13px; min-height: 48px; background: var(--oyk-accent-grad); color: var(--oyk-on); font-size: 14px; font-weight: 900; cursor: pointer; transition: transform var(--dur-press); }
+.oyk-cel-p:active { transform: scale(.97); }
+.oyk-cel-s { border: 0; background: none; color: rgba(255, 255, 255, .9); font-size: 13px; font-weight: 800; cursor: pointer; padding: 6px; }
 /* 💬 K8 (2026-08-16) — sovg'a ostidagi ochiq komentariya. `.oyk-note-*` (K2/K3) bilan bir xil
    uslub — yozish maydoni shulardan qayta ishlatiladi, faqat yuborish tugmasi va ro'yxat yangi. */
 .oyk-comment-send {

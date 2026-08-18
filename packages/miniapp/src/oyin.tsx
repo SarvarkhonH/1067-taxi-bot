@@ -1740,38 +1740,34 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {oyinFilterPrizes(vitrina.prizes.filter((p) => !p.drawn), filter).map((p) => {
               const affordable = !locked && state.ball >= p.price;
               const showPhoto = !!p.photoUrl && !badPhoto.has(p.key);
+              const atLimit = p.mine >= state.hints.maxPerPrize;
               return (
                 <div key={p.key} className={`oyk-vcard${p.soldOut ? " is-soldout" : ""}`}>
                   {/* ⚠️ Avval `onError` da `parentElement.remove()` turardi — u nafaqat rasmni,
                       balki uning ICHIDAGI sovrin NOMI va NARXINI ham o'chirardi (karta nomsiz
                       to'rtburchakka aylanardi) va React boshqaradigan tugunni tashqaridan
                       olib tashlardi. Endi holat React'da: rasm o'rniga rangli emoji-afisha. */}
-                  {showPhoto ? (
-                    <div className="oyk-vcard-photo">
-                      <img src={p.photoUrl ?? ""} alt="" loading="lazy" onError={() => markBadPhoto(p.key)} />
-                      {/* 🔴 F3 (2026-08-16 audit): ijtimoiy isbot — "N kishi shuni xohlaydi". */}
-                      {p.goalCount > 0 && <div className="oyk-vcard-goal">🎯 {p.goalCount}</div>}
-                      <div className="oyk-vcard-photo-fade" />
-                      <div className="oyk-vcard-photo-name">{p.name}</div>
-                      <div className="oyk-vcard-photo-price">{p.price} <small>ball</small></div>
+                  {/* 🎴 Atom-boshli: rasm TOZA qahramon (ustida matn/qora-fade YO'Q — review topgan
+                      shovqin olib tashlandi); nom+narx pastdagi oq «kamar»da. Progress endi
+                      sold/limit (nechta olindi) — avval ball/price edi va «N dona» ostida inventar
+                      deb o'qilardi. Affordability tugma matnida. `goalCount` — «N xohlaydi» konteksti. */}
+                  <div className="oyk-vimg">
+                    {showPhoto
+                      ? <img src={p.photoUrl ?? ""} alt="" loading="lazy" onError={() => markBadPhoto(p.key)} />
+                      : <span className="oyk-vimg-emoji">{p.icon}</span>}
+                    {p.goalCount > 0 && <div className="oyk-vcard-goal">🎯 {p.goalCount} xohlaydi</div>}
+                    <span className="oyk-atom-shine" />
+                  </div>
+                  <div className="oyk-vbelt">
+                    <div className="oyk-vbelt-top">
+                      <span className="oyk-atom-nm">{p.name}</span>
+                      <span className="oyk-atom-ball">◆ {p.price} ball</span>
                     </div>
-                  ) : (
-                    <div className="oyk-vcard-photo is-emoji">
-                      <span className="oyk-vcard-photo-emoji">{p.icon}</span>
-                      {p.goalCount > 0 && <div className="oyk-vcard-goal">🎯 {p.goalCount}</div>}
-                      <div className="oyk-vcard-photo-fade" />
-                      <div className="oyk-vcard-photo-name">{p.name}</div>
-                      <div className="oyk-vcard-photo-price">{p.price} <small>ball</small></div>
+                    <div className="oyk-vprog"><i style={{ width: `${p.limit > 0 ? Math.min(100, (p.sold / p.limit) * 100) : 0}%` }} /></div>
+                    <div className="oyk-vprog-lb">
+                      <span>{p.sold} / {p.limit} karta olindi</span>
+                      {state.goalPrizeKey === p.key && <span className="oyk-vgoalmine">🎯 Maqsadingiz</span>}
                     </div>
-                  )}
-                  {/* ⚠️ 2026-08-13 (ega talabi: "sovg'a narxlari ko'rsatma faqat o'zimiz uchun") —
-                      `p.valueLabel` (taxminiy so'm qiymati) mijozga ENDI ko'rsatilmaydi, faqat
-                      admin panelda qoladi. Shu qator faqat dona-sonini aytadi. */}
-                  {/* «Maqsadingiz» glance kartada QOLADI (amal «⋯» menyusiga ko'chgan bo'lsa ham):
-                      qaysi sovrin maqsad ekani bir qarashda ko'rinishi kerak. */}
-                  <div className="oyk-vcard-sub">{p.limit} dona{state.goalPrizeKey === p.key && <span className="oyk-vcard-goalmine"> · 🎯 Maqsadingiz</span>}</div>
-                  <div className="oyk-vbar">
-                    <div className="oyk-vbar-fill" style={{ transform: `scaleX(${Math.min(1, state.ball / p.price)})` }} />
                   </div>
                   {/* 🗑 "Olingan/Qolgan/Sizda" qatori OLIB TASHLANDI (ega talabi 2026-08-13:
                       Mukofotlar kartasi soddalashtirilsin). Ikkalasi ham boshqa joyda bor:
@@ -1803,11 +1799,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       ortiqcha"). Xuddi shu fakt pastdagi xarid tugmasining O'Z matnida
                       allaqachon bor edi ("🎟 Yana ol", "🎟 Karta ol", "N ball qoldi") —
                       bitta faktni ikki marta, ikki joyda aytish ortiqcha edi. */}
-                  {/* Limit xariddan OLDIN aytiladi — avval mijoz unga faqat tugmani bosgandan
-                      keyin duch kelardi ("limitga yetdingiz", raqamsiz). */}
-                  {p.mine > 0 && p.mine >= state.hints.maxPerPrize && (
-                    <div className="oyk-vcard-path">{buyReasonText("own_limit", state.hints.maxPerPrize)}</div>
-                  )}
+                  {/* Own-limit endi tugmaning O'ZIDA so'nuq «Limitga yetdingiz» bo'lib aytiladi
+                      (review: avval matn taqiq derdi, tugma esa yashil «Yana ol» bo'lib chorlardi). */}
                   {/* 🎯 Asosiy harakat «Karta ol» BUTUN ENLIK — ierarxiya bir qarashda o'qiladi.
                       Ikkinchi darajali uchtasi (maqsad · kartalar · fikrlar) «⋯» menyusiga
                       yig'ildi (avval har kartada 4 tugma yonma-yon = «tugma devori»: 5 sovrin ×
@@ -1817,15 +1810,16 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   <div className="oyk-vcard-acts">
                     <button
                       type="button"
-                      className={`oyk-vbtn${affordable && !p.soldOut && !needsRide ? " is-on" : ""}${p.soldOut ? " is-soldout" : locked ? " is-frozen" : ""}`}
+                      className={`oyk-vbtn${affordable && !p.soldOut && !needsRide && !atLimit ? " is-on" : ""}${p.soldOut || atLimit ? " is-soldout" : locked ? " is-frozen" : ""}`}
                       onClick={() => tapPrize(p)}
                     >
                       {p.soldOut ? "❌ O'rinlar tugadi"
+                        : atLimit ? `⚖️ Limitga yetdingiz (${state.hints.maxPerPrize} ta)`
                         : locked ? "🔒 Yopildi"
                         : needsRide ? "🚕 Avval bitta safar qiling"
                         : p.mine > 0 ? `🎟 Yana ol — ${p.price} ball`
                         : affordable ? `🎟 Karta ol — ${p.price} ball`
-                        : `${p.price - state.ball} ball qoldi`}
+                        : `⚡ Yana ${p.price - state.ball} ball kerak`}
                     </button>
                     <button
                       type="button" className="oyk-vmore"
@@ -2474,32 +2468,46 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   </div>
                 )}
                 {!cardsErr && !cardsData && <div className="oyk-cards-grid is-skel">{Array.from({ length: 24 }).map((_, i) => <span key={i} className="oyk-cell is-skel" />)}</div>}
-                {cardsData && (
-                  <>
-                    <div className="oyk-vbar oyk-cards-bar"><div className="oyk-vbar-fill" style={{ transform: `scaleX(${cardsData.limit > 0 ? cardsData.sold / cardsData.limit : 0})` }} /></div>
-                    <div className="oyk-cards-sub">
-                      {cardsData.sold} olindi · {cardsData.limit - cardsData.sold} bo'sh
-                      {cardsData.minSell > 0 && !cardsData.willDraw ? ` · topshirilishi uchun ${cardsData.minSell} ta kerak` : ""}
-                    </div>
-                    <div className="oyk-cards-grid">
-                      {cardsData.cards.map((c) => (
-                        <button
-                          key={c.no}
-                          type="button"
-                          className={`oyk-cell${c.ownerName === null ? " is-free" : c.mine ? " is-mine" : " is-own"}`}
-                          onClick={() => (c.gno != null ? openCard(c.gno) : openEmptySlot(c.no))}
-                          title={c.ownerName ?? "Bo'sh joy"}
-                        >{c.no}</button>
+                {/* 🎴 EGALAR RO'YXATi — kinoteatr-panjara (oyk-cards-grid/oyk-cell) BEKOR: raqam
+                    tanlanmasdi (xariddan keyin biriktiriladi), ya'ni «o'rindiq tanlash» yolg'on
+                    affordans edi. Endi «kim olgani» ijtimoiy isbot sifatida qatorlarda ko'rinadi;
+                    «Siz» tepaga qadaladi; bo'sh joylar — bitta CTA-karta (panjara emas). */}
+                {cardsData && (() => {
+                  const free = Math.max(0, cardsData.limit - cardsData.sold);
+                  const mineCards = cardsData.cards.filter((c) => c.mine);
+                  const others = cardsData.cards.filter((c) => c.ownerName !== null && !c.mine);
+                  const shown = others.slice(0, 50);
+                  return (
+                    <>
+                      <div className="oyk-coll-meter"><i style={{ width: `${cardsData.limit > 0 ? Math.min(100, (cardsData.sold / cardsData.limit) * 100) : 0}%` }} /></div>
+                      <div className="oyk-coll-min">
+                        {cardsData.sold} kishi karta oldi · {free} joy ochiq
+                        {cardsData.minSell > 0 && !cardsData.willDraw ? ` · topshirilishi uchun yana ${Math.max(0, cardsData.minSell - cardsData.sold)} ta kerak` : ""}
+                      </div>
+                      {mineCards.length > 0 && (
+                        <button type="button" className="oyk-orow is-me" onClick={() => { const g = mineCards.find((c) => c.gno != null)?.gno; if (g != null) openCard(g); }}>
+                          <span className={`oyk-avatar ${avatarClass(0)}`}>S</span>
+                          <span className="oyk-orow-who"><b>Siz</b></span>
+                          <span className="oyk-orow-mine">Meniki · {mineCards.length} ta</span>
+                        </button>
+                      )}
+                      {shown.map((c) => (
+                        <button key={c.no} type="button" className="oyk-orow" disabled={c.gno == null} onClick={() => { if (c.gno != null) openCard(c.gno); }}>
+                          <span className={`oyk-avatar ${avatarClass(c.no)}`}>{(c.ownerName ?? "?").trim()[0] ?? "?"}</span>
+                          <span className="oyk-orow-who">{c.ownerName}</span>
+                          <span className="oyk-orow-sn">№{c.no}</span>
+                        </button>
                       ))}
-                    </div>
-                    <div className="oyk-cards-lg">
-                      <span><i className="oyk-sw is-free" />bo'sh</span>
-                      <span><i className="oyk-sw is-own" />egasi bor</span>
-                      <span><i className="oyk-sw is-mine" />meniki</span>
-                    </div>
-                    <div className="oyk-cards-msg">Istalgan katakka bosing — band bo'lsa egasi, bo'sh bo'lsa uni qanday olish ko'rinadi.</div>
-                  </>
-                )}
+                      {others.length > shown.length && <div className="oyk-coll-more">Yana {others.length - shown.length} kishi oldi</div>}
+                      {free > 0 && (
+                        <div className="oyk-coll-cta">
+                          <div className="oyk-coll-cta-tx"><b>{free} joy hali ochiq</b><small>Siz ham qo'shiling — ko'proq karta, ko'proq imkon</small></div>
+                          {cardsPrize && <button type="button" onClick={() => tapPrize(cardsPrize)}>Karta ol</button>}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
                 <button type="button" className="oyk-sheet-ok" onClick={() => setSheet(null)}>Yopish</button>
               </>
             )}
@@ -2545,43 +2553,40 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                             ishlatildi (bir xil vizual til), pastida esa "bu karta nima
                             beradi/qachon o'ynaydi/keyin nima" o'rgatuvchi blok — avval umuman
                             yo'q edi. */}
-                        <div className="oyk-cert">
-                          <div className={`oyk-cert-stub${cardData.photoUrl && !badPhoto.has(`cert${cardData.gno}`) ? " has-photo" : ""}`}>
-                            {/* 🔴 F6 (2026-08-16 audit): sovrin rasmi serverdan kelardi, lekin
-                                bu yerda HECH QACHON chizilmasdi. */}
-                            {cardData.photoUrl && !badPhoto.has(`cert${cardData.gno}`) && (
-                              <img className="oyk-cert-stub-img" src={cardData.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(`cert${cardData.gno}`)} />
-                            )}
-                            <div className="oyk-cert-lbl">BirJoy karta</div>
-                            {/* 🔐 K1 (2026-08-14) — ko'rinadigan raqam endi Feistel+Luhn kodi
-                                (`code`), xom `gno` emas. `gno` API yo'llari uchun ICHKI qoladi. */}
-                            <div className="oyk-cert-no">{cardData.code}</div>
-                            <div className="oyk-cert-pz">{cardData.prizeIcon} {cardData.prizeName}</div>
-                            <div className={`oyk-cert-st${cardData.result === "won" ? " is-won" : ""}`}>
-                              {cardData.result === "won" ? "🏆 Yutdi" : cardData.result === "lost" ? "O'ynadi" : "⏳ O'yinda"}
-                            </div>
+                        {/* 🎴 KARTA-ATOMI (2× redizayn) — kvitansiya (oyk-cert stub+rows) o'rniga
+                            hamma joydagi bir xil karta obyekti: toza rasm + oq kamar + oltin folga
+                            (№{no}) + shine. To'liq kod pastdagi ledgerda. */}
+                        <div className="oyk-atom is-lift oyk-atom-detail">
+                          <div className="oyk-atom-img">
+                            {cardData.photoUrl && !badPhoto.has(`cert${cardData.gno}`)
+                              ? <img src={cardData.photoUrl} alt="" loading="lazy" onError={() => markBadPhoto(`cert${cardData.gno}`)} />
+                              : <span>{cardData.prizeIcon}</span>}
+                            <div className="oyk-atom-foil">№{cardData.no}</div>
+                            <span className="oyk-atom-shine" />
                           </div>
-                          <div className="oyk-cert-rows">
-                            <div className="oyk-cert-row">
-                              <span>Egasi</span>
-                              {/* 👤 K4 — rasm FAQAT egasi rozilik bergan bo'lsa (yoki bu SIZNING
-                                  o'z kartangiz). Server hal qiladi (`ownerPhotoUrl`), bu yerda
-                                  faqat bor-yo'qligi tekshiriladi. */}
-                              <b className="oyk-cert-owner">
-                                {cardData.ownerPhotoUrl && <img className="oyk-cert-owner-av" src={cardData.ownerPhotoUrl} alt="" />}
-                                {cardData.ownerName}{cardData.mine ? " (siz)" : ""}
-                              </b>
-                            </div>
-                            <div className="oyk-cert-row">
-                              <span>Olingan</span>
-                              {/* ⚠️ `toLocaleDateString("uz-UZ")` EMAS — u ba'zi klientlarda «2026 M08 8»
-                                  qaytaradi (jonli tekshiruvda AYNAN shunday chiqdi). Loyihaning o'z
-                                  `uzDate` helperi ishlatiladi — u 129-satrda aynan shu sabab yozilgan. */}
-                              <b>{uzDate(cardData.at)}</b>
-                            </div>
-                          </div>
+                          <div className="oyk-atom-belt"><span className="oyk-atom-nm">{cardData.prizeName}</span></div>
                         </div>
-                        <div className="oyk-cert-teach">
+                        <div className={`oyk-dstatus${cardData.result === "won" ? " is-won" : cardData.result === "lost" ? " is-lost" : ""}`}>
+                          {cardData.result === "won" ? "🏆 Yutdi" : cardData.result === "lost" ? "O'ynadi" : "⏳ Mukofot kunini kutmoqda"}
+                        </div>
+                        {/* 🎴 «pass-orqa» ledger — kvitansiya (border-bottom chek-qatorlari) o'rniga
+                            yengil hairline qatorlar. NaN qoidasi: ma'lumot bo'lmasa qator chizilmaydi. */}
+                        <div className="oyk-ledger">
+                          <div className="oyk-lrow"><span className="oyk-lrow-k">Sovrin</span><span className="oyk-lrow-v">{cardData.prizeName}</span></div>
+                          <div className="oyk-lrow"><span className="oyk-lrow-k">Karta raqami</span><span className="oyk-lrow-v is-mono">{cardData.code}</span></div>
+                          <div className="oyk-lrow">
+                            <span className="oyk-lrow-k">Egasi</span>
+                            {/* 👤 K4 — rasm faqat egasi rozilik bergan bo'lsa (server `ownerPhotoUrl`). */}
+                            <span className="oyk-lrow-v">
+                              {cardData.ownerPhotoUrl && <img src={cardData.ownerPhotoUrl} alt="" />}
+                              {cardData.ownerName}{cardData.mine ? " (siz)" : ""}
+                            </span>
+                          </div>
+                          {/* `uzDate` — `toLocaleDateString("uz-UZ")` ba'zi klientlarda «2026 M08 8» qaytaradi. */}
+                          <div className="oyk-lrow"><span className="oyk-lrow-k">Olingan</span><span className="oyk-lrow-v">{uzDate(cardData.at)}</span></div>
+                          {cardData.drawIso && <div className="oyk-lrow"><span className="oyk-lrow-k">Mukofot kuni</span><span className="oyk-lrow-v">{uzDate(cardData.drawIso)}</span></div>}
+                        </div>
+                        <div className="oyk-cert-teach is-flat">
                           <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">🎟</span><span>Bu karta — <b>{cardData.prizeName}</b> uchun o'ynaydigan bitta joy.</span></div>
                           {/* ⚠️ Bu qator HAQIQAT bo'lgandagina chiziladi: sana yo'q bo'lsa umuman
                               yozilmaydi (bo'sh va'da bermaslik qoidasi). */}
@@ -3011,14 +3016,23 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     savol-sarlavha ("...olasizmi?") o'rniga karta/sovrin nomining o'zi
                     ko'rsatiladi. Varaqning o'zi ALLAQACHON bitta ekranda (ega tasdiqlagan
                     §7, yuqoridagi izoh) — bu faqat sarlavha ohangini o'zgartiradi. */}
-                <div className="oyk-sheet-title">🎟 {buyPrize.name}</div>
-                {/* KATTA rasm — avval 52px miniatyura edi; sovrin xarid daqiqasida ko'rinsin. */}
-                <div className="oyk-buy-hero">
-                  {buyPrize.photoUrl && !badPhoto.has(buyPrize.key)
-                    ? <img src={buyPrize.photoUrl} alt="" onError={() => markBadPhoto(buyPrize.key)} />
-                    : <span className="oyk-buy-hero-emoji">{buyPrize.icon}</span>}
-                  <div className="oyk-buy-hero-fade" />
-                  <div className="oyk-buy-hero-name">{buyPrize.name}</div>
+                {/* 🎴 Sarlavha generik («Karta olish») — sovrin nomi endi atom belt'ida BIR marta
+                    (review: nom sarlavha + rasm ustida ikki marta chizilardi). */}
+                <div className="oyk-sheet-title">🎟 Karta olish</div>
+                <div className="oyk-atom is-lift oyk-buy-atom">
+                  <div className="oyk-atom-img">
+                    {buyPrize.photoUrl && !badPhoto.has(buyPrize.key)
+                      ? <img src={buyPrize.photoUrl} alt="" onError={() => markBadPhoto(buyPrize.key)} />
+                      : <span>{buyPrize.icon}</span>}
+                    <span className="oyk-atom-shine" />
+                  </div>
+                  <div className="oyk-atom-belt"><span className="oyk-atom-nm">{buyPrize.name}</span><span className="oyk-atom-ball">◆ {buyPrize.price} ball</span></div>
+                </div>
+                {/* 🎯 IJOBIY imkon-o'lchagich — «ko'proq karta = ko'proq imkoniyat» (ega qarori).
+                    «3 limit» chalkash tili o'rniga o'sish ko'rsatiladi. */}
+                <div className="oyk-buy-opp">
+                  <div className="oyk-buy-opp-r">Kartalaring: <b>{buyPrize.mine}</b> → <b>{buyPrize.mine + qty}</b></div>
+                  <small>Har karta — mukofot kunida yana bitta imkoniyat</small>
                 </div>
                 {sc !== "none" && (
                   <div className={`oyk-scarce is-${sc}`}>
@@ -3052,8 +3066,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   Ball pul emas: to'langan ball qaytarilmaydi va naqdga yechilmaydi.
                 </div>
                 <div className="oyk-buy-actions">
-                  <button type="button" className="oyk-buy-confirm" disabled={busy} onClick={() => void confirmBuy()}>{busy ? "…" : `Tasdiqlash — ${total} ball`}</button>
-                  <button type="button" className="oyk-buy-cancel" onClick={() => { setSheet(null); setBuyKey(null); }}>Bekor</button>
+                  <button type="button" className="oyk-buy-confirm" disabled={busy} onClick={() => void confirmBuy()}>{busy ? "Olinmoqda…" : qty > 1 ? `🎟 ${qty} karta olish — ${total} ball` : `🎟 Karta olish — ${total} ball`}</button>
+                  <button type="button" className="oyk-buy-cancel" disabled={busy} onClick={() => { setSheet(null); setBuyKey(null); }}>Bekor</button>
                 </div>
               </>
               );
@@ -3064,24 +3078,26 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
 
       {celebrate && (
         <div className="oyk-celebrate">
-          <div className="oyk-ticket">
-            <div className="oyk-ticket-emoji">
+          {/* 🎴 Karta-atomi (hamma joydagi AYNAN bir obyekt) + «Karta sizniki!». «Omad tilaymiz»
+              (tasodif/qimor ohangi, pozitsiyaga zid) OLIB TASHLANDI — sovrin hali yutilmagan,
+              faqat karta olindi. «Kartalarim» yo'li qo'shildi (ekran kartani va'da qiladi). */}
+          <div className="oyk-atom is-lift oyk-cel-atom">
+            <div className="oyk-atom-img">
               {celebrate.prize.photoUrl && !badPhoto.has(celebrate.prize.key)
                 ? <img src={celebrate.prize.photoUrl} alt="" onError={() => markBadPhoto(celebrate.prize.key)} />
-                : celebrate.prize.icon}
+                : <span>{celebrate.prize.icon}</span>}
+              <span className="oyk-atom-shine" />
             </div>
-            {/* ⚠️ Bu kod Kartalarim tabida ko'rinadigan raqamning AYNAN O'ZI (2026-08-14: xom
-                `gno` o'rniga endi Feistel+Luhn kodi — `code`). Avval bu yerda sovrin-ichi
-                tartib raqami turardi ("№0002"), ro'yxatda esa global raqam — mijoz skrinshot
-                qilgan raqam uniki emas edi. Shu bug qaytarilmasin uchun manba BIR XIL. */}
-            <div className="oyk-ticket-no">{celebrate.code}</div>
-            <div className="oyk-ticket-name">{celebrate.prize.name}</div>
-            <div className="oyk-ticket-sub">
-              {celebrate.count > 1 ? `${celebrate.count} ta karta oldingiz — ` : ""}mukofot kunida qatnashasiz — davr oxirida jonli efir!
-            </div>
+            {/* Kod — Kartalarim/karta-sahifasidagi raqamning AYNAN O'ZI (`code`, Feistel+Luhn). */}
+            <div className="oyk-atom-belt"><span className="oyk-atom-nm">{celebrate.prize.name}</span><span className="oyk-cel-code">{celebrate.code}</span></div>
           </div>
-          <div className="oyk-celebrate-wish">Omad tilaymiz!</div>
-          <button type="button" className="oyk-celebrate-btn" onClick={() => setCelebrate(null)}>Zo'r! 🎉</button>
+          <div className="oyk-cel-title">{celebrate.count > 1 ? `×${celebrate.count} karta qo'shildi` : "Karta sizniki!"}</div>
+          <div className="oyk-dstatus">⏳ Mukofot kunini kutmoqda</div>
+          <div className="oyk-cel-sub">Mukofot kuni jonli efirda o'ynaydi — imkoniyating shuncha katta. To'plamingda: {state.ticketCount} karta.</div>
+          <div className="oyk-cel-acts">
+            <button type="button" className="oyk-cel-p" onClick={() => { setCelebrate(null); setTab("tickets"); }}>🎴 Kartalarim</button>
+            <button type="button" className="oyk-cel-s" onClick={() => setCelebrate(null)}>Zo'r!</button>
+          </div>
         </div>
       )}
 
