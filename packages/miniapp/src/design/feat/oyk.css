@@ -243,66 +243,45 @@
 .oyk-act.is-ride { background: var(--oyk-ride-grad); color: var(--oyk-ride-ink); }
 .oyk-act.is-invite { background: var(--oyk-accent-grad); }
 
-/* ── 🎯 Kunlik vazifalar (halqa + 3 qator) ────────────────────────────────────────────── */
-.oyk-daily {
-  display: flex; gap: 14px; align-items: center; padding: 14px;
-  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px; box-shadow: var(--oyk-shadow);
+/* ── 🎯 Bugungi vazifalar — YAGONA ro'yxat ─────────────────────────────────────────────────
+   Avval `.oyk-daily` (halqa + 3 qator) + 3× `.oyk-quest` (topshiriq/hikoya/uy-ekran) alohida
+   kartalar edi — bir-biriga o'xshab ketardi va varaqni cho'zardi. Endi bitta karta: progress-bar
+   + qatorlar. To'plamda faqat SERVER TEKSHIRA OLADIGAN vazifalar ball beradi; hikoya PROMO
+   (progress hisobiga kirmaydi — JSX'dagi `counts:false`). */
+.oyk-tasks {
+  background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px;
+  box-shadow: var(--oyk-shadow); padding: 14px;
 }
-.oyk-daily-ring { position: relative; flex-shrink: 0; width: 64px; height: 64px; }
-/* R35: avval JSX ichida inline `style={{transition:...}}` edi (Qoida-17 buzilishi) — ko'chirildi. */
-.oyk-daily-ring-progress { transition: stroke-dashoffset .6s ease; }
-@media (prefers-reduced-motion: reduce) { .oyk-daily-ring-progress { transition: none; } }
-.oyk-daily-ring-num {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 900; font-variant-numeric: tabular-nums;
+.oyk-tasks-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.oyk-tasks-h b { font-size: 13.5px; font-weight: 900; }
+.oyk-tasks-cnt { font-size: 11.5px; font-weight: 800; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
+.oyk-tasks-bar { height: 7px; border-radius: 99px; background: var(--oyk-fill); overflow: hidden; margin-bottom: 6px; }
+/* R35 bilan bir xil: transform inline `style` (Qoida-17) faqat scaleX QIYMATI uchun — o'tish CSS'da. */
+.oyk-tasks-bar i {
+  display: block; height: 100%; width: 100%; border-radius: 99px; background: var(--oyk-violet-grad);
+  transform-origin: left; transition: transform .5s ease;
 }
-.oyk-daily-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
-.oyk-daily-title { font-size: 13.5px; font-weight: 900; margin-bottom: 2px; }
-.oyk-daily-title small { font-weight: 700; color: var(--oyk-text-3); font-size: 11px; margin-left: 6px; }
-.oyk-daily-row {
-  display: flex; align-items: center; gap: 8px; border: none; background: none; padding: 2px 0;
-  text-align: left; color: inherit; cursor: default; width: 100%;
+@media (prefers-reduced-motion: reduce) { .oyk-tasks-bar i { transition: none; } }
+.oyk-task-row {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; font-family: inherit;
+  border: none; background: none; padding: 9px 2px; color: inherit; cursor: default;
+  border-top: 1px solid var(--oyk-line);
 }
-.oyk-daily-row.is-tappable { cursor: pointer; }
-.oyk-daily-row.is-tappable:active { transform: scale(.98); }
-.oyk-daily-check {
-  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0; font-size: 10px; font-weight: 900;
+.oyk-task-row:first-of-type { border-top: none; }
+.oyk-task-row.is-tappable { cursor: pointer; transition: transform var(--dur-press); }
+.oyk-task-row.is-tappable:active { transform: scale(.99); }
+.oyk-task-ck {
+  width: 19px; height: 19px; border-radius: 50%; flex-shrink: 0; font-size: 10px; font-weight: 900;
   display: flex; align-items: center; justify-content: center;
   border: 1.5px solid var(--oyk-line); color: var(--oyk-on);
 }
-.oyk-daily-label { flex: 1; font-size: 12.5px; font-weight: 700; color: var(--oyk-text-2); }
-.oyk-daily-gain { font-size: 11.5px; font-weight: 800; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
-/* Bajarilgan = YASHIL (ega: "checked topshiriqlar uchun pushti emas").
-   ⚠️ Avval shu qoidadan KEYIN yana bir `…is-done .oyk-daily-gain { color: gold }` qatori turardi
-   va CSS'da oxirgisi yutadi — ya'ni bajarilgan vazifaning "+N" raqami OLTIN chiqardi, ega
-   qarori esa yashil edi. Takroriy qator o'chirildi, endi bitta manba. */
-.oyk-daily-row.is-done .oyk-daily-check { background: var(--oyk-green); border-color: var(--oyk-green); color: var(--oyk-on); }
-.oyk-daily-row.is-done .oyk-daily-label { color: var(--oyk-text-3); }
-.oyk-daily-row.is-done .oyk-daily-gain { color: var(--oyk-green); font-weight: 900; }
-
-/* ── 🎯 Kunlik topshiriq (random) va 🏠 doimiy topshiriq ──────────────────────────────────
-   To'plamda faqat SERVER TEKSHIRA OLADIGAN topshiriqlar bor — "Telegram guruhga tashla"
-   kabi tekshirib bo'lmaydigan vazifa ATAYLAB yo'q (ball ishonchga berilmaydi). */
-.oyk-quest {
-  display: flex; align-items: center; gap: 11px; width: 100%; text-align: left;
-  padding: 12px 13px; border-radius: 16px; font-family: inherit;
-  background: var(--oyk-surface); border: 1px solid var(--oyk-line); box-shadow: var(--oyk-shadow);
-}
-.oyk-quest.is-home,
-.oyk-quest.is-story { cursor: pointer; transition: transform var(--dur-press); }
-.oyk-quest.is-home:active,
-.oyk-quest.is-story:active { transform: scale(.98); }
-.oyk-quest.is-home:disabled { cursor: default; }
-.oyk-quest.is-done { background: rgba(31, 157, 85, .07); border-color: rgba(31, 157, 85, .28); }
-.oyk-quest-em { font-size: 24px; line-height: 1; flex-shrink: 0; }
-.oyk-quest-tx { flex: 1; min-width: 0; }
-.oyk-quest-tx b { display: block; font-size: 13.5px; font-weight: 900; line-height: 1.3; color: var(--oyk-text); }
-.oyk-quest-tx small { display: block; font-size: 11px; color: var(--oyk-text-3); margin-top: 2px; line-height: 1.35; }
-.oyk-quest-b {
-  flex-shrink: 0; font-size: 14px; font-weight: 900; color: var(--oyk-violet-soft);
-  font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-.oyk-quest.is-done .oyk-quest-b { color: var(--oyk-green); }
+.oyk-task-lb { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 700; color: var(--oyk-text); }
+.oyk-task-lb small { display: block; font-size: 10.5px; font-weight: 600; color: var(--oyk-text-3); margin-top: 1px; line-height: 1.35; }
+.oyk-task-g { flex-shrink: 0; font-size: 12.5px; font-weight: 900; color: var(--oyk-violet-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* Bajarilgan = YASHIL (ega: "checked topshiriqlar uchun pushti emas"). */
+.oyk-task-row.is-done .oyk-task-ck { background: var(--oyk-green); border-color: var(--oyk-green); }
+.oyk-task-row.is-done .oyk-task-lb { color: var(--oyk-text-3); }
+.oyk-task-row.is-done .oyk-task-g { color: var(--oyk-green); }
 
 /* ── 🏁 MAVSUM YAKUNI (uy tabi kontenti, erta-return EMAS) ────────────────────────────────
    ⚠️ Avval bu blok `.oyk-hero*` sinflarini ishlatardi — ular MEHMON-teaser ekraniga ham
@@ -429,24 +408,32 @@
 .oyk-vbtn.is-on { background: var(--oyk-accent-grad); color: var(--oyk-on); }
 .oyk-vbtn.is-frozen { background: color-mix(in srgb, var(--oyk-red) 12%, transparent); color: var(--oyk-red-soft); cursor: not-allowed; }
 .oyk-vbtn.is-soldout { background: var(--oyk-fill); color: var(--oyk-text-3); cursor: not-allowed; }
-/* 🎨 Ikonka-tugma (ega talabi 2026-08-13: Mukofotlar kartasi soddalashtirildi — "Maqsad"/
-   "Kartalar" endi matnsiz, faqat ikonka; "Karta ol" yagona to'liq-kengli asosiy harakat).
-   Avval ikkalasi ham to'liq matnli pill edi — 3 tugma qatorda (Maqsad·Kartalar·Karta ol),
-   qaysi biri ASOSIY ekani ko'zga yiqilmasdi. */
-/* ⚠️ 2026-08-13 (2-tur, ega talabi: "keyingi rowdagi emojilar xunik — yaxshiroq chizish
-   kerak"). Xom emoji kichik kulrang qutichada emas — rangli "belgi" (badge), goalc fotosi/
-   magnet ikonkasi bilan bir xil til: yumshoq rangli fon, soya, kattaroq emoji. */
-.oyk-goal-btn {
-  flex-shrink: 0; width: 46px; min-height: 46px; padding: 0; border: 0; border-radius: 13px;
-  background: var(--oyk-accent-pale); color: var(--oyk-accent-deep); font-size: 19px;
-  font-family: inherit; display: flex; align-items: center; justify-content: center;
-  cursor: pointer; transition: transform var(--dur-press); box-shadow: var(--oyk-shadow);
+/* ⋯ Ikkinchi darajali amallar menyusi (ega talabi: har kartada 4 tugma «devori» edi —
+   endi «Karta ol» yagona to'liq-kengli asosiy harakat + «⋯». Matnsiz ikonka-tugmalar
+   `.oyk-goal-btn`/`.oyk-goal-on` OLIB TASHLANDI — amallar endi MATNLI menyu qatorlari
+   (maqsad/kartalar/fikrlar), tushunarliroq. Menyu bir vaqtda bittasi ochiladi. */
+.oyk-vmore {
+  flex-shrink: 0; width: 46px; min-height: 46px; padding: 0; border: 1px solid var(--oyk-line);
+  border-radius: 12px; background: var(--oyk-fill); color: var(--oyk-text-2); font-size: 20px;
+  font-weight: 900; line-height: 1; cursor: pointer; transition: transform var(--dur-press);
 }
-.oyk-goal-btn:active { transform: scale(.94); }
-.oyk-goal-on {
-  flex-shrink: 0; width: 46px; min-height: 46px; display: flex; align-items: center; justify-content: center;
-  border-radius: 13px; background: var(--oyk-violet); color: #fff; font-size: 19px; box-shadow: var(--oyk-shadow);
+.oyk-vmore:active { transform: scale(.94); }
+.oyk-vmore[aria-expanded="true"] { background: var(--oyk-accent-pale); color: var(--oyk-accent-deep); }
+.oyk-vmenu {
+  margin-top: 8px; border: 1px solid var(--oyk-line); border-radius: 12px; overflow: hidden;
+  background: var(--oyk-surface); box-shadow: var(--oyk-shadow); animation: oyk-fadeup .18s ease-out;
 }
+.oyk-vmenu button {
+  display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; font-family: inherit;
+  border: none; background: var(--oyk-surface); color: var(--oyk-text); padding: 12px 13px;
+  font-size: 12.5px; font-weight: 700; cursor: pointer; border-top: 1px solid var(--oyk-line);
+}
+.oyk-vmenu button:first-child { border-top: none; }
+.oyk-vmenu button:active { background: var(--oyk-fill); }
+.oyk-vmenu button.is-current { color: var(--oyk-violet-soft); cursor: default; }
+.oyk-vmenu button:disabled { cursor: default; }
+/* 🎯 «Maqsadingiz» glance — kartada qoladi (amal «⋯» menyusiga ko'chgan bo'lsa ham). */
+.oyk-vcard-goalmine { color: var(--oyk-violet-soft); font-weight: 800; }
 /* 🚦 O'lchangan tanqislik (§6): <20% qizil, 20–50% kahrabo, undan yuqorisi rangsiz.
    Kahrabo ATAYLAB ko'k aksentdan ALOHIDA (yuqoridagi --oyk-warn-* izohiga qarang). */
 .oyk-scarce { font-size: 11px; font-weight: 800; border-radius: 9px; padding: 6px 10px; }

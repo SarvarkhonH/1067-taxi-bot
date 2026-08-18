@@ -608,6 +608,10 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // 📸 Hikoya-poster (20 rasm panjarasi + 2 URL maydoni) default YIG'ILGAN — Jamoam tabini
   // qisqartiradi. "Hikoya qo'y" bosilganda ochiladi (yoki earn-varag'idagi havoladan `goToStory`).
   const [posterOpen, setPosterOpen] = useState(false);
+  // ⋯ Vitrina kartasida ikkinchi darajali amallar (maqsad/kartalar/fikrlar) «⋯» menyusiga
+  // yig'ildi (avval har kartada 4 tugma yonma-yon edi — «tugma devori»). Bir vaqtda bitta
+  // karta menyusi ochiq (shu sovrin `key`i); boshqa kartaga bosilsa avvalgisi yopiladi.
+  const [menuKey, setMenuKey] = useState<string | null>(null);
   const [buyKey, setBuyKey] = useState<string | null>(null);
   const [buyQty, setBuyQty] = useState(1); // 🎟 miqdor (max 3) — YAKUNIY DIZAYN §7 tafsilot ekrani
   const [busy, setBusy] = useState(false); // faqat CHIPTA XARIDI
@@ -1763,7 +1767,9 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   {/* ⚠️ 2026-08-13 (ega talabi: "sovg'a narxlari ko'rsatma faqat o'zimiz uchun") —
                       `p.valueLabel` (taxminiy so'm qiymati) mijozga ENDI ko'rsatilmaydi, faqat
                       admin panelda qoladi. Shu qator faqat dona-sonini aytadi. */}
-                  <div className="oyk-vcard-sub">{p.limit} dona</div>
+                  {/* «Maqsadingiz» glance kartada QOLADI (amal «⋯» menyusiga ko'chgan bo'lsa ham):
+                      qaysi sovrin maqsad ekani bir qarashda ko'rinishi kerak. */}
+                  <div className="oyk-vcard-sub">{p.limit} dona{state.goalPrizeKey === p.key && <span className="oyk-vcard-goalmine"> · 🎯 Maqsadingiz</span>}</div>
                   <div className="oyk-vbar">
                     <div className="oyk-vbar-fill" style={{ transform: `scaleX(${Math.min(1, state.ball / p.price)})` }} />
                   </div>
@@ -1802,28 +1808,13 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   {p.mine > 0 && p.mine >= state.hints.maxPerPrize && (
                     <div className="oyk-vcard-path">{buyReasonText("own_limit", state.hints.maxPerPrize)}</div>
                   )}
-                  {/* 🎯 Maqsad qilish + chipta olish BITTA qatorda. Avval ikkalasi ham butun
-                      enlik blok edi: har kartada ikkita bir xil vaznli tugma turib, qaysi biri
-                      ASOSIY harakat ekani ko'rinmasdi (5 sovrin = 10 ta baland tugma devori).
-                      Endi ierarxiya ko'z bilan o'qiladi: maqsad — kichik chip, chipta — asosiy.
-                      ⚠️ 2026-08-13: ikkinchi darajali ikkitasi (Maqsad/Kartalar) matnsiz
-                      ikonka-tugmaga tushdi — `aria-label`/`title` bilan hamon tushunarli,
-                      lekin ekranda kamroq joy oladi va "Karta ol" yagona ko'zga tashlanadi. */}
+                  {/* 🎯 Asosiy harakat «Karta ol» BUTUN ENLIK — ierarxiya bir qarashda o'qiladi.
+                      Ikkinchi darajali uchtasi (maqsad · kartalar · fikrlar) «⋯» menyusiga
+                      yig'ildi (avval har kartada 4 tugma yonma-yon = «tugma devori»: 5 sovrin ×
+                      4 = 20 tugma). Menyu bir vaqtda bittasi ochiladi (`menuKey`), amal
+                      bajarilgach yopiladi. HAR amal saqlandi — faqat bir tap ortida.
+                      🚕 `needsRide` tugmaning O'ZIDA aytiladi (server `no_ride` qaytaradi). */}
                   <div className="oyk-vcard-acts">
-                    {!p.soldOut && (
-                      state.goalPrizeKey === p.key
-                        ? <div className="oyk-goal-on" aria-label="Bu sizning maqsadingiz" title="Maqsad"><Icon name="missions" filled size={19} /></div>
-                        : <button type="button" className="oyk-goal-btn" aria-label="Maqsad qilib belgilash" title="Maqsad qilib belgilash" disabled={goalBusyKey === p.key} onClick={() => void setGoal(p)}>{goalBusyKey === p.key ? "…" : <Icon name="missions" size={19} />}</button>
-                    )}
-                    {/* 🎟 Kartalar panjarasi. Ega talabi: «sovg'aga bosilsa kartalar ro'yxati
-                        ochiladi va egasi bor-yo'qligi ko'rsatiladi». To'lgan sovg'ada ham
-                        ochiladi — u eng kuchli ijtimoiy isbot. */}
-                    <button type="button" className="oyk-goal-btn" aria-label="Kartalarni ko'rish" title="Kartalarni ko'rish" onClick={() => openCards(p)}><Icon name="cards" size={19} /></button>
-                    {/* 💬 K8 — sovg'a ostidagi ochiq komentariya (OYIN_KARTA_PLAN.md §13). */}
-                    <button type="button" className="oyk-goal-btn" aria-label="Fikrlar" title="Fikrlar" onClick={() => openComments(p)}><Icon name="chat" size={19} /></button>
-                    {/* 🚕 `needsRide` tugmaning O'ZIDA aytiladi — server bu holatda `no_ride`
-                        qaytaradi, ekran esa avval bu haqda hech narsa demasdi va mijoz uni
-                        faqat "Tasdiqlash" dan KEYIN bilib olardi (G3). */}
                     <button
                       type="button"
                       className={`oyk-vbtn${affordable && !p.soldOut && !needsRide ? " is-on" : ""}${p.soldOut ? " is-soldout" : locked ? " is-frozen" : ""}`}
@@ -1836,7 +1827,27 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                         : affordable ? `🎟 Karta ol — ${p.price} ball`
                         : `${p.price - state.ball} ball qoldi`}
                     </button>
+                    <button
+                      type="button" className="oyk-vmore"
+                      aria-label="Boshqa amallar" aria-expanded={menuKey === p.key}
+                      onClick={() => { haptic(); setMenuKey((k) => (k === p.key ? null : p.key)); }}
+                    >⋯</button>
                   </div>
+                  {menuKey === p.key && (
+                    <div className="oyk-vmenu">
+                      {/* 🎯 Maqsad — sovrin allaqachon maqsad bo'lsa inert tasdiq, aks holda belgilash.
+                          To'lgan sovg'ada maqsad qo'yish yo'q (avvalgi qoida bilan bir xil). */}
+                      {!p.soldOut && (
+                        state.goalPrizeKey === p.key
+                          ? <button type="button" className="is-current" disabled><Icon name="missions" filled size={17} /> Maqsadingiz ✓</button>
+                          : <button type="button" disabled={goalBusyKey === p.key} onClick={() => { setMenuKey(null); void setGoal(p); }}><Icon name="missions" size={17} /> {goalBusyKey === p.key ? "…" : "Maqsad qilib belgilash"}</button>
+                      )}
+                      {/* 🎟 Kartalar panjarasi (egasi bor-yo'qligi — ijtimoiy isbot). To'lgan sovg'ada ham. */}
+                      <button type="button" onClick={() => { setMenuKey(null); openCards(p); }}><Icon name="cards" size={17} /> Kartalarni ko'rish</button>
+                      {/* 💬 K8 — sovg'a ostidagi ochiq komentariya (OYIN_KARTA_PLAN.md §13). */}
+                      <button type="button" onClick={() => { setMenuKey(null); openComments(p); }}><Icon name="chat" size={17} /> Fikrlar</button>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -2725,93 +2736,54 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   </button>
                 </div>
 
-                {/* 🎯 Bugungi maqsad — halqa, REAL ma'lumot bilan (state.today). Uchinchi qator
-                    ulashish = +N, bosilganda `doShareBonus` HAQIQATAN yozadi va galochka qo'yiladi. */}
+                {/* 🎯 Bugungi vazifalar — YAGONA ro'yxat. Avval 4 xil vidjet edi (kunlik-halqa +
+                    topshiriq + hikoya + uy-ekran) — hammasi bir-biriga o'xshab ketardi, lekin har
+                    biri alohida karta bo'lib varaqni cho'zardi. Endi bitta izchil ro'yxat + umumiy
+                    progress. Manbalar va handlerlar BIR HARFI ham o'zgarmadi — faqat bir joyga
+                    yig'ildi. `tap` bo'lgan qatorgina bosiladi; bajarilgan qatorlar tasdiq ko'rsatadi.
+                    ⚠️ Hikoya = PROMO (server o'zi tekshira olmaydi): `done` yo'q, bosish hikoya
+                    bo'limiga olib boradi (`goToStory`) — shuning uchun progress hisobiga
+                    kirmaydi (`counts:false`), aks holda "N/M" hech qachon to'lmasdi. */}
                 {(() => {
-                  const tasks = [
-                    { done: state.today.login, label: "Ilovaga kirish", gain: state.hints.loginBall, tap: null },
-                    { done: state.today.rides > 0, label: "1 safar qilish", gain: state.hints.rideBall, tap: null },
-                    { done: state.today.shared, label: "Ulashish", gain: state.hints.shareBall, tap: () => void doShareBonus() },
-                  ] as const;
-                  const doneCount = tasks.filter((t) => t.done).length;
-                  const R = 26;
-                  const C = 2 * Math.PI * R;
+                  type EarnTask = { key: string; label: string; sub?: string; em?: string; done: boolean; gain: number; tap: (() => void) | null; counts: boolean };
+                  const tasks: EarnTask[] = [
+                    { key: "login", label: "Ilovaga kirish", done: state.today.login, gain: state.hints.loginBall, tap: null, counts: true },
+                    { key: "ride", label: "1 safar qilish", done: state.today.rides > 0, gain: state.hints.rideBall, tap: onTaxi ? () => { haptic(); onTaxi(); } : null, counts: true },
+                    { key: "share", label: "Do'stga ulashish", done: state.today.shared, gain: state.hints.shareBall, tap: state.today.shared ? null : () => void doShareBonus(), counts: true },
+                  ];
+                  if (state.quest && state.quest.ball > 0) {
+                    tasks.push({ key: "quest", label: state.quest.title, sub: state.quest.done ? undefined : state.quest.hint, em: state.quest.icon, done: state.quest.done, gain: state.quest.ball, tap: null, counts: true });
+                  }
+                  if (state.story.ballEach > 0 && state.story.approved < state.story.limit) {
+                    tasks.push({ key: "story", label: "Hikoya qo'ying", sub: state.story.pending ? "Yuborilgan — tekshiruvda" : "Instagram yoki Telegram", em: "📸", done: false, gain: state.story.ballEach, tap: goToStory, counts: false });
+                  }
+                  if ((homeAddable === true || state.homeTask.done) && state.homeTask.ball > 0) {
+                    tasks.push({ key: "home", label: "Ilovani ekranga o'rnating", sub: state.homeTask.done ? undefined : "Bir bosishda — tezroq ochiladi", em: "🏠", done: state.homeTask.done, gain: state.homeTask.ball, tap: state.homeTask.done ? null : () => { haptic(); addToHomeScreen(); }, counts: true });
+                  }
+                  const counted = tasks.filter((t) => t.counts);
+                  const doneCount = counted.filter((t) => t.done).length;
+                  const pct = counted.length > 0 ? doneCount / counted.length : 0;
                   return (
-                    <div className="oyk-daily">
-                      <div className="oyk-daily-ring">
-                        <svg viewBox="0 0 64 64" width="64" height="64" aria-hidden="true">
-                          <circle cx="32" cy="32" r={R} fill="none" stroke="var(--oyk-fill)" strokeWidth="6" />
-                          <circle
-                            className="oyk-daily-ring-progress"
-                            cx="32" cy="32" r={R} fill="none" stroke="var(--oyk-violet)" strokeWidth="6" strokeLinecap="round"
-                            strokeDasharray={C} strokeDashoffset={C * (1 - doneCount / tasks.length)}
-                            transform="rotate(-90 32 32)"
-                          />
-                        </svg>
-                        <div className="oyk-daily-ring-num">{doneCount}/{tasks.length}</div>
+                    <div className="oyk-tasks">
+                      <div className="oyk-tasks-h">
+                        <b>Bugungi vazifalar</b>
+                        <span className="oyk-tasks-cnt">{doneCount}/{counted.length} bajarildi</span>
                       </div>
-                      <div className="oyk-daily-body">
-                        <div className="oyk-daily-title">Tezroq ball olish uchun <small>{doneCount}/{tasks.length} bajarildi</small></div>
-                        {tasks.map((t) => (
-                          <button
-                            key={t.label} type="button" disabled={t.done || !t.tap}
-                            className={`oyk-daily-row${t.done ? " is-done" : ""}${!t.done && t.tap ? " is-tappable" : ""}`}
-                            onClick={t.tap ?? undefined}
-                          >
-                            <span className="oyk-daily-check">{t.done ? "✔" : ""}</span>
-                            <span className="oyk-daily-label">{t.label}</span>
-                            <span className="oyk-daily-gain">{t.done ? `✓ +${t.gain}` : `+${t.gain}`}</span>
-                          </button>
-                        ))}
-                      </div>
+                      <div className="oyk-tasks-bar"><i style={{ transform: `scaleX(${pct})` }} /></div>
+                      {tasks.map((t) => (
+                        <button
+                          key={t.key} type="button" disabled={t.done || !t.tap}
+                          className={`oyk-task-row${t.done ? " is-done" : ""}${!t.done && t.tap ? " is-tappable" : ""}`}
+                          onClick={t.tap ?? undefined}
+                        >
+                          <span className="oyk-task-ck" aria-hidden="true">{t.done ? "✔" : ""}</span>
+                          <span className="oyk-task-lb">{t.em ? `${t.em} ` : ""}{t.label}{t.sub && <small>{t.sub}</small>}</span>
+                          <span className="oyk-task-g">{t.done ? `✓ +${t.gain}` : `+${t.gain}`}</span>
+                        </button>
+                      ))}
                     </div>
                   );
                 })()}
-
-                {/* 🎯 Bugungi topshiriq — har kuni random, faqat SERVER tekshira oladigan turdan. */}
-                {state.quest && state.quest.ball > 0 && (
-                  <div className={`oyk-quest${state.quest.done ? " is-done" : ""}`}>
-                    <span className="oyk-quest-em">{state.quest.icon}</span>
-                    <span className="oyk-quest-tx">
-                      <b>{state.quest.title}</b>
-                      <small>{state.quest.done ? "Bajarildi — ball tushdi ✓" : state.quest.hint}</small>
-                    </span>
-                    <span className="oyk-quest-b">{state.quest.done ? `✓ +${state.quest.ball}` : `+${state.quest.ball}`}</span>
-                  </div>
-                )}
-
-                {/* 📸 Hikoya-qo'yish — PROMO, HAQIQIY "topshiriq" emas: bosish hech qachon
-                    done/ball bermaydi, faqat hikoya bo'limiga olib boradi (server hikoyani
-                    o'zi tekshira olmaydi, faqat admin ko'radi). */}
-                {state.story.ballEach > 0 && state.story.approved < state.story.limit && (
-                  <button type="button" className="oyk-quest is-story" onClick={goToStory}>
-                    <span className="oyk-quest-em">📸</span>
-                    <span className="oyk-quest-tx">
-                      <b>Hikoya qo'ying — ball oling</b>
-                      <small>{state.story.pending ? "Yuborilgan — 24 soat ichida tekshiramiz" : "Instagram yoki Telegram'ga qo'ying"}</small>
-                    </span>
-                    <span className="oyk-quest-b">+{state.story.ballEach}</span>
-                  </button>
-                )}
-
-                {/* 🏠 Doimiy topshiriq — ilovani telefon ekraniga o'rnatish. `homeAddable` =
-                    "qo'shish mumkin" (ikonka hali yo'q), `state.homeTask.done` bo'lsa ham
-                    ko'rsatiladi — mijoz o'z bajargan ishining tasdig'ini ko'rishi kerak. */}
-                {(homeAddable === true || state.homeTask.done) && state.homeTask.ball > 0 && (
-                  <button
-                    type="button"
-                    className={`oyk-quest is-home${state.homeTask.done ? " is-done" : ""}`}
-                    disabled={state.homeTask.done}
-                    onClick={() => { haptic(); addToHomeScreen(); }}
-                  >
-                    <span className="oyk-quest-em">🏠</span>
-                    <span className="oyk-quest-tx">
-                      <b>Ilovani telefon ekraniga o'rnating</b>
-                      <small>{state.homeTask.done ? "O'rnatilgan — ball tushdi ✓" : "Bir bosishda — keyin ilova tezroq ochiladi"}</small>
-                    </span>
-                    <span className="oyk-quest-b">{state.homeTask.done ? `✓ +${state.homeTask.ball}` : `+${state.homeTask.ball}`}</span>
-                  </button>
-                )}
 
                 {/* To'liq ro'yxat — barcha 10 ta manba, qiymat bo'yicha saralangan. Bu yerda
                     faqat "eng oson yo'llar" bor, chuqurroq qiziqqan mijoz shu yerdan o'tadi. */}
