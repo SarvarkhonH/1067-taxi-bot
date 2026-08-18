@@ -870,17 +870,16 @@
 .oyk-buy-hero-val { position: absolute; left: 13px; bottom: 9px; color: var(--oyk-on-2); font-size: 11.5px; font-weight: 700; }
 .oyk-qty { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .oyk-qty-lb { font-size: 12.5px; font-weight: 800; }
-.oyk-qty-btns { display: flex; gap: 6px; flex: 1; }
+/* ⚖️ 2026-08-19: chip-qatori → STEPPER (limit 3 dan 50 ga ko'tarilgach 50 chip chizib bo'lmasdi). */
+.oyk-qty-btns { display: flex; align-items: center; gap: 10px; margin-left: auto; }
 .oyk-qty-b {
-  width: 40px; height: 40px; border-radius: 12px; font-size: 15px; font-weight: 900;
+  width: 40px; height: 40px; border-radius: 12px; font-size: 19px; font-weight: 700; line-height: 1;
   background: var(--oyk-fill); border: 1px solid var(--oyk-line); color: var(--oyk-text);
   cursor: pointer; transition: transform var(--dur-press);
 }
-.oyk-qty-b:active { transform: scale(.94); }
-/* R12 (audit): "tanlangan holat" ikki xil rang edi (bu yerda binafsha, poster-tanlashda ko'k) —
-   ikkalasi ham GENUINE tanlov (bir nechta variantdan biri), endi bitta rang tili. */
-.oyk-qty-b.is-on { background: var(--oyk-accent); border-color: var(--oyk-accent); color: var(--oyk-on); }
-.oyk-qty-max { font-size: 11px; color: var(--oyk-text-3); white-space: nowrap; }
+.oyk-qty-b:active:not(:disabled) { transform: scale(.94); }
+.oyk-qty-b:disabled { opacity: .4; cursor: default; }
+.oyk-qty-n { min-width: 28px; text-align: center; font-size: 16px; font-weight: 900; font-variant-numeric: tabular-nums; }
 .oyk-buy-after { background: var(--oyk-fill); border: 1px solid var(--oyk-line); border-radius: 14px; padding: 4px 12px; margin-bottom: 10px; }
 .oyk-buy-after-r {
   display: flex; align-items: center; justify-content: space-between; gap: 10px;

@@ -363,7 +363,14 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // ⚖️ Adolat qo'rig'i: do'st-safari 40 ga chiqqach, ko'p do'stli odam bitta sovrinning BARCHA
   // chiptasini sotib olishi mumkin edi. Pul xavfi yo'q (seasonClose 500 tanga bilan cheklaydi),
   // lekin tiraj adolati buzilardi — bitta odam butun sovrinni egallab olardi.
-  { key: "oyinMaxTicketsPerPrize", label: "⚖️ Bitta odam bitta sovrindan max chipta", def: 3, min: 1, max: 50, step: 1, group: "Koson O'yini" },
+  // 🔓 def 3 → 50 (ega qarori 2026-08-19: «nega karta olish limitda — odamlar xohlagancha olsin
+  // va shuncha imkoniyat ko'p bo'lsin»). Qattiq «3 ta» chegara OLIB TASHLANDI: ko'proq karta =
+  // ko'proq imkoniyat, va sarflangan ball iqtisod uchun ham foydali (ball to'planib qolmaydi).
+  // ⚠️ Adolat qo'rig'i YO'QOLMADI — u knobdan MUSTAQIL: `buyTicket` doim
+  // `min(knob, ceil(prize.limit / 2))` oladi (oyinService.ts «⚖️ Adolat qo'rig'i» bloki), ya'ni
+  // bitta odam hech qachon sovrin joylarining YARMIDAN ko'pini ololmaydi — har sovrinda kamida
+  // ikki xil da'vogar qoladi. 50 = amaliy shift: shundan keyin yarim-slot qoidasi hukmron.
+  { key: "oyinMaxTicketsPerPrize", label: "⚖️ Bitta odam bitta sovrindan max chipta (yarim-slot qo'rig'i doim kuchda)", def: 50, min: 1, max: 50, step: 1, group: "Koson O'yini" },
   // 🛡 R1 (2026-08-16 audit): `adminAdjustBall` avval CHEGARASIZ edi — bitta bosish bilan
   // +75 000 ball (OYIN_KARTA_PLAN.md §9'da oldindan yozilgan xavf). Ikkita mustaqil chegara:
   // BITTA tuzatish (tasodifiy/xato bosishdan himoya) va MAVSUM JAMI (ko'p kichik tuzatish

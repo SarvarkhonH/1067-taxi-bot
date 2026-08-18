@@ -215,6 +215,18 @@ function ballRows(h: OyinStateResponse["hints"]): BallRow[] {
 /** Xarid xatolari — HAR BIRI o'z matni bilan. Avval nomlanmagan sabablar (`unknown_prize`,
  *  `final_lock`) "Ball yetarli emas" ga tushardi: balansi to'la mijozga balansi haqida yolg'on
  *  aytilardi va u nima qilishni bilmay qolardi. */
+/** ⚖️ Bitta sovrindan ol(in)adigan maksimum — SERVER formulasining AYNAN nusxasi
+ *  (`oyinService.buyTicket`: `min(knob, ceil(prize.limit / 2))`).
+ *
+ *  Ega qarori 2026-08-19: qattiq «3 ta» limit olib tashlandi (knob 50) — ko'proq karta =
+ *  ko'proq imkoniyat. Lekin YARIM-SLOT qo'rig'i qoladi: bitta odam sovrin joylarining
+ *  yarmidan ko'pini ololmaydi, aks holda u butun sovrinni yolg'iz egallab, tirajni XARIDGA
+ *  aylantirardi. Klient shu formulani BILISHI shart — aks holda ekran serverdan ko'proq
+ *  va'da qiladi (miqdor tanlash 5 ko'rsatadi, server 3-da rad etadi). */
+function prizeCap(limit: number, knobMax: number): number {
+  return Math.max(1, Math.min(Math.round(knobMax), Math.ceil(limit / 2)));
+}
+
 function buyReasonText(reason: string | undefined, maxPerPrize?: number): string {
   switch (reason) {
     case "sold_out": return "😔 Bu mukofot uchun o'rinlar tugadi — boshqasini tanlang";
@@ -510,7 +522,11 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
               <li>Sodiqlik kartasi akkauntingizga biriktirilgan — egasi o'zgartirilmaydi va karta
                 qayta berilmaydi. Mavsum tugashi kartaga ta'sir qilmaydi. Akkaunt o'chirilsa,
                 karta arxivlangan holatda qoladi.</li>
-              <li>Bir odam bitta mukofot uchun ko'pi bilan {maxPerPrize} ta karta ola oladi.</li>
+              {/* ⚖️ 2026-08-19 (ega qarori: «xohlagancha olsin»): qattiq «N ta» chegara olib
+                  tashlandi. Haqiqiy qoida — YARIM-SLOT qo'rig'i (server: `min(knob, ceil(limit/2))`),
+                  ya'ni bitta odam sovrinni yolg'iz egallab ololmaydi. Matn shuni aytadi. */}
+              <li>Karta sonida cheklov yo'q — ko'proq karta, ko'proq imkoniyat. Faqat bitta odam
+                bitta mukofot joylarining yarmidan ko'pini ola olmaydi (boshqalarga ham joy qoladi).</li>
             </ul>
           </RuleSec>
 
@@ -1128,7 +1144,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     if ((state?.seasonRides ?? 0) <= 0) { showToast("🚕 Karta uchun kamida bitta real safar kerak — avval taksi chaqiring"); return; }
     // Limit ekranda yozilgan, lekin tugma baribir varaq ochardi va server rad etardi —
     // "bo'lmaydi / bo'ladi / bo'lmaydi" uch qadamli chalkashlik. Endi darhol aytiladi.
-    const maxP = state?.hints.maxPerPrize ?? 3;
+    const maxP = prizeCap(p.limit, state?.hints.maxPerPrize ?? 3);
     if (p.mine >= maxP) { showToast(buyReasonText("own_limit", maxP)); return; }
     if ((state?.ball ?? 0) < p.price) { showToast(`⚡ Yana ${p.price - (state?.ball ?? 0)} ball kerak — do'st chaqiring!`); return; }
     setBuyQty(1);
@@ -1151,7 +1167,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     // qisqartirilgan) ko'rsatadi, lekin xom `buyQty` bilan tsikl qilinsa ular ayri ketadi:
     // mijoz "2" ni ko'rib, tizim 3 marta urinadi va oxirgisi xato bilan qaytadi.
     const want = prize && state
-      ? Math.max(1, Math.min(buyQty, state.hints.maxPerPrize - prize.mine, prize.remaining, Math.floor(state.ball / prize.price)))
+      ? Math.max(1, Math.min(buyQty, prizeCap(prize.limit, state.hints.maxPerPrize) - prize.mine, prize.remaining, Math.floor(state.ball / prize.price)))
       : 1;
     try {
       for (let i = 0; i < want; i++) {
@@ -1740,7 +1756,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {oyinFilterPrizes(vitrina.prizes.filter((p) => !p.drawn), filter).map((p) => {
               const affordable = !locked && state.ball >= p.price;
               const showPhoto = !!p.photoUrl && !badPhoto.has(p.key);
-              const atLimit = p.mine >= state.hints.maxPerPrize;
+              const pCap = prizeCap(p.limit, state.hints.maxPerPrize);
+              const atLimit = p.mine >= pCap;
               return (
                 <div key={p.key} className={`oyk-vcard${p.soldOut ? " is-soldout" : ""}`}>
                   {/* ⚠️ Avval `onError` da `parentElement.remove()` turardi — u nafaqat rasmni,
@@ -1814,7 +1831,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       onClick={() => tapPrize(p)}
                     >
                       {p.soldOut ? "❌ O'rinlar tugadi"
-                        : atLimit ? `⚖️ Limitga yetdingiz (${state.hints.maxPerPrize} ta)`
+                        : atLimit ? `⚖️ Bu sovrindan ${pCap} ta oldingiz — maksimum`
                         : locked ? "🔒 Yopildi"
                         : needsRide ? "🚕 Avval bitta safar qiling"
                         : p.mine > 0 ? `🎟 Yana ol — ${p.price} ball`
@@ -3006,7 +3023,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 IKKI QATORLI huquqiy izoh. Alohida ekran o'rniga shu varaq — bir bosish kam,
                 mazmun bir xil (ega tasdiqlagan §7 tarkibi to'liq shu yerda). */}
             {sheet === "buy" && buyPrize && (() => {
-              const maxQty = Math.max(1, Math.min(state.hints.maxPerPrize - buyPrize.mine, buyPrize.remaining, Math.floor(state.ball / buyPrize.price)));
+              const maxQty = Math.max(1, Math.min(prizeCap(buyPrize.limit, state.hints.maxPerPrize) - buyPrize.mine, buyPrize.remaining, Math.floor(state.ball / buyPrize.price)));
               const qty = Math.min(buyQty, maxQty);
               const total = buyPrize.price * qty;
               const sc = scarcity(buyPrize);
@@ -3039,17 +3056,24 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     {sc === "hot" ? `🔥 ${buyPrize.remaining} ta qoldi — tugayapti` : `${buyPrize.remaining} ta qoldi`}
                   </div>
                 )}
-                {/* MIQDOR — avval 3 ta chipta uchun butun oqim (karta→varaq→tasdiq→bayram) uch
-                    marta takrorlanardi. Limit ham shu yerda RAQAM bilan aytiladi. */}
+                {/* MIQDOR — STEPPER (chip-qatori emas): limit 3 dan 50 ga ko'tarilgach (ega
+                    qarori 2026-08-19) 50 ta chip chizib bo'lmasdi. Stepper `maxQty` bilan
+                    chegaralangan — u ball/qoldiq/yarim-slot qo'rig'ining eng kichigi. */}
                 {maxQty > 1 && (
                   <div className="oyk-qty">
-                    <span className="oyk-qty-lb">Nechta?</span>
+                    <span className="oyk-qty-lb">Nechta karta?</span>
                     <div className="oyk-qty-btns">
-                      {Array.from({ length: Math.min(maxQty, state.hints.maxPerPrize) }, (_, i) => i + 1).map((n) => (
-                        <button key={n} type="button" className={`oyk-qty-b${qty === n ? " is-on" : ""}`} onClick={() => { haptic(); setBuyQty(n); }}>{n}</button>
-                      ))}
+                      <button type="button" className="oyk-qty-b" disabled={qty <= 1} onClick={() => { haptic(); setBuyQty(Math.max(1, qty - 1)); }} aria-label="Kamaytirish">−</button>
+                      <span className="oyk-qty-n">{qty}</span>
+                      <button type="button" className="oyk-qty-b" disabled={qty >= maxQty} onClick={() => { haptic(); setBuyQty(Math.min(maxQty, qty + 1)); }} aria-label="Ko'paytirish">+</button>
                     </div>
-                    <span className="oyk-qty-max">max {state.hints.maxPerPrize}</span>
+                  </div>
+                )}
+                {/* ⚖️ Yarim-slot qo'rig'i — FAQAT chegaraga yetganda jim chiqadi (ijobiy tilda,
+                    «limit» so'zisiz). Sabab: bitta odam butun sovrinni yolg'iz egallab olmasin. */}
+                {qty >= maxQty && buyPrize.mine + maxQty >= prizeCap(buyPrize.limit, state.hints.maxPerPrize) && (
+                  <div className="oyk-scarce is-warn">
+                    ⚖️ Bir kishi sovrin joylarining yarmidan ko'pini ololmaydi — boshqalarga ham joy qoladi
                   </div>
                 )}
                 {/* "Xariddan keyin qoladi" — xaridning ASOSIY savoli. Avval odam ballini
