@@ -2262,7 +2262,161 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
   app.get("/api/admin/staff/kpi", requireAdmin, requireOwner, async (req, res) => {
     const { staffAdminKpi } = await import("../services/staffAdminService");
-    res.json({ rows: await staffAdminKpi(Number(req.query.orgId), String(req.query.month ?? "")) });
+    const [rows, badges] = await Promise.all([
+      staffAdminKpi(Number(req.query.orgId), String(req.query.month ?? "")),
+      import("../services/staffTeamService").then((m) => m.staffBadges(Number(req.query.orgId), String(req.query.month ?? ""))),
+    ]);
+    res.json({ rows: rows.map((r) => ({ ...r, badges: (badges.get(r.id) ?? []).map((b) => b.label) })) });
+  });
+
+  // ── 🗄 J6 arxiv («eski ishchini o'chirish») ──
+  app.get("/api/admin/staff/employee/:id/archive-preview", requireAdmin, requireOwner, async (req, res) => {
+    const { staffAdminEmployeeArchivePreview } = await import("../services/staffAdminService");
+    res.json(await staffAdminEmployeeArchivePreview(Number(req.params.id)));
+  });
+  app.post("/api/admin/staff/employee/archive", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const svc = await import("../services/staffAdminService");
+    const actor = String(res.locals.telegramId ?? "admin");
+    const id = Number(b.employeeId);
+    if (b.action === "unarchive") {
+      res.json(await svc.staffAdminEmployeeUnarchive(id));
+    } else if (b.action === "delete") {
+      res.json(await svc.staffAdminEmployeeDelete(id));
+    } else {
+      res.json(await svc.staffAdminEmployeeArchive({ employeeId: id, note: String(b.note ?? ""), actor }));
+    }
+  });
+
+  // ── 📢 J7 xabarlar ──
+  app.get("/api/admin/staff/notices", requireAdmin, requireOwner, async (req, res) => {
+    const { staffNoticeList } = await import("../services/staffTeamService");
+    res.json({ notices: await staffNoticeList(Number(req.query.orgId)) });
+  });
+  app.post("/api/admin/staff/notice", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const svc = await import("../services/staffTeamService");
+    if (b.action === "delete") {
+      res.json(await svc.staffNoticeDelete(Number(b.id)));
+      return;
+    }
+    if (!opts.sendMessage) {
+      res.json({ ok: false, error: "Bot ulanmagan — xabar yuborilmaydi" });
+      return;
+    }
+    const r = await svc.staffNoticeSend({
+      orgId: Number(b.orgId),
+      employeeId: b.employeeId ? Number(b.employeeId) : null,
+      text: String(b.text ?? ""),
+      actor: String(res.locals.telegramId ?? "admin"),
+    });
+    if (!r.ok) {
+      res.json(r);
+      return;
+    }
+    // Yetkazish natijasi EGAGA qaytariladi — "yubordim" deb jim qolish taqiq
+    // (bloklangan xodim xabarni hech qachon ko'rmaydi, ega buni bilishi kerak).
+    let sent = 0;
+    let failed = 0;
+    for (const d of r.deliveries ?? []) {
+      try {
+        await opts.sendMessage(d.telegramId, d.text);
+        sent++;
+      } catch (e) {
+        failed++;
+        console.error(`[staff] xabar yetmadi (tg=${d.telegramId}):`, e);
+      }
+    }
+    res.json({ ok: true, sent, failed });
+  });
+
+  // ── 📖 J8 qoidalar ──
+  app.get("/api/admin/staff/rules", requireAdmin, requireOwner, async (req, res) => {
+    const { staffRulesList } = await import("../services/staffTeamService");
+    res.json((await staffRulesList(Number(req.query.orgId))) ?? { version: 0, rules: [], ack: [] });
+  });
+  app.post("/api/admin/staff/rule", requireAdmin, requireOwner, rateLimit(60), async (req, res) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const svc = await import("../services/staffTeamService");
+    if (b.action === "remove") res.json(await svc.staffRuleRemove(Number(b.id)));
+    else if (b.action === "move") res.json(await svc.staffRuleMove(Number(b.id), b.dir === "up" ? "up" : "down"));
+    else
+      res.json(
+        await svc.staffRuleSave({
+          orgId: Number(b.orgId),
+          ...(b.id ? { id: Number(b.id) } : {}),
+          text: String(b.text ?? ""),
+          actor: String(res.locals.telegramId ?? "admin"),
+        })
+      );
+  });
+
+  // ── 🏆 J9 mukofot katalogi ──
+  app.get("/api/admin/staff/rewards", requireAdmin, requireOwner, async (req, res) => {
+    const { staffRewardCatalog } = await import("../services/staffTeamService");
+    res.json({ rewards: await staffRewardCatalog(Number(req.query.orgId)) });
+  });
+  app.post("/api/admin/staff/reward", requireAdmin, requireOwner, rateLimit(30), async (req, res) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const svc = await import("../services/staffTeamService");
+    if (b.action === "remove") {
+      res.json(await svc.staffRewardRemove(Number(b.orgId), String(b.key ?? "")));
+      return;
+    }
+    if (b.action === "give") {
+      const r = await svc.staffRewardGive({
+        employeeId: Number(b.employeeId),
+        key: String(b.key ?? ""),
+        actor: String(res.locals.telegramId ?? "admin"),
+        idemKey: String(b.idemKey ?? ""),
+      });
+      if (r.ok && r.notifyTelegramId && r.notifyText && opts.sendMessage) {
+        await opts.sendMessage(r.notifyTelegramId, r.notifyText).catch((e) => console.error("[staff] mukofot xabari yetmadi:", e));
+      }
+      res.json(r);
+      return;
+    }
+    res.json(
+      await svc.staffRewardSave({
+        orgId: Number(b.orgId),
+        ...(b.key ? { key: String(b.key) } : {}),
+        name: String(b.name ?? ""),
+        amount: Number(b.amount),
+        ...(b.note ? { note: String(b.note) } : {}),
+      })
+    );
+  });
+
+  // ── 📈 J10 jamoaviy maqsad-bonusi ──
+  app.get("/api/admin/staff/goal", requireAdmin, requireOwner, async (req, res) => {
+    const { staffGoalState } = await import("../services/staffTeamService");
+    res.json(await staffGoalState(Number(req.query.orgId)));
+  });
+  app.post("/api/admin/staff/goal", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
+    const b = (req.body ?? {}) as Record<string, unknown>;
+    const svc = await import("../services/staffTeamService");
+    const actor = String(res.locals.telegramId ?? "admin");
+    if (b.action === "cancel") {
+      res.json(await svc.staffGoalCancel(Number(b.id)));
+      return;
+    }
+    if (b.action === "pay") {
+      const r = await svc.staffGoalPay(Number(b.id), actor);
+      for (const d of r.deliveries ?? []) {
+        if (opts.sendMessage) await opts.sendMessage(d.telegramId, d.text).catch((e) => console.error("[staff] maqsad xabari yetmadi:", e));
+      }
+      res.json(r);
+      return;
+    }
+    res.json(
+      await svc.staffGoalSave({
+        orgId: Number(b.orgId),
+        ...(b.month ? { month: String(b.month) } : {}),
+        target: Number(b.target),
+        bonusAmount: Number(b.bonusAmount),
+        actor,
+      })
+    );
   });
 
   // 🎁 Acquisition bonuses — owner sets first-ride / referral / recruit / driver→driver amounts live.

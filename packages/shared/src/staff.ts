@@ -363,3 +363,176 @@ export function minutesSinceTashkentMidnight(at: Date, sessionDate: string): num
   const midnightUtcMs = Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])) - TASHKENT_UTC_OFFSET_MIN * 60_000;
   return Math.floor((at.getTime() - midnightUtcMs) / 60_000);
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 📢 Xabarlar · 📖 Qoidalar · 🏆 Mukofotlar · 📈 Maqsad-bonusi (J7–J10)
+// Same discipline as computeDayPay: every rule that decides MONEY or a visible
+// verdict is a pure function here, unit-tested — the services only fetch rows.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** One StaffNotice row is either an announcement or a rule line of the handbook. */
+export type StaffNoticeKind = "xabar" | "qoida";
+
+/** 🏆 Owner-defined money-reward catalog (Organization.rewards Json). */
+export interface StaffRewardDef {
+  key: string; // stable slug — the ledger idempotency key is built from it
+  name: string; // "Kechikmagan oy"
+  amount: number; // so'm
+  note?: string; // "oy davomida bironta kechikish bo'lmasa"
+}
+
+/** Json → catalog, defensively (a hand-edited row must not crash the panel). */
+export function parseRewardCatalog(raw: unknown): StaffRewardDef[] {
+  if (!Array.isArray(raw)) return [];
+  const out: StaffRewardDef[] = [];
+  for (const r of raw) {
+    if (!r || typeof r !== "object") continue;
+    const o = r as Record<string, unknown>;
+    const name = String(o.name ?? "").trim();
+    const amount = Math.round(Number(o.amount ?? 0));
+    if (!name || !Number.isFinite(amount) || amount <= 0) continue;
+    const key = String(o.key ?? "").trim() || rewardKeyOf(name);
+    out.push({ key, name: name.slice(0, 60), amount, ...(o.note ? { note: String(o.note).slice(0, 200) } : {}) });
+  }
+  return out;
+}
+
+/** Slug for a reward name — ASCII-safe, so it can live inside an idempotency key. */
+export function rewardKeyOf(name: string): string {
+  const slug = name
+    .toLowerCase()
+    .replace(/['`’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 32);
+  return slug || "mukofot";
+}
+
+/** 🏅 Computed (never stored) badge — recomputed from KPI, so it can never drift. */
+export interface StaffBadge {
+  code: "oyxodimi" | "intizom" | "tolik" | "streak";
+  label: string;
+}
+
+export interface StaffBadgeInput {
+  id: number;
+  workedDays: number;
+  lateDays: number;
+  absentDays: number;
+  punctualityPct: number;
+  minutes: number;
+  streak?: number; // consecutive on-time days ending today (service computes)
+}
+
+const BADGE_MIN_DAYS = 5; // below this a "perfect month" means nothing yet
+const BADGE_STREAK_MIN = 5;
+
+/**
+ * Month badges for the whole org at once (the winner badge needs the field).
+ * Returns employeeId → badges. Pure: same rows in, same badges out.
+ */
+export function computeStaffBadges(rows: StaffBadgeInput[]): Map<number, StaffBadge[]> {
+  const out = new Map<number, StaffBadge[]>();
+  for (const r of rows) out.set(r.id, []);
+
+  // 🥇 Oyning xodimi — punctuality, then days worked, then minutes. Needs a real
+  // contest (≥2 people who actually worked) and a spotless discipline record.
+  const contenders = rows.filter((r) => r.workedDays > 0);
+  if (contenders.length >= 2) {
+    const ranked = [...contenders].sort(
+      (a, b) => b.punctualityPct - a.punctualityPct || b.workedDays - a.workedDays || b.minutes - a.minutes || a.id - b.id
+    );
+    const top = ranked[0];
+    if (top && top.workedDays >= BADGE_MIN_DAYS && top.absentDays === 0) {
+      out.get(top.id)?.push({ code: "oyxodimi", label: "🥇 Oyning xodimi" });
+    }
+  }
+
+  for (const r of rows) {
+    const badges = out.get(r.id);
+    if (!badges) continue;
+    if (r.workedDays >= BADGE_MIN_DAYS && r.lateDays === 0) badges.push({ code: "intizom", label: "💯 100% intizom" });
+    if (r.workedDays >= BADGE_MIN_DAYS && r.absentDays === 0) badges.push({ code: "tolik", label: "📅 Kelmagan kuni yo'q" });
+    const streak = r.streak ?? 0;
+    if (streak >= BADGE_STREAK_MIN) badges.push({ code: "streak", label: `🔥 ${streak} kun ketma-ket vaqtida` });
+  }
+  return out;
+}
+
+/** Trailing run of on-time days (oldest→newest input, counted from the end). */
+export function punctualStreak(daysOldestFirst: { worked: boolean; onTime: boolean }[]): number {
+  let n = 0;
+  for (let i = daysOldestFirst.length - 1; i >= 0; i--) {
+    const d = daysOldestFirst[i];
+    if (!d || !d.worked) continue; // dam/ta'til days don't break a streak
+    if (!d.onTime) break;
+    n++;
+  }
+  return n;
+}
+
+/**
+ * 📈 Maqsad-bonusi (owner decision 2026-08-18): the goal is measured on the
+ * MONTH AVERAGE of daily completed orders — one lucky day must not unlock a
+ * million-so'm bonus. `dailyCounts` are the COMPLETED days only; the caller
+ * excludes today (a day in progress would drag the average down all morning).
+ */
+export interface StaffGoalProgress {
+  days: number; // completed days counted
+  total: number; // orders in those days
+  avg: number; // average per day (1 decimal)
+  target: number;
+  pct: number; // 0..100 (clamped for the progress bar)
+  achieved: boolean;
+  needPerDay: number; // per-day pace needed over the REMAINING days to still hit it (0 = done)
+  outOfReach: boolean; // remaining days would each have to beat the target by 50%+ — say that
+  // plainly instead of printing a pace nobody can hit (the panel/bot then suggest next month)
+}
+
+export function goalProgress(dailyCounts: number[], target: number, monthDays = 0): StaffGoalProgress {
+  const days = dailyCounts.length;
+  const total = dailyCounts.reduce((a, n) => a + (Number.isFinite(n) ? n : 0), 0);
+  const tgt = Math.max(1, Math.round(target));
+  const avg = days > 0 ? Math.round((total / days) * 10) / 10 : 0;
+  const achieved = days > 0 && avg >= tgt;
+  const left = Math.max(0, monthDays - days);
+  // What the remaining days must average so the WHOLE month lands on target.
+  const need = achieved || left <= 0 ? 0 : Math.ceil((tgt * (days + left) - total) / left);
+  return {
+    days,
+    total,
+    avg,
+    target: tgt,
+    pct: Math.max(0, Math.min(100, Math.round((avg / tgt) * 100))),
+    achieved,
+    needPerDay: Math.max(0, need),
+    outOfReach: need > tgt * 1.5,
+  };
+}
+
+/** Suggested next rung of the ladder (500 → 600), rounded to the step. */
+export function nextGoalTarget(target: number, step = 100): number {
+  const s = Math.max(1, Math.round(step));
+  return Math.round(target / s) * s + s;
+}
+
+/**
+ * Split the goal pot by DAYS WORKED (owner decision 2026-08-18): 26 days = full
+ * share, 13 days = half. Largest-remainder rounding, so the parts sum to EXACTLY
+ * the pot — payroll must never invent or lose a so'm. Nobody worked → nobody paid.
+ */
+export function splitGoalBonus(total: number, shares: { employeeId: number; workedDays: number }[]): { employeeId: number; amount: number }[] {
+  const pot = Math.round(total);
+  const eligible = shares.filter((s) => s.workedDays > 0);
+  const W = eligible.reduce((a, s) => a + s.workedDays, 0);
+  if (pot <= 0 || W <= 0 || eligible.length === 0) return [];
+  const exact = eligible.map((s) => ({ employeeId: s.employeeId, raw: (pot * s.workedDays) / W }));
+  const out = exact.map((e) => ({ employeeId: e.employeeId, amount: Math.floor(e.raw), rem: e.raw - Math.floor(e.raw) }));
+  let leftover = pot - out.reduce((a, o) => a + o.amount, 0);
+  const byRem = [...out].sort((a, b) => b.rem - a.rem || a.employeeId - b.employeeId);
+  for (let i = 0; leftover > 0 && i < byRem.length; i++, leftover--) {
+    const row = byRem[i];
+    if (row) row.amount++;
+  }
+  return out.map((o) => ({ employeeId: o.employeeId, amount: o.amount }));
+}

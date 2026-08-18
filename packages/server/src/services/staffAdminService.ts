@@ -82,6 +82,8 @@ export async function staffAdminOverview(now = new Date()) {
         name: e.name,
         role: e.role,
         active: e.active,
+        archivedAt: e.archivedAt ? e.archivedAt.toISOString() : null,
+        archiveNote: e.archiveNote,
         payType: e.payType,
         monthlySalary: e.monthlySalary,
         dailyRate: e.dailyRate,
@@ -152,6 +154,7 @@ export async function staffAdminEmployee(employeeId: number, month: string, now 
   return {
     employee: {
       id: emp.id, orgId: emp.orgId, telegramId: emp.telegramId, name: emp.name, role: emp.role, active: emp.active,
+      archivedAt: emp.archivedAt ? emp.archivedAt.toISOString() : null, archiveNote: emp.archiveNote,
       payType: emp.payType, monthlySalary: emp.monthlySalary, dailyRate: emp.dailyRate, hourlyRate: emp.hourlyRate,
       shiftStart: emp.shiftStart, shiftEnd: emp.shiftEnd, workDays: emp.workDays, graceMin: emp.graceMin,
       lunchMin: emp.lunchMin, openingBalance: emp.openingBalance, vacationDaysYr: emp.vacationDaysYr,
@@ -228,7 +231,13 @@ export async function staffAdminEmployeeSave(input: StaffEmployeeSaveInput): Pro
       clean[k] = v == null ? null : Math.round(Number(v));
     }
   }
-  if (input.active !== undefined) clean.active = !!input.active;
+  if (input.active !== undefined) {
+    clean.active = !!input.active;
+    if (input.active) {
+      clean.archivedAt = null; // "faol" = arxivdan chiqarish (ikki joyda ikki xil haqiqat bo'lmasin)
+      clean.archiveNote = null;
+    }
+  }
   try {
     if (input.id) {
       const e = await prisma.employee.update({ where: { id: input.id }, data: clean });
@@ -750,7 +759,7 @@ export interface StaffKpiRow {
 
 export async function staffAdminKpi(orgId: number, month: string): Promise<StaffKpiRow[]> {
   const m = /^(\d{4})-(\d{2})$/.exec(month) ? month : tashkentDayMinutes(new Date()).date.slice(0, 7);
-  const org = await prisma.organization.findUnique({ where: { id: orgId }, include: { employees: { where: { active: true }, orderBy: { name: "asc" } } } });
+  const org = await prisma.organization.findUnique({ where: { id: orgId }, include: { employees: { where: { active: true, archivedAt: null }, orderBy: { name: "asc" } } } });
   if (!org) return [];
   const rows: StaffKpiRow[] = [];
   for (const e of org.employees) {
@@ -788,4 +797,107 @@ export async function staffAdminKpi(orgId: number, month: string): Promise<Staff
     });
   }
   return rows;
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// 🗄 J6 — "eski ishchini o'chirish" (ega qarori 2026-08-18: arxiv + bo'sh qatorni
+// butunlay). Arxiv = ro'yxatdan chiqadi, botda /ish yopiladi, kechki xulosaga
+// tushmaydi — LEKIN oylik tarixi va pul yozuvlari qoladi (o'tgan oy hisoboti
+// o'zgarmaydi, "qancha oldim?" bahsida isbot bor).
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Arxivga olishdan oldingi holat: qoldiq va ochiq smena — ega ko'r-ko'rona bosmasin. */
+export async function staffAdminEmployeeArchivePreview(employeeId: number): Promise<{
+  ok: boolean;
+  error?: string;
+  name?: string;
+  balance?: number;
+  openSession?: boolean;
+  canDelete?: boolean; // 0 ish kuni + 0 pul yozuvi → butunlay o'chirsa bo'ladi
+}> {
+  const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+  if (!emp) return { ok: false, error: "Xodim topilmadi" };
+  const [bal, sessions, ledger, open] = await Promise.all([
+    balanceOf(emp.id, emp.openingBalance),
+    prisma.workSession.count({ where: { employeeId: emp.id } }),
+    prisma.staffLedger.count({ where: { employeeId: emp.id } }),
+    prisma.workSession.count({ where: { employeeId: emp.id, checkIn: { not: null }, checkOut: null } }),
+  ]);
+  return {
+    ok: true,
+    name: emp.name,
+    balance: bal.balance,
+    openSession: open > 0,
+    canDelete: sessions === 0 && ledger === 0 && emp.openingBalance === 0,
+  };
+}
+
+/** 🗄 Arxivga olish. Ochiq smena bo'lsa AVVAL yopiladi — aks holda avto-yopish
+ *  faqat faol xodimlarni ko'rgani uchun o'sha kun abadiy tasdiqsiz osilib qolardi. */
+export async function staffAdminEmployeeArchive(input: {
+  employeeId: number;
+  note?: string;
+  actor: string;
+}): Promise<{ ok: boolean; error?: string; closedAmount?: number }> {
+  const emp = await prisma.employee.findUnique({ where: { id: input.employeeId } });
+  if (!emp) return { ok: false, error: "Xodim topilmadi" };
+  if (emp.archivedAt) return { ok: true }; // allaqachon arxivda — idempotent
+
+  let closedAmount: number | undefined;
+  const openSession = await prisma.workSession.findFirst({
+    where: { employeeId: emp.id, checkIn: { not: null }, checkOut: null },
+    orderBy: { date: "desc" },
+  });
+  if (openSession) {
+    await prisma.workSession.update({
+      where: { id: openSession.id },
+      data: { checkOut: new Date(), autoClosed: true, editedBy: input.actor, editedAt: new Date() },
+    });
+    const pay = await recomputeSession(openSession.id);
+    closedAmount = pay?.amountEarned ?? 0;
+  }
+  await prisma.employee.update({
+    where: { id: emp.id },
+    data: { active: false, archivedAt: new Date(), archiveNote: (input.note ?? "").trim().slice(0, 200) || null },
+  });
+  // Osilib qolgan so'rovlar yopiladi (ega navbatida "kutilmoqda" bo'lib turmasin).
+  await prisma.leaveRequest.updateMany({
+    where: { employeeId: emp.id, status: "pending" },
+    data: { status: "rejected", decidedBy: input.actor, decidedAt: new Date() },
+  });
+  await prisma.shiftSwapRequest.updateMany({
+    where: { OR: [{ requesterId: emp.id }, { partnerId: emp.id }], status: { in: ["pending_partner", "pending_owner"] } },
+    data: { status: "rejected", decidedBy: input.actor, decidedAt: new Date() },
+  });
+  return { ok: true, ...(closedAmount !== undefined ? { closedAmount } : {}) };
+}
+
+/** ↩️ Arxivdan qaytarish (xato bosilsa yoki xodim ishga qaytsa). */
+export async function staffAdminEmployeeUnarchive(employeeId: number): Promise<{ ok: boolean; error?: string }> {
+  const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+  if (!emp) return { ok: false, error: "Xodim topilmadi" };
+  await prisma.employee.update({ where: { id: employeeId }, data: { active: true, archivedAt: null, archiveNote: null } });
+  return { ok: true };
+}
+
+/** 🗑 Butunlay o'chirish — FAQAT xato kiritilgan qator uchun (0 ish kuni + 0 pul
+ *  yozuvi + 0 boshlang'ich balans). Tarixi bori hech qachon o'chirilmaydi. */
+export async function staffAdminEmployeeDelete(employeeId: number): Promise<{ ok: boolean; error?: string }> {
+  const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+  if (!emp) return { ok: false, error: "Xodim topilmadi" };
+  const [sessions, ledger] = await Promise.all([
+    prisma.workSession.count({ where: { employeeId } }),
+    prisma.staffLedger.count({ where: { employeeId } }),
+  ]);
+  if (sessions > 0 || ledger > 0 || emp.openingBalance !== 0) {
+    return { ok: false, error: `Tarixi bor (${sessions} ish kuni, ${ledger} pul yozuvi) — faqat arxivga olinadi` };
+  }
+  // FK bog'liqliklar: shaxsiy xabarlar, o'qildi-belgilari, ta'til/almashish so'rovlari.
+  await prisma.$transaction([
+    prisma.staffNoticeRead.deleteMany({ where: { employeeId } }),
+    prisma.staffNotice.deleteMany({ where: { employeeId } }),
+    prisma.leaveRequest.deleteMany({ where: { employeeId } }),
+    prisma.shiftSwapRequest.deleteMany({ where: { OR: [{ requesterId: employeeId }, { partnerId: employeeId }] } }),
+    prisma.employee.delete({ where: { id: employeeId } }),
+  ]);
+  return { ok: true };
 }

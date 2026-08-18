@@ -11,6 +11,7 @@ const WD = ["Du", "Se", "Ch", "Pa", "Ju", "Sh", "Ya"]; // isoWeekday 1..7
 // ── server javob shakllari (staffAdminService bilan 1:1; api.ts type-only import qiladi) ──
 export interface RosterEmp {
   id: number; orgId: number; telegramId: string; name: string; role: string; active: boolean;
+  archivedAt: string | null; archiveNote: string | null;
   payType: string; monthlySalary: number; dailyRate: number; hourlyRate: number;
   todayIn: string | null; todayOut: string | null; todayStatus: string; todayEarned: number;
   monthEarned: number; monthMinutes: number; balance: number;
@@ -29,6 +30,7 @@ export interface DayRow {
 export interface EmpDetail {
   employee: {
     id: number; orgId: number; telegramId: string; name: string; role: string; active: boolean;
+    archivedAt: string | null; archiveNote: string | null;
     payType: string; monthlySalary: number; dailyRate: number; hourlyRate: number;
     shiftStart: string | null; shiftEnd: string | null; workDays: string | null;
     graceMin: number | null; lunchMin: number | null; openingBalance: number; vacationDaysYr: number;
@@ -58,6 +60,24 @@ export interface AuditEntry { at: string; actor: string; action: string; detail:
 export interface StaffKpiRow {
   id: number; name: string; role: string;
   workedDays: number; lateDays: number; absentDays: number; minutes: number; earned: number; punctualityPct: number;
+  badges: string[]; // 🏅 hisoblanadigan nishonlar (serverda computeStaffBadges)
+}
+export interface NoticeRow {
+  id: number; text: string; employeeId: number | null; toName: string;
+  createdAt: string; createdBy: string; readCount: number; targetCount: number;
+  readers: string[]; unread: string[];
+}
+export interface RulesView {
+  version: number;
+  rules: { id: number; text: string; sortOrder: number }[];
+  ack: { employeeId: number; name: string; acked: boolean; ackVersion: number }[];
+}
+export interface RewardDef { key: string; name: string; amount: number; note?: string }
+export interface GoalState {
+  goal: { id: number; month: string; target: number; bonusAmount: number; status: string; achievedAt: string | null } | null;
+  progress: { days: number; total: number; avg: number; target: number; pct: number; achieved: boolean; needPerDay: number; outOfReach: boolean } | null;
+  todayCount: number; nextTarget: number;
+  history: { id: number; month: string; target: number; bonusAmount: number; status: string; paidAt: string | null }[];
 }
 
 const STATUS_BADGE: Record<string, { cls: string; label: string }> = {
@@ -85,6 +105,11 @@ export function JamoaAdminView() {
   const [showImport, setShowImport] = useState(false);
   const [showKpi, setShowKpi] = useState(false);
   const [showAudit, setShowAudit] = useState(false);
+  const [showNotices, setShowNotices] = useState(false);
+  const [showRules, setShowRules] = useState(false);
+  const [showRewards, setShowRewards] = useState(false);
+  const [showGoal, setShowGoal] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
   const [q, setQ] = useState(""); // F1: ism/lavozim bo'yicha qidiruv
   const [msg, setMsg] = useState("");
   const flash = (t: string) => { setMsg(t); setTimeout(() => setMsg(""), 3000); };
@@ -128,6 +153,10 @@ export function JamoaAdminView() {
             <button className="btn" onClick={() => setShowKpi((s) => !s)}>🏅 Reyting</button>
             <button className="btn" onClick={() => setShowAudit((s) => !s)}>📜 Jurnal</button>
             <button className="btn" onClick={() => setShowImport((s) => !s)}>📥 Eski oyliklar (import)</button>
+            <button className="btn" onClick={() => setShowNotices((s) => !s)}>📢 Xabarlar</button>
+            <button className="btn" onClick={() => setShowRules((s) => !s)}>📖 Qoidalar</button>
+            <button className="btn" onClick={() => setShowRewards((s) => !s)}>🏆 Mukofotlar</button>
+            <button className="btn" onClick={() => setShowGoal((s) => !s)}>📈 Maqsad</button>
             <input className="inp" style={{ marginLeft: "auto", minWidth: 180 }} placeholder="🔍 Ism yoki lavozim…" value={q} onChange={(e) => setQ(e.target.value)} />
           </div>
           {showAdd && <AddEmpForm orgs={orgs} onDone={() => { setShowAdd(false); load(); flash("✅ Xodim saqlandi"); }} flash={flash} />}
@@ -136,9 +165,16 @@ export function JamoaAdminView() {
           {showKpi && <KpiView orgs={orgs} />}
           {showAudit && <AuditLogView orgs={orgs} />}
           {showImport && <BulkImportView orgs={orgs} onDone={load} />}
+          {showNotices && <NoticesView orgs={orgs} roster={roster.orgs} flash={flash} />}
+          {showRules && <RulesPanel orgs={orgs} flash={flash} />}
+          {showRewards && <RewardsPanel orgs={orgs} flash={flash} />}
+          {showGoal && <GoalPanel orgs={orgs} flash={flash} />}
           {roster.orgs.map((org) => {
             const qq = q.trim().toLowerCase();
-            const filtered = qq ? org.employees.filter((e) => e.name.toLowerCase().includes(qq) || e.role.toLowerCase().includes(qq)) : org.employees;
+            const match = (e: RosterEmp) => !qq || e.name.toLowerCase().includes(qq) || e.role.toLowerCase().includes(qq);
+            // 🗄 J6: arxivdagilar asosiy ro'yxatda ko'rinmaydi — pastda yig'ilgan bo'limda.
+            const filtered = org.employees.filter((e) => !e.archivedAt && match(e));
+            const archived = org.employees.filter((e) => e.archivedAt && match(e));
             return (
             <div key={org.id} className="panel" style={{ marginBottom: 16 }}>
               <div className="panel-head"><div className="panel-title">🏢 {org.name}{!org.active && " (o'chirilgan)"} — {roster.today}</div></div>
@@ -163,6 +199,33 @@ export function JamoaAdminView() {
                   </tbody>
                 </table>
               </div>
+              {archived.length > 0 && (
+                <div style={{ padding: "8px 12px", borderTop: "1px solid var(--border,#2a2a2a)" }}>
+                  <button className="btn" onClick={() => setShowArchive((v) => !v)}>
+                    🗄 Arxiv ({archived.length}) {showArchive ? "▲" : "▼"}
+                  </button>
+                  {showArchive && (
+                    <div className="table-wrap" style={{ marginTop: 8 }}>
+                      <table>
+                        <thead><tr><th>Xodim</th><th>Sabab</th><th>Sana</th><th>Qoldiq</th></tr></thead>
+                        <tbody>
+                          {archived.map((e) => (
+                            <tr key={e.id} style={{ cursor: "pointer", opacity: 0.65 }} onClick={() => setOpenEmp(e.id)}>
+                              <td className="td-name">{e.name}<div className="td-sub muted">{e.role || e.payType}</div></td>
+                              <td className="muted">{e.archiveNote || "—"}</td>
+                              <td className="muted">{(e.archivedAt ?? "").slice(0, 10)}</td>
+                              <td><b style={{ color: e.balance < 0 ? "#e05555" : undefined }}>{som(e.balance)}</b></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
+                        Tarix saqlanadi — o'tgan oy hisobotlarida bu xodimlar o'z joyida qoladi.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
             );
           })}
@@ -201,7 +264,7 @@ function KpiView({ orgs }: { orgs: OrgRow[] }) {
       </div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Xodim</th><Th k="workedDays" label="Ish kun" /><Th k="lateDays" label="Kechikish" /><Th k="absentDays" label="Kelmadi" /><Th k="minutes" label="Soat" /><Th k="earned" label="Hisoblangan" /><Th k="punctualityPct" label="Intizom %" /></tr></thead>
+          <thead><tr><th>Xodim</th><Th k="workedDays" label="Ish kun" /><Th k="lateDays" label="Kechikish" /><Th k="absentDays" label="Kelmadi" /><Th k="minutes" label="Soat" /><Th k="earned" label="Hisoblangan" /><Th k="punctualityPct" label="Intizom %" /><th>🏅 Nishonlar</th></tr></thead>
           <tbody>
             {sorted.map((r) => (
               <tr key={r.id}>
@@ -212,10 +275,11 @@ function KpiView({ orgs }: { orgs: OrgRow[] }) {
                 <td>{Math.floor(r.minutes / 60)}:{String(r.minutes % 60).padStart(2, "0")}</td>
                 <td>{som(r.earned)}</td>
                 <td><b style={{ color: r.punctualityPct >= 90 ? "#3fb26f" : r.punctualityPct >= 70 ? undefined : "#e05555" }}>{r.punctualityPct}%</b></td>
+                <td>{(r.badges ?? []).length ? (r.badges ?? []).map((b) => <span key={b} className="badge badge-ok" style={{ marginRight: 4 }}>{b}</span>) : <span className="muted">—</span>}</td>
               </tr>
             ))}
-            {rows && rows.length === 0 && <tr><td colSpan={7} className="muted">Xodim yo'q</td></tr>}
-            {!rows && <tr><td colSpan={7} className="muted">Yuklanmoqda…</td></tr>}
+            {rows && rows.length === 0 && <tr><td colSpan={8} className="muted">Xodim yo'q</td></tr>}
+            {!rows && <tr><td colSpan={8} className="muted">Yuklanmoqda…</td></tr>}
           </tbody>
         </table>
       </div>
@@ -439,6 +503,7 @@ function EmpDetailView({ empId, roster, onBack, flash }: { empId: number; roster
   const [month, setMonth] = useState<string>("");
   const [editDay, setEditDay] = useState<string | null>(null);
   const [showEdit, setShowEdit] = useState(false);
+  const [showArchive, setShowArchive] = useState(false);
   const [pay, setPay] = useState({ kind: "payout", amount: "", note: "" });
   // Bir urinish = bir kalit: tarmoq-retry AYNAN shu kalit bilan (ikki marta yozilmaydi),
   // MUVAFFAQIYATdan keyin esa yangisi olinadi (keyingi ongli to'lov yutilib ketmasin —
@@ -471,10 +536,25 @@ function EmpDetailView({ empId, roster, onBack, flash }: { empId: number; roster
     <div>
       <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 10 }}>
         <button className="btn" onClick={onBack}>← Ro'yxat</button>
-        <div className="panel-title" style={{ flex: 1 }}>👤 {d.employee.name} <span className="muted">({d.employee.role || d.employee.payType} · TG {d.employee.telegramId}){!d.employee.active && " · ⛔ o'chirilgan"}</span></div>
+        <div className="panel-title" style={{ flex: 1 }}>
+          👤 {d.employee.name}{" "}
+          <span className="muted">
+            ({d.employee.role || d.employee.payType} · TG {d.employee.telegramId})
+            {d.employee.archivedAt ? ` · 🗄 arxivda${d.employee.archiveNote ? `: ${d.employee.archiveNote}` : ""}` : !d.employee.active ? " · ⛔ o'chirilgan" : ""}
+          </span>
+        </div>
         <button className="btn" onClick={() => setShowEdit((s) => !s)}>✏️ Tahrirlash</button>
+        <button className="btn" onClick={() => setShowArchive((s) => !s)}>{d.employee.archivedAt ? "↩️ Arxivdan" : "🗄 Arxivga"}</button>
       </div>
       {showEdit && <EditEmpForm emp={d.employee} onDone={() => { setShowEdit(false); load(month); flash("✅ Xodim yangilandi"); }} flash={flash} />}
+      {showArchive && (
+        <ArchiveBox
+          emp={d.employee}
+          flash={flash}
+          onDone={(back) => { setShowArchive(false); if (back) onBack(); else load(month); }}
+        />
+      )}
+      <RewardGiveBox employeeId={empId} orgId={d.employee.orgId} flash={flash} onGiven={() => load(month)} />
 
       <div className="cards" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 8, marginBottom: 12 }}>
         <div className="card"><div className="card-label">Shu oy hisoblangan</div><div className="card-value">{som(d.totals.monthEarned)}</div></div>
@@ -852,6 +932,416 @@ function OrgSettings({ orgs, onChanged, flash }: { orgs: OrgRow[]; onChanged: ()
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 🗄 J6: arxivga olish / qaytarish / butunlay o'chirish ────────────────────
+// Ega ko'r-ko'rona bosmasin: avval qoldiq + ochiq smena ko'rsatiladi, tarixi
+// bo'lgan xodim UMUMAN o'chirilmaydi (server ham rad etadi — ikki qavat himoya).
+function ArchiveBox({ emp, flash, onDone }: { emp: EmpDetail["employee"]; flash: (t: string) => void; onDone: (back: boolean) => void }) {
+  const [pre, setPre] = useState<{ balance?: number; openSession?: boolean; canDelete?: boolean } | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { adminApi.staffArchivePreview(emp.id).then(setPre).catch(() => setPre(null)); }, [emp.id]);
+
+  const run = async (action: "archive" | "unarchive" | "delete") => {
+    if (action === "delete" && !confirm(`${emp.name} bazadan BUTUNLAY o'chiriladi. Davom etamizmi?`)) return;
+    if (action === "archive" && (pre?.balance ?? 0) !== 0 && !confirm(`Qoldiq ${som(pre?.balance ?? 0)} so'm — arxivga tushsa ham hisob qoladi. Davom etamizmi?`)) return;
+    setBusy(true);
+    const r = await adminApi.staffArchive({ employeeId: emp.id, action, note }).catch(() => ({ ok: false, error: "tarmoq", closedAmount: undefined }));
+    setBusy(false);
+    if (!r.ok) { flash("❌ " + (r.error ?? "Bajarilmadi")); return; }
+    flash(
+      action === "delete" ? "🗑 Butunlay o'chirildi"
+        : action === "unarchive" ? "↩️ Arxivdan qaytarildi"
+          : `🗄 Arxivga olindi${r.closedAmount != null ? ` · ochiq smena yopildi: ${som(r.closedAmount)} so'm` : ""}`
+    );
+    onDone(action !== "unarchive");
+  };
+
+  if (emp.archivedAt) {
+    return (
+      <div className="card" style={{ marginBottom: 12 }}>
+        <div className="card-title">🗄 Bu xodim arxivda</div>
+        <div className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
+          Botda «/ish» yopiq, kechki xulosaga tushmaydi. Tarixi va pul yozuvlari joyida.
+        </div>
+        <button className="btn" disabled={busy} onClick={() => run("unarchive")}>↩️ Ishga qaytarish</button>
+      </div>
+    );
+  }
+  return (
+    <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card-title">🗄 Ishdan bo'shatish (arxivga)</div>
+      <div className="muted" style={{ fontSize: 13, margin: "6px 0" }}>
+        Ro'yxatdan chiqadi va botda «/ish» yopiladi. <b>Oylik tarixi va pul yozuvlari saqlanadi</b> —
+        o'tgan oy hisobotlari o'zgarmaydi.
+        {pre?.openSession ? <> · <b style={{ color: "#e0a555" }}>Ochiq smena bor — arxivga olishda yopiladi.</b></> : null}
+        {pre?.balance != null && pre.balance !== 0 ? <> · Qoldiq: <b>{som(pre.balance)} so'm</b>.</> : null}
+      </div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <input className="inp" style={{ flex: 1, minWidth: 180 }} placeholder="Sabab (ishdan bo'shadi / o'zi ketdi…)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <button className="btn" disabled={busy} onClick={() => run("archive")}>🗄 Arxivga</button>
+        {pre?.canDelete ? <button className="btn" disabled={busy} onClick={() => run("delete")}>🗑 Butunlay o'chirish</button> : null}
+      </div>
+      {!pre?.canDelete && (
+        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+          Butunlay o'chirish faqat tarixi umuman yo'q (xato kiritilgan) xodimda mumkin.
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── 🏆 J9: katalogdan bir bosishda mukofot berish (mavjud bonus yo'li) ───────
+function RewardGiveBox({ employeeId, orgId, flash, onGiven }: { employeeId: number; orgId: number; flash: (t: string) => void; onGiven: () => void }) {
+  const [cat, setCat] = useState<RewardDef[]>([]);
+  const [key, setKey] = useState("");
+  const newKey = () => `ui${Date.now()}${Math.floor(Math.random() * 1e6)}`;
+  const [idemKey, setIdemKey] = useState(newKey);
+  useEffect(() => { adminApi.staffRewards(orgId).then((r) => setCat(r.rewards)).catch(() => setCat([])); }, [orgId]);
+  if (cat.length === 0) return null;
+  const give = async () => {
+    const def = cat.find((c) => c.key === key);
+    if (!def) { flash("❌ Mukofotni tanlang"); return; }
+    if (!confirm(`${def.name} — ${som(def.amount)} so'm berilsinmi?`)) return;
+    const r = await adminApi.staffReward({ action: "give", employeeId, key: def.key, idemKey }).catch(() => ({ ok: false, error: "tarmoq" }));
+    if (!r.ok) { flash("❌ " + (r.error ?? "Berilmadi")); return; }
+    setIdemKey(newKey());
+    setKey("");
+    flash(`🏆 ${def.name} berildi — xodimga xabar ketdi`);
+    onGiven();
+  };
+  return (
+    <div className="card" style={{ marginBottom: 12 }}>
+      <div className="card-title">🏆 Mukofot berish</div>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+        <select className="inp" value={key} onChange={(e) => setKey(e.target.value)}>
+          <option value="">— mukofotni tanlang —</option>
+          {cat.map((c) => <option key={c.key} value={c.key}>{c.name} — {som(c.amount)} so'm</option>)}
+        </select>
+        <button className="btn" onClick={give}>🏆 Berish</button>
+      </div>
+    </div>
+  );
+}
+
+// ── 📢 J7: xabarlar — yozish, yuborish, kim o'qigani ────────────────────────
+function NoticesView({ orgs, roster, flash }: { orgs: OrgRow[]; roster: RosterOrg[]; flash: (t: string) => void }) {
+  const [orgId, setOrgId] = useState<number>(orgs[0]?.id ?? 0);
+  const [text, setText] = useState("");
+  const [to, setTo] = useState<string>(""); // "" = butun jamoa
+  const [rows, setRows] = useState<NoticeRow[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const employees = (roster.find((o) => o.id === orgId)?.employees ?? []).filter((e) => !e.archivedAt);
+  const load = () => { if (orgId) adminApi.staffNotices(orgId).then((r) => setRows(r.notices)).catch(() => setRows(null)); };
+  useEffect(load, [orgId]);
+
+  const send = async () => {
+    const t = text.trim();
+    if (!t) { flash("❌ Xabar bo'sh"); return; }
+    const who = to ? employees.find((e) => e.id === Number(to))?.name : "BUTUN JAMOA";
+    if (!confirm(`${who}ga yuborilsinmi?\n\n${t}`)) return;
+    setBusy(true);
+    const r = await adminApi.staffNoticeSend({ orgId, employeeId: to ? Number(to) : null, text: t }).catch(() => ({ ok: false, error: "tarmoq", sent: 0, failed: 0 }));
+    setBusy(false);
+    if (!r.ok) { flash("❌ " + (r.error ?? "Yuborilmadi")); return; }
+    setText("");
+    flash(`✅ ${r.sent ?? 0} kishiga yetdi${r.failed ? ` · ❌ ${r.failed} kishiga yetmadi (bot bloklangan bo'lishi mumkin)` : ""}`);
+    load();
+  };
+
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel-head" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {orgs.length > 1 && <select className="inp" value={orgId} onChange={(e) => setOrgId(Number(e.target.value))}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
+        <div className="panel-title">📢 Xabarlar</div>
+        <span className="muted" style={{ fontSize: 12 }}>botga darhol boradi · xodim «✅ O'qidim» bosadi</span>
+      </div>
+      <div className="card" style={{ margin: 12 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
+          <select className="inp" value={to} onChange={(e) => setTo(e.target.value)}>
+            <option value="">👥 Butun jamoa ({employees.length})</option>
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.name}</option>)}
+          </select>
+          <button className="btn" disabled={busy} onClick={send}>{busy ? "…" : "📤 Yuborish"}</button>
+        </div>
+        <textarea
+          className="inp"
+          style={{ width: "100%", minHeight: 80 }}
+          placeholder="Xabar matni… (masalan: Ertaga 08:30 da yig'ilish bo'ladi)"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead><tr><th>Sana</th><th>Kimga</th><th>Xabar</th><th>O'qildi</th><th /></tr></thead>
+          <tbody>
+            {(rows ?? []).map((n) => (
+              <tr key={n.id}>
+                <td className="muted">{n.createdAt.slice(0, 10)}</td>
+                <td>{n.toName}</td>
+                <td style={{ maxWidth: 380, whiteSpace: "pre-wrap" }}>{n.text}</td>
+                <td>
+                  <span className={"badge " + (n.readCount >= n.targetCount ? "badge-ok" : "badge-warn")}>{n.readCount}/{n.targetCount}</span>
+                  {n.unread.length > 0 && <div className="td-sub muted">o'qimadi: {n.unread.join(", ")}</div>}
+                </td>
+                <td>
+                  <button className="btn" style={{ padding: "0 6px", fontSize: 11 }} onClick={async () => {
+                    if (!confirm("Xabar ro'yxatdan o'chirilsinmi? (xodimlarga yuborilgani botda qoladi)")) return;
+                    const r = await adminApi.staffNoticeDelete(n.id).catch(() => ({ ok: false }));
+                    if (r.ok) { flash("🗑 O'chirildi"); load(); }
+                  }}>✕</button>
+                </td>
+              </tr>
+            ))}
+            {rows && rows.length === 0 && <tr><td colSpan={5} className="muted">Hali xabar yuborilmagan</td></tr>}
+            {!rows && <tr><td colSpan={5} className="muted">Yuklanmoqda…</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── 📖 J8: qoidalar — tirik hujjat + «tanishdim» nazorati ───────────────────
+function RulesPanel({ orgs, flash }: { orgs: OrgRow[]; flash: (t: string) => void }) {
+  const [orgId, setOrgId] = useState<number>(orgs[0]?.id ?? 0);
+  const [v, setV] = useState<RulesView | null>(null);
+  const [draft, setDraft] = useState("");
+  const [editId, setEditId] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+  const load = () => { if (orgId) adminApi.staffRules(orgId).then(setV).catch(() => setV(null)); };
+  useEffect(load, [orgId]);
+
+  const add = async () => {
+    const t = draft.trim();
+    if (!t) return;
+    const r = await adminApi.staffRule({ orgId, text: t }).catch(() => ({ ok: false, error: "tarmoq" }));
+    if (!r.ok) { flash("❌ " + (r.error ?? "Saqlanmadi")); return; }
+    setDraft("");
+    flash("✅ Qoida qo'shildi — xodimlardan qayta tanishish so'raladi");
+    load();
+  };
+  const saveEdit = async () => {
+    if (editId == null) return;
+    const r = await adminApi.staffRule({ orgId, id: editId, text: editText.trim() }).catch(() => ({ ok: false, error: "tarmoq" }));
+    if (!r.ok) { flash("❌ " + (r.error ?? "Saqlanmadi")); return; }
+    setEditId(null);
+    flash("✅ Qoida yangilandi");
+    load();
+  };
+
+  const acked = v?.ack.filter((a) => a.acked).length ?? 0;
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel-head" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {orgs.length > 1 && <select className="inp" value={orgId} onChange={(e) => setOrgId(Number(e.target.value))}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
+        <div className="panel-title">📖 Qoidalar</div>
+        {v && <span className="muted" style={{ fontSize: 12 }}>versiya {v.version} · xodim botda «📖 Qoidalar» dan o'qiydi</span>}
+      </div>
+      <div style={{ padding: 12 }}>
+        {(v?.rules ?? []).map((r, i) => (
+          <div key={r.id} className="card" style={{ marginBottom: 6, display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <b style={{ minWidth: 22 }}>{i + 1}.</b>
+            {editId === r.id ? (
+              <>
+                <input className="inp" style={{ flex: 1 }} value={editText} onChange={(e) => setEditText(e.target.value)} />
+                <button className="btn" onClick={saveEdit}>💾</button>
+                <button className="btn" onClick={() => setEditId(null)}>✕</button>
+              </>
+            ) : (
+              <>
+                <div style={{ flex: 1, whiteSpace: "pre-wrap" }}>{r.text}</div>
+                <button className="btn" style={{ padding: "0 6px" }} onClick={async () => { await adminApi.staffRule({ id: r.id, action: "move", dir: "up" }); load(); }}>↑</button>
+                <button className="btn" style={{ padding: "0 6px" }} onClick={async () => { await adminApi.staffRule({ id: r.id, action: "move", dir: "down" }); load(); }}>↓</button>
+                <button className="btn" style={{ padding: "0 6px" }} onClick={() => { setEditId(r.id); setEditText(r.text); }}>✏️</button>
+                <button className="btn" style={{ padding: "0 6px" }} onClick={async () => {
+                  if (!confirm("Qoida o'chirilsinmi?")) return;
+                  const rr = await adminApi.staffRule({ id: r.id, action: "remove" }).catch(() => ({ ok: false }));
+                  if (rr.ok) { flash("🗑 O'chirildi"); load(); }
+                }}>✕</button>
+              </>
+            )}
+          </div>
+        ))}
+        {v && v.rules.length === 0 && <div className="muted" style={{ marginBottom: 8 }}>Hali qoida yo'q — birinchisini yozing.</div>}
+        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+          <input className="inp" style={{ flex: 1 }} placeholder="Yangi qoida (masalan: Smenaga 10 daqiqa oldin kelinadi)" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") add(); }} />
+          <button className="btn" onClick={add}>➕ Qo'shish</button>
+        </div>
+        {v && v.rules.length > 0 && (
+          <div className="card" style={{ marginTop: 10 }}>
+            <div className="card-label">Tanishganlar: {acked}/{v.ack.length}</div>
+            <div style={{ marginTop: 4 }}>
+              {v.ack.map((a) => (
+                <span key={a.employeeId} className={"badge " + (a.acked ? "badge-ok" : "badge-warn")} style={{ marginRight: 4 }}>
+                  {a.acked ? "✅" : "⏳"} {a.name}
+                </span>
+              ))}
+            </div>
+            <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>Qoida o'zgarsa — tanishish qaytadan so'raladi.</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── 🏆 J9: mukofot katalogi (nomi + summasi) ────────────────────────────────
+function RewardsPanel({ orgs, flash }: { orgs: OrgRow[]; flash: (t: string) => void }) {
+  const [orgId, setOrgId] = useState<number>(orgs[0]?.id ?? 0);
+  const [rows, setRows] = useState<RewardDef[] | null>(null);
+  const [f, setF] = useState({ name: "", amount: "", note: "" });
+  const load = () => { if (orgId) adminApi.staffRewards(orgId).then((r) => setRows(r.rewards)).catch(() => setRows(null)); };
+  useEffect(load, [orgId]);
+
+  const add = async () => {
+    const amount = Number(f.amount.replace(/\s/g, ""));
+    if (!f.name.trim() || !Number.isFinite(amount) || amount <= 0) { flash("❌ Nom va summa kerak"); return; }
+    const r = await adminApi.staffReward({ orgId, name: f.name.trim(), amount, note: f.note.trim() }).catch(() => ({ ok: false, error: "tarmoq" }));
+    if (!r.ok) { flash("❌ " + (r.error ?? "Saqlanmadi")); return; }
+    setF({ name: "", amount: "", note: "" });
+    flash("✅ Mukofot katalogga qo'shildi");
+    load();
+  };
+
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel-head" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {orgs.length > 1 && <select className="inp" value={orgId} onChange={(e) => setOrgId(Number(e.target.value))}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
+        <div className="panel-title">🏆 Mukofotlar</div>
+        <span className="muted" style={{ fontSize: 12 }}>xodim sahifasida bir bosishda beriladi · bonus bo'lib hisobga tushadi</span>
+      </div>
+      <div style={{ padding: 12 }}>
+        {(rows ?? []).map((r) => (
+          <div key={r.key} className="card" style={{ marginBottom: 6, display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ flex: 1 }}><b>{r.name}</b>{r.note && <div className="td-sub muted">{r.note}</div>}</div>
+            <b>{som(r.amount)} so'm</b>
+            <button className="btn" style={{ padding: "0 6px" }} onClick={async () => {
+              if (!confirm(`«${r.name}» katalogdan o'chirilsinmi? (berilgan mukofotlar tarixda qoladi)`)) return;
+              const rr = await adminApi.staffReward({ orgId, key: r.key, action: "remove" }).catch(() => ({ ok: false }));
+              if (rr.ok) { flash("🗑 O'chirildi"); load(); }
+            }}>✕</button>
+          </div>
+        ))}
+        {rows && rows.length === 0 && <div className="muted" style={{ marginBottom: 8 }}>Hali mukofot yo'q — masalan «Kechikmagan oy — 200 000».</div>}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+          <input className="inp" placeholder="Mukofot nomi" value={f.name} onChange={(e) => setF((p) => ({ ...p, name: e.target.value }))} />
+          <input className="inp" placeholder="Summa (so'm)" value={f.amount} onChange={(e) => setF((p) => ({ ...p, amount: e.target.value }))} />
+          <input className="inp" style={{ flex: 1, minWidth: 160 }} placeholder="Izoh (ixtiyoriy) — nima uchun beriladi" value={f.note} onChange={(e) => setF((p) => ({ ...p, note: e.target.value }))} />
+          <button className="btn" onClick={add}>➕ Qo'shish</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── 📈 J10: jamoaviy maqsad-bonusi (kunlik buyurtma o'rtachasi) ─────────────
+// O'lchov manbai: DailyStat.completedRides — kas1067'ning JAMI kunlik yakunlangan
+// buyurtmasi. Bugungi kun o'rtachaga KIRMAYDI (tugamagan kun raqamni pasaytiradi).
+function GoalPanel({ orgs, flash }: { orgs: OrgRow[]; flash: (t: string) => void }) {
+  const [orgId, setOrgId] = useState<number>(orgs[0]?.id ?? 0);
+  const [st, setSt] = useState<GoalState | null>(null);
+  const [f, setF] = useState({ target: "", bonusAmount: "" });
+  const [busy, setBusy] = useState(false);
+  const load = () => {
+    if (!orgId) return;
+    adminApi.staffGoal(orgId).then((r) => {
+      setSt(r);
+      if (r.goal) setF({ target: String(r.goal.target), bonusAmount: String(r.goal.bonusAmount) });
+    }).catch(() => setSt(null));
+  };
+  useEffect(load, [orgId]);
+
+  const save = async () => {
+    const target = Number(f.target.replace(/\s/g, ""));
+    const bonusAmount = Number(f.bonusAmount.replace(/\s/g, ""));
+    if (!Number.isFinite(target) || target <= 0 || !Number.isFinite(bonusAmount) || bonusAmount <= 0) { flash("❌ Maqsad va summa kerak"); return; }
+    setBusy(true);
+    const r = await adminApi.staffGoalSet({ orgId, target, bonusAmount }).catch(() => ({ ok: false, error: "tarmoq" }));
+    setBusy(false);
+    if (!r.ok) { flash("❌ " + (r.error ?? "Saqlanmadi")); return; }
+    flash("✅ Maqsad belgilandi — xodimlar botda ko'radi");
+    load();
+  };
+  const pay = async () => {
+    if (!st?.goal) return;
+    if (!confirm(`${som(st.goal.bonusAmount)} so'm mukofot ishlagan kuniga qarab bo'linib beriladimi?`)) return;
+    setBusy(true);
+    const r = await adminApi.staffGoalSet({ id: st.goal.id, action: "pay" }).catch(() => ({ ok: false, error: "tarmoq" }));
+    setBusy(false);
+    if (!r.ok) { flash("❌ " + (r.error ?? "Berilmadi")); return; }
+    flash("🎯 Mukofot berildi — xodimlarga xabar ketdi");
+    load();
+  };
+
+  const p = st?.progress;
+  return (
+    <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel-head" style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        {orgs.length > 1 && <select className="inp" value={orgId} onChange={(e) => setOrgId(Number(e.target.value))}>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select>}
+        <div className="panel-title">📈 Jamoa maqsadi</div>
+        <span className="muted" style={{ fontSize: 12 }}>o'lchov: kunlik yakunlangan buyurtmaning OY O'RTACHASI</span>
+      </div>
+      <div style={{ padding: 12 }}>
+        {st?.goal && p ? (
+          <div className="card" style={{ marginBottom: 10 }}>
+            <div className="card-label">{st.goal.month} · maqsad {st.goal.target} ta/kun · fond {som(st.goal.bonusAmount)} so'm</div>
+            <div className="card-value" style={{ color: p.achieved ? "#3fb26f" : undefined }}>
+              O'rtacha {p.avg} / {p.target} ta ({p.pct}%)
+            </div>
+            <div style={{ height: 8, background: "#2a2a2a", borderRadius: 4, overflow: "hidden", margin: "6px 0" }}>
+              <div style={{ width: `${p.pct}%`, height: "100%", background: p.achieved ? "#3fb26f" : "#4a90d9" }} />
+            </div>
+            <div className="muted" style={{ fontSize: 12 }}>
+              {p.days} ta tugagan kun bo'yicha · bugun hozircha {st.todayCount} ta (o'rtachaga kirmaydi)
+              {p.needPerDay > 0 && !p.outOfReach ? <> · qolgan kunlarga <b>{p.needPerDay} ta/kun</b> kerak</> : null}
+              {p.outOfReach ? <> · <b style={{ color: "#e0a555" }}>bu oyda yetib bo'lmaydi</b> (qolgan kunlarga {p.needPerDay} ta/kun kerak edi) — maqsadni pasaytiring yoki keyingi oyga qo'ying</> : null}
+            </div>
+            {p.achieved && (
+              <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <b style={{ color: "#3fb26f" }}>🎯 Maqsad bajarildi!</b>
+                {st.goal.status !== "berildi" && <button className="btn" disabled={busy} onClick={pay}>💸 Mukofotni berish</button>}
+                <span className="muted" style={{ fontSize: 12 }}>keyingi maqsad taklifi: {st.nextTarget} ta/kun</span>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="muted" style={{ marginBottom: 8 }}>Hali maqsad belgilanmagan.</div>
+        )}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <input className="inp" placeholder="Kunlik maqsad (masalan 500)" value={f.target} onChange={(e) => setF((s) => ({ ...s, target: e.target.value }))} />
+          <input className="inp" placeholder="Mukofot fondi (masalan 1000000)" value={f.bonusAmount} onChange={(e) => setF((s) => ({ ...s, bonusAmount: e.target.value }))} />
+          <button className="btn" disabled={busy} onClick={save}>💾 Maqsadni belgilash</button>
+        </div>
+        <div className="muted" style={{ fontSize: 12, marginTop: 6 }}>
+          Fond ishlagan kuniga qarab bo'linadi (26 kun — to'liq ulush, 13 kun — yarmi). Pul faqat siz
+          «Mukofotni berish» bosganda yoziladi — avtomatik berilmaydi.
+        </div>
+        {(st?.history ?? []).length > 0 && (
+          <div className="table-wrap" style={{ marginTop: 10 }}>
+            <table>
+              <thead><tr><th>Oy</th><th>Maqsad</th><th>Fond</th><th>Holat</th></tr></thead>
+              <tbody>
+                {(st?.history ?? []).map((h) => (
+                  <tr key={h.id}>
+                    <td>{h.month}</td>
+                    <td>{h.target} ta/kun</td>
+                    <td>{som(h.bonusAmount)}</td>
+                    <td>
+                      <span className={"badge " + (h.status === "berildi" ? "badge-ok" : h.status === "bekor" ? "badge-muted" : "badge-warn")}>{h.status}</span>
+                      {h.paidAt && <span className="muted"> {h.paidAt.slice(0, 10)}</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

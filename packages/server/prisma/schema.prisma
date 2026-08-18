@@ -1760,59 +1760,71 @@ model RavellaStoryView {
 
 // Org-level policy DEFAULTS; any null field on Employee inherits from here.
 model Organization {
-  id                Int        @id @default(autoincrement())
+  id                Int           @id @default(autoincrement())
   name              String
   ownerTelegramId   String // who manages this org's staff (owner gets the daily summary)
-  plan              String     @default("free") // free | pro (B2B pricing later)
-  active            Boolean    @default(true)
-  divisorMode       String     @default("haqiqiy") // oylik→kunlik: real workdays | "qatiy"
-  fixedDivisor      Int        @default(26)
-  graceMin          Int        @default(10)
-  roundMin          Int        @default(5)
-  lunchMin          Int        @default(60)
-  lunchPaid         Boolean    @default(false)
-  lunchThresholdMin Int        @default(360) // deduct lunch only when worked >= 6h
-  overtimeMode      String     @default("off") // off | qolda | avto
-  overtimeMult      Float      @default(1.5)
-  sickPct           Int        @default(0)
-  vacationPct       Int        @default(100)
-  holidayPaid       Boolean    @default(true)
-  workDays          String     @default("123456") // 1=Du ... 7=Ya
-  shiftStart        String     @default("09:00")
-  shiftEnd          String     @default("18:00")
+  plan              String        @default("free") // free | pro (B2B pricing later)
+  active            Boolean       @default(true)
+  divisorMode       String        @default("haqiqiy") // oylik→kunlik: real workdays | "qatiy"
+  fixedDivisor      Int           @default(26)
+  graceMin          Int           @default(10)
+  roundMin          Int           @default(5)
+  lunchMin          Int           @default(60)
+  lunchPaid         Boolean       @default(false)
+  lunchThresholdMin Int           @default(360) // deduct lunch only when worked >= 6h
+  overtimeMode      String        @default("off") // off | qolda | avto
+  overtimeMult      Float         @default(1.5)
+  sickPct           Int           @default(0)
+  vacationPct       Int           @default(100)
+  holidayPaid       Boolean       @default(true)
+  workDays          String        @default("123456") // 1=Du ... 7=Ya
+  shiftStart        String        @default("09:00")
+  shiftEnd          String        @default("18:00")
   calendar          Json? // oy taqvimi: {"2027-03-21":"bayram","2027-08-02":"ish","2027-08-10":"dam"} —
   // haftalik workDays maskasi ustidan kun-by-kun istisno (JAMOA_PLAN §5.3, shared StaffCalendar)
   shiftTemplates    Json? // [{name:"Ofis 09-18",start:"09:00",end:"18:00"}, ...]
-  createdAt         DateTime   @default(now())
+  rulesVersion      Int           @default(0) // 📖 J8: bumped on ANY rule edit → everyone re-acknowledges
+  rewards           Json? // 🏆 J9 katalog: [{key,name,amount,note}] (shared parseRewardCatalog)
+  createdAt         DateTime      @default(now())
   employees         Employee[]
+  notices           StaffNotice[]
+  goals             StaffGoal[]
 }
 
 model Employee {
-  id             Int           @id @default(autoincrement())
-  orgId          Int
-  telegramId     String        @unique // bot "Keldim/Ketdim" gate — one job per account
-  name           String
-  role           String        @default("") // "operator", ...
-  active         Boolean       @default(true)
-  payType        String        @default("oylik") // oylik | kunlik | soatlik
-  monthlySalary  Int           @default(0) // so'm (payType oylik)
-  dailyRate      Int           @default(0) // so'm (payType kunlik)
-  hourlyRate     Int           @default(0) // so'm (payType soatlik)
+  id              Int                @id @default(autoincrement())
+  orgId           Int
+  telegramId      String             @unique // bot "Keldim/Ketdim" gate — one job per account
+  name            String
+  role            String             @default("") // "operator", ...
+  active          Boolean            @default(true)
+  payType         String             @default("oylik") // oylik | kunlik | soatlik
+  monthlySalary   Int                @default(0) // so'm (payType oylik)
+  dailyRate       Int                @default(0) // so'm (payType kunlik)
+  hourlyRate      Int                @default(0) // so'm (payType soatlik)
   // null = inherit the org default (JAMOA_PLAN §5 hierarchy):
-  shiftStart     String?
-  shiftEnd       String?
-  workDays       String?
-  graceMin       Int?
-  lunchMin       Int?
-  openingBalance Int           @default(0) // eski oylik/qarz — J5 import lands here
-  vacationDaysYr Int           @default(15)
-  createdAt      DateTime      @default(now())
-  org            Organization  @relation(fields: [orgId], references: [id])
-  sessions       WorkSession[]
-  ledger         StaffLedger[]
-  leaveRequests  LeaveRequest[]
-  swapRequested  ShiftSwapRequest[] @relation("SwapRequester")
-  swapReceived   ShiftSwapRequest[] @relation("SwapPartner")
+  shiftStart      String?
+  shiftEnd        String?
+  workDays        String?
+  graceMin        Int?
+  lunchMin        Int?
+  openingBalance  Int                @default(0) // eski oylik/qarz — J5 import lands here
+  vacationDaysYr  Int                @default(15)
+  // 🗄 J6 arxiv ("eski ishchini o'chirish"): ro'yxatdan chiqadi, botda /ish yopiladi,
+  // LEKIN oylik tarixi + pul yozuvlari qoladi (o'tgan oy hisoboti o'zgarmaydi).
+  // Baza qatori faqat 0 ish kuni + 0 pul yozuvi bo'lsa butunlay o'chiriladi.
+  archivedAt      DateTime?
+  archiveNote     String? // "ishdan bo'shadi", "o'zi ketdi" — kartada ko'rinadi
+  rulesAckVersion Int                @default(0) // 📖 J8: qaysi qoida-versiyasi bilan tanishgan
+  createdAt       DateTime           @default(now())
+  org             Organization       @relation(fields: [orgId], references: [id])
+  sessions        WorkSession[]
+  ledger          StaffLedger[]
+  leaveRequests   LeaveRequest[]
+  swapRequested   ShiftSwapRequest[] @relation("SwapRequester")
+  swapReceived    ShiftSwapRequest[] @relation("SwapPartner")
+  notices         StaffNotice[]
+  noticeReads     StaffNoticeRead[]
 
   @@index([orgId, active])
 }
@@ -1901,4 +1913,63 @@ model ShiftSwapRequest {
   @@index([requesterId])
   @@index([partnerId])
   @@index([status])
+}
+
+// 📢 J7 — ega → xodim xabarlari VA 📖 J8 — korxona qoidalari. Bitta jadval, ikki
+// `kind`: "xabar" — hodisa (yozildi, botga ketdi, o'zgarmaydi), "qoida" — tirik
+// hujjat satri (tahrirlanadi, tartibi bor). Ikkalasi ham xodim tomonida
+// o'qish-tasdig'i bilan: xabar → StaffNoticeRead, qoida → Employee.rulesAckVersion.
+model StaffNotice {
+  id         Int               @id @default(autoincrement())
+  orgId      Int
+  employeeId Int? // null = butun jamoaga (kind="qoida" da HAR DOIM null)
+  kind       String            @default("xabar") // xabar | qoida
+  text       String
+  sortOrder  Int               @default(0) // qoidalar tartibi (xabarda ishlatilmaydi)
+  active     Boolean           @default(true) // o'chirilgan qoida — tarix uchun qoladi
+  createdBy  String // telegramId of the owner/admin
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  org        Organization      @relation(fields: [orgId], references: [id])
+  employee   Employee?         @relation(fields: [employeeId], references: [id])
+  reads      StaffNoticeRead[]
+
+  @@index([orgId, kind, active])
+  @@index([employeeId])
+}
+
+// ✅ Kim qaysi xabarni o'qidi (faqat kind="xabar" uchun). Bir xodim — bir marta.
+model StaffNoticeRead {
+  id         Int         @id @default(autoincrement())
+  noticeId   Int
+  employeeId Int
+  readAt     DateTime    @default(now())
+  notice     StaffNotice @relation(fields: [noticeId], references: [id], onDelete: Cascade)
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+
+  @@unique([noticeId, employeeId])
+  @@index([employeeId])
+}
+
+// 📈 J10 — jamoaviy maqsad-bonusi (ega qarori 2026-08-18): "kunlik N ta buyurtmaga
+// yetilsa — M so'm mukofot, keyin keyingi maqsad". O'lchov = OY O'RTACHA kunlik
+// yakunlangan buyurtma (DailyStat.completedRides) — bitta omadli kun mln ochmaydi.
+// Pul HECH QACHON avtomatik berilmaydi: tizim "bajarildi" deydi, ega tugma bosadi
+// → StaffLedger bonus qatorlari (`staffgoal:<goalId>:<employeeId>` — ikki marta bermaydi).
+model StaffGoal {
+  id          Int          @id @default(autoincrement())
+  orgId       Int
+  month       String // "2026-08" — qaysi oyning o'rtachasi o'lchanadi
+  target      Int // kunlik buyurtma maqsadi (masalan 500)
+  bonusAmount Int // jami mukofot fondi so'mda (masalan 1 000 000)
+  status      String       @default("aktiv") // aktiv | bajarildi | berildi | bekor
+  achievedAt  DateTime? // o'rtacha maqsadga birinchi marta yetgan payt
+  paidAt      DateTime?
+  paidBy      String?
+  createdBy   String
+  createdAt   DateTime     @default(now())
+  org         Organization @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, month, target]) // bitta oyda bitta maqsad ikki marta yozilmaydi
+  @@index([orgId, status])
 }

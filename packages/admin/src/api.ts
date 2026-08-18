@@ -419,6 +419,18 @@ export const adminApi = {
   staffCoverSet: (p: { date: string; absentEmployeeId: number; coverEmployeeId: number | null; amount?: number }) => postJson<{ ok: boolean; error?: string; amount?: number }>("/api/admin/staff/cover", p),
   staffReport: (orgId: number, month?: string) => req<import("./jamoa").MonthReport>(`/api/admin/staff/report?orgId=${orgId}${month ? `&month=${month}` : ""}`),
   staffImport: (orgId: number, text: string) => postJson<{ ok: boolean; error?: string; results?: { line: string; ok: boolean; info: string }[] }>("/api/admin/staff/import", { orgId, text }),
+  // 🗄 J6 arxiv · 📢 J7 xabarlar · 📖 J8 qoidalar · 🏆 J9 mukofotlar · 📈 J10 maqsad
+  staffArchivePreview: (id: number) => req<{ ok: boolean; error?: string; name?: string; balance?: number; openSession?: boolean; canDelete?: boolean }>(`/api/admin/staff/employee/${id}/archive-preview`),
+  staffArchive: (p: { employeeId: number; action?: "archive" | "unarchive" | "delete"; note?: string }) => postJson<{ ok: boolean; error?: string; closedAmount?: number }>("/api/admin/staff/employee/archive", p),
+  staffNotices: (orgId: number) => req<{ notices: import("./jamoa").NoticeRow[] }>(`/api/admin/staff/notices?orgId=${orgId}`),
+  staffNoticeSend: (p: { orgId: number; employeeId?: number | null; text: string }) => postJson<{ ok: boolean; error?: string; sent?: number; failed?: number }>("/api/admin/staff/notice", p),
+  staffNoticeDelete: (id: number) => postJson<{ ok: boolean; error?: string }>("/api/admin/staff/notice", { action: "delete", id }),
+  staffRules: (orgId: number) => req<import("./jamoa").RulesView>(`/api/admin/staff/rules?orgId=${orgId}`),
+  staffRule: (p: { orgId?: number; id?: number; text?: string; action?: "remove" | "move"; dir?: "up" | "down" }) => postJson<{ ok: boolean; error?: string; id?: number }>("/api/admin/staff/rule", p),
+  staffRewards: (orgId: number) => req<{ rewards: import("./jamoa").RewardDef[] }>(`/api/admin/staff/rewards?orgId=${orgId}`),
+  staffReward: (p: { orgId?: number; key?: string; name?: string; amount?: number; note?: string; action?: "remove" | "give"; employeeId?: number; idemKey?: string }) => postJson<{ ok: boolean; error?: string; amount?: number }>("/api/admin/staff/reward", p),
+  staffGoal: (orgId: number) => req<import("./jamoa").GoalState>(`/api/admin/staff/goal?orgId=${orgId}`),
+  staffGoalSet: (p: { orgId?: number; id?: number; month?: string; target?: number; bonusAmount?: number; action?: "cancel" | "pay" }) => postJson<{ ok: boolean; error?: string; text?: string; id?: number }>("/api/admin/staff/goal", p),
 
   // 🎀 ravella — bezak konstruktori: kategoriya/bezak/qo'shimcha CRUD + rasm + buyurtma navbati
   ravellaAll: () => req<{

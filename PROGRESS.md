@@ -1,5 +1,80 @@
 # PROGRESS
 
+## 👔 2026-08-18 — JAMOA J6–J10: arxiv · xabarlar · qoidalar · mukofotlar · maqsad-bonusi
+
+**Holat: `ready for verification` (gaplar: VPS sxema push'i hali QILINMAGAN · ega QABUL'i yo'q ·
+jonli render ko'rilmagan).** Kod yozildi, lokal darvozalar yashil — lekin CLAUDE.md R1 bo'yicha
+bu «done» EMAS.
+
+Ega so'rovi (2026-08-18): «jamoa bo'limiga eski ishchini o'chirish · ishchilarga xabarlar qoldirish ·
+qoidalar bo'limi · mukofotlar» + qo'shimcha: «mijozlar soni ko'payishiga qo'shimcha oylik bonus —
+masalan hozir kunlik 200 ta, agar kunlik 500 ta yetilsa mln bonus, keyingi maqsad 600 ta».
+
+### Ega qarorlari (savol-javob bilan olindi, taxmin qilinmadi)
+| Savol | Qaror |
+|---|---|
+| «O'chirish» nima? | **Arxiv** (tarix saqlanadi) + tarixi umuman yo'q qatorni butunlay o'chirish |
+| Xabarlar yo'nalishi | **Ega → xodim**, o'qildi belgisi bilan (bir tomonlama) |
+| Mukofot turi | **Ikkalasi**: pulli katalog + hisoblanadigan nishonlar |
+| Maqsad o'lchovi | **Oy o'rtachasi** (bitta omadli kun mln ochmaydi) |
+| Mukofot taqsimoti | **Ishlagan kuniga proportsional** (26 kun — to'liq ulush, 13 kun — yarmi) |
+
+### Nima qurildi
+- **J6 arxiv** (`staffAdminService.ts`): `staffAdminEmployeeArchivePreview/Archive/Unarchive/Delete`.
+  Arxivga olishda **ochiq smena avval yopiladi** — aks holda `staffAutoCloseOverdue` faqat FAOL
+  xodimlarni ko'rgani uchun o'sha kun abadiy tasdiqsiz osilib qolardi (o'z-tekshiruvda topildi).
+  Osilgan ta'til/almashish so'rovlari ham yopiladi. Butunlay o'chirish FAQAT 0 ish kuni + 0 pul
+  yozuvi + 0 boshlang'ich balansda (server rad etadi, panel tugmani ham ko'rsatmaydi — ikki qavat).
+  `employeeFor` da `archivedAt` sharti → botda `/ish` yopiq. Oylik hisobot arxivdagilarni SAQLAYDI
+  (`staffAdminMonthReport` da `active` filtri yo'q — ataylab).
+- **J7 xabarlar** (`staffTeamService.ts` YANGI, +`StaffNotice`/`StaffNoticeRead`): hammaga yoki bitta
+  xodimga; route yetkazishni SANAB qaytaradi → panelda «✅ 4 kishiga yetdi · ❌ 1 kishiga yetmadi».
+  Xodimda `/ish` → «📢 Xabarlar (N)» → «✅ O'qidim» → panelda kim o'qigani ismma-ism.
+- **J8 qoidalar**: bir jadval, `kind="qoida"`; tartib (↑↓), tahrir, o'chirish (tarix uchun `active=false`).
+  `Organization.rulesVersion` ↑ har o'zgarishda, `Employee.rulesAckVersion` — kim tanishgani.
+  Matn o'zgarmasa versiya oshmaydi (bekorga qayta tanishtirmaslik uchun).
+- **J9 mukofotlar**: katalog `Organization.rewards` Json (`parseRewardCatalog` bilan himoyalangan);
+  berish = MAVJUD `staffAdminPay(kind:"bonus")` yo'li — **yangi pul kanali ochilmadi**. Nishonlar
+  hech qayerda saqlanmaydi, KPI'dan qayta hisoblanadi (drift bo'lishi mumkin emas): 🥇 oyning
+  xodimi · 💯 100% intizom · 📅 kelmagan kuni yo'q · 🔥 streak.
+- **J10 maqsad-bonusi** (+`StaffGoal`): o'lchov manbai **`DailyStat.completedRides`** — kas1067'ning
+  JAMI kunlik yakunlangan buyurtmasi (yangi poller YO'Q, mavjud `rollupRecentDays` yozadi).
+  **Bugungi kun o'rtachaga kirmaydi** (tugamagan kun ertalabdan raqamni pasaytirardi). Bajarilganda
+  kechki tick egaga tugmali karta yuboradi; **status faqat karta YETGACH** «bajarildi» bo'ladi
+  (Telegram yiqilsa karta yo'qolmasin). Pul FAQAT ega tugmasi bilan, har ulush idempotent
+  (`staffpay:<empId>:goalbonus.<goalId>.emp<empId>`), yig'indi aynan fondga teng (largest-remainder).
+
+### Isbot (buyruq + natija)
+- `npx vitest run packages/shared` → **287 passed (13 fayl)**; yangi J7–J10 uchun 19 assertion
+  (katalog parse, nishonlar, streak, o'rtacha-o'lchov, kerakli sur'at, yetib-bo'lmaydigan holat,
+  taqsimot yig'indisi aynan fond, ishlamagan ulush olmaydi).
+- `pnpm -r typecheck` → yagona xato `src/sim/config/arms.ts` — u **gitignore'da** (`.gitignore:40`,
+  Digital Twin lokal), boshqa sessiyaniki, CI checkout'ida umuman yo'q. Mening 9 faylim toza.
+- `simEconomy` / `simLoyalty` / `simGuards` → uchtasi ham yashil (≤350/safar buzilmadi — bu modul
+  tanga tizimiga umuman tegmaydi, isbot sifatida yugurtirildi).
+- `pnpm --filter @t1067/admin build` → ✓ built (CI darvozasi bilan bir xil).
+- Jonli o'lchov (faqat o'qish, VPS): `DailyStat` 5–17 avgust = **150–207 ta/kun**, ya'ni eganing
+  «kunlik 200 ta» raqami `completedRides` ga to'g'ri keladi (ilova ulushi atigi 15–36).
+  `feature:jamoa=on`, korxona «BirJoy ofis», 4 faol xodim.
+
+### DA'VO ↔ HAQIQAT (R5)
+| element | kodda? | jonli? | isbot | gap |
+|---|---|---|---|---|
+| J6 arxiv/o'chirish | ha | **yo'q** | typecheck + kod | sxema push + QABUL kutilmoqda |
+| J7 xabarlar + o'qildi | ha | **yo'q** | typecheck + kod | sxema push + QABUL kutilmoqda |
+| J8 qoidalar + tanishdim | ha | **yo'q** | typecheck + kod | sxema push + QABUL kutilmoqda |
+| J9 mukofot katalogi | ha | **yo'q** | typecheck + kod | sxema push + QABUL kutilmoqda |
+| J9 nishonlar | ha | **yo'q** | vitest 8 assertion | sxema push + QABUL kutilmoqda |
+| J10 maqsad-bonusi | ha | **yo'q** | vitest 11 assertion + jonli DailyStat o'lchovi | sxema push + QABUL kutilmoqda |
+| Sxema (VPS `db push`) | — | **yo'q** | — | **GAP: kod push'idan OLDIN bajarilishi SHART** |
+| Ega telefonda ko'rgani | — | — | — | **GAP: QABUL yo'q** |
+
+### Deploy tartibi (buzilmas)
+1. VPS: `prisma migrate diff` (diffni O'QI) → `prisma db push` — **kod push'idan OLDIN**
+   (5 ta yangi ustun + 3 ta yangi jadval; ustun bo'lmasa har jamoa so'rovi yiqiladi).
+2. `main`ga push → CI yashil → avtomatik deploy.
+3. Ega: panelda 👔 Jamoa → yangi 4 tugma; botda `/ish` → 📢/📖/🏆 → QABUL.
+
 ## 🍽 2026-08-15 — RESTORAN endi TASHQI HAMKORGA ESHIK (o'z katalog o'chirildi)
 
 **Holat: `ready for verification` (gap: hamkor mini-app havolasi hali yo'q).**

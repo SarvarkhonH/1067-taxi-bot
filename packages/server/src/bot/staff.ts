@@ -10,7 +10,7 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function ishKeyboard(): InlineKeyboard {
+function ishKeyboard(unread = 0): InlineKeyboard {
   return new InlineKeyboard()
     .text("✅ Keldim", "ish:in")
     .text("🏁 Ketdim", "ish:out")
@@ -21,7 +21,13 @@ function ishKeyboard(): InlineKeyboard {
     .text("🤒 Bugun kasalman", "ish:sick")
     .row()
     .text("🏖 Ta'til so'rash", "ish:leave")
-    .text("🔄 Smena almashish", "ish:swap");
+    .text("🔄 Smena almashish", "ish:swap")
+    .row()
+    // J7/J8/J9: xabar soni tugmaning O'ZIDA — o'qilmagan xabar jim turmasin.
+    .text(unread > 0 ? `📢 Xabarlar (${unread})` : "📢 Xabarlar", "ish:notices")
+    .text("📖 Qoidalar", "ish:rules")
+    .row()
+    .text("🏆 Mening mukofotlarim", "ish:rewards");
 }
 
 // ForceReply-prompt matni = sessiyasiz "wizard": javob-xabar aynan shu promptga
@@ -86,9 +92,14 @@ export function registerStaff(bot: Bot): void {
     const { employeeFor } = await import("../services/staffService");
     const emp = await employeeFor(tg);
     if (emp) {
+      const { staffUnreadCount } = await import("../services/staffTeamService");
+      const unread = await staffUnreadCount(emp.id, emp.orgId, emp.createdAt).catch(() => 0);
+      const needAck = emp.rulesAckVersion < emp.org.rulesVersion;
       await ctx.reply(
-        `👔 <b>${esc(emp.name)}</b> — ${esc(emp.org.name)}\nIsh boshida "Keldim", ketishda "Ketdim" bosing.`,
-        { parse_mode: "HTML", reply_markup: ishKeyboard() }
+        `👔 <b>${esc(emp.name)}</b> — ${esc(emp.org.name)}\nIsh boshida "Keldim", ketishda "Ketdim" bosing.` +
+          (unread > 0 ? `\n\n📢 <b>${unread} ta o'qilmagan xabar</b> bor.` : "") +
+          (needAck ? `\n📖 Qoidalar yangilandi — tanishib chiqing.` : ""),
+        { parse_mode: "HTML", reply_markup: ishKeyboard(unread) }
       );
       return;
     }
@@ -108,6 +119,73 @@ export function registerStaff(bot: Bot): void {
   bot.callbackQuery("ish:out", onTap(async (tg) => (await import("../services/staffService")).staffCheckOut(tg)));
   bot.callbackQuery("ish:acct", onTap(async (tg) => (await import("../services/staffService")).staffMyAccount(tg)));
   bot.callbackQuery("ish:sick", onTap(async (tg) => (await import("../services/staffService")).staffSelfReportSick(tg)));
+
+  // 📢 J7 — xabarlar: har o'qilmagan xabar ostida "O'qidim" tugmasi (ega kim
+  // o'qiganini panelda ko'radi). Shaxsiy chat sharti onTap'dagi bilan bir xil.
+  bot.callbackQuery("ish:notices", async (ctx) => {
+    if (ctx.chat && ctx.chat.type !== "private") {
+      await ctx.answerCallbackQuery({ text: "Botga shaxsiy yozing: /ish", show_alert: true }).catch(() => undefined);
+      return;
+    }
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffMyNotices } = await import("../services/staffTeamService");
+    const r = await staffMyNotices(String(ctx.from?.id ?? ""));
+    const kb = new InlineKeyboard();
+    for (const id of (r.unreadIds ?? []).slice(0, 10)) kb.text("✅ O'qidim", `ishrd:${id}`).row();
+    await ctx.reply(r.text, { parse_mode: "HTML", reply_markup: (r.unreadIds ?? []).length ? kb : ishKeyboard() }).catch(() => undefined);
+  });
+
+  bot.callbackQuery(/^ishrd:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffNoticeMarkRead } = await import("../services/staffTeamService");
+    const r = await staffNoticeMarkRead(String(ctx.from?.id ?? ""), Number(ctx.match[1]));
+    if (r.ok) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+    await ctx.reply(r.text, { parse_mode: "HTML" }).catch(() => undefined);
+  });
+
+  // 📖 J8 — qoidalar: yangilangan bo'lsa "Tanishdim" tugmasi bilan.
+  bot.callbackQuery("ish:rules", async (ctx) => {
+    if (ctx.chat && ctx.chat.type !== "private") {
+      await ctx.answerCallbackQuery({ text: "Botga shaxsiy yozing: /ish", show_alert: true }).catch(() => undefined);
+      return;
+    }
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffMyRules } = await import("../services/staffTeamService");
+    const r = await staffMyRules(String(ctx.from?.id ?? ""));
+    await ctx
+      .reply(r.text, {
+        parse_mode: "HTML",
+        reply_markup: r.needAck ? new InlineKeyboard().text("✅ Tanishdim", "ish:ack") : ishKeyboard(),
+      })
+      .catch(() => undefined);
+  });
+
+  bot.callbackQuery("ish:ack", async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const { staffRulesAck } = await import("../services/staffTeamService");
+    const r = await staffRulesAck(String(ctx.from?.id ?? ""));
+    if (r.ok) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+    await ctx.reply(r.text, { parse_mode: "HTML", reply_markup: ishKeyboard() }).catch(() => undefined);
+  });
+
+  // 🏆 J9/J10 — nishonlar + olingan mukofotlar + jamoa maqsadi holati.
+  bot.callbackQuery("ish:rewards", onTap(async (tg) => (await import("../services/staffTeamService")).staffMyRewards(tg)));
+
+  // 📈 J10 — EGA "Mukofotni berish" bosdi (karta kechki tickdan keladi). Pul shu
+  // yerda, ishlagan kuniga qarab bo'linib, idempotent yoziladi.
+  bot.callbackQuery(/^ishgl:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery().catch(() => undefined);
+    const tg = String(ctx.from?.id ?? "");
+    const { staffGoalPay } = await import("../services/staffTeamService");
+    const r = await staffGoalPay(Number(ctx.match[1]), tg, { mustBeOwnerTg: tg });
+    if (r.ok) await ctx.editMessageReplyMarkup({ reply_markup: undefined }).catch(() => undefined);
+    await ctx.reply(r.ok ? (r.text ?? "✅ Berildi") : `❌ ${r.error ?? "Berilmadi"}`, { parse_mode: "HTML" }).catch(() => undefined);
+    for (const d of r.deliveries ?? []) {
+      await ctx.api.sendMessage(d.telegramId, d.text, { parse_mode: "HTML" }).catch((e) => {
+        console.error(`[staff] maqsad-mukofot xabari yetmadi (tg=${d.telegramId}):`, e); // pul YOZILGAN — xabar yutilib ketmasin
+      });
+    }
+  });
 
   // 💸 Xodim "Pul oldim" bosdi → ForceReply-prompt (sessiyasiz, faqat shaxsiy chat).
   bot.callbackQuery("ish:pay", async (ctx) => {

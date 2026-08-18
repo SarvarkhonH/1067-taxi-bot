@@ -19,6 +19,15 @@ import {
   shiftLengthMin,
   shiftPayableMin,
   tashkentDayMinutes,
+  // J7–J10
+  type StaffBadgeInput,
+  computeStaffBadges,
+  goalProgress,
+  nextGoalTarget,
+  parseRewardCatalog,
+  punctualStreak,
+  rewardKeyOf,
+  splitGoalBonus,
 } from "../staff";
 
 // Baseline: operator, 3 000 000 so'm/oy, 09:00–18:00, Mon–Sat, defaults everywhere.
@@ -320,5 +329,122 @@ describe("idempotence & integer discipline", () => {
       expect(Number.isInteger(r.amountEarned)).toBe(true);
       expect(r.amountEarned).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+// ── J7–J10: mukofot katalogi, nishonlar, maqsad-bonusi ───────────────────────
+describe("J9 mukofot katalogi", () => {
+  it("Json → katalog: nom/summasi buzuq qatorlar tashlanadi, kalit avtomatik", () => {
+    const cat = parseRewardCatalog([
+      { name: "Kechikmagan oy", amount: 200000 },
+      { name: "", amount: 5000 }, // nomsiz
+      { name: "Nol", amount: 0 }, // summasiz
+      { name: "Manfiy", amount: -100 },
+      "axlat",
+      { key: "eng-kop", name: "Eng ko'p ish kuni", amount: 300000, note: "oy bo'yi" },
+    ]);
+    expect(cat.map((r) => r.name)).toEqual(["Kechikmagan oy", "Eng ko'p ish kuni"]);
+    expect(cat[0]?.key).toBe("kechikmagan-oy");
+    expect(cat[1]?.key).toBe("eng-kop"); // berilgan kalit saqlanadi
+    expect(cat[1]?.note).toBe("oy bo'yi");
+  });
+  it("kalit ASCII — idempotentlik kalitiga xavfsiz joylashadi", () => {
+    expect(rewardKeyOf("Eng yaxshi ishchi!")).toBe("eng-yaxshi-ishchi");
+    expect(rewardKeyOf("🏆🏆")).toBe("mukofot"); // bo'sh qolmaydi
+  });
+});
+
+describe("J9 nishonlar", () => {
+  const row = (id: number, p: Partial<StaffBadgeInput> = {}): StaffBadgeInput => ({
+    id, workedDays: 20, lateDays: 0, absentDays: 0, punctualityPct: 100, minutes: 20 * 480, ...p,
+  });
+  it("oyning xodimi — bitta g'olib, intizom → kun → daqiqa tartibida", () => {
+    const b = computeStaffBadges([row(1, { punctualityPct: 90, lateDays: 2 }), row(2), row(3, { workedDays: 10, minutes: 4800 })]);
+    expect(b.get(2)?.some((x) => x.code === "oyxodimi")).toBe(true);
+    expect(b.get(1)?.some((x) => x.code === "oyxodimi")).toBe(false);
+    expect(b.get(3)?.some((x) => x.code === "oyxodimi")).toBe(false);
+  });
+  it("yolg'iz xodimga «oyning xodimi» berilmaydi (musobaqa yo'q)", () => {
+    expect(computeStaffBadges([row(1)]).get(1)?.some((x) => x.code === "oyxodimi")).toBe(false);
+  });
+  it("kam kun ishlagan — 100% intizom ham, kelmagan-kuni-yo'q ham yo'q", () => {
+    const b = computeStaffBadges([row(1, { workedDays: 3, minutes: 1440 }), row(2)]);
+    expect(b.get(1)).toEqual([]);
+    expect(b.get(2)?.map((x) => x.code).sort()).toEqual(["intizom", "oyxodimi", "tolik"]);
+  });
+  it("streak nishoni faqat 5 kundan boshlab", () => {
+    expect(computeStaffBadges([row(1, { streak: 4 }), row(2, { streak: 9 })]).get(1)?.some((x) => x.code === "streak")).toBe(false);
+    expect(computeStaffBadges([row(1, { streak: 4 }), row(2, { streak: 9 })]).get(2)?.find((x) => x.code === "streak")?.label).toContain("9 kun");
+  });
+  it("streak: dam kunlari uzmaydi, kechikish uzadi", () => {
+    const d = (worked: boolean, onTime: boolean) => ({ worked, onTime });
+    expect(punctualStreak([d(true, true), d(false, false), d(true, true), d(true, true)])).toBe(3);
+    expect(punctualStreak([d(true, true), d(true, false), d(true, true)])).toBe(1);
+    expect(punctualStreak([])).toBe(0);
+  });
+});
+
+describe("J10 maqsad-bonusi", () => {
+  it("oy o'rtachasi bilan o'lchanadi — bitta sakragan kun maqsadni ochmaydi", () => {
+    const p = goalProgress([200, 180, 520, 190], 500, 30);
+    expect(p.avg).toBe(272.5);
+    expect(p.achieved).toBe(false);
+    expect(p.pct).toBe(55);
+  });
+  it("o'rtacha maqsadga yetsa — bajarildi", () => {
+    expect(goalProgress([500, 510, 490], 500, 30).achieved).toBe(true);
+  });
+  it("qolgan kunlar uchun kerakli sur'at hisoblanadi", () => {
+    // 4 kun × 200 = 800; 30 kunlik oyda 500 o'rtacha = 15 000 kerak → qolgan 26 kunga (15000−800)/26 = 547/kun
+    expect(goalProgress([200, 200, 200, 200], 500, 30).needPerDay).toBe(547);
+    expect(goalProgress([600, 600], 500, 30).needPerDay).toBe(0); // allaqachon bajarilgan
+  });
+  it("kun yo'q → nol, bajarilmagan (bo'sh oyda mukofot ochilmaydi)", () => {
+    const p = goalProgress([], 500, 30);
+    expect(p).toMatchObject({ days: 0, avg: 0, achieved: false, pct: 0 });
+  });
+  it("yetib bo'lmaydigan sur'at ochiq aytiladi (fantaziya raqam ko'rsatilmaydi)", () => {
+    // Jonli holat: o'rtacha ~170, maqsad 500 -> qolgan kunlarga 1000+ kerak
+    const far = goalProgress(Array(17).fill(170), 500, 31);
+    expect(far.outOfReach).toBe(true);
+    expect(far.needPerDay).toBe(901); // (500×31 − 2890) / 14 kun
+    // Yaqin maqsad esa normal sur'at beradi
+    const near = goalProgress(Array(17).fill(170), 200, 31);
+    expect(near.outOfReach).toBe(false);
+  });
+  it("keyingi maqsad pog'onasi: 500 → 600", () => {
+    expect(nextGoalTarget(500)).toBe(600);
+    expect(nextGoalTarget(540)).toBe(600);
+    expect(nextGoalTarget(500, 250)).toBe(750);
+  });
+});
+
+describe("J10 mukofot taqsimoti (ishlagan kuniga qarab)", () => {
+  it("proportsional bo'linadi va YIG'INDI aynan fondga teng", () => {
+    const parts = splitGoalBonus(1_000_000, [
+      { employeeId: 1, workedDays: 26 },
+      { employeeId: 2, workedDays: 13 },
+      { employeeId: 3, workedDays: 13 },
+    ]);
+    expect(parts.reduce((a, p) => a + p.amount, 0)).toBe(1_000_000); // so'm yo'qolmaydi/yaralmaydi
+    expect(parts[0]?.amount).toBe(500_000);
+    expect(parts[1]?.amount).toBe(250_000);
+    expect(parts[2]?.amount).toBe(250_000);
+  });
+  it("bo'linmaydigan summada ham yig'indi aniq (eng katta qoldiqqa qo'shiladi)", () => {
+    const parts = splitGoalBonus(1_000_000, [
+      { employeeId: 1, workedDays: 1 },
+      { employeeId: 2, workedDays: 1 },
+      { employeeId: 3, workedDays: 1 },
+    ]);
+    expect(parts.reduce((a, p) => a + p.amount, 0)).toBe(1_000_000);
+    expect(parts.map((p) => p.amount).sort()).toEqual([333_333, 333_333, 333_334]);
+  });
+  it("ishlamagan xodim ulush olmaydi; hech kim ishlamasa — hech kimga berilmaydi", () => {
+    expect(splitGoalBonus(500_000, [{ employeeId: 1, workedDays: 10 }, { employeeId: 2, workedDays: 0 }])).toEqual([
+      { employeeId: 1, amount: 500_000 },
+    ]);
+    expect(splitGoalBonus(500_000, [{ employeeId: 2, workedDays: 0 }])).toEqual([]);
+    expect(splitGoalBonus(0, [{ employeeId: 1, workedDays: 10 }])).toEqual([]);
   });
 });

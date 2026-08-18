@@ -33,7 +33,7 @@ export type StaffActionResult =
 export async function employeeFor(telegramId: string) {
   if (!(await featureOn("jamoa"))) return null;
   const emp = await prisma.employee.findUnique({ where: { telegramId }, include: { org: true } });
-  if (!emp || !emp.active || !emp.org.active) return null;
+  if (!emp || !emp.active || emp.archivedAt || !emp.org.active) return null; // 🗄 arxivdagi xodim uchun /ish yopiq
   return emp;
 }
 
@@ -839,7 +839,9 @@ export async function staffOwnerSummary(
   const t = tashkentDayMinutes(now);
   const { text, unconfirmed, suggestions } = await buildDailySummary(org, org.employees, t.date);
   const older = await pendingOlderSessions(org.id, t.date);
-  const fullText = older.count ? `${text}\n\n⏳ <b>Eski tasdiqsiz kunlar:</b> ${older.count} ta · jami ${fmt(older.total)} so'm` : text;
+  const base = older.count ? `${text}\n\n⏳ <b>Eski tasdiqsiz kunlar:</b> ${older.count} ta · jami ${fmt(older.total)} so'm` : text;
+  const { staffGoalSummaryLine } = await import("./staffTeamService");
+  const fullText = base + (await staffGoalSummaryLine(org.id, now).catch(() => ""));
   return { ok: true, text: fullText, orgId: org.id, date: t.date, unconfirmed, suggestions, olderPending: older.count };
 }
 
@@ -947,6 +949,26 @@ export async function staffDailyTick(bot: import("grammy").Bot, now = new Date()
   // shuning uchun ikkala yo'l to'qnashsa ham dublikat bo'lmaydi.
   await staffAutoCloseOverdue(now).catch((e) => console.error("[staff] autoclose failed:", e));
   await staffTomorrowRemindersTick(bot, now).catch((e) => console.error("[staff] tomorrow-remind failed:", e));
+  // 📈 J10: jamoa maqsadi bajarildimi? Pul AVTOMATIK berilmaydi — egaga tugmali
+  // karta ketadi, status faqat karta YETGACH "bajarildi" bo'ladi (lazy import:
+  // staffTeamService bu fayldan employeeFor oladi — statik import halqa yasardi).
+  try {
+    const { staffGoalCheck, staffGoalMarkAchieved } = await import("./staffTeamService");
+    const { InlineKeyboard: IK } = await import("grammy");
+    for (const card of await staffGoalCheck(now)) {
+      try {
+        await bot.api.sendMessage(card.ownerTelegramId, card.text, {
+          parse_mode: "HTML",
+          reply_markup: new IK().text("💸 Mukofotni berish", `ishgl:${card.goalId}`),
+        });
+        await staffGoalMarkAchieved(card.goalId, now);
+      } catch (e) {
+        console.error(`[staff] maqsad kartasi yuborilmadi (goal=${card.goalId}):`, e); // status "aktiv" qoladi → keyingi tick qayta uradi
+      }
+    }
+  } catch (e) {
+    console.error("[staff] goal check failed:", e);
+  }
   const t = tashkentDayMinutes(now);
   if (t.minutes < SUMMARY_AFTER_MIN) return;
   const orgs = await prisma.organization.findMany({ where: { active: true }, include: { employees: { where: { active: true }, orderBy: { name: "asc" } } } });
@@ -956,7 +978,9 @@ export async function staffDailyTick(bot: import("grammy").Bot, now = new Date()
     if (await prisma.appState.findUnique({ where: { key: marker } })) continue;
     const { text, unconfirmed, suggestions } = await buildDailySummary(org, org.employees, t.date);
     const older = await pendingOlderSessions(org.id, t.date);
-    const fullText = older.count ? `${text}\n\n⏳ <b>Eski tasdiqsiz kunlar:</b> ${older.count} ta · jami ${fmt(older.total)} so'm` : text;
+    const base = older.count ? `${text}\n\n⏳ <b>Eski tasdiqsiz kunlar:</b> ${older.count} ta · jami ${fmt(older.total)} so'm` : text;
+    const { staffGoalSummaryLine } = await import("./staffTeamService");
+    const fullText = base + (await staffGoalSummaryLine(org.id, now).catch(() => ""));
     const { InlineKeyboard } = await import("grammy");
     const kb = new InlineKeyboard();
     if (unconfirmed) kb.text("✅ Tasdiqlash", `ishc:${org.id}:${t.date}`);

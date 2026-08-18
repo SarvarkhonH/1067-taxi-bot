@@ -371,3 +371,57 @@ grafiklari) · F2/F3 (ommaviy amallar, shablon quruvchisi) · G1/G2/G3
 Har blok — o'z DoD'i + ega QABUL'i bilan, alohida so'rovga qadar boshlanmaydi
 (CLAUDE.md qoidasi). **"P1 boshla"** yoki aniq raqam (masalan "B1 va B2 ni
 qil") desangiz — o'sha bilan boshlayman.
+
+---
+
+## 8. J6–J10 — jamoa madaniyati qatlami (ega so'rovi 2026-08-18)
+
+> «Eski ishchini o'chirish · ishchilarga xabarlar · qoidalar bo'limi · mukofotlar» + jamoaviy
+> maqsad-bonusi. Davomat/oylik yadrosi (computeDayPay, StaffLedger) TEGILMADI — ustiga qatlam.
+> Kod: `services/staffTeamService.ts` (yangi, J7–J10) + `staffAdminService.ts` (J6) +
+> `bot/staff.ts` (3 tugma) + `admin/src/jamoa.tsx` (4 ekran + arxiv bo'limi).
+
+### 8.1 J6 — 🗄 Arxiv («eski ishchini o'chirish»)
+Ega qarori: **arxiv + faqat bo'sh qatorni butunlay**. Arxivdagi xodim: ro'yxatda ko'rinmaydi
+(pastda yig'ilgan «🗄 Arxiv (N)» bo'limi), botda `/ish` yopiq, kechki xulosa va reytingga
+kirmaydi — **lekin oylik tarixi va pul yozuvlari qoladi**, o'tgan oy hisobotlari o'zgarmaydi.
+- Arxivga olishda **ochiq smena avval yopiladi** (avto-yopish faqat faol xodimni ko'radi —
+  aks holda kun abadiy tasdiqsiz qolardi) + osilgan ta'til/almashish so'rovlari rad etiladi.
+- Butunlay o'chirish sharti: 0 ish kuni + 0 pul yozuvi + 0 boshlang'ich balans.
+- «faol» belgisi qayta yoqilsa `archivedAt` ham tozalanadi (ikki joyda ikki xil haqiqat bo'lmasin).
+
+### 8.2 J7 — 📢 Xabarlar (ega → xodim)
+`StaffNotice` (kind="xabar") + `StaffNoticeRead`. Hammaga yoki bitta xodimga; botga darhol.
+Xodim: `/ish` → «📢 Xabarlar (N)» → «✅ O'qidim». Ega: panelda «3/5 o'qidi» + o'qimaganlar ismi.
+Yetkazish natijasi darhol qaytariladi («❌ 1 kishiga yetmadi») — jim yutilmaydi.
+
+### 8.3 J8 — 📖 Qoidalar
+Bir jadval, `kind="qoida"` (tartiblanadi, tahrirlanadi, o'chirilgani tarixda qoladi).
+`Organization.rulesVersion` har o'zgarishda ↑ → `Employee.rulesAckVersion` bilan solishtiriladi:
+xodimdan **qayta «✅ Tanishdim»** so'raladi, panelda «4/5 tanishdi». Matn o'zgarmasa versiya oshmaydi.
+
+### 8.4 J9 — 🏆 Mukofotlar (ikkalasi)
+- **Pulli katalog**: `Organization.rewards` Json — nomi + summasi + izoh. Xodim sahifasida bir
+  bosishda beriladi → **MAVJUD** `staffAdminPay(kind:"bonus")` (yangi pul kanali YO'Q), izoh
+  `🏆 <nom>`, xodimga botdan xabar. Xodim `/ish` → «🏆 Mening mukofotlarim» da katalogni ko'radi.
+- **Nishonlar** (pulsiz, saqlanmaydi — KPI'dan qayta hisoblanadi, drift bo'lmaydi):
+  🥇 Oyning xodimi (≥2 kishi musobaqasi, ≥5 ish kuni, kelmagan kuni yo'q) · 💯 100% intizom ·
+  📅 Kelmagan kuni yo'q · 🔥 N kun ketma-ket vaqtida (≥5). `computeStaffBadges` — shared, testli.
+
+### 8.5 J10 — 📈 Jamoaviy maqsad-bonusi
+Ega qarori: **«kunlik N ta buyurtmaga yetilsa — M so'm fond, keyin keyingi pog'ona»**.
+- **O'lchov**: `DailyStat.completedRides` (kas1067'ning JAMI kunlik yakunlangan buyurtmasi;
+  2026-08 jonli o'lchov: 150–207/kun). Yangi poller YO'Q — mavjud `rollupRecentDays` yozadi.
+- **Qoida**: OY O'RTACHASI ≥ maqsad (bitta omadli kun mln ochmaydi). **Bugungi kun kirmaydi**
+  (tugamagan kun o'rtachani ertalabdan pastga tortardi).
+- **Yetib bo'lmasa ochiq aytiladi**: kerakli sur'at maqsaddan 1.5× oshsa — «bu oyda yetib
+  bo'lmaydi», fantaziya raqam ko'rsatilmaydi.
+- **Pul avtomatik BERILMAYDI**: kechki tick egaga «💸 Mukofotni berish» tugmali karta yuboradi
+  (status faqat karta YETGACH «bajarildi» — Telegram yiqilsa karta yo'qolmaydi). Ega bosgach fond
+  **ishlagan kuniga proportsional** bo'linadi (largest-remainder → yig'indi AYNAN fondga teng),
+  har ulush idempotent kalit bilan. Bot tugmasi egalikni alohida tekshiradi (`mustBeOwnerTg`).
+- Keyingi pog'ona avtomatik taklif qilinadi (500 → 600), lekin ega o'zi belgilaydi.
+
+### 8.6 Sxema (bitta VPS `db push` — kod push'idan OLDIN)
+`Employee` +`archivedAt`/`archiveNote`/`rulesAckVersion` · `Organization` +`rulesVersion`/`rewards`
+· yangi `StaffNotice` · `StaffNoticeRead` · `StaffGoal`.
