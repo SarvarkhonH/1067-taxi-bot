@@ -213,7 +213,7 @@
   background: var(--oyk-surface); display: flex; align-items: center; justify-content: center; font-size: 54px;
   box-shadow: var(--oyk-shadow-lift);
 }
-.oyk-goalc-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.oyk-goalc-img img { width: 100%; height: 100%; object-fit: contain; background: var(--oyk-surface); display: block; }
 .oyk-goalc-lower { padding: 14px 16px 15px; }
 .oyk-goalc-bar { height: 9px; border-radius: 99px; background: var(--oyk-fill); overflow: hidden; }
 .oyk-goalc-bar span { display: block; height: 100%; width: 100%; border-radius: 99px; background: var(--oyk-prog-grad); transform-origin: left; transform: scaleX(0); transition: transform .5s ease; }
@@ -308,7 +308,7 @@
 .oyk-next-row { display: flex; gap: 8px; }
 .oyk-next-card { flex: 1; min-width: 0; background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 13px; padding: 8px; text-align: center; box-shadow: var(--oyk-shadow); }
 .oyk-next-ic { width: 100%; height: 44px; border-radius: 9px; background: var(--oyk-fill); display: flex; align-items: center; justify-content: center; font-size: 20px; margin-bottom: 6px; overflow: hidden; }
-.oyk-next-ic img { width: 100%; height: 100%; object-fit: cover; opacity: .85; }
+.oyk-next-ic img { width: 100%; height: 100%; object-fit: contain; opacity: .85; }
 .oyk-next-nm { font-size: 9.5px; font-weight: 800; line-height: 1.25; color: var(--oyk-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── 🤝 "Rahmat ayt" kartasi va tugmasi ───────────────────────────────────────────────── */
@@ -355,21 +355,30 @@
 .oyk-vcard { background: var(--oyk-surface); border: 1px solid var(--oyk-line); border-radius: 20px; box-shadow: var(--oyk-shadow); padding: 14px; display: flex; flex-direction: column; gap: 9px; }
 .oyk-vcard.is-soldout { opacity: .55; }
 /* Afisha: karta tepasi to'liq mahsulot-foto, pastdan qoraytirish bilan nom va narx o'qiladi */
-.oyk-vcard-photo { position: relative; margin: -14px -14px 2px; height: 200px; overflow: hidden; border-radius: 19px 19px 0 0;
+/* 🔴 F2-b (2026-08-19, ega: «rasmlar juda katta va sig'mayopti … yarim ko'rinopti»): sabab
+   `object-fit` EMAS edi (u F2 da `contain` ga o'tgan) — ustidagi `-fade` gradienti rasmning
+   pastki 60% ini qoraytirib turgan. `cover` davrida bu to'g'ri edi (rasm chetdan chetga
+   edi), `contain` da esa mahsulotning yarmi qorong'ida qolardi. Endi: banner pastroq va
+   ekranga moslashadi, rasmga pastdan joy (padding) berilib matn-yo'lagi bilan KESISHMAYDI,
+   fade esa faqat o'sha yo'lakni qoplaydi. Natija: mahsulot HAR o'lchamda to'liq ko'rinadi. */
+.oyk-vcard-photo { position: relative; margin: -14px -14px 2px; height: clamp(132px, 38vw, 176px); overflow: hidden; border-radius: 19px 19px 0 0;
   background: var(--oyk-fill); }
 /* 🔴 F2 (2026-08-16 audit): avval `cover` edi — Uzum rasmlari turli nisbatda (ko'pi kvadratga
    yaqin), 200px baland KENG bannerga majburan kesilganda mahsulotning yarmi kesilib ketardi
    (ega shikoyati: "oversize and only show half"). `contain` — rasm HECH QACHON kesilmaydi,
    DIZAYN_QOIDALARI #10 ("jismoniy narsa = real rasm") ustuvor; bo'sh chekka `--oyk-fill` bilan
    to'ldiriladi (yangi rang emas, mavjud token). */
-.oyk-vcard-photo img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.oyk-vcard-photo img { width: 100%; height: 100%; object-fit: contain; display: block;
+  box-sizing: border-box; padding: 10px 10px 52px; }
 /* Rasmsiz sovrin ham AFISHA o'lchamida (rangli fon + katta emoji), kulrang kvadrat EMAS (#10) */
 .oyk-vcard-photo.is-emoji {
   display: flex; align-items: center; justify-content: center;
   background: linear-gradient(150deg, var(--oyk-accent-pale), rgba(110, 90, 255, .12));
 }
 .oyk-vcard-photo-emoji { font-size: 76px; line-height: 1; }
-.oyk-vcard-photo-fade { position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, rgba(10, 8, 22, .88)); }
+/* Fade FAQAT pastki matn-yo'lagini qoplaydi (avval `inset:0` + 40% dan boshlanib rasmning
+   pastki yarmini qoraytirardi — ega shikoyati «yarim ko'rinopti»). */
+.oyk-vcard-photo-fade { position: absolute; inset: auto 0 0 0; height: 62px; background: linear-gradient(180deg, transparent, rgba(10, 8, 22, .88)); }
 /* 🔴 F3 (2026-08-16 audit): "N kishi maqsad qilgan" — kichik dumaloq belgi, rasm ustida
    (ijtimoiy isbot). Fade'dan OLDIN DOM'da turadi — z-index shart emas, keyingi qatlam ustidan
    avtomatik chiqadi (fade uning ustidan bosilmasin uchun `z-index:1` ham qo'shildi). */
@@ -1033,7 +1042,7 @@
   padding: 12px; display: flex; flex-direction: column; gap: 7px;
 }
 .oyk-pcard-icon { font-size: 34px; text-align: center; animation: oyk-bob 2.6s ease-in-out infinite; }
-.oyk-pcard-icon img { width: 100%; height: 120px; margin: 0; border-radius: 12px; object-fit: cover; display: block; animation: none; }
+.oyk-pcard-icon img { width: 100%; height: 120px; margin: 0; border-radius: 12px; object-fit: contain; background: var(--oyk-surface); display: block; animation: none; }
 .oyk-pcard-icon:has(img) { animation: none; }
 /* Rasm yo'q holati — rangli fon + katta emoji. Bo'sh kulrang kvadrat TAQIQ (#10). */
 .oyk-pcard-icon:not(:has(img)) {
@@ -1254,7 +1263,7 @@
 .oyk-cards-head{display:flex;align-items:center;gap:11px}
 .oyk-cards-ico{width:42px;height:42px;border-radius:13px;background:var(--oyk-fill);display:grid;
   place-items:center;font-size:21px;flex-shrink:0;overflow:hidden}
-.oyk-cards-ico img{width:100%;height:100%;object-fit:cover}
+.oyk-cards-ico img{width:100%;height:100%;object-fit:contain}
 .oyk-cards-head-name{font-size:15px;font-weight:900;line-height:1.25}
 .oyk-cards-bar{margin:11px 0 2px}
 .oyk-cards-sub{font-size:12.5px;color:var(--oyk-text-2);margin:2px 0 10px}
