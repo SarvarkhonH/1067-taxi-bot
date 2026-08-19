@@ -30,10 +30,28 @@ export async function setNotifyOff(memberId: number, off: boolean): Promise<void
   else await prisma.appState.deleteMany({ where: { key } });
 }
 
+/** ⏰ OY-07 — jim-soat qo'rig'i endi `trySend` ning O'ZIDA (avval faqat `pushEngineTick` da edi,
+ *  holbuki `oyinService` izohi «`notifyOnce` jim-soat qo'rig'ini beradi» deb YOZARDI — hujjat
+ *  bilan kod bir-biriga zid edi va mavsum push'lari tunda ham ketaverardi).
+ *  `urgent: true` — FAQAT kechiktirilsa MA'NOSINI YO'QOTADIGAN xabarlar uchun (g'olib e'loni,
+ *  «oxirgi soat» ogohlantirishi). Default xavfsiz: jim-soat HURMAT QILINADI.
+ *
+ *  ⚠️ KEYINGI AGENTGA — `urgent: true` QO'YILISHI KERAK BO'LGAN chaqiruvlar (fayllar bu
+ *  o'zgarishda TEGILMAGAN, egaga hisobotda ajratib aytilgan):
+ *   • `oyinService.seasonDrawNotify` → `oyin_win:*` — g'olib e'loni, kechiktirib bo'lmaydi;
+ *   • `oyinService.seasonWarningTick` → `oyin_warn49h:*` — «oxirgi soat», 1 soatlik deraza;
+ *   • `bookingNotifier` → `oyin_ref_ride:*` va `campaignService` → `cmp_done:*` — BIR MARTALIK
+ *     chaqiruvlar (qayta urinish TIKI YO'Q), jim-soatda tushib qolsa xabar butunlay yo'qoladi.
+ *  Qolganlari (warn7 · warn3 · seasonend · sprint · cardmem · lost · drv_* · cmp_rem) tikda
+ *  qayta uriladi — ular uchun default (jim-soat hurmat qilinadi) TO'G'RI. */
+export interface NotifyOpts {
+  urgent?: boolean;
+}
+
 /** Public wrapper so other engagement ticks (e.g. driver pushes) reuse the SAME dedup/cap/quiet
- *  rules. Returns true only if the message was actually sent (claimed the once-per-day slot). */
-export async function notifyOnce(bot: Bot, chatId: string, memberId: number, kind: string, html: string, extra?: object): Promise<boolean> {
-  return trySend(bot, chatId, memberId, kind, html, extra);
+ *  rules. Returns true only if the message was actually DELIVERED (see `trySend`). */
+export async function notifyOnce(bot: Bot, chatId: string, memberId: number, kind: string, html: string, extra?: object, opts?: NotifyOpts): Promise<boolean> {
+  return trySend(bot, chatId, memberId, kind, html, extra, opts);
 }
 
 /** Nega yuborilmadi — CHAQIRUVCHI mijozga to'g'ri sabab ayta olsin.
@@ -52,20 +70,52 @@ export type SendBlockReason = "blocked" | "notify_off" | "push_cap" | "duplicate
 export async function notifyUserInitiated(
   bot: Bot, chatId: string, memberId: number, kind: string, html: string, extra?: object,
 ): Promise<{ ok: true } | { ok: false; reason: SendBlockReason }> {
+  const dk = dayKey(); // BITTA o'qish: claim va (kerak bo'lsa) `releaseSlot` bir xil kunga tegsin
   if (await isNotifyOff(memberId)) return { ok: false, reason: "notify_off" };
   const { isBlocked, pushMessage } = await import("./pushSend");
   if (await isBlocked(chatId)) return { ok: false, reason: "blocked" };
   try {
-    await prisma.notifyLog.create({ data: { memberId, kind, dayKey: dayKey() } });
+    await prisma.notifyLog.create({ data: { memberId, kind, dayKey: dk } });
   } catch {
     return { ok: false, reason: "duplicate" }; // shu `kind` bugun allaqachon ketgan
   }
   const r = await pushMessage(bot, chatId, kind, html, { memberId, prechecked: true, extra });
-  return r === "skipped" ? { ok: false, reason: "failed" } : { ok: true };
+  // 🔴 OY-12 (shu yerda ham): avval `r === "skipped" ? failed : ok` edi — ya'ni 429/tarmoq
+  // (`failed`) va 403 (`blocked`) HAM `ok: true` berardi. Mijoz "Rahmat ayt" ni bosardi, ekran
+  // "yuborildi" derdi, xabar esa hech qayerga bormasdi VA kunlik `kind` markeri qolgani uchun
+  // u shu kuni QAYTA URINA OLMASDI. Endi haqiqiy natija qaytadi; yetkazilmasa marker o'chadi.
+  if (r !== "sent") {
+    await releaseSlot(memberId, kind, dk);
+    return { ok: false, reason: r === "failed" ? "failed" : "blocked" };
+  }
+  return { ok: true };
 }
 
-async function trySend(bot: Bot, chatId: string, memberId: number, kind: string, html: string, extra?: object): Promise<boolean> {
+/** Yetkazilmagan xabarning BAND QILINGAN slotini bo'shatadi. Best-effort: o'chirish o'zi yiqilsa
+ *  ham xabar oqimi to'xtamaydi (eng yomoni — o'sha `kind` shu kuni qayta urinilmaydi). */
+async function releaseSlot(memberId: number, kind: string, dk: string): Promise<void> {
+  await prisma.notifyLog.deleteMany({ where: { memberId, kind, dayKey: dk } }).catch(() => undefined);
+}
+
+/** 🔴 OY-12 — QAYTISH QIYMATI ENDI "YETKAZILDI", "urinildi" EMAS.
+ *  Avval `!== "skipped"` hisoblanardi: 429/tarmoq (`failed`) va 403 (`blocked`) ham `true` berardi.
+ *  Oqibati DURABLE edi — `oyinService` chaqiruvlari shu `true` ga qarab `markPushed(...)` yozadi
+ *  (`oyin:warn7/warn3/warn49h/seasonend/winner/…`), ya'ni bitta 429 tufayli sovrin YUTGAN odam
+ *  «SIZ YUTDINGIZ» xabarini ABADIY olmasdi.
+ *  Eski izoh buni bilib turib saqlagan edi: qaytish qiymati o'zgarsa `pushEngineTick` dagi
+ *  `continue` zanjiri buziladi va `comebackOfferUntil` yozilmay qoladi. Bu ikki talab endi
+ *  ZID EMAS, chunki yetkazilmaganda NotifyLog markeri O'CHIRILADI (`releaseSlot`):
+ *   • chaqiruvchi `false` oladi → durable marker QO'YILMAYDI → keyingi tik qayta uradi;
+ *   • slot bo'shagani uchun qayta urinish kunlik cap/dedup ga tiqilib qolmaydi;
+ *   • `comebackOfferUntil` YOZILMAYDI — bu ATAYLAB TO'G'RI: mijoz "48 soatlik taklif" xabarini
+ *     ko'rmagan bo'lsa, taklif jimgina yonib ketmasligi kerak. Keyingi tik xabarni ham,
+ *     taklifni ham birga beradi. */
+async function trySend(bot: Bot, chatId: string, memberId: number, kind: string, html: string, extra?: object, opts?: NotifyOpts): Promise<boolean> {
   const dk = dayKey();
+  // ⏰ OY-07: shoshilinch bo'lmagan xabar jim-soatda YUBORILMAYDI. Tekshiruv CLAIM'dan OLDIN —
+  // marker qo'yilmaydi, ya'ni bu "yo'qotish" emas, KECHIKTIRISH: 08:00 dan keyingi tik uradi.
+  // (Bir martalik chaqiruvchilar uchun `urgent: true` kerak — `NotifyOpts` izohidagi ro'yxat.)
+  if (!opts?.urgent && quietHours()) return false;
   if (await isNotifyOff(memberId)) return false; // user opted out of smart push
   // 📵 BLK-1: blokni CLAIM'dan oldin tekshiramiz — bloklagan odamga NotifyLog markeri ham
   // yozilmaydi (aks holda "yuborildi" statistikasi hech qachon yetib bormagan xabar bilan bulg'anadi).
@@ -78,10 +128,14 @@ async function trySend(bot: Bot, chatId: string, memberId: number, kind: string,
   } catch {
     return false; // already sent this trigger today
   }
-  // ⚠️ Qaytish qiymati AVVALGIDEK: "slot band qilindi" (yuborishga urinildi), "yetkazildi" EMAS.
-  // Aks holda 429 da chaqiruvchi zanjiri (`continue`) buzilib, o'sha tick'da ikkinchi trigger
-  // ishga tushardi va `comebackOfferUntil` yozilmay qolardi — bu tiket oqimni O'ZGARTIRMAYDI.
-  return (await pushMessage(bot, chatId, kind, html, { memberId, prechecked: true, extra })) !== "skipped";
+  const outcome = await pushMessage(bot, chatId, kind, html, { memberId, prechecked: true, extra });
+  if (outcome !== "sent") {
+    // `blocked` da ham bo'shatamiz: `recordBlock` allaqachon `blockedAt` yozgan, shuning uchun
+    // keyingi tik yuqoridagi `isBlocked` darvozasida to'xtaydi — cheksiz qayta urinish yo'q.
+    await releaseSlot(memberId, kind, dk);
+    return false;
+  }
+  return true;
 }
 
 /** Periodic tick (piggybacks the existing loop). Cheap checks, hard caps. */
@@ -160,6 +214,11 @@ export async function weeklyRecap(bot: Bot): Promise<void> {
   const marker = `recap_sent:${wk}`;
   if (await prisma.appState.findUnique({ where: { key: marker } })) return;
   if (tashkentNow().getUTCDay() !== 1) return; // Mondays only
+  // ⏰ OY-07: marker HAFTASIGA BIR MARTA qo'yiladi, ya'ni recap BIR MARTALIK. Dushanba 00:00 da
+  // ishga tushsa `trySend` ning yangi jim-soat qo'rig'i hammasini rad qilardi va recap butun
+  // hafta yo'qolardi. Shuning uchun MARKERNI QO'YISHDAN OLDIN kutamiz: dushanba 08:00 dan
+  // keyingi birinchi tik yuboradi (recap shoshilinch emas — ertalab o'qilgani yaxshiroq ham).
+  if (quietHours()) return;
   await prisma.appState.upsert({ where: { key: marker }, create: { key: marker, value: "1" }, update: { value: "1" } });
 
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000);

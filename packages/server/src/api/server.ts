@@ -271,10 +271,105 @@ function pathAllowedForChatOps(path: string): boolean {
   return path.startsWith("/api/admin/chat/") || path.startsWith("/api/admin/opr/") || path === "/api/admin/whoami" || path === "/api/admin/health";
 }
 
+// 🔑 OY-01 (2026-08-19): the bare "operator" role had NO choke point at all — `shopseller` and
+// `chatops` each got a `pathAllowedFor…` allowlist, `operator` fell straight through to `next()`.
+// A token minted by the one-click «🔑 Operator-token yaratish» button could therefore READ
+// /finance, /economy, /transactions, /members, /member360, /driver360, /withdrawals, /banned,
+// /integrity, /analytics/* and WRITE /announce, /peak-hours, /home-featured, /ravella/*, /sync —
+// i.e. the owner handed out near-owner rights while believing the role was "limited".
+//
+// Same discipline as the two roles above: the allowlist is the DAILY-WORK surface (dispatch
+// monitoring + customer support + call centre), never money, never bulk PII, never config.
+// Deliberately OUT: finance/economy/transactions/withdrawals/ball-distribution/growth/analytics,
+// members/users/botusers/member360/driver360/recruits/referrals/banned/blocked/ratings,
+// features/knobs/campaigns/announce/peak-hours/home-featured/sync, every catalogue console
+// (shop/xizmatlar/elonlar/ravella/oyin/staff) and every optoken route.
+// ⚠️ Widening this list is an OWNER decision — add a path here only when a real operator hits a
+// 403 doing their actual job, not "just in case".
+function pathAllowedForOperator(path: string): boolean {
+  return (
+    // panel shell bootstrap (the login screen itself pings /health)
+    path === "/api/admin/whoami" ||
+    path === "/api/admin/health" ||
+    // 💬 customer support + 🎧 operator console — identical surface to the chatops role
+    path.startsWith("/api/admin/chat/") ||
+    path.startsWith("/api/admin/opr/") ||
+    // 📞 obzvon (kas1067 call log): list, sync and per-call status are the operator's core loop
+    path === "/api/admin/calls" ||
+    path.startsWith("/api/admin/calls/") ||
+    // 🚕 dispatch monitoring (read-only): live map, open orders, ride feed, ops pulse
+    path === "/api/admin/livemap" ||
+    path === "/api/admin/bookings" ||
+    path === "/api/admin/rides" ||
+    path === "/api/admin/pulse" ||
+    path === "/api/admin/stats" ||
+    // 📥 inbox + outgoing-message history — "did the client get the message?" during a call
+    path === "/api/admin/inbox" ||
+    path === "/api/admin/msg-history" ||
+    // 🔗 issuing a one-time link code is the standard "help the caller link their phone" action
+    path === "/api/admin/linkcode"
+  );
+}
+
+// 🔒 OY-03 (2026-08-19): the admin password could be brute-forced without limit — no throttle, no
+// block, no log, and every wrong guess still hit `prisma.appState.findUnique` (unauthenticated DB
+// load). `rateLimit()` could never cover this: it keys on `res.locals.telegramId`, which is only
+// set AFTER a successful auth, so failed attempts were literally uncountable.
+// Keyed on IP — a wrong token identifies nobody. In-memory ON PURPOSE: persisting failures would
+// mean an unauthenticated request writes to the DB, which is the very hole this closes.
+const ADMIN_FAIL_MAX = 10; // wrong tokens tolerated per window before the IP is frozen out
+const ADMIN_FAIL_WINDOW_MS = 10 * 60_000;
+const adminFails = new Map<string, { n: number; resetAt: number; alerted: boolean }>();
+// `req.ip` is useless here — `trust proxy` is not set, so behind Caddy EVERY request would share
+// one 127.0.0.1 bucket. Same first-hop X-Forwarded-For idiom the guest limiters already use.
+const adminAuthKey = (req: Request): string =>
+  `ip:${String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "?").split(",")[0]!.trim()}`;
+
+/** true → this IP has burned its budget; caller must 429 BEFORE touching the DB.
+ *  Checked only AFTER the owner's own token has already been accepted, so a spoofed
+ *  X-Forwarded-For can never lock the owner out of their own panel. */
+function adminAuthFrozen(req: Request, res: Response): boolean {
+  const b = adminFails.get(adminAuthKey(req));
+  if (!b || Date.now() > b.resetAt) return false;
+  if (b.n <= ADMIN_FAIL_MAX) return false;
+  res.status(429).json({ error: "too_many_attempts", retryAfter: Math.ceil((b.resetAt - Date.now()) / 1000) });
+  return true;
+}
+
+/** Count + log one failed admin auth. The token is NEVER logged — only where/what/how many. */
+function noteAdminAuthFail(req: Request, why: string): void {
+  if (adminFails.size > 10_000) adminFails.clear(); // bound memory (same guard as rlBuckets)
+  const key = adminAuthKey(req);
+  const now = Date.now();
+  let b = adminFails.get(key);
+  if (!b || now > b.resetAt) {
+    b = { n: 0, resetAt: now + ADMIN_FAIL_WINDOW_MS, alerted: false };
+    adminFails.set(key, b);
+  }
+  b.n++;
+  console.warn(`[admin-auth] rad etildi ${key} ${req.method} ${req.path} (${why}) — ${b.n}/${ADMIN_FAIL_MAX}`);
+  // One Telegram alert per window per IP: a burst of guesses must reach the owner's phone, but a
+  // 10k-request script must not turn into 10k pushes.
+  if (b.n > ADMIN_FAIL_MAX && !b.alerted) {
+    b.alerted = true;
+    void import("../services/economyService")
+      .then(({ alertAdmins }) =>
+        alertAdmins(`🔒 <b>Admin-panelga kirish urinishlari</b>\nManba: <code>${key}</code>\n${b.n} ta noto'g'ri token (${ADMIN_FAIL_WINDOW_MS / 60_000} daqiqada)\nSo'ralgan yo'l: <code>${req.path}</code>\n⛔ Bu IP vaqtincha to'sildi.`),
+      )
+      .catch(() => undefined);
+  }
+}
+
+/** Clean slate after a real login — one typo must not count toward a later window. */
+function clearAdminAuthFails(req: Request): void {
+  adminFails.delete(adminAuthKey(req));
+}
+
 function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   // desktop dashboard (no Telegram): a strong shared token grants admin access
   const token = req.header("X-Admin-Token");
   if (env.ADMIN_PANEL_TOKEN && token && tokenEquals(token, env.ADMIN_PANEL_TOKEN)) {
+    clearAdminAuthFails(req);
     res.locals.telegramId = "panel";
     res.locals.adminRole = "owner";
     next();
@@ -282,10 +377,14 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   }
   // roles-lite (M6): owner-issued operator tokens live in AppState — read-mostly access
   if (token) {
+    // OY-03: freeze BEFORE the lookup — otherwise every wrong guess is a free unauthenticated
+    // `appState.findUnique`, which is exactly the DB load the ticket flags.
+    if (adminAuthFrozen(req, res)) return;
     void prisma.appState
       .findUnique({ where: { key: `oprtoken:${token}` } })
       .then((row) => {
-        if (!row) { res.status(403).json({ error: "forbidden" }); return; }
+        if (!row) { noteAdminAuthFail(req, "noma'lum token"); res.status(403).json({ error: "forbidden" }); return; }
+        clearAdminAuthFails(req);
         // V1.2 (BirJoy): token qiymati "shopseller" (legacy = do'kon #1) YOKI "shopseller:<shopId>"
         // — multi-vendor'da har seller FAQAT o'z do'konining satrlariga scoped.
         const raw = row.value || "operator";
@@ -303,6 +402,12 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
           res.status(403).json({ error: "chatops_only" });
           return;
         }
+        // OY-01: everything that is NOT shopseller/chatops is a plain "operator" token — it now
+        // has a choke point too (it had none, see pathAllowedForOperator).
+        if (role !== "shopseller" && role !== "chatops" && !pathAllowedForOperator(req.path)) {
+          res.status(403).json({ error: "operator_only" });
+          return;
+        }
         res.locals.telegramId = "panel-operator";
         res.locals.adminRole = role;
         if (sellerMatch) res.locals.sellerShopId = Number(sellerMatch[1] ?? 1); // legacy bare token = «BirJoy o'z do'koni»
@@ -314,9 +419,11 @@ function requireAdmin(req: Request, res: Response, next: NextFunction): void {
   }
   const id = resolveTelegramId(req);
   if (!id || !isAdmin(id)) {
+    noteAdminAuthFail(req, "admin emas");
     res.status(403).json({ error: "forbidden" });
     return;
   }
+  clearAdminAuthFails(req);
   res.locals.telegramId = id;
   res.locals.adminRole = "owner";
   res.locals.operatorName = "Sarvarxon"; // owner's own actions in the operator console are still attributable
@@ -1504,6 +1611,12 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/oyin/state", requireUser, async (_req, res) => {
     const memberId = await getMemberId(res.locals.telegramId as string);
     if (!memberId) { res.status(404).json({ error: "not linked" }); return; }
+    // OY-15: route had NO flag gate, and `getOyinState` WRITES — it marks the daily quest day
+    // (`oyin:quest:`) via `markDay`, which unlike markLogin/markShare/markHomeScreen checks only
+    // the season phase, not the flag. So while «oyin» was DARK anyone calling this route directly
+    // banked quest days that would already be scored the moment the flag went live. The gate goes
+    // HERE because authorization is computed at the route in this codebase (services take booleans).
+    if (!oyinPreviewOf(res) && !(await featureOn("oyin"))) { res.status(403).json({ error: "off" }); return; }
     const { getOyinState, markLogin } = await import("../services/oyinService");
     await markLogin(memberId, oyinPreviewOf(res)); // "miniapp ochish" = kunlik kirish (§1)
     res.json(await getOyinState(memberId));
@@ -2658,14 +2771,35 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
   app.post("/api/admin/oyin/draw/winner", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
     const b = req.body as { key?: string; gno?: number; note?: string };
-    if (typeof b?.key !== "string" || !b.key) { res.status(400).json({ error: "key required" }); return; }
+    // §2.3: every rejection carries a machine-readable `reason`. This 400 used to answer with a
+    // bare `error`, so the panel's reason-switch fell through and the button just re-lit silently.
+    if (typeof b?.key !== "string" || !b.key) { res.status(400).json({ ok: false, reason: "bad_request", error: "key required" }); return; }
     const { adminRecordWinner } = await import("../services/oyinService");
     const r = await adminRecordWinner(b.key, Number(b?.gno), String(b?.note ?? ""));
     if (r.ok && r.winner) {
       const { alertAdmins } = await import("../services/economyService");
       await alertAdmins(`🎬 <b>BAYONNOMA yozildi</b>\n${r.winner.prizeName}\nG'olib: <b>${r.winner.name}</b> · karta №${r.winner.gno}\n${r.winner.poolSize} ta karta ichidan\nHash: <code>${r.winner.listHash.slice(0, 16)}…</code>\n⚠️ Bu yozuv QAYTARIB BO'LMAYDI.`).catch(() => undefined);
+      // §2.4: the ONE irreversible action in the console was the only one leaving no audit row —
+      // freeze and ticket-cancel both write one. A Telegram alert is not a log: it is not
+      // searchable, not paginated and disappears from the owner's chat.
+      const { writeAudit } = await import("../services/oyinAudit");
+      void writeAudit({
+        // ⚠️ `OYIN_AUDIT_ACTIONS` (shared/oyin.ts) has no `draw.winner` yet, so this rides on the
+        // freeze lifecycle it terminates. The `changes` rows below make the entry unambiguous.
+        // TODO: add a dedicated "draw.winner" action + panel label — needs the shared enum.
+        action: "freeze.set",
+        actor: auditActor(res),
+        target: `${r.winner.prizeName} · karta №${r.winner.gno} · ${r.winner.name}`,
+        changes: [
+          { field: "bayonnoma", from: "yozilmagan", to: `g'olib №${r.winner.gno} (${r.winner.poolSize} karta ichidan)` },
+          { field: "hash", from: "—", to: r.winner.listHash },
+        ],
+        note: r.winner.note ?? undefined,
+      });
     }
-    res.json(r);
+    // A failed record must never answer `{ok:false}` with nothing to show the operator — the panel
+    // prints `reason` verbatim, so an absent one becomes a dead button mid-broadcast.
+    res.json(r.ok ? r : { ...r, reason: r.reason ?? "unknown" });
   });
   app.post("/api/admin/oyin/draw/handover", requireAdmin, requireOwner, rateLimit(20), async (req, res) => {
     const b = req.body as { key?: string; photoUrl?: string | null };
@@ -3577,7 +3711,11 @@ export function createApiServer(opts: ApiOptions = {}) {
   // Accepts ?token= as fallback (browser window.open can't set headers)
   app.get("/api/admin/driver-sticker/:driverId", (req, res, next) => {
     const qToken = String(req.query.token ?? "");
-    if (env.ADMIN_PANEL_TOKEN && qToken === env.ADMIN_PANEL_TOKEN) { res.locals.telegramId = "panel"; res.locals.adminRole = "owner"; return next(); }
+    // OY-02: was a plain `===` — the one comparison in the file that skipped `tokenEquals`, and the
+    // WORST place for it: a query-string token is the easiest target to hammer byte-by-byte.
+    // ⚠️ The `?token=` channel itself (full owner token in browser history + Caddy access log) is
+    // still open — removing it breaks the «🖨 QR Stiker» button, so that stays an owner decision.
+    if (env.ADMIN_PANEL_TOKEN && qToken && tokenEquals(qToken, env.ADMIN_PANEL_TOKEN)) { res.locals.telegramId = "panel"; res.locals.adminRole = "owner"; return next(); }
     return requireAdmin(req, res, next);
   }, async (req, res) => {
     const id = Math.floor(Number(req.params.driverId));
@@ -3630,7 +3768,8 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.send(html);
   });
 
-  // role defaults to "operator" (read + announce); "shopseller" unlocks Do'kon CRUD only (requireShopWrite).
+  // role defaults to "operator" — daily-work surface only, see `pathAllowedForOperator` (announce
+  // moved to owner-only under OY-04); "shopseller" unlocks Do'kon CRUD only (requireShopWrite).
   // V1.6b: shopseller + shopId → do'kon-scoped token (multi-vendor); shopId'siz = legacy bare
   // "shopseller" (=shop#1 «BirJoy o'z do'koni», backward-compat).
   app.post("/api/admin/optoken", requireAdmin, requireOwner, async (req, res) => {
@@ -4024,7 +4163,11 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
     res.json(await adminDeleteCampaign(String((req.body as { id?: string })?.id ?? "")));
   });
 
-  app.post("/api/admin/announce", requireAdmin, rateLimit(3), async (req, res) => {
+  // OY-04: `requireOwner` was missing here while its neighbours (grant-segment, wake-up) had it —
+  // i.e. giving money was owner-gated but messaging the ENTIRE user base was not. `rateLimit(3)` is
+  // no substitute: it keys on `res.locals.telegramId`, which is the same literal "panel-operator"
+  // for every operator token, and one batch already reaches thousands of people.
+  app.post("/api/admin/announce", requireAdmin, requireOwner, rateLimit(3), async (req, res) => {
     if (!opts.sendMessage) {
       res.json({ ok: false, message: "Bot ulanmagan" });
       return;

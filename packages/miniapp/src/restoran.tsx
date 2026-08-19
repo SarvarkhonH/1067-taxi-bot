@@ -13,10 +13,11 @@
 // qo'shamiz. Hamkor tomonda bitta shart bor: bu initData BirJoy botining tokeni bilan
 // imzolangan, ya'ni ularning serveri uni BirJoy tokeni bilan ham tekshira olishi kerak
 // (batafsil: PROGRESS.md 2026-08-15).
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { MeResponse } from "@t1067/shared";
 import { getInitData } from "./api";
-import { tg } from "./telegram";
+import { attachHostBridge, EMPTY_BUTTONS, type BottomButton, type ButtonsState, type HostBridge } from "./rstHost";
+import { haptic, tg } from "./telegram";
 import { useBackButton } from "./useBackButton";
 import "./design/feat/rstDoor.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -47,6 +48,14 @@ export function RestoranView({ onNav }: { me: MeResponse; onBanner?: (m: string)
   const src = useMemo(buildFrameUrl, []);
   const [loaded, setLoaded] = useState(false);
   const boxRef = useRef<HTMLDivElement | null>(null);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const bridgeRef = useRef<HostBridge | null>(null);
+  // Hamkorning MainButton/SecondaryButton holati — Telegram uni O'ZI chizardi, freymda esa
+  // chizadigan hech kim yo'q. Shuning uchun holatni olib, tugmani BIZ chizamiz.
+  const [btns, setBtns] = useState<ButtonsState>(EMPTY_BUTTONS);
+  const barH = (btns.main.isVisible ? 58 : 0) + (btns.secondary.isVisible ? 51 : 0);
+  const barRef = useRef(0);
+  barRef.current = barH;
 
   // 📏 Balandlik TAXMIN QILINMAYDI, O'LCHANADI. Qobiq ikki xil: oddiy ekranda tepada topbar +
   // pastda tabbar, mehmon rejimida topbar YO'Q lekin pastda "guest-bar" bor. CSS'da qattiq
@@ -62,13 +71,24 @@ export function RestoranView({ onNav }: { me: MeResponse; onBanner?: (m: string)
       el.style.setProperty("--rd-h", `${Math.max(320, window.innerHeight - top - BOTTOM_GAP)}px`);
     };
     apply();
-    window.addEventListener("resize", apply);
-    return () => window.removeEventListener("resize", apply);
+    const onResize = () => {
+      apply();
+      // O'lcham o'zgardi → hamkor ilovasiga YANGI o'lchamni aytamiz. Aks holda u eski
+      // balandlik bo'yicha chizilib qoladi (klaviatura ochilgan/yopilgan holat).
+      bridgeRef.current?.sendViewport();
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, [src]);
 
-  // ‹ Orqaga — ega talabi: «back bo'lsa avto back home». Freym ichidagi navigatsiyaga
-  //   aralashmaymiz (cross-origin, o'qiy olmaymiz) — orqaga BirJoy Uy sahifasiga qaytaradi.
-  useBackButton(!!src, () => onNav?.("uy"));
+  // ‹ Orqaga. Hamkor O'Z orqaga tugmasini ko'rsatgan bo'lsa (ya'ni ilova ichida qaytadigan
+  //   joy bor — masalan restoran menyusidan ro'yxatga) bosish ULARGA uzatiladi. Aks holda
+  //   BirJoy Uy sahifasiga chiqiladi (ega talabi). Telegram ham aynan shunday ishlaydi:
+  //   avval ilova ichida ortga, tugagach ilovadan chiqish.
+  useBackButton(!!src, () => {
+    if (bridgeRef.current?.pressBack()) return;
+    onNav?.("uy");
+  });
 
   // Telegram'ning yopish-tasdig'i: mijoz buyurtma o'rtasida tasodifan swipe qilib ilovani
   // yopib yubormasin. Tabdan chiqilganda o'chiriladi.
@@ -79,25 +99,27 @@ export function RestoranView({ onNav }: { me: MeResponse; onBanner?: (m: string)
     return () => w?.disableClosingConfirmation?.();
   }, [src]);
 
-  // 🚪 «Yopilsa — avto Uy sahifasi» (ega talabi). Freym ichidagi rasmiy `telegram-web-app.js`
-  // hodisalarni ota-oynaga `postMessage(JSON, '*')` bilan yuboradi (SDK manbasida tekshirildi:
-  // targetOrigin '*'). Ya'ni hamkor ilovasi `WebApp.close()` chaqirsa — biz eshitamiz.
-  // `event.origin` ATAYLAB tekshiriladi: '*' bo'lgani uchun istalgan sayt shu xabarni yubora
-  // oladi, biz esa faqat hamkor domenidan kelganini qabul qilamiz.
+  // 🔌 MEZBON KO'PRIGI — eng muhim qism. Freymga solganimizda biz Telegram O'RNIDA turamiz:
+  // hamkor ilovasi bizdan ekran o'lchami, xavfsiz-zona va mavzuni SO'RAYDI. Javob bermasak
+  // u noto'g'ri o'lchamda chiziladi va ba'zi tugmalar bosilmay qoladi (2026-08-16 da ega
+  // aynan shuni ko'rdi). Batafsil protokol va o'lchov: `rstHost.ts`.
+  // Yopish hodisasi ham shu ko'prik orqali keladi → Uy sahifasi (ega talabi).
   useEffect(() => {
-    if (!src) return;
-    const partnerOrigin = new URL(PARTNER_URL).origin;
-    const onMsg = (e: MessageEvent) => {
-      if (e.origin !== partnerOrigin) return;
-      let type = "";
-      try {
-        const d = typeof e.data === "string" ? JSON.parse(e.data) : e.data;
-        type = (d as { eventType?: string })?.eventType ?? "";
-      } catch { return; } // JSON emas — bizniki emas, jim o'tkazamiz
-      if (type === "web_app_close") onNav?.("uy");
+    const frame = frameRef.current;
+    if (!src || !frame) return;
+    const bridge = attachHostBridge(
+      frame,
+      new URL(PARTNER_URL).origin,
+      () => onNav?.("uy"),
+      setBtns,
+      () => barRef.current, // tugmalar egallagan balandlik — viewport shuncha kichik e'lon qilinadi
+    );
+    bridgeRef.current = bridge;
+    return () => {
+      bridge.dispose();
+      bridgeRef.current = null;
+      setBtns(EMPTY_BUTTONS);
     };
-    window.addEventListener("message", onMsg);
-    return () => window.removeEventListener("message", onMsg);
   }, [src, onNav]);
 
   if (!src) {
@@ -116,14 +138,56 @@ export function RestoranView({ onNav }: { me: MeResponse; onBanner?: (m: string)
           yuklangach joyida hech narsa "sakramaydi". */}
       {!loaded && <div className="rd-frame-skel" aria-hidden="true" />}
       <iframe
+        ref={frameRef}
         className="rd-frame"
         src={src}
         title={PARTNER_NAME}
-        onLoad={() => setLoaded(true)}
+        // Yuklanish tugashi = hamkor SDK'si so'rovlarini yuborib bo'ldi. Ba'zi so'rovlar
+        // ko'prik ulanmasidan OLDIN kelib qolishi mumkin (freym tez yuklansa), shuning uchun
+        // o'lchamni bu yerda BIR MARTA majburan qayta e'lon qilamiz — javobsiz qolmasin.
+        onLoad={() => { setLoaded(true); bridgeRef.current?.sendViewport(); }}
         allow="geolocation; clipboard-write; payment"
         // sandbox ATAYLAB qo'yilmadi: hamkor ilovasiga o'z domenidagi to'liq huquq kerak
         // (localStorage/sessionStorage, cookie, to'lov oqimi). U CSP bilan o'zini himoya qiladi.
       />
+
+      {/* 🔘 Hamkorning asosiy harakat tugmasi (savat / buyurtma berish). Bu Telegramning
+          MainButton'i: uni sahifa emas, MEZBON chizadi. Freymda Telegram yo'q — shuning uchun
+          BIZ chizamiz, aks holda tugma umuman ko'rinmaydi va bosilmaydi.
+          Ranglar hamkordan kelsa o'shani hurmat qilamiz (Telegram ham shunday), kelmasa
+          o'z tokenimiz. Qiymat ma'lumot bo'lgani uchun CSS o'zgaruvchisi orqali beriladi. */}
+      {(btns.main.isVisible || btns.secondary.isVisible) && (
+        <div className="rd-btnbar">
+          {btns.secondary.isVisible && (
+            <button
+              className="rd-btn rd-btn-2"
+              disabled={!btns.secondary.isActive || btns.secondary.isProgress}
+              onClick={() => { haptic(); bridgeRef.current?.pressSecondary(); }}
+              style={btnVars(btns.secondary)}
+            >
+              {btns.secondary.isProgress ? "…" : btns.secondary.text}
+            </button>
+          )}
+          {btns.main.isVisible && (
+            <button
+              className="rd-btn"
+              disabled={!btns.main.isActive || btns.main.isProgress}
+              onClick={() => { haptic(); bridgeRef.current?.pressMain(); }}
+              style={btnVars(btns.main)}
+            >
+              {btns.main.isProgress ? "…" : btns.main.text}
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+/** Hamkor bergan ranglarni CSS o'zgaruvchisiga o'giradi (bo'lmasa CSS o'z tokenini ishlatadi). */
+function btnVars(b: BottomButton): CSSProperties {
+  const v: Record<string, string> = {};
+  if (b.color) v["--rd-btn-bg"] = b.color;
+  if (b.textColor) v["--rd-btn-fg"] = b.textColor;
+  return v as CSSProperties;
 }

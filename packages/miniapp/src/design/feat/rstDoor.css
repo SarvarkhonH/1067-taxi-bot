@@ -45,3 +45,32 @@
 @media (prefers-reduced-motion: reduce) {
   .rd-frame-skel::after { animation: none; }
 }
+
+/* 🔘 Hamkorning MainButton/SecondaryButton — Telegram o'rniga BIZ chizamiz (rstHost.ts izohi).
+   Balandliklar Telegram SDK'sidagi qiymatlarning aynan o'zi (telegram-web-app.js:1072 va
+   keyingi qatorlar): asosiy 58px, ikkilamchi ustma-ust bo'lsa +51px. Shu sababli freym
+   balandligi ham xuddi shuncha kichrayadi va hamkor kontenti tugma ostida qolmaydi. */
+.rd-btnbar {
+  position: absolute; left: 0; right: 0; bottom: 0;
+  display: flex; flex-direction: column; gap: 5px;
+  padding: 6px 10px calc(6px + var(--safe-bottom, 0px));
+  background: var(--rst-surface);
+  border-top: 1px solid var(--rst-line);
+}
+.rd-btn {
+  width: 100%; min-height: 46px; border: 0; border-radius: var(--r-btn);
+  background: var(--rd-btn-bg, var(--rst-blue)); color: var(--rd-btn-fg, #fff);
+  font-size: 15.5px; font-weight: 700;
+  transition: transform var(--dur-press) var(--ease-out), opacity var(--dur-press) var(--ease-out);
+}
+.rd-btn:active { transform: scale(0.985); }
+.rd-btn:disabled { opacity: .55; transform: none; }
+/* Ikkilamchi tugma — pastroq urg'u, lekin bir xil o'lchamda (Telegram naqshi). */
+.rd-btn-2 {
+  min-height: 41px;
+  background: var(--rd-btn-bg, var(--rst-fill-blue)); color: var(--rd-btn-fg, var(--rst-blue));
+}
+@media (prefers-reduced-motion: reduce) {
+  .rd-btn { transition: none; }
+  .rd-btn:active { transform: none; }
+}

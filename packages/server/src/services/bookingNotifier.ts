@@ -681,8 +681,13 @@ export async function pushBookingUpdates(
       // 👥 deferred referral payout: BOTH sides unlock on the invited friend's
       // first REAL ride (kills the burner-account referral mint entirely)
       try {
+        // `orderBy` SHART: `refereeMemberId` UNIQUE EMAS (schema.prisma) — odam Telegram akkauntini
+        // almashtirib qayta ulansa bir a'zoga ikkita qator bo'lishi mumkin. Tartibsiz `findFirst`
+        // tasodifiy qatorni tanlardi (bir tikda birini, boshqasida ikkinchisini). Eng ESKISI =
+        // haqiqiy birinchi taklifchi.
         const ref = await prisma.referral.findFirst({
           where: { refereeMemberId: m.id, referrerPaidAt: null },
+          orderBy: { id: "asc" },
         });
         if (ref) {
           const { grantCoins } = await import("./coinService");
@@ -692,8 +697,18 @@ export async function pushBookingUpdates(
               await pushMessage(bot, chatId, "referral_gift", `🎁 Taklif sovg'asi ochildi: <b>+${formatNumber(ref.rewardReferee)} tanga</b> — birinchi safaringiz muborak!`, { memberId: m.id, force: true });
             }
           }
+          // 🛡 OY-08: sybil-qo'riq (bir taklifchi + bir xil telefon) avval FAQAT tangani to'sardi
+          // (`rewardReferrer = 0`), `referrerPaidAt` esa shartdan TASHQARIDA yozilardi — o'yin balli
+          // esa aynan shundan hisoblanadi (oyinService.computeBallMap: paidAt mavsum ichida bo'lsa
+          // taklifchiga "do'st birinchi safarini qildi" balli). Ya'ni soxta-do'st fabrikasiga
+          // qarshi yagona to'siq ball tomonda ochiq edi. Endi dublikat qator NA tanga oladi,
+          // NA paidAt: qator `referrerPaidAt: null` bo'lib qoladi (= "to'lanmagan" — ustunning
+          // rost ma'nosi), shuning uchun keyingi safarlarda bu blok qayta kiradi, lekin har
+          // grant idempotent kalit bilan himoyalangan, ya'ni ikki marta to'lov YO'Q.
+          const { isDupReferral } = await import("./referralService");
+          const dup = await isDupReferral(ref);
           const refTg = await prisma.telegramUser.findUnique({ where: { id: ref.referrerId } });
-          if (refTg?.memberId && ref.rewardReferrer > 0) {
+          if (!dup && refTg?.memberId && ref.rewardReferrer > 0) {
             const g = await grantCoins(refTg.memberId, ref.rewardReferrer, "referral", `Do'stingiz birinchi safarini qildi 🚕`, `ref_ride:${ref.id}`);
             if (g.ok) {
               await pushMessage(bot, refTg.id, "referral_gift", `🎉 Taklif qilgan do'stingiz birinchi safarini qildi!\n👥 Sizga <b>+${formatNumber(ref.rewardReferrer)} tanga</b> tushdi.`, { memberId: refTg.memberId, force: true });
@@ -704,7 +719,12 @@ export async function pushBookingUpdates(
           // dies, the next sweep re-runs: grants skip as duplicates, update
           // retries. NOTE: keys are deliberately ride-AGNOSTIC — a bookingId
           // suffix would mint a fresh key on the friend's next ride and pay twice.
-          await prisma.referral.update({ where: { id: ref.id }, data: { referrerPaidAt: new Date() } });
+          // OY-08: dublikatda paidAt YOZILMAYDI — u tanga-to'lovi belgisi VA ball manbai.
+          if (!dup) {
+            await prisma.referral.update({ where: { id: ref.id }, data: { referrerPaidAt: new Date() } });
+          } else {
+            console.log(`[referral_ride] m${m.id} ref${ref.id} SYBIL-DUP — tanga ham, ball ham berilmadi`);
+          }
         }
       } catch (e) {
         console.error("[referral_ride] failed:", e);
@@ -733,7 +753,11 @@ export async function pushBookingUpdates(
             const gain = econ.oyinReferRideBall ?? 0;
             if (gain > 0) {
               const { notifyOnce } = await import("./notifyService");
-              await notifyOnce(bot, referrer.telegramId, referrer.memberId, `oyin_ref_ride:${m.id}`, `🤝 Do'stingiz safar qildi — sizga <b>+${gain} ball</b> qo'shildi! 🎮`);
+              // Matn ATAYLAB bitta safarning ballini "qo'shildi" deb AYTMAYDI: `notifyOnce` kaliti
+              // kunlik (bir do'st = kuniga 1 push), do'st esa o'sha kuni 2-3 safar qilishi mumkin —
+              // eski matn "+10 ball qo'shildi" derdi, balans esa +30 o'sardi (mijoz "xato hisobladi"
+              // deb o'ylardi). Endi qoida aytiladi: HAR safari uchun shuncha — bu har doim rost.
+              await notifyOnce(bot, referrer.telegramId, referrer.memberId, `oyin_ref_ride:${m.id}`, `🤝 Do'stingiz bugun safar qildi — uning <b>har safari</b> sizga <b>+${gain} ball</b> olib keladi! 🎮`);
             }
           }
         }
@@ -794,7 +818,16 @@ export async function pushBookingUpdates(
         // (o'yin ball haqida bir harf ham). ENG TEPADA (DIZAYN_QOIDALARI: eng ko'rinadigan
         // joy), qolgan qatorlar (pastda) O'CHIRILMAYDI — har biri real pul/ball xabari,
         // olib tashlash "mijozdan mukofotni yashirish" bo'lib qolishi mumkin.
-        const oyinBallLine = await (await import("./oyinService")).rideFinishBallLine(m.id).catch(() => "");
+        // ⚠️ Kesh: `rideFinishBallLine` → `getBall` 60 soniyalik ball-xaritasi keshidan o'qiydi, u esa
+        // shu safar boshlanishidan OLDIN olingan bo'lishi mumkin — natijada endigina yig'ilgan ball
+        // ko'rinmasdan ESKI raqam chiqardi ("safar uchun ball oldingiz" deyilgan xabardan keyin
+        // hisob o'zgarmasdi). RideReward yuqorida allaqachon yozilgan (rollRideCashback), shuning
+        // uchun keshni shu yerda bekor qilamiz — faqat o'yin YONIQ bo'lganda: o'chiq bo'lsa qator
+        // baribir bo'sh qaytadi va butun populyatsiyani bekorga qayta hisoblash shart emas.
+        const oyinSvc = await import("./oyinService");
+        const oyinLive = await (await import("./featureFlags")).featureOn("oyin").catch(() => false);
+        if (oyinLive) oyinSvc.invalidateBallCacheExternal();
+        const oyinBallLine = await oyinSvc.rideFinishBallLine(m.id).catch(() => "");
         const tipKb = new InlineKeyboard();
         // 🪙 one-tap "pay the fare with tanga" → reuses the tip transfer (rider's tanga → driver as tanga).
         // Only when BOTH the driver member id AND the fare are known (graceful: no button otherwise).

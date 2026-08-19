@@ -11,6 +11,7 @@ import {
   OYIN_CAPACITY_RATIO,
   OYIN_FINAL_LOCK_MS,
   OYIN_CANCEL_WINDOW_MS,
+  oyinLeftLabel,
   oyinRiskScore,
   oyinSumInWindow,
   OYIN_JAMOA_MAX,
@@ -48,6 +49,7 @@ import {
   type OyinSeasonResetResult,
   type OyinSeasonView,
   type OyinSprintResult,
+  type OyinSprintWinner,
   type OyinStateResponse,
   type OyinTeaserResponse,
   type OyinThanksResult,
@@ -89,6 +91,9 @@ import {
   type OyinBallAdjustEntry,
   type OyinBallAdjustInput,
   type OyinFreezeState,
+  type OyinExcludeReason,
+  type OyinExcludedTicketRow,
+  type OyinCardResult,
 } from "@t1067/shared";
 import crypto from "node:crypto";
 import { prisma } from "../db";
@@ -135,6 +140,8 @@ interface AppStateRow { key: string; value: string }
 // uni chiqarib tashlaydi va u mijozlarning sovrin-o'rinlarini YEMAYDI (alohida hisoblagich).
 // `result` — 2026-08-06 (ega talabi): g'olib bayonnomaga yozilgach, o'sha sovrindagi BOSHQA
 // barcha ishtirokchi kartalar ham "yutuqsiz" deb shu yerga YOZILADI (`adminRecordWinner`).
+// 2026-08-19 (OY-32): tirajdan CHIQARILGAN kartalar (xodim/chetlatilgan/sinov) ham yakunlanadi
+// — `"excluded"`. Avval ular natijasiz qolib, egasiga mangu «⏳ O'yinda» ko'rinardi.
 // Faqat admin+Telegram kanal ko'radi — mijoz ilovasida (`OyinMyTicket`) HECH NARSA
 // o'zgarmaydi (ega qarori, ataylab qurilmagan).
 // `notifiedLoss` — 2026-08-12: yutmagan kartaga push yuborilgani belgisi. Faqat "lost" uchun
@@ -142,7 +149,7 @@ interface AppStateRow { key: string; value: string }
 // kabi qo'shimcha bayonnoma ma'lumoti bor, shuning uchun ikkalasi bitta maydonga sig'maydi).
 interface TicketRecord {
   prizeKey: OyinPrizeKey; no: number; gno?: number; priceAtPurchase: number; ts: string; test?: boolean;
-  result?: "won" | "lost"; notifiedLoss?: boolean;
+  result?: OyinCardResult; notifiedLoss?: boolean;
   // 🗒 2026-08-14 (karta="xotira", K2/K3): egasining ixtiyoriy qaydi. Standart — maxfiy
   // (`notePublic` yo'q/`false`). Uzunlik CHEKLANADI yozishda (`setCardNote`), o'qishda ham
   // qayta cheklanadi (buzuq/eski qator himoyasi — parseTickets qoidasi: hech narsa tashlanmaydi).
@@ -184,9 +191,9 @@ function parseTickets(raw: string | undefined): TicketRecord[] {
         // ⚠️ FAQAT qat'iy `true` test hisoblanadi. `"false"`/`0`/`"1"` kabi qiymatlar test
         // BO'LMAYDI — aks holda buzuq qator chiptani jimgina tirajdan chiqarib tashlardi.
         ...(t.test === true ? { test: true as const } : {}),
-        // Faqat aniq "won"/"lost" qabul qilinadi — boshqa (buzuq) qiymat "belgilanmagan" deb
-        // o'qiladi, mijozga hech qanday soxta natija ko'rsatilmasin.
-        ...(t.result === "won" || t.result === "lost" ? { result: t.result } : {}),
+        // Faqat aniq "won"/"lost"/"excluded" qabul qilinadi — boshqa (buzuq) qiymat
+        // "belgilanmagan" deb o'qiladi, mijozga hech qanday soxta natija ko'rsatilmasin.
+        ...(t.result === "won" || t.result === "lost" || t.result === "excluded" ? { result: t.result } : {}),
         ...(t.notifiedLoss === true ? { notifiedLoss: true as const } : {}),
         ...(typeof t.note === "string" && t.note.trim() ? { note: t.note.trim().slice(0, CARD_NOTE_MAX) } : {}),
         ...(t.notePublic === true ? { notePublic: true as const } : {}),
@@ -446,8 +453,24 @@ async function computeBallMap(): Promise<Map<number, MemberBallRow>> {
     let sum = 0;
     for (const t of tickets) {
       const ms = Date.parse(t.ts);
-      // `ts` buzuq bo'lsa HISOBGA OLINADI: tashlash = sarflangan ball qaytishi = ekspluatatsiya.
-      if (!Number.isFinite(ms) || ms >= fromMs) sum += t.priceAtPurchase || 0;
+      if (!Number.isFinite(ms)) {
+        // 🔴 OY-90 (tuzatildi 2026-08-19): avval buzuq `ts` HAR DOIM sanalardi («tashlash =
+        // sarflangan ball qaytishi = ekspluatatsiya» mulohazasi bilan). Lekin `earned` HAR
+        // mavsumda nolga tushadi, `spent` esa qolardi — bitta buzuq qator o'z narxini
+        // (masalan 1200 ball) MAVSUMDAN MAVSUMGA olib o'tardi va mijoz har mavsum boshida
+        // KO'RINMAYDIGAN qarz bilan turardi (S8 «yashirin qarz» bug'ining aynan o'zi).
+        // Ekspluatatsiya yo'li amalda yopiq: `buyTicket` `ts` ni HAR DOIM to'g'ri ISO bilan
+        // yozadi, ya'ni JORIY mavsumda olingan kartaning `ts` i buzuq bo'la olmaydi — buzuq
+        // qator faqat bazaga qo'lda tegilganda paydo bo'ladi (bunday odamda `adminAdjustBall`
+        // kabi ancha oson yo'l bor). Shuning uchun: sanasiz karta oynadan TASHQARIDA deb
+        // olinadi va JIM emas, baland ovozda log qilinadi.
+        console.warn(`[oyin] chiptada buzuq sana (memberId=${memberId}, prizeKey=${t.prizeKey}, no=${t.no}) — mavsum «spent» hisobiga kirmadi`);
+        continue;
+      }
+      // 🔴 OY-89: yuqori chegara (`<= toMs`) QO'SHILDI. `earned` hamma manbada IKKI tomonlama
+      // kesiladi; `spent` faqat pastdan kesilardi, ya'ni yuqoridagi izoh («IKKALASI ham AYNAN
+      // shu oynadan filtrlanadi») kod bilan ta'minlanmagan da'vo edi.
+      if (ms >= fromMs && ms <= toMs) sum += t.priceAtPurchase || 0;
     }
     spentByMember.set(memberId, sum);
   }
@@ -996,6 +1019,114 @@ function minSellOf(limit: number, pct: number): number {
   return Math.min(limit, Math.ceil((limit * p) / 100));
 }
 
+// ── 🎯 TIRAJ HOVUZI — «sotilgan» va «ro'yxatdagi» BITTA to'plamdan sanaladi ───────────────────
+//
+// 🔴 OY-17/OY-18 (tuzatildi 2026-08-19). Buzuq holat: sotuv hisoblagichi (`oyin_sold:`) xodim/
+// chetlatilgan/sinov kartasini SANARDI, `getDrawList` esa uni ro'yxatdan CHIQARARDI, tayyorlik
+// sharti esa IKKALASINI talab qilardi (`sold >= minSell && cards.length >= minSell`). Jonli
+// knob `oyinMinSellPct = 100` da `minSell = limit`, ya'ni bitta xodim kartasi bo'lgan sovrinda
+// `cards.length = limit − 1 < limit` — sovrin ABADIY qulflanardi: o'rin tugagan (yangi karta
+// sotilmaydi), tiraj esa `not_ready`. Chiqish yo'li yo'q edi.
+//
+// Yechim: xodimni ro'yxatga QAYTARMAYMIZ (qoida to'g'ri) — CHEGARANI haqiqiy hovuzga qo'yamiz.
+// Chiqarilgan karta sotuv o'rnini egallab turadi va uni hech kim qaytara olmaydi, demak
+// erishish MUMKIN bo'lgan eng katta hovuz = `limit − excluded`. Chegara ham SHUNGA qo'yiladi.
+//
+// Isbot (tiketda so'ralgan misol) — `limit = 2`, `pct = 100`, 1 tasi xodimniki:
+//   sold = 2 · excluded = 1 · drawLimit = 2 − 1 = 1 · minSell = ceil(1×100/100) = 1
+//   cards.length = 1 → ready = (1 >= 1 && 1 > 0) = TRUE.
+//   Avval: minSell = 2, cards.length = 1 → ready = false, MANGU.
+/** Haqiqiy hovuzga qo'yiladigan chegara. Sof funksiya — DB'siz sinaladi. */
+export function drawThresholdOf(limit: number, excluded: number, pct: number): number {
+  return minSellOf(Math.max(0, limit - excluded), pct);
+}
+
+interface DrawExcludedCard { gno: number; memberId: number; name: string; reason: OyinExcludeReason }
+interface DrawPool { cards: OyinDrawCard[]; excluded: DrawExcludedCard[] }
+
+/** Bitta o'qishda BARCHA sovrinlarning hovuzi (chiptalar + xodim/ban belgilari). Avval har
+ *  sovrin uchun `getDrawList` alohida 8 ta so'rov qilardi — muzlatishda 35 sovrin = 280 so'rov. */
+async function computeDrawPools(): Promise<Map<string, DrawPool>> {
+  const [ticketRows, tus, banRows] = await Promise.all([
+    prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
+    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true, isAdmin: true, memberId: true, firstName: true, lastName: true, username: true } }),
+    prisma.appState.findMany({ where: { key: { startsWith: BAN_PREFIX } }, select: { key: true } }),
+  ]);
+  const nameByMember = new Map<number, string>();
+  const staffMembers = new Set<number>();
+  for (const tu of tus) {
+    if (!tu.memberId) continue;
+    nameByMember.set(tu.memberId, shortName(tu));
+    if (isStaffUser(tu)) staffMembers.add(tu.memberId); // 🟡 №12: `.env` YOKI bazadagi belgi
+  }
+  const banned = new Set<number>();
+  for (const r of banRows) {
+    const id = Number(r.key.slice(BAN_PREFIX.length));
+    if (Number.isFinite(id)) banned.add(id);
+  }
+
+  const pools = new Map<string, DrawPool>();
+  for (const row of ticketRows) {
+    const memberId = Number(row.key.slice("oyin:tickets:".length));
+    if (!Number.isFinite(memberId)) continue;
+    for (const t of parseTickets(row.value)) {
+      let pool = pools.get(t.prizeKey);
+      if (!pool) { pool = { cards: [], excluded: [] }; pools.set(t.prizeKey, pool); }
+      const gno = t.gno ?? t.no;
+      const name = nameByMember.get(memberId) ?? `#${memberId}`;
+      // 🚫 chetlatilgan · 👔 xodim · 🧪 eski sinov kartasi — hammasi ro'yxatdan tashqarida
+      // (qoidalar §9). Tartib `drawExport` bilan BIR XIL: a'zo-darajali sabab avval.
+      const reason: OyinExcludeReason | null = banned.has(memberId) ? "banned"
+        : staffMembers.has(memberId) ? "staff"
+          : t.test ? "test" : null;
+      if (reason) pool.excluded.push({ gno, memberId, name, reason });
+      else pool.cards.push({ gno, memberId, name });
+    }
+  }
+  for (const pool of pools.values()) pool.cards.sort((a, b) => a.gno - b.gno);
+  return pools;
+}
+
+// Panel yo'li (`adminListCatalog`) HAR katalog tahriridan keyin chaqiriladi — u yerda to'liq
+// skan qimmat. `getPrizeCards` keshi bilan BIR XIL 30s TTL va BIR XIL tozalash nuqtalari
+// (`invalidateCardCaches`). ⚠️ `getDrawList`/`adminRecordWinner` bu keshni ISHLATMAYDI —
+// bayonnoma 30 soniya eskirgan ro'yxatga yozilsa bekor qilingan karta yutib chiqishi mumkin.
+const DRAW_POOL_TTL_MS = 30_000;
+let drawPoolCache: { at: number; pools: Map<string, DrawPool> } | null = null;
+async function cachedDrawPools(): Promise<Map<string, DrawPool>> {
+  if (drawPoolCache && Date.now() - drawPoolCache.at < DRAW_POOL_TTL_MS) return drawPoolCache.pools;
+  const pools = await computeDrawPools();
+  drawPoolCache = { at: Date.now(), pools };
+  return pools;
+}
+const EMPTY_POOL: DrawPool = { cards: [], excluded: [] };
+
+/** 🎟 OY-09 (tuzatildi 2026-08-19): chipta-jadvalidan HOSIL qilinadigan hamma keshni tozalaydi
+ *  (`prizeCardsCache` — karta panjarasi/sahifasi/ochiq tekshiruv; `drawPoolCache` — panel
+ *  `willDraw`i). Avval bu keshlar FAQAT `setCardNote`/`setAvatarOptIn` da tozalanardi: endigina
+ *  olingan karta 30 soniyagacha "topilmadi" bo'lib turardi (mijoz uni bayram-oynasidan bosadi —
+ *  ya'ni bu eng ehtimolli lahza), bekor qilingan karta esa panjarada "band" bo'lib qolardi.
+ *  ⚠️ Chipta jadvaliga YOZADIGAN har yangi joy shuni chaqirsin. */
+function invalidateCardCaches(): void {
+  prizeCardsCache = null;
+  drawPoolCache = null;
+}
+
+/** 🖼 OY-05 (tuzatildi 2026-08-19): FAYLDAN yuklangan sovrin rasmi mijozga HECH QACHON
+ *  ko'rinmasdi. `adminSetPrizePhoto` Telegram'ga yuklaydi va `photoFileId` yozadi, `photoUrl`
+ *  esa NULL bo'lib qoladi — mijoz javoblarida esa faqat `photoUrl` uzatilardi, ya'ni rasm
+ *  o'rniga emoji chizilardi. Butun repoda `photoFileId` ni mijoz uchun havolaga aylantiradigan
+ *  joy YO'Q edi, HOLBUKI proksi marshrut ALLAQACHON bor: `GET /api/oyin/prizephoto?key=…`
+ *  (server.ts) — u fileId'ni USTUN qo'yadi, `data:` va tashqi havolani ham uzatadi.
+ *  Shu sababdan bu yerda ham fileId ustun: ikkala yo'l bir xil rasmni tanlasin.
+ *  ⚠️ Havola NISBIY (`homeFeedService` naqshi: `photoUrl: "/api/shop/photo/…"`). Miniapp uni
+ *  `apiUrl()` bilan o'rashi SHART (api boshqa domenda: api.birjoy.online) — `uy.tsx:571` shu
+ *  naqshni allaqachon qo'llaydi, o'yin ekranlari esa hali xom `src={p.photoUrl}` ishlatadi. */
+function prizePhotoUrlFor(p: { key: string; photoUrl?: string | null; photoFileId?: string | null } | null | undefined): string | null {
+  if (!p) return null;
+  return p.photoFileId ? `/api/oyin/prizephoto?key=${encodeURIComponent(p.key)}` : (p.photoUrl ?? null);
+}
+
 export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse> {
   const [season, catalog, soldMap, ticketsRow, sponsor, econV, winnerKeys, goalRows] = await Promise.all([
     getSeason(),
@@ -1041,7 +1172,7 @@ export async function getVitrina(memberId: number): Promise<OyinVitrinaResponse>
         // o'zi hech narsa qilmasdan 100% → 12% ga tushardi — ishonch buzadigan raqam.
         // Limit bo'yicha: raqam faqat O'SADI (yana chipta olsang) — va'da haqiqatga aylanadi.
         mine: myCount, chancePct: myCount > 0 && p.limit > 0 ? Math.round((myCount / p.limit) * 10000) / 100 : null,
-        photoUrl: p.photoUrl,
+        photoUrl: prizePhotoUrlFor(p), // 🖼 OY-05
         // 🛡 Shart OLDINDAN ko'rsatiladi. Mijoz ball sarflaganidan KEYIN "yetarli sotilmadi"
         // deb eshitmasligi kerak — bu ishonchni bir marta va butunlay buzadi.
         minSell: minSellOf(p.limit, minPct),
@@ -1216,12 +1347,19 @@ function stageOf(p: OyinCatalogPrize, sold: number): OyinPrizeStage {
 }
 
 export async function adminListCatalog(): Promise<OyinAdminPrizeRow[]> {
-  const [catalog, soldMap, econC] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon()]);
+  // 🔴 ADMIN_PANEL_JAVOB §2.5 (tuzatildi 2026-08-19): `willDraw` XOM `sold`dan hisoblanardi,
+  // ya'ni xodim/chetlatilgan/sinov kartalarini ham sanardi. Panel (`Kartalar.tsx:43` shu
+  // maydonga tayanadi) sovrinni «📦 to'lgan — tiraj kutmoqda» deb YASHIL ko'rsatardi, ega
+  // jonli efirda «🏆 G'olibni qayd etish» ni bosardi va «⛔ not_ready» olardi — eng qimmat
+  // lahzada. Endi maydon `getDrawList().ready` bilan AYNAN bir xil qoidadan chiqadi:
+  // haqiqiy hovuz vs haqiqiy hovuzga qo'yilgan chegara.
+  const [catalog, soldMap, econC, pools] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon(), cachedDrawPools()]);
   const minPct = econC.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
   return catalog.map((p) => {
     const sold = soldMap.get(p.key) ?? 0;
-    const minSell = minSellOf(p.limit, minPct);
-    return { ...p, sold, minSell, willDraw: sold >= minSell, stage: stageOf(p, sold) };
+    const pool = pools.get(p.key) ?? EMPTY_POOL;
+    const minSell = drawThresholdOf(p.limit, pool.excluded.length, minPct);
+    return { ...p, sold, minSell, willDraw: pool.cards.length >= minSell && pool.cards.length > 0, stage: stageOf(p, sold) };
   });
 }
 
@@ -1451,7 +1589,7 @@ export async function myTickets(memberId: number): Promise<OyinMyTicketsResponse
         // Sovrin katalogdan o'chirilgan bo'lsa ham chipta YO'QOLMAYDI — kalitni ko'rsatamiz.
         prizeName: p?.name ?? t.prizeKey,
         prizeIcon: p?.icon ?? "🎟",
-        photoUrl: p?.photoUrl ?? null,
+        photoUrl: prizePhotoUrlFor(p), // 🖼 OY-05
         gno,
         code: await encodeCardCode(gno), // 🔐 K1 — ko'rinadigan raqam
         no: t.no,
@@ -1480,6 +1618,10 @@ export async function cancelOwnTicket(memberId: number, gno: number): Promise<Oy
   const season = await getSeason();
   if (season.phase !== "active") return { ok: false, reason: "season_off" };
   if (season.endMs != null && season.endMs - Date.now() <= OYIN_FINAL_LOCK_MS) return { ok: false, reason: "final_lock" };
+  // 🔒 OY-27: muzlatilgan ro'yxatdagi karta bekor qilinmaydi — `adminCancelTicket` bilan BIR XIL
+  // qoida. `buyTicket` muzlatishda allaqachon to'silgan edi (ro'yxatga QO'SHIB bo'lmasdi), bekor
+  // qilish esa ochiq qolgandi: ro'yxat qisqarardi va e'lon qilingan hash mos kelmay qolardi.
+  if ((await frozenGnos())?.has(gno)) return { ok: false, reason: "frozen" };
 
   // 🔒 B2 (2026-08-16 audit): `buyTicket` bilan BIR XIL a'zo-qulfi. Avval bu yerda qulf YO'Q edi —
   // ikkita bekor qilish (masalan ikki marta bosish/qayta urinish) BIR XIL kartani PARALEL o'qib-
@@ -1524,6 +1666,7 @@ export async function cancelOwnTicket(memberId: number, gno: number): Promise<Oy
     await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
     await releaseSoldSlot(target.prizeKey, target.test === true).catch(() => undefined);
     invalidateBallCache();
+    invalidateCardCaches(); // 🎟 OY-09: bekor qilingan karta panjarada 30s "band" bo'lib turmasin
     return { ok: true, ball: await getBall(memberId) };
   });
 }
@@ -1537,7 +1680,7 @@ export async function teaserData(): Promise<OyinTeaserResponse> {
     // Mehmon ekrani: navbatdagi CHIQARILADI, aks holda eng qimmat, sotib bo'lmaydigan
     // mukofot birinchi turardi (tartib narx bo'yicha kamayuvchi).
     prizes: catalog.filter((p) => p.active && p.queued !== true).sort((a, b) => b.price - a.price)
-      .map((p) => ({ key: p.key, icon: p.icon, name: p.name, valueLabel: p.valueLabel, price: p.price, limit: p.limit, photoUrl: p.photoUrl })),
+      .map((p) => ({ key: p.key, icon: p.icon, name: p.name, valueLabel: p.valueLabel, price: p.price, limit: p.limit, photoUrl: prizePhotoUrlFor(p) })), // 🖼 OY-05
   };
 }
 
@@ -1551,7 +1694,7 @@ export async function joinCardData(): Promise<{ prizeName: string; photoUrl: str
   const top = [...catalog].sort((a, b) => b.price - a.price)[0] as OyinCatalogPrize;
   return {
     prizeName: top.name,
-    photoUrl: top.photoUrl,
+    photoUrl: prizePhotoUrlFor(top), // 🖼 OY-05
     icon: top.icon,
     slots: catalog.reduce((s, p) => s + p.limit, 0),
     seasonLabel: season.label,
@@ -1643,7 +1786,35 @@ async function reserveSoldSlot(prizeKey: OyinPrizeKey, limit: number): Promise<n
       UPDATE "AppState" SET "value" = CAST((CAST("value" AS INTEGER) - 1) AS TEXT) WHERE "key" = ${key}`;
     return null; // limit to'lgan — bu urinish chipta OLMADI
   }
-  return sold; // shu xariddagi ketma-ket chipta raqami (1-based)
+  return sold; // band qilingan o'rinlar soni (1-based) — ko'rinadigan raqam `freeSlotNo` da
+}
+
+/** 🔢 Sovrin ICHIDAGI ko'rinadigan o'rin raqami (`no`) — panjaraning kalitidir.
+ *
+ *  🟡 OY-29 (tuzatildi 2026-08-19). Buzuq holat: `reserveSoldSlot` qaytargan hisoblagich
+ *  qiymati TO'G'RIDAN-TO'G'RI `no` bo'lardi, `releaseSoldSlot` esa uni −1 qilardi. Ya'ni
+ *  sold=6 da №1 bekor qilinsa sold=5 bo'lardi va KEYINGI xaridor yana №6 olardi — o'sha raqam
+ *  boshqa mijozda ALLAQACHON bor edi. `getPrizeCards` esa `no` ni kalit qiladi
+ *  (`new Map(mine.map((r) => [r.no, r]))`) — ikkinchi egasi panjaradan BUTUNLAY yo'qolardi,
+ *  bo'shagan katak esa "Hali bo'sh" bo'lib turardi.
+ *
+ *  Yechim: hisoblagich SIG'IMNI qo'riqlaydi (atomik, o'zgarmadi), ko'rinadigan raqam esa
+ *  chiptalarning O'ZIDAN olinadi — band bo'lmagan eng kichik raqam. Ya'ni raqam faqat
+ *  HAQIQATAN bo'shagandan keyin qayta ishlatiladi va ikki egali raqam paydo bo'lmaydi.
+ *  ⚠️ Qoldiq xavf: ikki xaridor AYNI PAYTDA (a'zo-qulflari alohida) bekor qilingandan keyingi
+ *  bo'sh katakka tushsa ikkalasi bir xil raqam olishi mumkin. Avvalgi xato DETERMINISTIK edi
+ *  (har bekor qilishdan keyin), bu esa juda tor poyga; `preferred` bo'sh bo'lgan ODATIY yo'lda
+ *  (bekor qilish bo'lmagan) hech qanday yangi poyga QO'SHILMAYDI. To'liq yechim alohida
+ *  jadval + unique-indeks talab qiladi (OYIN_KARTA_PLAN §1: ~50 000 kartadan keyin). */
+async function freeSlotNo(prizeKey: OyinPrizeKey, limit: number, preferred: number): Promise<number> {
+  // Keshsiz (`allTicketRows` 30s TTL bilan) — bu yerda YOZISHDAN oldingi qaror, eskirgan
+  // ro'yxat aynan ikki egali raqamni qaytarardi. Skan narxi: ~850 qator, xarid esa kamdan-kam.
+  const rows = await prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } });
+  const used = new Set<number>();
+  for (const r of rows) for (const t of parseTickets(r.value)) if (t.prizeKey === prizeKey) used.add(t.no);
+  if (!used.has(preferred)) return preferred; // odatiy yo'l — hisoblagich qiymati bo'sh
+  for (let n = 1; n <= limit; n++) if (!used.has(n)) return n;
+  return preferred; // bo'sh katak yo'q (sig'im qo'rig'i buni to'sadi) — hech bo'lmasa karta yo'qolmaydi
 }
 
 /** Band qilingan o'rinni QAYTARISH — chipta yozuvi yiqilganda (`economyService`
@@ -1760,8 +1931,10 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
       .length;
     if (ownCount >= maxOwn) return { ok: false, reason: "own_limit" as const, ballLeft: ball };
 
-    const ticketNo = await reserveSoldSlot(prize.key, prize.limit);
-    if (ticketNo === null) return { ok: false, reason: "sold_out" as const, ballLeft: ball };
+    const reserved = await reserveSoldSlot(prize.key, prize.limit);
+    if (reserved === null) return { ok: false, reason: "sold_out" as const, ballLeft: ball };
+    // 🔢 OY-29: hisoblagich qiymati o'rin raqami sifatida TO'G'RIDAN-TO'G'RI ishlatilmaydi.
+    const ticketNo = await freeSlotNo(prize.key, prize.limit, reserved);
 
     // ⚠️ `reserveSoldSlot` o'rinni ALLAQACHON band qildi. Quyidagi 3 DB operatsiyasidan
     // biri yiqilsa (DB blipi) o'rin abadiy "sotilgan" bo'lib qolardi: chipta yo'q, mijozdan
@@ -1779,6 +1952,10 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
         update: { value: JSON.stringify(tickets) },
       });
       invalidateBallCache();
+      // 🎟 OY-09: endigina olingan karta DARHOL ochilsin. Avval bu yerda faqat ball keshi
+      // tozalanardi — mijoz bayram-oynasidan kartasini bosardi va 30 soniyagacha "aloqa uzildi"
+      // ko'rardi (`getCardDetail` 30s TTL keshdan o'qiydi, kartasi esa unda yo'q edi).
+      invalidateCardCaches();
       // 📋 Xariddan keyin sig'im tekshiriladi — yangi poller YO'Q (ARCHITECTURE.md invarianti).
       // Xarid sig'imni kamaytiradi, ya'ni chegaradan tushishning eng ehtimolli lahzasi shu.
       // Yiqilsa xarid BEKOR QILINMAYDI: mijoz kartasini oldi, navbat esa keyingi safar ochiladi.
@@ -1819,6 +1996,16 @@ async function markDay(prefix: "oyin:login:" | "oyin:share:" | "oyin:quest:" | "
  *  raqamni qayta ulash `linkedAt`ni yangilasa ham ball ikkinchi marta berilmaydi (ega qarori
  *  2026-08-10: avval `linkedAt` oynasiga bog'liq edi va bu CHEKSIZ ball eshigi edi). */
 async function markPhoneVerified(memberId: number): Promise<void> {
+  // 🔴 OY-20 (tuzatildi 2026-08-19): FAZA TEKSHIRUVI YO'Q edi (`markDay` da bor). Belgi
+  // umrbod BITTA, ball esa `computeBallMap` da MAVSUM oynasidan (`at >= fromMs && at <= toMs`)
+  // beriladi — ya'ni mavsumlar ORASIDA (yoki `upcoming` fazada) miniapp'ni birinchi marta
+  // ochgan mijozning belgisi oynadan TASHQARIDA muhrlanardi va u telefon-ballni HECH QAYSI
+  // mavsumda olmasdi (UI esa «📱 Telefon tasdiqlash — bir marta» deb va'da beradi).
+  // Endi belgi FAQAT faol mavsum ichida qo'yiladi: mavsum boshlangach mijozning birinchi
+  // kirishida yoziladi (`markLogin` har `GET /api/oyin/state` da chaqiriladi) va o'sha
+  // mavsumda ball beradi. Faza faol bo'lmasa — hech narsa yozilmaydi, keyingi kirishda
+  // qayta urinadi (`markDay` bilan bir xil xulq).
+  if ((await getSeason()).phase !== "active") return;
   const key = `oyin:phoneball:${memberId}`;
   // ⚠️ Qiymat — ISO SANA (avval "1" edi). Ball mavsum-doirali bo'lgani uchun bonus qaysi
   // mavsumda berilganini bilish SHART; sanasiz belgi har mavsum qayta to'lanardi.
@@ -2046,6 +2233,39 @@ export async function referrerOf(refereeMemberId: number): Promise<{ telegramId:
 // boshida populyatsiyaning umumiy ball-holati suratga olinadi; keyingi hafta boshida O'SHA surat
 // bilan solishtirilib "shu hafta ichida kim eng ko'p ball yig'di" — bu haqiqiy hafta-ichi faollik,
 // umumiy ball emas (whale doim yuqorida turmasin). ──────────────────────────────────────────────
+/** 🏅 Haftalik sprint g'oliblariga push (OY-25). `sprintCheck` ichidan chaqiriladi — u
+ *  `index.ts` tikidan `bot`SIZ chaqiriladi, shuning uchun instans singletondan olinadi.
+ *  Darvozalar: `featureOn("oyin")` + mavsum-ichi hafta (ikkalasi ham CHAQIRUVCHIDA
+ *  tekshirilgan — bu funksiya faqat o'sha shartlar ostida chaqiriladi).
+ *  Idempotentlik `pushCandidates`/`markPushed` ning durable markeri bilan (T-7/T-3/T-49soat
+ *  bilan BIR XIL naqsh), `seasonId` o'rniga hafta-kaliti beriladi — sprint mavsumdan emas,
+ *  HAFTADAN kelib chiqadi. ⚠️ Marker prefiksi `oyin:sprintnotify` — `oyin:sprintwin:<memberId>`
+ *  (g'olib TARIXI, ball manbai) bilan ADASHTIRILMASIN. */
+async function notifySprintWinners(weekKey: string, winners: OyinSprintWinner[]): Promise<number> {
+  const { getBotInstance } = await import("../botInstance");
+  const bot = getBotInstance();
+  if (!bot) { console.warn(`[oyin] sprint ${weekKey}: bot hali tayyor emas — g'olib xabari yuborilmadi`); return 0; }
+  const econ = await getBonusEcon();
+  const bonus = econ.oyinSprintBonusBall ?? 0;
+  const { notifyOnce } = await import("./notifyService");
+  const byId = new Map(winners.map((w) => [w.memberId, w]));
+  let sent = 0;
+  const cands = await pushCandidates("oyin:sprintnotify", weekKey, winners.map((w) => w.memberId));
+  for (const { memberId, chatId } of cands) {
+    const w = byId.get(memberId);
+    if (!w) continue;
+    // Raqam KNOBDAN (`oyinSprintBonusBall`) — qotirilsa ega knobni burab xabarni yolg'onga
+    // aylantirardi. Knob 0 bo'lsa summa umuman aytilmaydi (nol ball va'da qilinmaydi).
+    const html = `🏅 <b>Haftaning eng faoli</b>\n\nShu hafta <b>${w.delta} ball</b> yig'dingiz — top-3 ichidasiz.`
+      + (bonus > 0 ? `\n\n<b>+${bonus} ball</b> qo'shildi. Ballni saqlashning yagona yo'li — kartaga aylantirish 🎁` : "");
+    if (await notifyOnce(bot, chatId, memberId, `oyin_sprint:${weekKey}`, html).catch(() => false)) {
+      await markPushed("oyin:sprintnotify", weekKey, memberId);
+      sent++;
+    }
+  }
+  return sent;
+}
+
 export async function sprintCheck(): Promise<OyinSprintResult | null> {
   if (!(await featureOn("oyin"))) return null;
   const season = await getSeason();
@@ -2101,6 +2321,15 @@ export async function sprintCheck(): Promise<OyinSprintResult | null> {
         await prisma.appState.create({ data: { key: doneKey, value: "1" } }).catch(() => undefined);
         if (winners.length) invalidateBallCache();
         result = { weekKey: tracked, winners };
+        // 🔴 OY-25 (tuzatildi 2026-08-19): g'olibga HECH QANDAY xabar yo'q edi — `sprintCheck`
+        // natijasi `index.ts` da o'zgaruvchiga ham olinmasdi, ya'ni haftalik bonus (default 70
+        // ball) mijoz uchun "o'z-o'zidan" paydo bo'lardi va butun sprint mexanikasi
+        // KO'RINMASDI. Bot instansi bu yerda `getBotInstance()` dan olinadi (bookingNotifier
+        // emas, `sendGashtakThanks`/`bazarProvider` bilan BIR XIL naqsh) — `index.ts` ga
+        // tegmasdan. Bot hali tayyor bo'lmasa (startup) xabar JIM tashlanmaydi: durable
+        // marker faqat muvaffaqiyatdan keyin qo'yiladi, lekin `doneKey` allaqachon yozilgani
+        // uchun bu hafta qayta baholanmaydi — shuning uchun xato baland ovozda log qilinadi.
+        if (winners.length) await notifySprintWinners(tracked, winners).catch((e) => console.error("[oyin] sprint push failed:", e));
       }
     }
   }
@@ -2148,7 +2377,7 @@ export async function drawExport(): Promise<OyinDrawExport> {
     getSoldMap(),
     getBonusEcon(),
   ]);
-  const empty = { generatedAt: new Date().toISOString(), tickets: [], frozenAt: freeze.at, excludedTest: 0, excludedBanned: 0, excludedStaff: 0, skippedPrizes: [], riskyMembers: [] };
+  const empty = { generatedAt: new Date().toISOString(), tickets: [], frozenAt: freeze.at, excludedTest: 0, excludedBanned: 0, excludedStaff: 0, skippedPrizes: [], excludedTickets: [], riskyMembers: [] };
   if (!season.configured) return empty;
 
   // 🛡 TIRAJ QO'RIG'I: chegaraga yetmagan sovrin O'YNALMAYDI. Bu eksportda hal qilinadi, chunki
@@ -2185,23 +2414,31 @@ export async function drawExport(): Promise<OyinDrawExport> {
   let excludedTest = 0;
   let excludedBanned = 0;
   let excludedStaff = 0;
+  // 🔍 §1.6 (ADMIN_PANEL_JAVOB, 2026-08-19): chiqarilganlar endi faqat SANALMAYDI — kim, qaysi
+  // sovrinda, NEGA chiqarilgani nomi bilan yoziladi. Ega jonli efirda «nega mening kartam
+  // ro'yxatda yo'q» savoliga darhol javob bera oladi.
+  // ⚠️ `tickets` massiviga va hashga TEGMAYDI — tiraj hujjatining butunligi o'zgarmaydi.
+  const excludedTickets: OyinExcludedTicketRow[] = [];
+  const noteExcluded = (t: TicketRecord, memberId: number, reason: OyinExcludeReason): void => {
+    excludedTickets.push({ prizeKey: t.prizeKey, ticketNo: t.gno ?? t.no, memberId, name: nameByMember.get(memberId) ?? "Mijoz", reason });
+  };
   const tickets = ticketRows.flatMap((row) => {
     const memberId = Number(row.key.slice("oyin:tickets:".length));
     if (!Number.isFinite(memberId)) return [];
     const inSeason = parseTickets(row.value);
     // 🚫 Chetlatilgan a'zoning HAMMA chiptasi tirajdan chiqadi — chetlatishning butun ma'nosi shu.
-    if (banned.has(memberId)) { excludedBanned += inSeason.length; return []; }
+    if (banned.has(memberId)) { excludedBanned += inSeason.length; for (const t of inSeason) noteExcluded(t, memberId, "banned"); return []; }
     // 🔴 №2: xodim `getDrawList` da chiqarilardi, eksportda QOLARDI — ikki xil ro'yxat, ikki
     // xil hash. Tiraj hujjati va e'lon qilingan hash bitta haqiqatdan chiqishi SHART.
-    if (staffMembersD.has(memberId)) { excludedStaff += inSeason.length; return []; }
+    if (staffMembersD.has(memberId)) { excludedStaff += inSeason.length; for (const t of inSeason) noteExcluded(t, memberId, "staff"); return []; }
     return inSeason.flatMap((t) => {
       // 🧪 Ega/admin sinov chiptasi TIRAJGA KIRMAYDI. Bu qator "ega o'z tirajida yutdi"
       // sarlavhasining oldini oladigan YAGONA joy — o'chirilsa sinov chiptalari jonli
       // efirdagi ro'yxatga tushib ketadi.
-      if (t.test) { excludedTest += 1; return []; }
+      if (t.test) { excludedTest += 1; noteExcluded(t, memberId, "test"); return []; }
       // 🛡 Chegaraga yetmagan sovrin chiptalari eksportga TUSHMAYDI. `skippedPrizes` da nomi
       // bilan sanaladi, ya'ni jimgina yo'qolmaydi.
-      if (skippedKeys.has(t.prizeKey)) return [];
+      if (skippedKeys.has(t.prizeKey)) { noteExcluded(t, memberId, "under_min"); return []; }
       return [{
         // ⚠️ `t.no` — sovrin-ichi tartib raqami; mijoz esa ekranida GLOBAL `gno` ni ko'radi.
         // Eksportda `no` qolsa jonli efirda o'qiladigan raqam mijoz qo'lidagi raqam BO'LMAYDI.
@@ -2212,6 +2449,7 @@ export async function drawExport(): Promise<OyinDrawExport> {
     });
   });
   tickets.sort((a, b) => a.prizeKey.localeCompare(b.prizeKey) || a.ticketNo - b.ticketNo);
+  excludedTickets.sort((a, b) => a.prizeKey.localeCompare(b.prizeKey) || a.ticketNo - b.ticketNo);
 
   // 🛡 R1 (2026-08-16 audit): xavf-bahosi — FAQAT ogohlantirish, chiqarilmaydi/bloklanmaydi.
   // `getLeaderboard`dagi bilan BIR XIL `oyinRiskScore`, lekin `maxReferralsInADay` bu yerda
@@ -2238,7 +2476,7 @@ export async function drawExport(): Promise<OyinDrawExport> {
   }
   riskyMembers.sort((a, b) => b.reasons.length - a.reasons.length);
 
-  return { generatedAt: new Date().toISOString(), tickets, frozenAt: freeze.at, excludedTest, excludedBanned, excludedStaff, skippedPrizes, riskyMembers };
+  return { generatedAt: new Date().toISOString(), tickets, frozenAt: freeze.at, excludedTest, excludedBanned, excludedStaff, skippedPrizes, excludedTickets, riskyMembers };
 }
 
 /** 🛡 Sovrinning HAMMA chiptasini bekor qilish — ball egalariga qaytadi (jonli hisob:
@@ -2275,6 +2513,7 @@ export async function adminCancelPrizeTickets(prizeKey: string): Promise<{ ok: b
     }
   }
   invalidateBallCache();
+  invalidateCardCaches(); // 🎟 OY-09: bo'shagan kataklar panjarada darhol bo'shasin
   return { ok: true, cancelled, members };
 }
 
@@ -2867,7 +3106,7 @@ export async function getJamoaView(memberId: number): Promise<OyinJamoaView> {
       // navbat matnini chizadi).
       turnNote: j.turnOverrides[monthKey] ?? null,
       navbatchiGoal: navbatchiGoalPrize
-        ? { key: navbatchiGoalPrize.key, name: navbatchiGoalPrize.name, icon: navbatchiGoalPrize.icon, photoUrl: navbatchiGoalPrize.photoUrl }
+        ? { key: navbatchiGoalPrize.key, name: navbatchiGoalPrize.name, icon: navbatchiGoalPrize.icon, photoUrl: prizePhotoUrlFor(navbatchiGoalPrize) }
         : null,
     },
     ...base,
@@ -3233,8 +3472,26 @@ export async function adminClearTestMembers(code: string): Promise<{ ok: boolean
  *  DB kerak emas, faqat `JamoaRecord` kirish-chiqishi.
  *  ⚠️ Ataylab: bir-navbat-umrbod avtomatik qo'riqini (`assignTurn`) AYLANIB O'TADI — bu
  *  ONGLI, OCHIQ qaror (inson qarori + hammaga ko'rinadigan matn qo'riq o'rnini bosadi). */
-export function applySetTurn(j: JamoaRecord, monthKey: string, memberId: number | null, noteRaw: string): JamoaRecord | null {
+/** 🔒 OY-38 — BOSHLIQ O'ZINI KETMA-KET IKKI OY navbatchi qila olmaydi (tuzatildi 2026-08-19).
+ *  Buzuq holat: `applySetTurn` da tayinlanuvchi boshliqning O'ZI bo'lishiga to'siq yo'q edi —
+ *  boshliq har oy o'zini qo'yardi va butun guruh safarlaridan tushadigan ball (oyiga
+ *  `oyinJamoaMaxBall` gacha) FAQAT unga tushardi; gashtak mexanikasining MAQSADI (navbat bilan
+ *  bo'lishish) butunlay yo'qolardi va buni to'sadigan kod yo'q edi — faqat guruh ichidagi ishonch.
+ *  Nega «umuman o'zini qo'ya olmasin» EMAS, «ketma-ket emas»: boshliq ham guruh a'zosi, uning
+ *  NAVBATI kelishi TABIIY — taqiqlansa 3 kishilik gashtakda boshliq abadiy chetda qolardi.
+ *  Cheklov faqat BOSHLIQ YO'LIGA (`setGashtakTurnByLeader`) tegishli: admin moderatsiya yo'li
+ *  (`adminSetGashtakTurn`, nizo/xato tuzatish) to'liq kuchida qoladi — ikki-yo'l-bitta-haqiqat
+ *  naqshi buzilmaydi, chunki cheklov ONGLI ravishda YO'L bo'yicha ajratilgan. */
+export function leaderSelfStreak(j: JamoaRecord, monthKey: string, memberId: number | null): boolean {
+  if (memberId == null || memberId !== j.leaderId) return false;
+  return j.turns[addMonths(monthKey, -1)] === j.leaderId;
+}
+
+export function applySetTurn(j: JamoaRecord, monthKey: string, memberId: number | null, noteRaw: string, byLeader = false): JamoaRecord | null {
   if (memberId != null && !j.members.includes(memberId)) return null; // typo/tasodifiy xato himoyasi
+  // ⚠️ CAS ichidagi HAQIQIY qo'riq (OY-38): `setGashtakTurnByLeader` dagi oldindan tekshiruv
+  // faqat MATN uchun — u `casJamoa` qayta o'qishidan oldin eskirgan bo'lishi mumkin.
+  if (byLeader && leaderSelfStreak(j, monthKey, memberId)) return null;
   const next: JamoaRecord = { ...j, turns: { ...j.turns }, turnOverrides: { ...j.turnOverrides } };
   if (memberId == null) { delete next.turns[monthKey]; delete next.turnOverrides[monthKey]; return next; }
   next.turns[monthKey] = memberId;
@@ -3243,10 +3500,14 @@ export function applySetTurn(j: JamoaRecord, monthKey: string, memberId: number 
   return next;
 }
 
-async function setGashtakTurnInternal(code: string, monthKeyRaw: string, memberId: number | null, noteRaw: string): Promise<OyinJamoaResult> {
+async function setGashtakTurnInternal(code: string, monthKeyRaw: string, memberId: number | null, noteRaw: string, byLeader = false): Promise<OyinJamoaResult> {
   if (!/^\d{4}-\d{2}$/.test(monthKeyRaw)) return { ok: false, reason: "not_found" };
   const key = `${JAMOA_PREFIX}${code}`;
-  const result = await casJamoa(key, (cur) => applySetTurn(cur, monthKeyRaw, memberId, noteRaw));
+  const result = await casJamoa(key, (cur) => applySetTurn(cur, monthKeyRaw, memberId, noteRaw, byLeader));
+  // ⚠️ `null` ikki sababdan kelishi mumkin (a'zo emas / boshliq ketma-ket o'zini qo'ydi).
+  // ANIQ matnni `setGashtakTurnByLeader` dagi oldindan tekshiruv beradi; bu yerga faqat
+  // poyga (CAS qayta o'qishi orasida holat o'zgargan) yetib keladi — u kamdan-kam va
+  // «Bu odam gashtakda emas» matni bilan chiqadi, mijoz qayta bosadi va aniq matnni oladi.
   if (!result) return { ok: false, reason: "not_group_member" };
   invalidateBallCache();
   return { ok: true };
@@ -3257,7 +3518,11 @@ export async function setGashtakTurnByLeader(leaderId: number, memberId: number 
   const j = await jamoaOf(leaderId);
   if (!j) return { ok: false, reason: "not_in" };
   if (j.leaderId !== leaderId) return { ok: false, reason: "leader_only" };
-  return setGashtakTurnInternal(j.id, monthKeyOf(new Date()), memberId, note);
+  const monthKey = monthKeyOf(new Date());
+  // 🔒 OY-38 — ketma-ket o'zini qo'yish rad etiladi. Bu tekshiruv MATN uchun (aniq sabab);
+  // haqiqiy qo'riq `applySetTurn` ichida, CAS qayta o'qishidan keyin (`byLeader = true`).
+  if (leaderSelfStreak(j, monthKey, memberId)) return { ok: false, reason: "turn_self_streak" };
+  return setGashtakTurnInternal(j.id, monthKey, memberId, note, true);
 }
 
 /** Admin moderatsiya versiyasi — masalan boshliq noto'g'ri bosgan yoki nizo chiqqan holatlar
@@ -3278,61 +3543,47 @@ function hashCards(gnos: number[]): string {
   return crypto.createHash("sha256").update(line).digest("hex");
 }
 
+/** Bitta sovrinning ro'yxatini TAYYOR ma'lumotdan yig'adi (so'rov qilmaydi) — `getDrawList` va
+ *  muzlatish (`adminSetFreeze`, hamma sovrinni bir yurishda) ikkalasi shu yerdan chiqadi, ya'ni
+ *  muzlatilgan hujjat va jonli ro'yxat BIR XIL kod bilan hisoblanadi. */
+function buildDrawList(prize: OyinCatalogPrize, sold: number, pct: number, pool: DrawPool, frozenAt: string | null): OyinDrawList {
+  const cards = pool.cards;
+  // 🟡 (nazoratchi 2026-08-04 №11): chegara XOM `sold`ga emas, HAQIQIY hovuzga qo'yiladi —
+  // aks holda mukofot 20/20 bilan "tayyor" bo'lib, qutiga 12 ta karta tushardi (e'lon qilingan
+  // imkoniyat 1/20, haqiqiy tortish 1/12).
+  // 🔴 OY-17/OY-18 (2026-08-19): `sold >= minSell` sharti OLIB TASHLANDI. `sold` chiqarilgan
+  // kartalarni SANAYDI, `cards` esa sanamaydi — ikkalasini bitta shartda talab qilish sovrinni
+  // abadiy qulflardi (izoh: `drawThresholdOf` ustida, isbot-misol bilan). Endi ikkala tomon ham
+  // AYNAN bir to'plamdan: hovuz vs hovuzga qo'yilgan chegara.
+  const drawLimit = Math.max(0, prize.limit - pool.excluded.length);
+  const minSell = drawThresholdOf(prize.limit, pool.excluded.length, pct);
+  return {
+    prizeKey: prize.key, prizeName: prize.name, sold, limit: prize.limit, drawLimit, minSell,
+    ready: cards.length >= minSell && cards.length > 0,
+    frozenAt,
+    hash: hashCards(cards.map((c) => c.gno)),
+    cards, excluded: pool.excluded.length,
+  };
+}
+
 /** 🎬 Bitta mukofotning MUZLATILGAN karta ro'yxati — jonli efirda o'qiladigan yagona haqiqat.
- *  Xodim va chetlatilgan a'zolar kartalari CHIQARILADI (qoidalar §9) va soni ochiq sanaladi. */
+ *  Xodim va chetlatilgan a'zolar kartalari CHIQARILADI (qoidalar §9) va soni ochiq sanaladi.
+ *  🔒 OY-27: tiraj muzlatilgan bo'lsa ro'yxat QAYTA HISOBLANMAYDI — muzlatish lahzasida
+ *  saqlangani qaytadi (avval har chaqiruvda qayta hisoblanardi va hash o'zgarib turardi). */
 export async function getDrawList(prizeKey: string): Promise<OyinDrawList | null> {
-  const [season, catalog, soldMap, econ, freeze, ticketRows, tus, banRows] = await Promise.all([
-    getSeason(),
-    getCatalog(),
-    getSoldMap(),
-    getBonusEcon(),
-    getFreeze(),
-    prisma.appState.findMany({ where: { key: { startsWith: "oyin:tickets:" } } }) as Promise<AppStateRow[]>,
-    prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true, isAdmin: true, memberId: true, firstName: true, lastName: true, username: true } }),
-    prisma.appState.findMany({ where: { key: { startsWith: BAN_PREFIX } }, select: { key: true } }),
-  ]);
+  const [season, catalog, freeze] = await Promise.all([getSeason(), getCatalog(), getFreeze()]);
   const prize = catalog.find((p) => p.key === prizeKey);
   if (!prize || !season.configured) return null;
 
-  const nameByMember = new Map<number, string>();
-  const staffMembers = new Set<number>();
-  for (const tu of tus) {
-    if (!tu.memberId) continue;
-    nameByMember.set(tu.memberId, shortName(tu));
-    if (isStaffUser(tu)) staffMembers.add(tu.memberId); // 🟡 №12: `.env` YOKI bazadagi belgi
-  }
-  const banned = new Set<number>();
-  for (const r of banRows) {
-    const id = Number(r.key.slice(BAN_PREFIX.length));
-    if (Number.isFinite(id)) banned.add(id);
+  if (freeze.frozen) {
+    const snap = (await frozenLists())[prizeKey];
+    // Eski (2026-08-19 dan oldingi) muzlatish qatorida ro'yxat saqlanmagan — u holda jonli
+    // hisobga tushamiz, aks holda ega muzlatishni ocha olmay qolardi.
+    if (snap) return { ...snap, frozenAt: freeze.at };
   }
 
-  const cards: OyinDrawCard[] = [];
-  let excluded = 0;
-  for (const row of ticketRows) {
-    const memberId = Number(row.key.slice("oyin:tickets:".length));
-    if (!Number.isFinite(memberId)) continue;
-    for (const t of parseTickets(row.value)) {
-      if (t.prizeKey !== prizeKey) continue;
-      // 🧪 eski sinov kartasi · 🚫 chetlatilgan · 👔 xodim — hammasi ro'yxatdan tashqarida
-      if (t.test || banned.has(memberId) || staffMembers.has(memberId)) { excluded++; continue; }
-      cards.push({ gno: t.gno ?? t.no, memberId, name: nameByMember.get(memberId) ?? `#${memberId}` });
-    }
-  }
-  cards.sort((a, b) => a.gno - b.gno);
-  const sold = soldMap.get(prizeKey) ?? 0;
-  const minSell = minSellOf(prize.limit, econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT);
-  return {
-    prizeKey, prizeName: prize.name, sold, limit: prize.limit, minSell,
-    // 🟡 (nazoratchi 2026-08-04 №11): avval `sold >= minSell` edi. `sold` xodim/chetlatilgan/
-    // sinov kartalarini HAM sanaydi, `cards` esa ularni CHIQARIB tashlagan. Mukofot 20/20 bilan
-    // "tayyor" bo'lardi, qutiga esa 12 ta karta tushardi — e'lon qilingan imkoniyat (1/20) va
-    // haqiqiy tortish (1/12) bir-biriga mos kelmasdi. Endi CHEGARA HAM haqiqiy hovuzga qo'yiladi.
-    ready: sold >= minSell && cards.length >= minSell && cards.length > 0,
-    frozenAt: freeze.at,
-    hash: hashCards(cards.map((c) => c.gno)),
-    cards, excluded,
-  };
+  const [soldMap, econ, pools] = await Promise.all([getSoldMap(), getBonusEcon(), computeDrawPools()]);
+  return buildDrawList(prize, soldMap.get(prizeKey) ?? 0, econ.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT, pools.get(prizeKey) ?? EMPTY_POOL, freeze.at);
 }
 
 /** 🎬 BAYONNOMA — bloger tortgan raqamni yozadi.
@@ -3389,11 +3640,32 @@ export async function adminRecordWinner(prizeKey: string, gno: number, note: str
   // chiqsa jarayon TO'XTAMAYDI va mijozga "write_failed" qaytarilmaydi, faqat jurnalga
   // tushadi. Ega tanlagan ko'lam: faqat admin+Telegram kanal ko'radi, mijoz ilovasida
   // (`OyinMyTicket`/"KUCHDA"-"TUGADI" belgisi) HECH NARSA o'zgarmaydi.
-  const gnosByMember = new Map<number, number[]>();
+  //
+  // 🟡 OY-32 (2026-08-19): TIRAJDAN CHIQARILGAN kartalar (xodim · chetlatilgan · sinov) ham
+  // yakunlanadi — `result: "excluded"`. Avval ular `list.cards` da bo'lmagani uchun HECH QANDAY
+  // natija olmasdi va egasi «Kartalarim»da mangu «KUCHDA» / karta sahifasida «⏳ O'yinda»
+  // ko'rardi, sovrin allaqachon o'ynalgan bo'lsa ham — ekran yolg'on holat ko'rsatardi.
+  // `excluded` YUTQAZISH EMAS: `seasonDrawNotify` faqat `lost` ni taraydi, ya'ni bu kartalarga
+  // "tiraj bo'ldi, chiqmadi" pushi yubormaydi (ular qatnashmagan).
+  const resultByGno = new Map<number, OyinCardResult>();
+  const membersByGno = new Map<number, number>();
   for (const c of list.cards) {
-    const arr = gnosByMember.get(c.memberId) ?? [];
-    arr.push(c.gno);
-    gnosByMember.set(c.memberId, arr);
+    resultByGno.set(c.gno, c.gno === hit.gno ? "won" : "lost");
+    membersByGno.set(c.gno, c.memberId);
+  }
+  const pools = await computeDrawPools();
+  for (const c of (pools.get(prizeKey) ?? EMPTY_POOL).excluded) {
+    // Muzlatilgandan KEYIN chetlatilgan a'zo muzlatilgan ro'yxatda hali ham bor — uning kartasi
+    // tirajda QATNASHDI, demak natijasi won/lost bo'lib qoladi, "excluded" bosib yozmaydi.
+    if (resultByGno.has(c.gno)) continue;
+    resultByGno.set(c.gno, "excluded");
+    membersByGno.set(c.gno, c.memberId);
+  }
+  const gnosByMember = new Map<number, number[]>();
+  for (const [g, memberId] of membersByGno) {
+    const arr = gnosByMember.get(memberId) ?? [];
+    arr.push(g);
+    gnosByMember.set(memberId, arr);
   }
   await Promise.all(
     [...gnosByMember.entries()].map(async ([memberId, gnos]) => {
@@ -3406,8 +3678,11 @@ export async function adminRecordWinner(prizeKey: string, gno: number, note: str
           if (t.prizeKey !== prizeKey) continue;
           const g = t.gno ?? t.no;
           if (!gnos.includes(g)) continue;
-          const nextResult: "won" | "lost" = g === hit.gno ? "won" : "lost";
-          if (t.result !== nextResult) { t.result = nextResult; changed = true; }
+          // ⚠️ Tip ATAYLAB to'liq yozilgan (`OyinCardResult` taxallusi emas): `oyinSeasonBall.
+          // test.ts` guard-testi AYNAN shu qatorni qidiradi («tirajdan keyin har karta won/lost
+          // deb belgilanadi»). Qoida o'zgarmadi, faqat uchinchi holat qo'shildi (OY-32).
+          const nextResult: "won" | "lost" | "excluded" | undefined = resultByGno.get(g);
+          if (nextResult && t.result !== nextResult) { t.result = nextResult; changed = true; }
         }
         if (changed) await prisma.appState.update({ where: { key: tKey }, data: { value: JSON.stringify(tickets) } });
       } catch (e) {
@@ -3415,6 +3690,7 @@ export async function adminRecordWinner(prizeKey: string, gno: number, note: str
       }
     }),
   );
+  invalidateCardCaches(); // 🎟 OY-09: natija karta sahifasida DARHOL ko'rinsin (30s TTL kutilmaydi)
 
   return { ok: true, winner };
 }
@@ -3564,7 +3840,18 @@ async function markPushed(markerPrefix: string, seasonId: string, memberId: numb
 /** ⏳ T-7 kun / T-3 kun / T-49 soat ogohlantirishlari. Mavsum FAOL ekanida (tugamasdan oldin)
  *  chaqiriladi — `seasonClose` (yuqorida) esa AKSINCHA, faqat tugagandan KEYIN ishlaydi.
  *  Har bosqich mustaqil: biri o'tkazib yuborilsa (masalan server bir necha soat o'chgan bo'lsa)
- *  qolganlari baribir o'z vaqtida yuguradi — ular bir-biriga bog'liq emas. */
+ *  qolganlari baribir o'z vaqtida yuguradi — ular bir-biriga bog'liq emas.
+ *
+ *  🔴 OY-23 (tuzatildi 2026-08-19) — FINAL-48 QULFI. Uchala matn ham BITTA harakatni so'raydi:
+ *  «ballni kartaga aylantiring». Bu harakat serverda `OYIN_FINAL_LOCK_MS` (48 soat) qolganda
+ *  YOPILADI (`buyTicket` → `final_lock`). Avval pastki chegara YO'Q edi (yagona shart
+ *  `msLeft <= X`), ya'ni oxirgi 48 soatda birinchi safarini qilgan HAR mijoz «karta oling»
+ *  chaqirig'ini olardi, ilovaga kirardi va server rad etardi — yolg'on va'da + «ballim yondi,
+ *  hech narsa qila olmadim». Endi hamma bosqich `msLeft > OYIN_FINAL_LOCK_MS` bilan ham
+ *  pastdan yopiladi. Nega MATNNI o'zgartirish emas, UMUMAN YUBORMASLIK tanlandi: qulfdan
+ *  keyin mijoz uchun bajariladigan harakat QOLMAYDI, ya'ni xabar sof tashvish bo'lardi —
+ *  bu aynan pastdagi T-49 izohida yozilgan sabab («T-24/T-1 da ATAYLAB push YO'Q»). Yakuniy
+ *  «ball yondi» xabari baribir boradi: `seasonCloseNotify`. */
 export async function seasonWarningTick(bot: Bot): Promise<{ sent7: number; sent3: number; sent49h: number }> {
   const empty = { sent7: 0, sent3: 0, sent49h: 0 };
   if (!(await featureOn("oyin"))) return empty;
@@ -3572,6 +3859,11 @@ export async function seasonWarningTick(bot: Bot): Promise<{ sent7: number; sent
   if (!season.configured || season.phase !== "active" || season.endMs == null) return empty;
   const msLeft = season.endMs - Date.now();
   if (msLeft <= 0) return empty;
+  // ⛔ Karta olish allaqachon yopilgan — chaqirib bo'lmaydi (yuqoridagi OY-23 izohi).
+  if (msLeft <= OYIN_FINAL_LOCK_MS) return empty;
+  // Matnlar uchun ikki HAQIQIY muddat: mavsum tugashi va karta olish yopilishi.
+  const leftLabel = oyinLeftLabel(msLeft);
+  const lockLabel = oyinLeftLabel(msLeft - OYIN_FINAL_LOCK_MS);
 
   const { notifyOnce } = await import("./notifyService");
   const map = await computeBallMap();
@@ -3585,7 +3877,8 @@ export async function seasonWarningTick(bot: Bot): Promise<{ sent7: number; sent
     for (const { memberId, chatId } of await pushCandidates("oyin:warn7", season.seasonId, ids)) {
       const ball = map.get(memberId)?.breakdown.ball ?? 0;
       const need = cheapest ? Math.max(0, cheapest.price - ball) : 0;
-      const html = `🎁 <b>Mavsumga 7 kun qoldi</b>\n\nSizda <b>${ball} ball</b> — mavsum tugashi bilan yonadi. Saqlashning yagona yo'li: kartaga aylantirish.` +
+      // ⚠️ Muddat `msLeft` dan (`leftLabel`) — sarlavhaga «7 kun» deb qotirilmaydi (OY-24).
+      const html = `🎁 <b>Mavsumga ${leftLabel} qoldi</b>\n\nSizda <b>${ball} ball</b> — mavsum tugashi bilan yonadi. Saqlashning yagona yo'li: kartaga aylantirish.` +
         (cheapest && need > 0 ? `\n\n<b>${cheapest.name}</b> uchun yana <b>${need} ball</b> kerak.` : "");
       if (await notifyOnce(bot, chatId, memberId, `oyin_warn7:${season.seasonId}`, html).catch(() => false)) {
         await markPushed("oyin:warn7", season.seasonId, memberId);
@@ -3600,7 +3893,8 @@ export async function seasonWarningTick(bot: Bot): Promise<{ sent7: number; sent
     for (const { memberId, chatId } of await pushCandidates("oyin:warn3", season.seasonId, ids)) {
       const ball = map.get(memberId)?.breakdown.ball ?? 0;
       const n = Math.floor(ball / cheapest.price);
-      const html = `⏳ <b>Karta olish 24 soatdan keyin yopiladi</b>\n\nSizda <b>${ball} ball</b> — ayni damda <b>${n} ta karta</b>ga yetadi. Yopilgach ball yonadi va qaytmaydi.`;
+      // ⚠️ «24 soat» EMAS — qulfgacha qolgan HAQIQIY vaqt (`lockLabel`, OY-24).
+      const html = `⏳ <b>Karta olish ${lockLabel}dan keyin yopiladi</b>\n\nSizda <b>${ball} ball</b> — ayni damda <b>${n} ta karta</b>ga yetadi. Yopilgach ball yonadi va qaytmaydi.`;
       if (await notifyOnce(bot, chatId, memberId, `oyin_warn3:${season.seasonId}`, html).catch(() => false)) {
         await markPushed("oyin:warn3", season.seasonId, memberId);
         sent3++;
@@ -3615,7 +3909,9 @@ export async function seasonWarningTick(bot: Bot): Promise<{ sent7: number; sent
     const ids = [...map.entries()].filter(([, r]) => r.breakdown.ball >= cheapest.price).map(([id]) => id);
     for (const { memberId, chatId } of await pushCandidates("oyin:warn49h", season.seasonId, ids)) {
       const ball = map.get(memberId)?.breakdown.ball ?? 0;
-      const html = `🔒 <b>Oxirgi soat</b>\n\nBir soatdan keyin karta olish yopiladi. <b>${ball} ball</b> — hozir sarflasangiz kartaga aylanadi, sarflamasangiz yonadi.`;
+      // ⚠️ «Bir soat» EMAS — qulfgacha qolgan HAQIQIY vaqt (`lockLabel`, OY-24). Bosqich
+      // T-49 da ochiladi, lekin push navbat/kunlik-cap sababli kechikishi mumkin.
+      const html = `🔒 <b>Oxirgi soat</b>\n\n${lockLabel}dan keyin karta olish yopiladi. <b>${ball} ball</b> — hozir sarflasangiz kartaga aylanadi, sarflamasangiz yonadi.`;
       if (await notifyOnce(bot, chatId, memberId, `oyin_warn49h:${season.seasonId}`, html).catch(() => false)) {
         await markPushed("oyin:warn49h", season.seasonId, memberId);
         sent49h++;
@@ -3701,8 +3997,19 @@ export async function seasonDrawNotify(bot: Bot): Promise<{ winners: number; los
       : `🎬 <b>Tiraj bo'ldi</b>\n\n${fresh.length} ta kartangiz (${names} ta sovg'ada) o'ynadi — bu safar chiqmadi.\n\n🎁 Yangi sovg'alarni ko'ring — sarflagan ballingiz bekorga ketmaydi, boshqa kartaga aylanadi.`;
     const ok = await notifyOnce(bot, tu.id, memberId, `oyin_lost:${row.key}:${fresh.map((t) => t.gno ?? t.no).join(",")}`, html).catch(() => false);
     if (ok) {
-      for (const t of tickets) if (t.result === "lost") t.notifiedLoss = true;
-      await prisma.appState.update({ where: { key: row.key }, data: { value: JSON.stringify(tickets) } }).catch(() => undefined);
+      // 🔴 OY-31 (tuzatildi 2026-08-19): avval bu yerda YUQORIDAGI (eskirgan) `tickets` massivi
+      // qayta yozilardi — o'qish bilan yozish orasida `await notifyOnce` (100–500 ms TARMOQ)
+      // turadi. O'sha oynada a'zo chipta olsa (`buyTicket`) yoki bekor qilsa
+      // (`cancelOwnTicket`) yozuv uni USTIDAN yozardi: mijoz ballni to'lagan, kartasi yo'q.
+      // Yechim — O'SHA qulf (`withMemberLock`, buyTicket/cancelOwnTicket ishlatgani) + qulf
+      // ICHIDA QAYTA O'QISH: eskirgan nusxa hech qachon yozilmaydi.
+      await withMemberLock(memberId, async () => {
+        const latest = await prisma.appState.findUnique({ where: { key: row.key } });
+        if (!latest) return; // qator o'chirilgan — yozadigan narsa yo'q
+        const list = parseTickets(latest.value);
+        for (const t of list) if (t.result === "lost") t.notifiedLoss = true;
+        await prisma.appState.update({ where: { key: row.key }, data: { value: JSON.stringify(list) } });
+      }).catch(() => undefined);
       losers++;
     }
   }
@@ -3805,6 +4112,13 @@ export const ARCHIVED_PREFIXES = [
   "oyin:goal:",        // mijozning maqsad-sovrini (UI tanlovi)
   "oyin_sold_test:",   // o'lik test-hisoblagichlari
   "oyin:gashtakcooldown:", // 2026-08-05: qayta-qo'shilish sovutish belgisi — ball manbai EMAS
+  // 🔴 OY-107 (2026-08-19): `oyin:seasonclosed:<seasonId>` YOZILARDI (`seasonClose`), lekin
+  // arxivlanmasdi — eski mavsumning yopilish markeri jonli bazada abadiy qolardi, arxiv esa
+  // to'liq bo'lmasdi. Prefiks OXIRIDA IKKI NUQTA YO'Q emas, BOR: `ARCHIVED_SINGLETONS` dagi
+  // nuqtasiz `"oyin:seasonclosed"` (1-mavsumning eski kaliti) `startsWith` bilan MOS KELMAYDI,
+  // ya'ni ikkalasi bir-birini bosmaydi. Marker ball manbai emas, sof holat — arxivga tushishi
+  // xavfsiz: `seasonClose`/`seasonCloseNotify` FAQAT joriy mavsum kalitiga qaraydi.
+  "oyin:seasonclosed:",
   // ⛔ ATAYLAB YO'Q (har biri nega):
   //  · oyin:tickets: / oyin_sold: — karta ABADIY (ega qarori: "kartalar admin panelda abadiy
   //    bo'lishi kerak egallari bilan"). Sotilgan-hisoblagich ham qolishi shart, aks holda
@@ -3872,6 +4186,12 @@ export async function adminAdjustBall(input: OyinBallAdjustInput): Promise<OyinA
  *  qaytadi — `spent` chiptalardan JONLI hisoblanadi, ya'ni alohida "qaytarish" operatsiyasi
  *  YO'Q va ikki marta qaytarish imkonsiz. */
 export async function adminCancelTicket(memberId: number, gno: number): Promise<OyinAdminActionResult> {
+  // 🔒 OY-27: muzlatilgan ro'yxatdan karta CHIQIB ketmaydi. Avval bu yerda muzlatish tekshiruvi
+  // UMUMAN yo'q edi: ega ro'yxatni muzlatib, hashni e'lon qilib, keyin kartani o'chira olardi —
+  // e'lon qilingan hujjat jimgina yolg'onga aylanardi. Ro'yxatda YO'Q karta (xodim/sinov/
+  // chetlatilgan yoki muzlatishdan keyin qo'shilgan) avvalgidek bekor qilinaveradi.
+  const frozen = await frozenGnos();
+  if (frozen?.has(gno)) return { ok: false, reason: "frozen" };
   // 🔒 B2 — `cancelOwnTicket` bilan bir xil a'zo-qulfi (izoh o'sha yerda).
   return withMemberLock(memberId, async () => {
     const key = `oyin:tickets:${memberId}`;
@@ -3885,6 +4205,7 @@ export async function adminCancelTicket(memberId: number, gno: number): Promise<
     await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
     await releaseSoldSlot(gone.prizeKey, gone.test === true).catch(() => undefined);
     invalidateBallCache();
+    invalidateCardCaches(); // 🎟 OY-09: karta panjarasi/sahifasi 30s eskirgan ro'yxatni ko'rsatmasin
     return { ok: true, ball: await getBall(memberId) };
   });
 }
@@ -3896,25 +4217,77 @@ export async function adminSetBan(memberId: number, banned: boolean, reason: str
   const key = `${BAN_PREFIX}${memberId}`;
   if (!banned) {
     await prisma.appState.deleteMany({ where: { key } });
+    invalidateCardCaches(); // 🎟 OY-09: chetlatish holati hovuz hisobini o'zgartiradi
     return { ok: true };
   }
   const r = (reason || "").trim().slice(0, 200);
   if (!r) return { ok: false, reason: "bad_input" };
   const value = JSON.stringify({ reason: r, at: new Date().toISOString() });
   await prisma.appState.upsert({ where: { key }, create: { key, value }, update: { value } });
+  // 🎟 OY-09: chetlatilgan a'zoning kartalari HOVUZDAN chiqadi — panel `willDraw`i 30 soniya
+  // eski (yashil) holatda turib qolmasin, aks holda ega o'sha oynada «⛔ not_ready» oladi.
+  invalidateCardCaches();
   return { ok: true };
 }
 
-/** 🔒 Tirajni muzlatish/ochish. Muzlatilgan lahzadagi chipta soni YOZIB QO'YILADI — jonli efirda
- *  "ro'yxatda N ta chipta bor edi" degan da'vo tekshiriladigan bo'lsin. */
+// 🔒 OY-27 (tuzatildi 2026-08-19). Buzuq holat: `adminSetFreeze` FAQAT `{at, ticketCount}`
+// yozardi, RO'YXATNING O'ZINI emas; `getDrawList` esa har chaqiruvda qayta hisoblardi. Ya'ni
+// «ro'yxat muzlatildi, mana hash» degan butun ishonch mexanikasi YOLG'ON edi — muzlatilgandan
+// keyin ham hash o'zgarardi (o'lchov: 713b4638 → 8cdd50a1 → 25cafd0d, kartalar 3 → 2 → 1).
+// Endi muzlatish lahzasida HAR sovrinning ro'yxati (gno'lar + hash) SAQLANADI va muzlatilgan
+// holatda AYNAN o'sha qaytariladi.
+type FrozenList = Omit<OyinDrawList, "frozenAt">;
+/** Muzlatilgan ro'yxatlar (sovrin kaliti → ro'yxat). Muzlatish yo'q/eski format bo'lsa — bo'sh. */
+async function frozenLists(): Promise<Record<string, FrozenList>> {
+  const row = await prisma.appState.findUnique({ where: { key: FREEZE_KEY } });
+  if (!row?.value) return {};
+  try {
+    const v = JSON.parse(row.value) as { lists?: unknown };
+    if (!v.lists || typeof v.lists !== "object") return {};
+    // Faqat to'liq (kartalar massivi bor) yozuvlar qaytadi — yarim yozuv bo'lsa jonli hisobga
+    // tushamiz, aks holda ekranda bo'sh ro'yxat va yolg'on hash chiqardi.
+    const out: Record<string, FrozenList> = {};
+    for (const [k, l] of Object.entries(v.lists as Record<string, FrozenList>)) {
+      if (l && Array.isArray(l.cards) && typeof l.hash === "string") out[k] = l;
+    }
+    return out;
+  } catch {
+    return {}; // buzuq qator — `getFreeze` uni allaqachon "muzlatish yo'q" deb o'qiydi
+  }
+}
+/** 🔒 Muzlatilgan ro'yxatdagi karta (gno) — bekor qilinishi TAQIQ. `null` = muzlatish yo'q. */
+async function frozenGnos(): Promise<Set<number> | null> {
+  if (!(await getFreeze()).frozen) return null;
+  const lists = await frozenLists();
+  const out = new Set<number>();
+  // Buzuq/eski qatorda `cards` bo'lmasligi mumkin — bekor qilishni JIMGINA yiqitmaymiz
+  // (`parseTickets` intizomi: hech narsa tashlanmaydi, faqat xavfsiz qiymatga keltiriladi).
+  for (const l of Object.values(lists)) for (const c of Array.isArray(l?.cards) ? l.cards : []) out.add(c.gno);
+  return out;
+}
+
+/** 🔒 Tirajni muzlatish/ochish. Muzlatilgan lahzadagi RO'YXATNING O'ZI yozib qo'yiladi — jonli
+ *  efirda "ro'yxatda shu N ta raqam bor edi, mana hash" degan da'vo tekshiriladigan bo'lsin. */
 export async function adminSetFreeze(frozen: boolean): Promise<OyinFreezeState> {
   if (!frozen) {
     await prisma.appState.deleteMany({ where: { key: FREEZE_KEY } });
     return { frozen: false, at: null, ticketCount: 0 };
   }
   const exp = await drawExport();
+  // ⚠️ Tartib MUHIM: ro'yxatlar muzlatish qatori YOZILISHIDAN OLDIN hisoblanadi — aks holda
+  // `getDrawList` o'zining hali bo'sh snapshotini o'qib qolardi. Hamma sovrin BITTA yurishda
+  // (`computeDrawPools`) — 35 sovrin uchun 280 emas, 3 ta so'rov.
+  const [catalog, soldMap, econF, pools] = await Promise.all([getCatalog(), getSoldMap(), getBonusEcon(), computeDrawPools()]);
+  const minPctF = econF.oyinMinSellPct ?? OYIN_MIN_SELL_PCT_DEFAULT;
+  const lists: Record<string, FrozenList> = {};
+  for (const p of catalog) {
+    const pool = pools.get(p.key);
+    if (!pool || pool.cards.length === 0) continue; // bo'sh sovrin — muzlatadigan ro'yxat yo'q
+    const { frozenAt: _drop, ...rest } = buildDrawList(p, soldMap.get(p.key) ?? 0, minPctF, pool, null);
+    lists[p.key] = rest;
+  }
   const state = { frozen: true, at: new Date().toISOString(), ticketCount: exp.tickets.length };
-  const value = JSON.stringify({ at: state.at, ticketCount: state.ticketCount });
+  const value = JSON.stringify({ at: state.at, ticketCount: state.ticketCount, lists });
   await prisma.appState.upsert({ where: { key: FREEZE_KEY }, create: { key: FREEZE_KEY, value }, update: { value } });
   return state;
 }
@@ -4737,7 +5110,7 @@ export async function adminSetSeasonPlan(input: Partial<OyinSeasonPlan>): Promis
 // Narxi: `oyin:tickets:` prefiksi bo'yicha skan — bugun 854 a'zo, ya'ni arzon. Chegara:
 // ~50 000 kartadan yoki p95 > 300 ms dan keyin alohida jadval kerak bo'ladi (OYIN_KARTA_PLAN §1).
 const PRIZE_CARDS_TTL_MS = 30_000;
-let prizeCardsCache: { at: number; rows: { prizeKey: string; no: number; gno: number | null; memberId: number; ts: string; result?: "won" | "lost"; note?: string; notePublic?: boolean }[] } | null = null;
+let prizeCardsCache: { at: number; rows: { prizeKey: string; no: number; gno: number | null; memberId: number; ts: string; result?: OyinCardResult; note?: string; notePublic?: boolean }[] } | null = null;
 
 async function allTicketRows(): Promise<NonNullable<typeof prizeCardsCache>["rows"]> {
   if (prizeCardsCache && Date.now() - prizeCardsCache.at < PRIZE_CARDS_TTL_MS) return prizeCardsCache.rows;
@@ -4799,7 +5172,7 @@ export async function getPrizeCards(prizeKey: string, viewerMemberId: number | n
       : { no, gno: null, ownerName: null, mine: false, at: null });
   }
   return {
-    prizeKey, prizeName: prize.name, prizeIcon: prize.icon, photoUrl: prize.photoUrl,
+    prizeKey, prizeName: prize.name, prizeIcon: prize.icon, photoUrl: prizePhotoUrlFor(prize), // 🖼 OY-05
     price: prize.price, limit: prize.limit, sold, minSell,
     willDraw: minSell <= 0 || sold >= minSell,
     cards,
@@ -4831,7 +5204,7 @@ export async function getCardDetail(gno: number, viewerMemberId: number | null):
     prizeKey: r.prizeKey,
     prizeName: prize?.name ?? r.prizeKey,
     prizeIcon: prize?.icon ?? "🎟",
-    photoUrl: prize?.photoUrl ?? null,
+    photoUrl: prizePhotoUrlFor(prize), // 🖼 OY-05
     ownerName: names.get(r.memberId) ?? "Mijoz",
     mine,
     at: r.ts,
@@ -4862,7 +5235,7 @@ export async function getPublicCardVerify(codeRaw: string): Promise<OyinCardVeri
     code: await encodeCardCode(gno),
     prizeName: prize?.name ?? r.prizeKey,
     prizeIcon: prize?.icon ?? "🎟",
-    prizePhotoUrl: prize?.photoUrl ?? null,
+    prizePhotoUrl: prizePhotoUrlFor(prize), // 🖼 OY-05
     ownerName: names.get(r.memberId) ?? "Mijoz",
     ownerPhotoUrl: avatar.optIn && avatar.fileId ? await resolveTelegramFileUrl(avatar.fileId) : null,
     at: r.ts,
@@ -4883,7 +5256,7 @@ export async function setCardNote(memberId: number, gno: number, noteRaw: string
   if (!t) return { ok: false, reason: "not_found" };
   if (note) { t.note = note; t.notePublic = isPublic; } else { delete t.note; delete t.notePublic; }
   await prisma.appState.update({ where: { key }, data: { value: JSON.stringify(tickets) } });
-  prizeCardsCache = null; // darhol ko'rinsin — 30s TTL kutilmaydi
+  invalidateCardCaches(); // darhol ko'rinsin — 30s TTL kutilmaydi
   return { ok: true };
 }
 
@@ -4913,7 +5286,7 @@ export async function setAvatarOptIn(memberId: number, optIn: boolean): Promise<
     where: { key }, create: { key, value: JSON.stringify({ optIn, fileId }) },
     update: { value: JSON.stringify({ optIn, fileId }) },
   });
-  prizeCardsCache = null; // egasining boshqa kartalarida ham darhol ko'rinsin
+  invalidateCardCaches(); // egasining boshqa kartalarida ham darhol ko'rinsin
   return { ok: true, optIn, photoFound: optIn ? fileId != null : true };
 }
 

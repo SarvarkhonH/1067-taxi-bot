@@ -497,6 +497,22 @@ export interface OyinHomeTask {
  *  kerak — oxirgi soniyada olingan chipta eksportga tushmay qolishi mumkin. */
 export const OYIN_FINAL_LOCK_MS = 48 * 3600_000;
 
+/** ⏳ «Qancha qoldi» — INSON o'qiydigan qisqa yorliq (uz). Faqat BITTA birlik: eng yirigi
+ *  (kun → soat → daqiqa), chunki push matnida "2 kun 7 soat 13 daqiqa" o'qilmaydi.
+ *  🔴 OY-24 (2026-08-19): uch mavsum-ogohlantirishining matni QATTIQ KODDA edi («7 kun
+ *  qoldi» / «24 soatdan keyin yopiladi» / «Bir soatdan keyin»), shart esa yuqori chegarasiz
+ *  `msLeft <= X` oynasi — ya'ni oynaning ISTALGAN nuqtasida qo'shilgan yangi odam O'SHA
+ *  qotirilgan raqamni o'qirdi (mavsumga 1 kun qolganda «7 kun qoldi»). Endi matn `msLeft`
+ *  dan hisoblanadi va yolg'on muddat aytilmaydi. Shared'da — server matni bilan miniapp
+ *  matni bir xil so'z bilan gapirsin. */
+export function oyinLeftLabel(ms: number): string {
+  const m = Math.max(0, Math.floor(ms / 60_000));
+  if (m >= 1440) return `${Math.floor(m / 1440)} kun`;
+  if (m >= 60) return `${Math.floor(m / 60)} soat`;
+  // 0 daqiqa ham "1 daqiqa" deb aytiladi: "0 daqiqa qoldi" mijozga hech narsa demaydi.
+  return `${Math.max(1, m)} daqiqa`;
+}
+
 /** 🔒 Karta bekor qilish oynasi (OYIN_KARTA_PLAN.md §2, ega talabi 2026-08-12: bekor qilish
  *  hozir CHEKSIZ ochiq edi — sold<minSell bo'lgan ekan, oylar oldin olingan kartani ham bekor
  *  qilib bo'lardi. Bu yangi sovg'a ochilganda eski (sekin to'layotgan) sovg'alarni ORQAGA
@@ -552,6 +568,39 @@ export interface OyinDrawTicketRow {
    *  yo'q edi. Eski chiptalarda `ts` bo'sh bo'lishi mumkin → `null`. */
   at: string | null;
 }
+
+/** 🔍 Karta NEGA tirajdan chiqarildi. `under_min` — kartaning o'zida ayb yo'q: butun sovrin
+ *  chegaraga yetmagani uchun o'ynalmaydi (`skippedPrizes` bilan bir xil sabab, faqat karta
+ *  darajasida). */
+export type OyinExcludeReason = "staff" | "banned" | "test" | "under_min";
+/** 🏆 Kartaning YAKUNIY holati. `won`/`lost` — tirajda qatnashgan karta.
+ *  `excluded` — 2026-08-19 (OY-32): tirajdan CHIQARILGAN karta (xodim · chetlatilgan · sinov).
+ *  Avval bunday kartaga natija HECH QACHON yozilmasdi va egasi mangu «⏳ O'yinda» ko'rardi —
+ *  sovrin allaqachon o'ynalgan bo'lsa ham. Ekran yolg'on holat ko'rsatardi.
+ *  ⚠️ `excluded` yutqazish EMAS: push yuborilmaydi (`seasonDrawNotify` faqat `lost` ni taraydi). */
+export type OyinCardResult = "won" | "lost" | "excluded";
+/** Ekranda ko'rsatiladigan sabab — MATN SERVERDA (shared) turadi, aks holda admin paneli
+ *  o'zi tarjima o'ylab topadi va ikkita haqiqat paydo bo'ladi (`Kartalar.tsx` avval AYNAN
+ *  shu sababdan ekranda «⛔ not_ready» kabi ingliz kodlarini chizardi). */
+export const OYIN_EXCLUDE_REASON_LABEL: Record<OyinExcludeReason, string> = {
+  staff: "👔 Xodim",
+  banned: "🚫 Chetlatilgan",
+  test: "🧪 Sinov kartasi",
+  under_min: "🛡 Sovrin chegaraga yetmadi",
+};
+/** 🔍 §1.6 (ADMIN_PANEL_JAVOB, 2026-08-19): eksport avval chiqarilganlarni faqat SANARDI
+ *  (`excludedStaff: 3`) — «kim, qaysi sovrinda, nega» savoliga javob yo'q edi va ega jonli
+ *  efirda «nega mening kartam ro'yxatda yo'q» savoliga qarab turardi. Endi har chiqarilgan
+ *  karta nomi bilan sanaladi.
+ *  ⚠️ Bu ro'yxat `tickets` massiviga ham, hashga ham TEGMAYDI — tiraj hujjatining butunligi
+ *  (e'lon qilingan hash) o'zgarmasligi SHART. */
+export interface OyinExcludedTicketRow {
+  prizeKey: OyinPrizeKey;
+  ticketNo: number;
+  memberId: number;
+  name: string;
+  reason: OyinExcludeReason;
+}
 export interface OyinDrawExport {
   generatedAt: string;
   tickets: OyinDrawTicketRow[];
@@ -567,6 +616,9 @@ export interface OyinDrawExport {
   // 🛡 Chegaraga yetmagani uchun O'YNALMAYDIGAN sovrinlar. Eksportdan jimgina tushib qolmaydi —
   // nomi, sotilgani va kerakli soni bilan alohida sanaladi (jonli efirda savol berilsa javob bor).
   skippedPrizes: { prizeKey: string; name: string; sold: number; minSell: number }[];
+  /** 🔍 §1.6: yuqoridagi `excluded*` sanoqlarining NOMLI ro'yxati (kim · qaysi sovrin · nega).
+   *  `tickets` va hash bilan HECH QANDAY aloqasi yo'q — faqat ko'rinuvchanlik. */
+  excludedTickets: OyinExcludedTicketRow[];
   // 🛡 R1 (2026-08-16 audit): oldin xavf-bahosi FAQAT `oyinLeaderboard`da ko'rinardi — admin
   // aynan shu eksport (jonli efirda o'qiladigan HUJJAT)ni ochsa, hech qanday ogohlantirish
   // ko'rmasdi. Chiqarilmaydi/bloklanmaydi — faqat ochiq ro'yxat, admin jonli chiqishdan oldin
@@ -685,7 +737,10 @@ export interface OyinJamoaView {
 export interface OyinJamoaResult {
   ok: boolean;
   reason?: "already_in" | "not_found" | "full" | "not_in" | "bad_name" | "off" | "season_off"
-    | "self_target" | "already_in_group" | "leader_only" | "disbanded" | "cooldown" | "not_group_member";
+    | "self_target" | "already_in_group" | "leader_only" | "disbanded" | "cooldown" | "not_group_member"
+    // 🔴 OY-38 (2026-08-19): boshliq o'zini KETMA-KET oylar navbatchi qila olardi — guruhning
+    // butun balli bir odamga to'planardi. Endi ketma-ket ikkinchi oy rad etiladi (`applySetTurn`).
+    | "turn_self_streak";
   /** `reason === "cooldown"` bo'lsa — yana necha kun kutish kerak. */
   cooldownDaysLeft?: number;
 }
@@ -758,8 +813,13 @@ export interface OyinDrawList {
   prizeName: string;
   sold: number;
   limit: number;
+  /** 🎯 TIRAJGA yaroqli o'rinlar soni = `limit − excluded`. Xodim/chetlatilgan/sinov kartasi
+   *  sotuv o'rnini EGALLAB turadi (hisoblagich uni qaytarmaydi), lekin ro'yxatga TUSHMAYDI —
+   *  ya'ni haqiqiy hovuz hech qachon `limit`ga yetolmaydi. Chegara SHU songa qo'yiladi. */
+  drawLimit: number;
+  /** `minSellOf(drawLimit)` — haqiqiy hovuzga qo'yilgan chegara (`limit`ga emas). */
   minSell: number;
-  ready: boolean; // sold >= minSell — mukofot kuniga tayyormi
+  ready: boolean; // cards.length >= minSell — mukofot kuniga tayyormi
   frozenAt: string | null; // tiraj muzlatilgan lahza (yo'q bo'lsa ro'yxat hali o'zgarishi mumkin)
   /** SHA-256(tartiblangan gno ro'yxati). Kanalga SHU e'lon qilinadi — keyin har kim
    *  ro'yxatni qayta hash qilib solishtira oladi. */
@@ -1076,7 +1136,7 @@ export interface OyinMyTicket {
    *  ⚠️ 2026-08-12 da OCHILDI. Avval bu maydon bazaga YOZILARDI (`adminRecordWinner` har
    *  kartaga `won`/`lost` qo'yadi), lekin mijozga UZATILMASDI — ya'ni odam ball to'lab karta
    *  oldi va natijani hech qachon bilmasdi. Tiraj mijoz uchun umuman sodir bo'lmasdi. */
-  result?: "won" | "lost";
+  result?: OyinCardResult;
 }
 export interface OyinMyTicketsResponse {
   tickets: OyinMyTicket[];
@@ -1086,7 +1146,10 @@ export interface OyinMyTicketsResponse {
 /** 🎟 Mijoz o'zi chegaraga yetmagan kartasini bekor qiladi (ball qaytadi). */
 export interface OyinCancelTicketResult {
   ok: boolean;
-  reason?: "not_found" | "not_ticket" | "season_off" | "final_lock" | "will_draw" | "past_season" | "too_late";
+  /** 🔒 `frozen` — 2026-08-19 (OY-27): tiraj MUZLATILGAN. Muzlatilgan ro'yxat "jonli efirda
+   *  o'qiladigan yagona haqiqat" bo'lgani uchun undan karta CHIQIB ham ketmasligi kerak —
+   *  avval `buyTicket` to'silgan, bekor qilish esa ochiq qolgan edi (ro'yxat qisqarardi). */
+  reason?: "not_found" | "not_ticket" | "season_off" | "final_lock" | "will_draw" | "past_season" | "too_late" | "frozen";
   ball?: number; // yangi balans
 }
 
@@ -1540,7 +1603,7 @@ export interface OyinCardDetail {
   mine: boolean;
   at: string;
   /** `null` = hali o'ynalmagan. */
-  result: "won" | "lost" | null;
+  result: OyinCardResult | null;
   drawIso: string | null;
   /** 🗒 Ega talabi (2026-08-14, karta="xotira"): egasining ixtiyoriy qisqa qaydi (≤140 belgi).
    *  Standart — faqat egasiga ko'rinadi. `notePublic:true` bo'lsagina BOSHQA odam ham ko'radi
@@ -1610,7 +1673,7 @@ export interface OyinCardVerifyResponse {
   ownerName: string;
   ownerPhotoUrl: string | null;
   at: string;
-  result: "won" | "lost" | null;
+  result: OyinCardResult | null;
   drawIso: string | null;
 }
 

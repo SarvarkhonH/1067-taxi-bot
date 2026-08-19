@@ -2,9 +2,9 @@
 
 ## 👔 2026-08-18 — JAMOA J6–J10: arxiv · xabarlar · qoidalar · mukofotlar · maqsad-bonusi
 
-**Holat: `ready for verification` (gaplar: VPS sxema push'i hali QILINMAGAN · ega QABUL'i yo'q ·
-jonli render ko'rilmagan).** Kod yozildi, lokal darvozalar yashil — lekin CLAUDE.md R1 bo'yicha
-bu «done» EMAS.
+**Holat: `ready for verification` (yagona gap: EGA QABUL'i).** Sxema VPS'da qo'llandi, kod
+jonli (`f2ed26a2`), 6 endpoint jonli javob bermoqda, xodim tomoni jonli render qilindi —
+lekin CLAUDE.md R1/R6 bo'yicha bu «done» EMAS: ega telefonda ko'rib qabul berishi kerak.
 
 Ega so'rovi (2026-08-18): «jamoa bo'limiga eski ishchini o'chirish · ishchilarga xabarlar qoldirish ·
 qoidalar bo'limi · mukofotlar» + qo'shimcha: «mijozlar soni ko'payishiga qo'shimcha oylik bonus —
@@ -60,20 +60,28 @@ masalan hozir kunlik 200 ta, agar kunlik 500 ta yetilsa mln bonus, keyingi maqsa
 ### DA'VO ↔ HAQIQAT (R5)
 | element | kodda? | jonli? | isbot | gap |
 |---|---|---|---|---|
-| J6 arxiv/o'chirish | ha | **yo'q** | typecheck + kod | sxema push + QABUL kutilmoqda |
-| J7 xabarlar + o'qildi | ha | **yo'q** | typecheck + kod | sxema push + QABUL kutilmoqda |
-| J8 qoidalar + tanishdim | ha | **yo'q** | typecheck + kod | sxema push + QABUL kutilmoqda |
-| J9 mukofot katalogi | ha | **yo'q** | typecheck + kod | sxema push + QABUL kutilmoqda |
-| J9 nishonlar | ha | **yo'q** | vitest 8 assertion | sxema push + QABUL kutilmoqda |
-| J10 maqsad-bonusi | ha | **yo'q** | vitest 11 assertion + jonli DailyStat o'lchovi | sxema push + QABUL kutilmoqda |
-| Sxema (VPS `db push`) | — | **yo'q** | — | **GAP: kod push'idan OLDIN bajarilishi SHART** |
+| J6 arxiv/o'chirish | ha | **ha** | `GET /employee/1/archive-preview` → `{"balance":152091,"openSession":false,"canDelete":false}` (tarixi bor → butunlay o'chirish YOPIQ) | QABUL |
+| J7 xabarlar + o'qildi | ha | **ha** | `GET /notices?orgId=1` → `{"notices":[]}` · bundle'da «Xabarlar» ×5 | QABUL |
+| J8 qoidalar + tanishdim | ha | **ha** | `GET /rules?orgId=1` → `version:0`, 4 xodim ack ro'yxati | QABUL |
+| J9 mukofot katalogi | ha | **ha** | `GET /rewards?orgId=1` → `{"rewards":[]}` · bundle'da «Mukofot berish» | QABUL |
+| J9 nishonlar | ha | **ha** | jonli KPI: Elbek `🥇 Oyning xodimi`+`📅`, Shaxzoda/ofis faqat `📅`, Sevara (0 kun) — bo'sh | QABUL |
+| J10 maqsad-bonusi | ha | **ha** | `GET /goal?orgId=1` → `{"goal":null,"todayCount":53}` (jonli buyurtma soni oqmoqda) | maqsad hali qo'yilmagan (ega qo'yadi) |
+| Sxema (VPS `db push`) | — | **ha** | `Employee`+3 ustun, `StaffNotice`/`StaffNoticeRead`/`StaffGoal` yaratildi; 4 xodim + 71 ledger qatori BUTUN | — |
+| Deploy | — | **ha** | VPS `f2ed26a`, bot restart 09:46:56, `/health` ok, log toza, `+jamoa` | — |
+| Xodim tomoni (bot matnlari) | ha | **ha** | jonli read-only render: qoidalar/xabarlar bo'sh-holati + nishonlar to'g'ri | QABUL |
 | Ega telefonda ko'rgani | — | — | — | **GAP: QABUL yo'q** |
 
-### Deploy tartibi (buzilmas)
-1. VPS: `prisma migrate diff` (diffni O'QI) → `prisma db push` — **kod push'idan OLDIN**
-   (5 ta yangi ustun + 3 ta yangi jadval; ustun bo'lmasa har jamoa so'rovi yiqiladi).
-2. `main`ga push → CI yashil → avtomatik deploy.
-3. Ega: panelda 👔 Jamoa → yangi 4 tugma; botda `/ish` → 📢/📖/🏆 → QABUL.
+**Streak nishoni jonli ma'lumotga qarshi tekshirildi:** Elbekda 🔥 chiqmagani TO'G'RI — smenasi
+20:00, oxirgi ish kuni (17-08) 20:38 da kelgan, ya'ni ketma-ketlik uzilgan (undan oldingi 5 kun
+o'z vaqtida edi — 17-08 kechikmaganda nishon chiqardi).
+
+**Xodimlarga TEST xabari yuborilmadi** (qoida: jonli mijoz/xodimga sinov xabari taqiq) — xabar
+oqimi faqat matn-hosil qilish darajasida tekshirildi; birinchi haqiqiy xabarni ega o'zi yozadi.
+
+### Deploy (BAJARILDI 2026-08-18)
+1. ✅ VPS sxema: `migrate diff` o'qildi (85 qator, 0 ta `DROP`/`ALTER COLUMN`) → `db push` (1.32s).
+2. ✅ `main` → `f2ed26a2` → CI yashil → avtomatik deploy → bot restart 09:46:56 CEST.
+3. ⏳ Ega: panelda 👔 Jamoa → 📢/📖/🏆/📈 + arxiv · botda `/ish` → QABUL.
 
 ## 🍽 2026-08-15 — RESTORAN endi TASHQI HAMKORGA ESHIK (o'z katalog o'chirildi)
 

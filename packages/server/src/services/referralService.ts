@@ -12,6 +12,15 @@ export const REFERRER_REWARD = 1500; // inviter — paid when the friend complet
 // recruit). 5000 = exactly one Koson base fare (boshlanish 5000 so'm) → the first ride is FREE.
 export const REFEREE_REWARD = 5000; // the friend — ALSO paid on their first real ride
 
+// 🛡 OY-08 ANTI-SYBIL BELGISI. Telefon-dublikati aniqlangan taklif qatori SHU kalit bilan
+// AppState'da belgilanadi (`refdup:<referralId>`). Sabab: `dup` avval faqat `rewardReferrer = 0`
+// ga ta'sir qilardi, ya'ni TANGA yo'li yopilardi-yu BALL yo'li ochiq qolardi — o'yin balli
+// `Referral.referrerPaidAt` dan hisoblanadi (oyinService.computeBallMap), u esa safar-yakunida
+// shartsiz yozilardi. Yangi USTUN qo'shish sxema-migratsiyani (VPS'da alohida ongli qadam)
+// talab qilardi va mavjud qatorlarni qayta yozardi; AppState-belgisi shu repodagi mavjud naqsh
+// (`farepending:`, `finishcard:`) va HECH QANDAY mavjud ma'lumotni buzmaydi.
+const DUP_PREFIX = "refdup:";
+
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0/O/1/I ambiguity
 function genCode(len = 6): string {
   const b = crypto.randomBytes(len);
@@ -132,6 +141,56 @@ export interface ReferralCredit {
   shareReward: number; // inviter reward granted RIGHT NOW at number-link (staged only; 0 in legacy)
 }
 
+/** Oxirgi 9 raqam — operator prefiksi/format farqi bir xil raqamni ikkita ko'rsatmasin. */
+const norm9 = (p: string) => p.replace(/\D/g, "").slice(-9);
+
+/**
+ * 🛡 Sybil tekshiruvi: SHU taklifchining OLDINGI takliflari orasida ayni telefon bormi.
+ * `beforeReferralId` berilsa faqat undan OLDINGI qatorlar solishtiriladi — aks holda bir juft
+ * dublikatning IKKALASI ham "dublikat" bo'lib qolardi (birinchisi HALOL taklif).
+ */
+async function phoneDupAgainstPrior(
+  referrerId: string,
+  refereeMemberId: number,
+  beforeReferralId?: number,
+): Promise<boolean> {
+  const refereeMember = await prisma.member.findUnique({ where: { id: refereeMemberId }, select: { phone: true } });
+  if (!refereeMember?.phone) return false;
+  const prior = await prisma.referral.findMany({
+    where: {
+      referrerId,
+      refereeMemberId: { not: null },
+      ...(beforeReferralId != null ? { id: { lt: beforeReferralId } } : {}),
+    },
+    select: { refereeMemberId: true },
+  });
+  if (!prior.length) return false;
+  const priorMembers = await prisma.member.findMany({
+    where: { id: { in: prior.map((p) => p.refereeMemberId!) } },
+    select: { phone: true },
+  });
+  return priorMembers.some((p) => p.phone && norm9(p.phone) === norm9(refereeMember.phone!));
+}
+
+/**
+ * 🛡 OY-08: shu taklif qatori sybil-dublikat (bir taklifchi + bir xil telefon) deb hisoblanadimi?
+ * bookingNotifier safar-yakunida o'qiydi: dublikat bo'lsa NA tanga beriladi, NA `referrerPaidAt`
+ * yoziladi — ikkinchisi aynan BALL yo'li (computeBallMap `referrerPaidAt`ni sanaydi).
+ * Ikki manba: (1) kredit vaqtidagi DURABLE belgi — o'sha paytdagi qaror, telefon keyinroq
+ * o'zgarsa ham saqlanadi; (2) belgisi yo'q ESKI qatorlar uchun jonli qayta-tekshiruv, aks holda
+ * bu tuzatishdan oldin yaratilgan hamma dublikat qator eskicha ball olib ketaverardi.
+ */
+export async function isDupReferral(ref: {
+  id: number;
+  referrerId: string;
+  refereeMemberId: number | null;
+}): Promise<boolean> {
+  const marked = await prisma.appState.findUnique({ where: { key: `${DUP_PREFIX}${ref.id}` } });
+  if (marked) return true;
+  if (ref.refereeMemberId == null) return false;
+  return phoneDupAgainstPrior(ref.referrerId, ref.refereeMemberId, ref.id);
+}
+
 /**
  * Pay out a referral once the invitee links a real phone. Idempotent: a given
  * invitee is only ever credited once (guarded by referralCreditedAt + ledger).
@@ -167,21 +226,11 @@ export async function completeReferral(
   const welcomeOn = await featureOn("welcomebonus");
   const econ = await getBonusEcon();
 
-  let dup = false;
+  // OY-08: dup ENDI `referrer.memberId` dan QAT'I NAZAR hisoblanadi. Avval butun tekshiruv shu
+  // shartning ICHIDA edi — raqamini hali ulamagan taklifchi uchun dup DOIM false qolardi, ya'ni
+  // qator "toza" yaratilar va u keyinroq raqam ulaganda ball yo'li ochiq bo'lardi.
+  const dup = await phoneDupAgainstPrior(referrer.id, refereeMemberId);
   if (referrer.memberId) {
-    const norm9 = (p: string) => p.replace(/\D/g, "").slice(-9);
-    const refereeMember = await prisma.member.findUnique({ where: { id: refereeMemberId }, select: { phone: true } });
-    if (refereeMember?.phone) {
-      const prior = await prisma.referral.findMany({
-        where: { referrerId: referrer.id, refereeMemberId: { not: null } },
-        select: { refereeMemberId: true },
-      });
-      const priorMembers = await prisma.member.findMany({
-        where: { id: { in: prior.map((p) => p.refereeMemberId!) } },
-        select: { phone: true },
-      });
-      dup = priorMembers.some((p) => p.phone && norm9(p.phone) === norm9(refereeMember.phone!));
-    }
     await incrementMission(referrer.memberId, "weekly_invite");
     await import("./weeklyService")
       .then((w) => w.addScore(referrer.memberId!, "referral"))
@@ -207,8 +256,9 @@ export async function completeReferral(
     refereeReward = econ.firstRide ?? REFEREE_REWARD;
   }
 
+  let row: { id: number };
   try {
-    await prisma.referral.create({
+    row = await prisma.referral.create({
       data: {
         referrerId: referrer.id,
         refereeId: refereeTelegramId,
@@ -216,11 +266,20 @@ export async function completeReferral(
         rewardReferrer: referrerReward, // promised; granted on the referee's first ride (sweep)
         rewardReferee: refereeReward, // 0 in staged when join-welcome already paid the friend
       },
+      select: { id: true },
     });
   } catch (e) {
     // refereeId @unique → a concurrent link already created the row; skip (no double-row, no loss).
     if ((e as { code?: string } | null)?.code === "P2002") return null;
     throw e;
+  }
+  // OY-08: qaror DURABLE yoziladi — safar-yakunida bookingNotifier shu belgini o'qib tanga bilan
+  // BIRGA ball yo'lini ham yopadi (`referrerPaidAt` yozilmaydi). Best-effort: belgi yozilmay
+  // qolsa `isDupReferral` jonli telefon-tekshiruviga tushadi, ya'ni qo'riq baribir ishlaydi.
+  if (dup) {
+    await prisma.appState
+      .create({ data: { key: `${DUP_PREFIX}${row.id}`, value: "phone" } })
+      .catch(() => undefined);
   }
   // durable row now exists → safe to stamp the fast-path guard (crash before this is recoverable:
   // retry re-hits the @unique insert → P2002 → null, and the row already lets the sweep pay).
