@@ -1528,6 +1528,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
   // "mukofot kuni" deb ko'rsatardi — sovrin esa kartalari to'lgandagina o'ynaydi, ya'ni sana
   // hech narsani kafolatlamasdi. Endi ekranlar SHARTNI aytadi (hero, chipta, karta ledgeri).
 
+  // Mukofot kuni = mavsumning admin belgilagan oxirgi kuni. Sana faqat kerakli karta soniga
+  // yetgan sovrinlar uchun amal qiladi — shu sabab ikkala fakt bosh ekranda birga ko'rsatiladi.
+  const rewardDay = state.season.endIso ? uzDateFull(state.season.endIso) : null;
+  const readyPrizeCount = vitrina.prizes.filter((p) => p.willDraw && !p.drawn).length;
+
   const setGoal = async (p: OyinPrizeView) => {
     haptic();
     setGoalBusyKey(p.key);
@@ -1619,10 +1624,14 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       (`willDraw = sold >= minSell`), sana esa hech narsani kafolatlamasdi.
                       Endi QOIDA aytiladi + mavsum bo'yicha HAQIQIY to'lish soni (`soldTotal`/
                       `capacityTotal` — allaqachon keladi, yangi so'rov yo'q). */}
-                  <div className="oyk-draw-h">KARTALAR TO'LGANDA MUKOFOT!</div>
-                  <div className="oyk-draw-k">Har sovrin o'z kartalari to'lishi bilan jonli efirda o'ynaladi</div>
+                  <div className="oyk-draw-h">🎁 MUKOFOT KUNI{rewardDay ? ` — ${rewardDay}` : " — SANA HALI BELGILANMAGAN"}</div>
+                  <div className="oyk-draw-k">
+                    {rewardDay
+                      ? <>Mavsum shu kuni yakunlanadi. Kerakli karta soni yig'ilgan sovrinlar shu mukofot kunida aniqlanadi va g'oliblarga topshiriladi.</>
+                      : <>Mukofot kuni hali belgilanmagan. Sana belgilangach, shu yerda barcha sovrinlar uchun bir xil ko'rinadi.</>}
+                  </div>
                   {state.capacityTotal > 0 && (
-                    <div className="oyk-draw-d">{state.soldTotal} / {state.capacityTotal} KARTA</div>
+                    <div className="oyk-draw-d">{readyPrizeCount} / {vitrina.prizes.filter((p) => !p.drawn).length} SOVRIN TAYYOR</div>
                   )}
                   {/* 🗑 Statik 5-qatorli "how" varag'i O'RNIGA endi story ochiladi (ega talabi
                       2026-08-13: "bosilgandan o'zimizni story ko'rinishi chiqishi kerak") —
@@ -1835,7 +1844,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       YETARLI sotilmagan holat (haqiqiy ogohlantirish) qoladi. */}
                   {p.minSell > 0 && !p.willDraw && (
                     <div className="oyk-vcard-path">
-                      🛡 Topshirilishi uchun {p.minSell} ta karta kerak — hozir {p.sold} ta
+                      🛡 Mukofot kunida qatnashishi uchun {p.minSell} ta karta kerak — hozir {p.sold} ta
                     </div>
                   )}
                   {/* 🗑 "💡" holat-matni OLIB TASHLANDI (ega talabi 2026-08-13: "hintlar
