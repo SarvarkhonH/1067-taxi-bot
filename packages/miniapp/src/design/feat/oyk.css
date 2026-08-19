@@ -1433,12 +1433,12 @@
 .oyk-cert-teach.is-flat { background: none; padding: 12px 2px 2px; margin: 6px 0 0; border-top: 1px solid var(--oyk-line); }
 
 /* ── Katalog kartasi: atom-boshli (rasm TOZA qahramon — ustида matn yo'q; nom/narx kamarда) ── */
-.oyk-vimg { position: relative; height: clamp(172px, 48vw, 220px); margin: -14px -14px 0; border-radius: 19px 19px 0 0; overflow: hidden;
+.oyk-vimg { position: relative; aspect-ratio: var(--oyk-vimg-ratio, 16 / 9); margin: -14px -14px 0; border-radius: 19px 19px 0 0; overflow: hidden;
   display: grid; place-items: center; background: linear-gradient(150deg, var(--oyk-accent-pale), #f3eefe); }
-/* Sovrin surati istalgan nisbatda kelishi mumkin. Rasm sohasi oldingi 126px emas, yetarlicha
-   baland (telefon ekranida 172–220px): mahsulot ko'zga aniq tashlanadi. Old qatlam `contain`
-   bo'lgani uchun HECH QACHON kesilmaydi; xiralashgan orqa nusxa esa qolgan joyni bir xil,
-   chiroyli fon bilan to'ldiradi. */
+/* Sovrin surati istalgan nisbatda kelishi mumkin. Karta rasm-sohasi yuklangan suratning o'z
+   nisbatiga moslashadi (JS 1.1–2.1 oralig'ida ushlab turadi), shuning uchun uning pasti yoki
+   tepasidan KESILMAYDI. Old qatlam `contain` bilan butun mahsulotni ko'rsatadi; xiralashgan
+   orqa nusxa esa qolgan joyni chiroyli fon bilan to'ldiradi. */
 .oyk-vimg-backdrop { position: absolute; inset: -14px; width: calc(100% + 28px); height: calc(100% + 28px);
   object-fit: cover; filter: blur(14px) saturate(1.08); opacity: .3; transform: scale(1.04); }
 .oyk-vimg-product { position: relative; z-index: 1; width: 100%; height: 100%; object-fit: contain; display: block;

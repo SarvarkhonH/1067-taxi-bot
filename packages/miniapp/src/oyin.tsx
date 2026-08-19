@@ -9,7 +9,7 @@
 // `shareLink`/`shareStory` (telegram.ts) orqali Telegramning HAQIQIY ulashish oynasini ochadi;
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { OYIN_FINAL_LOCK_MS, OYIN_CANCEL_WINDOW_MS, OYIN_JAMOA_MIN, OYIN_JAMOA_MAX, OYIN_PRIZE_FILTERS, oyinFilterPrizes, oyinHintOf, type OyinCardDetail, type OyinCommentListResponse, type OyinPrizeCardsResponse, type OyinPrizeFilter, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinPublicWinner, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
@@ -646,6 +646,15 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // bundan tashqari o'chirilgan blok ichida sovrin NOMI va NARXI ham qolib ketardi).
   const [badPhoto, setBadPhoto] = useState<Set<string>>(new Set());
   const markBadPhoto = useCallback((key: string) => setBadPhoto((s) => (s.has(key) ? s : new Set(s).add(key))), []);
+  // Mukofotning o'z nisbati yuklangach karta rasm-sohasi shunga moslashadi. Chegara faqat
+  // ekstremal panorama/portret surat kartani mutlaqo ulkan qilib yubormasligi uchun; rasmning
+  // O'ZI esa `contain` bilan doim to'liq qoladi.
+  const [prizePhotoRatios, setPrizePhotoRatios] = useState<Map<string, number>>(() => new Map());
+  const measurePrizePhoto = useCallback((key: string, image: HTMLImageElement) => {
+    if (!image.naturalWidth || !image.naturalHeight) return;
+    const ratio = Math.min(2.1, Math.max(1.1, image.naturalWidth / image.naturalHeight));
+    setPrizePhotoRatios((old) => old.get(key) === ratio ? old : new Map(old).set(key, ratio));
+  }, []);
   const [toast, setToast] = useState<string | null>(null);
   const [thanked, setThanked] = useState<Set<number>>(new Set());
   // Ikkita alohida, aniq nomlangan havola-maydoni (Instagram / Telegram) — pastdagi JSX'da.
@@ -1766,6 +1775,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {oyinFilterPrizes(vitrina.prizes.filter((p) => !p.drawn), filter).map((p) => {
               const affordable = !locked && state.ball >= p.price;
               const showPhoto = !!p.photoUrl && !badPhoto.has(p.key);
+              const photoRatio = prizePhotoRatios.get(p.key);
               const pCap = prizeCap(p.limit, state.hints.maxPerPrize);
               const atLimit = p.mine >= pCap;
               return (
@@ -1778,13 +1788,14 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       shovqin olib tashlandi); nom+narx pastdagi oq «kamar»da. Progress endi
                       sold/limit (nechta olindi) — avval ball/price edi va «N dona» ostida inventar
                       deb o'qilardi. Affordability tugma matnida. `goalCount` — «N xohlaydi» konteksti. */}
-                  <div className="oyk-vimg">
+                  <div className="oyk-vimg" style={photoRatio ? { "--oyk-vimg-ratio": photoRatio } as CSSProperties : undefined}>
                     {showPhoto
                       ? <>
                           {/* Orqa qatlam faqat fon: keng/tik rasmda qoladigan joyni xira qilib
                               to'ldiradi. Oldingi qatlam esa HAR DOIM butun mahsulotni ko'rsatadi. */}
                           <img className="oyk-vimg-backdrop" src={p.photoUrl ?? ""} alt="" aria-hidden="true" />
-                          <img className="oyk-vimg-product" src={p.photoUrl ?? ""} alt="" loading="lazy" onError={() => markBadPhoto(p.key)} />
+                          <img className="oyk-vimg-product" src={p.photoUrl ?? ""} alt="" loading="lazy"
+                            onLoad={(e) => measurePrizePhoto(p.key, e.currentTarget)} onError={() => markBadPhoto(p.key)} />
                         </>
                       : <span className="oyk-vimg-emoji">{p.icon}</span>}
                     {p.goalCount > 0 && <div className="oyk-vcard-goal">🎯 {p.goalCount} xohlaydi</div>}
