@@ -10,6 +10,7 @@ import { INSP_TIER_EMOJI, INSP_TIER_LABEL, OYIN_FINAL_LOCK_MS, oyinHintOf } from
 import { api, apiUrl } from "./api";
 import { haptic } from "./telegram";
 import { HomeGames } from "./homeGames";
+import { OYIN_DEFAULT_GOAL_KEY } from "./oyinConst";
 
 /** ⏳ Mavsum sanog'i — uy kartasi VA mehmon-teaser uchun YAGONA manba (ikkalasi ham shu
  *  funksiyani chaqiradi, aks holda matn va faza qoidalari vaqt o'tib bir-biridan uzoqlashadi).
@@ -231,8 +232,11 @@ function KosonOyinCard({ onNav, onBall }: { onNav: (t: string) => void; onBall?:
   // (`prizes === null`) holat (a) da qoladi va vitrina kelgach almashadi — balandlik bir xil
   // bo'lgani uchun bu almashuvda sahifa sakramaydi.
   const catalog = prizes ?? [];
+  // 🎯 Standart maqsad — iPhone 17 Pro (ega qarori 2026-08-19). Mijoz o'zi tanlagan bo'lsa
+  // o'shaniki ustun; standart sovrin katalogda bo'lmasa/to'lgan bo'lsa — eng arzoniga tushadi.
   const cheapest = catalog.length > 0 ? (catalog.slice().sort((a, b) => a.price - b.price)[0] ?? null) : null;
-  const goal = (state.goalPrizeKey ? catalog.find((p) => p.key === state.goalPrizeKey) ?? null : null) ?? cheapest;
+  const defaultGoal = catalog.find((p) => p.key === OYIN_DEFAULT_GOAL_KEY && !p.soldOut) ?? cheapest;
+  const goal = (state.goalPrizeKey ? catalog.find((p) => p.key === state.goalPrizeKey) ?? null : null) ?? defaultGoal;
   const need = goal ? Math.max(0, goal.price - state.ball) : 0;
   const goalPct = goal && goal.price > 0 ? Math.min(100, Math.max(0, (state.ball / goal.price) * 100)) : 0;
   const rideBall = state.hints.rideBall;

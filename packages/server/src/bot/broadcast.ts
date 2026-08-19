@@ -12,6 +12,10 @@ function webAppUrlFor(target?: string): string {
 
 const OWNER_TG = "6506297119";
 const draft = new Map<string, string>(); // owner tg → "" (awaiting text) | the pending announcement
+/** 🎮 Matnli e'lon uchun TUGMA maqsadi (`/elon oyin` → «🎁 Sovg'alarni ko'rish»). Ega talabi
+ *  2026-08-19: «link chatga tugma bo'ladi, unga bosadi va o'yinga kiradi». Maqsadsiz `/elon`
+ *  avvalgidek — faqat matn, tugmasiz (eski xatti-harakat buzilmaydi). */
+const draftTarget = new Map<string, string | undefined>();
 
 export function registerBroadcast(bot: Bot): void {
   bot.command("elon", async (ctx: Context) => {
@@ -28,6 +32,7 @@ export function registerBroadcast(bot: Bot): void {
   bot.command("bekor", async (ctx, next) => {
     if (String(ctx.from!.id) !== OWNER_TG) { await next(); return; }
     const hadText = draft.delete(OWNER_TG);
+    draftTarget.delete(OWNER_TG);
     const hadPhoto = photoDraft.delete(OWNER_TG);
     if (hadText || hadPhoto) await ctx.reply("❌ E'lon bekor qilindi.");
     else await next(); // ega boshqa oqimni (masalan /bekor_sotuvchi) bekor qilmoqchi bo'lishi mumkin
@@ -41,7 +46,11 @@ export function registerBroadcast(bot: Bot): void {
     if (text.startsWith("/")) return next(); // a command, not the announcement body
     draft.set(tg, text);
     const count = await prisma.telegramUser.count({ where: { memberId: { not: null } } });
-    const kb = new InlineKeyboard().text(`📢 Yuborish (${count} kishi)`, "elon:send").row().text("❌ Bekor", "elon:cancel");
+    const tgt = draftTarget.get(tg);
+    const kb = new InlineKeyboard();
+    // Mijoz KO'RADIGAN tugma preview'da ham aynan shu joyda turadi — ega nima ketayotganini ko'radi.
+    if (tgt) kb.webApp(targetLabel(tgt), webAppUrlFor(tgt)).row();
+    kb.text(`📢 Yuborish (${count} kishi)`, "elon:send").row().text("❌ Bekor", "elon:cancel");
     await ctx.reply(`📢 <b>Ko'rib chiqing — quyidagi xabar ${count} kishiga yuboriladi:</b>\n\n━━━━━━\n${text}\n━━━━━━`, {
       parse_mode: "HTML",
       reply_markup: kb,
@@ -62,7 +71,9 @@ export function registerBroadcast(bot: Bot): void {
       await ctx.answerCallbackQuery({ text: "Matn topilmadi" });
       return;
     }
+    const sendTarget = draftTarget.get(OWNER_TG);
     draft.delete(OWNER_TG);
+    draftTarget.delete(OWNER_TG);
     await ctx.answerCallbackQuery({ text: "Fonda yuborilmoqda…" });
     const users = await prisma.telegramUser.findMany({ where: { memberId: { not: null } }, select: { id: true } });
     await ctx.editMessageText(`📤 <b>${users.length} kishiga yuborilmoqda…</b> (fonda — tugagach xabar beraman)`, { parse_mode: "HTML" }).catch(() => undefined);
@@ -73,7 +84,10 @@ export function registerBroadcast(bot: Bot): void {
       let fail = 0;
       for (let i = 0; i < users.length; i++) {
         try {
-          await bot.api.sendMessage(users[i]!.id, text, { parse_mode: "HTML" });
+          await bot.api.sendMessage(users[i]!.id, text, {
+            parse_mode: "HTML",
+            ...(sendTarget ? { reply_markup: new InlineKeyboard().webApp(targetLabel(sendTarget), webAppUrlFor(sendTarget)) } : {}),
+          });
           ok++;
         } catch {
           fail++;
@@ -105,7 +119,12 @@ export function isAwaitingBroadcastPhoto(tgId: string): boolean {
 // Tugma qaysi ekranni ochadi — /elonrasm <target> (default: ilova bosh sahifasi).
 // `ravella` deb yozilsa tugma to'g'ridan-to'g'ri Ravella konstruktoriga olib boradi.
 function targetLabel(target?: string): string {
-  return target === "ravella" ? "🎀 Ravella'ni ochish" : "🚀 Ilovani ochish";
+  if (target === "ravella") return "🎀 Ravella'ni ochish";
+  // 🎮 Koson O'yini (ega talabi 2026-08-19) — tugma nima ochilishini ANIQ aytadi.
+  if (target === "oyin" || target === "koson" || target === "game") return "🎁 Sovg'alarni ko'rish";
+  if (target === "dokon" || target === "shop") return "🛍 Do'konni ochish";
+  if (target === "restoran") return "🍽 Restoranni ochish";
+  return "🚀 Ilovani ochish";
 }
 
 function registerPhotoBroadcast(bot: Bot): void {

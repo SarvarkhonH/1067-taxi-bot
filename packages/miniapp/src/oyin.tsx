@@ -15,6 +15,7 @@ import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
 import { OyinStory } from "./oyinStory";
 import { Icon } from "./icons";
+import { OYIN_DEFAULT_GOAL_KEY } from "./oyinConst";
 import "./design/feat/oyk.css"; // bu ekran ochilgandagina yuklanadi (kritik yo'lda emas)
 
 const OB_SEEN_KEY = "oyk_onboard_seen";
@@ -1481,6 +1482,8 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
   const goalPrize = vitrina.prizes.find((p) => p.key === state.goalPrizeKey && !p.soldOut);
   const cheapest =
     goalPrize ??
+    // 🎯 Mijoz maqsad tanlamagan bo'lsa — STANDART sovrin (iPhone 17 Pro), u ochiq bo'lsa.
+    vitrina.prizes.find((p) => p.key === OYIN_DEFAULT_GOAL_KEY && !p.soldOut) ??
     [...vitrina.prizes].filter((p) => !p.soldOut).sort((a, b) => a.price - b.price)[0] ??
     null;
   // 🔒 2026-08-14 (ega talabi: "keyingi navbatdagilarni biroz qo'sh, chiroy uchun") — bosh
