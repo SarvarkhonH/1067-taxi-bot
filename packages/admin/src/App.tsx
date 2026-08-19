@@ -6563,8 +6563,6 @@ function oyinKnobEffect(key: string, value: number, rides30d: number | null): st
         : "0 — qo'riq o'chiq: kam sotilgan mukofot ham o'ynaladi";
     case "oyinPrizeMultiplier":
       return `To'lganda ${value}× ball yig'ilgan bo'ladi — mukofot narxining ${(100 / value).toFixed(0)}%i xarajat, qolgani marja. Yangi qo'shiladigan mukofotlarga darhol ta'sir qiladi (mavjudlariga tegmaydi).`;
-    case "oyinMaxTicketsPerPrize":
-      return `Bitta odam bitta mukofotdan ko'pi bilan ${value} ta karta oladi`;
     default:
       return null;
   }

@@ -1360,7 +1360,10 @@
 .oyk-atom.is-lift { box-shadow: var(--oyk-shadow-lift), inset 0 0 0 1px rgba(255, 255, 255, .6); }
 .oyk-atom-img { position: relative; flex: 0 0 62%; display: grid; place-items: center; font-size: 52px; overflow: hidden;
   background: linear-gradient(150deg, var(--oyk-accent-pale), #f3eefe); }
-.oyk-atom-img img { width: 100%; height: 100%; object-fit: cover; }
+/* ⚠️ `contain` — MAJBURIY (2026-08-17 saboqi, `.oyk-tkt-pic` bilan bir xil): sovrin rasmlari
+   TIK (941×1672 kabi), `cover` ularning ~44% ini kesib tashlaydi. Mahsulot HECH QACHON
+   kesilmaydi (DIZAYN_QOIDALARI #10). */
+.oyk-atom-img img { width: 100%; height: 100%; object-fit: contain; background: var(--oyk-surface); }
 .oyk-atom-belt { flex: 1; background: var(--oyk-surface); padding: 8px 10px; display: flex; flex-direction: column; justify-content: center; gap: 4px; min-width: 0; }
 .oyk-atom-nm { font-size: 14px; font-weight: 800; color: var(--oyk-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.15; }
 .oyk-atom-ball { align-self: flex-start; font-size: 11px; font-weight: 800; color: var(--oyk-warn-deep); background: var(--oyk-warn-pale); border-radius: 99px; padding: 2px 8px; }
@@ -1421,9 +1424,9 @@
 .oyk-cert-teach.is-flat { background: none; padding: 12px 2px 2px; margin: 6px 0 0; border-top: 1px solid var(--oyk-line); }
 
 /* ── Katalog kartasi: atom-boshli (rasm TOZA qahramon — ustида matn yo'q; nom/narx kamarда) ── */
-.oyk-vimg { position: relative; height: 148px; margin: -14px -14px 0; border-radius: 19px 19px 0 0; overflow: hidden;
+.oyk-vimg { position: relative; height: 126px; margin: -14px -14px 0; border-radius: 19px 19px 0 0; overflow: hidden;
   display: grid; place-items: center; background: linear-gradient(150deg, var(--oyk-accent-pale), #f3eefe); }
-.oyk-vimg img { width: 100%; height: 100%; object-fit: cover; }
+.oyk-vimg img { width: 100%; height: 100%; object-fit: contain; background: var(--oyk-surface); }
 .oyk-vimg-emoji { font-size: 62px; line-height: 1; }
 .oyk-vbelt { display: flex; flex-direction: column; gap: 6px; padding: 10px 2px 0; }
 .oyk-vbelt-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
@@ -1519,3 +1522,34 @@
 .st-oy-gift { font-size: 40px; position: absolute; right: 22%; }
 .st-oy-goal { position: absolute; bottom: 18px; font-size: 12px; font-weight: 700; color: #B0862A;
   background: #FFF3D0; border-radius: 99px; padding: 4px 12px; max-width: 88%; text-align: center; }
+
+/* ── 🎴 «ZAL» — sovrinning BARCHA joylari bir qarashda (ega: «boshqalarni kartalari…
+   kinoteatr zalini destroy qilgansan» — to'liq ko'rinish QAYTARILDI, lekin o'rindiq-tanlash
+   affordansisiz: raqam YO'Q, katak YO'Q — egasi bor joy uning bosh harfi bilan «to'ladi»,
+   bo'sh joy neytral nuqta bo'lib kutadi). */
+.oyk-hall { display: grid; grid-template-columns: repeat(auto-fill, minmax(24px, 1fr)); gap: 6px; margin: 4px 0 10px; }
+.oyk-hdot { aspect-ratio: 1; border: 0; padding: 0; border-radius: 50%; display: grid; place-items: center;
+  font-family: inherit; font-size: 10px; font-weight: 900; color: var(--oyk-on); cursor: pointer;
+  background: var(--oyk-skel); transition: transform var(--dur-press); }
+.oyk-hdot:active { transform: scale(.88); }
+.oyk-hdot.is-free { background: var(--oyk-skel); color: transparent; box-shadow: inset 0 0 0 1px var(--oyk-line); }
+.oyk-hdot.is-mine { box-shadow: 0 0 0 2px var(--oyk-surface), 0 0 0 4px var(--oyk-accent); }
+.oyk-hall-lg { display: flex; flex-wrap: wrap; gap: 10px; font-size: 10.5px; font-weight: 700; color: var(--oyk-text-3); margin: -4px 0 10px; }
+.oyk-hall-lg span { display: inline-flex; align-items: center; gap: 5px; }
+.oyk-hall-lg i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; }
+.oyk-hall-lg i.taken { background: var(--oyk-av-0); }
+.oyk-hall-lg i.free { background: var(--oyk-skel); box-shadow: inset 0 0 0 1px var(--oyk-line); }
+.oyk-hall-lg i.mine { background: var(--oyk-av-3); box-shadow: 0 0 0 2px var(--oyk-surface), 0 0 0 3px var(--oyk-accent); }
+
+/* ── 🏆 G'OLIBLAR TARIXI (ochiq, hamma uchun — ega talabi 2026-08-19) ─────────────────────── */
+.oyk-wlist { display: flex; flex-direction: column; gap: 2px; }
+.oyk-wrow { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--oyk-line); }
+.oyk-wrow:last-child { border-bottom: 0; }
+.oyk-wrow .oyk-avatar { width: 34px; height: 34px; font-size: 14px; flex: 0 0 auto; }
+.oyk-wrow-tx { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.oyk-wrow-tx b { font-size: 13.5px; font-weight: 800; color: var(--oyk-text); }
+.oyk-wrow-tx small { font-size: 12px; color: var(--oyk-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oyk-wrow-tx i { font-style: normal; font-size: 10.5px; color: var(--oyk-text-3); font-variant-numeric: tabular-nums; }
+.oyk-wrow-badge { flex: 0 0 auto; align-self: flex-start; font-size: 9.5px; font-weight: 900; letter-spacing: .04em;
+  border-radius: 8px; padding: 4px 8px; background: var(--oyk-warn); color: #4a3300; }
+.oyk-wrow-badge.is-done { background: rgba(31, 157, 85, .14); color: var(--oyk-green); }

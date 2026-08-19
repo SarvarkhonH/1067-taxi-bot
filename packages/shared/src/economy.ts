@@ -370,7 +370,10 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // `min(knob, ceil(prize.limit / 2))` oladi (oyinService.ts «⚖️ Adolat qo'rig'i» bloki), ya'ni
   // bitta odam hech qachon sovrin joylarining YARMIDAN ko'pini ololmaydi — har sovrinda kamida
   // ikki xil da'vogar qoladi. 50 = amaliy shift: shundan keyin yarim-slot qoidasi hukmron.
-  { key: "oyinMaxTicketsPerPrize", label: "⚖️ Bitta odam bitta sovrindan max chipta (yarim-slot qo'rig'i doim kuchda)", def: 50, min: 1, max: 50, step: 1, group: "Koson O'yini" },
+  // ⚖️ `oyinMaxTicketsPerPrize` OLIB TASHLANDI (ega qarori 2026-08-19, ikki marta tasdiqlangan:
+  //    «karta olishda limit yo'q — odamlar xohlagancha olsin»). Knob DB'da saqlanardi, ya'ni
+    //  eski qiymat (3) jimgina limitni QAYTARARDI — default o'zgartirish yetmasdi. Endi yagona
+  //    chegara: sovrinning O'Z joylari soni (`prize.limit`) + mijozning balli.
   // 🛡 R1 (2026-08-16 audit): `adminAdjustBall` avval CHEGARASIZ edi — bitta bosish bilan
   // +75 000 ball (OYIN_KARTA_PLAN.md §9'da oldindan yozilgan xavf). Ikkita mustaqil chegara:
   // BITTA tuzatish (tasodifiy/xato bosishdan himoya) va MAVSUM JAMI (ko'p kichik tuzatish

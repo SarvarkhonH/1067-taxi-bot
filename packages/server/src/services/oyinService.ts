@@ -84,6 +84,7 @@ import {
   type OyinPrizeStage,
   type OyinPrizeVelocity,
   type OyinWinner,
+  type OyinPublicWinner,
   type OyinTier,
   type OyinBallAdjustEntry,
   type OyinBallAdjustInput,
@@ -953,7 +954,9 @@ export async function getOyinState(memberId: number): Promise<OyinStateResponse>
       referRideBall: econ.oyinReferRideBall ?? 0,
       streakBall: econ.oyinStreakBall ?? 0,
       storyBall: econ.oyinStoryProofBall ?? 0,
-      maxPerPrize: Math.max(1, Math.round(econ.oyinMaxTicketsPerPrize ?? 3)),
+      // ⚖️ Limit yo'q (ega qarori 2026-08-19). Klient `min(hint, prize.limit)` hisoblaydi —
+      // shuning uchun hint sovrin joylaridan doim katta bo'lishi kifoya.
+      maxPerPrize: 999,
     },
     today,
     live,
@@ -1742,16 +1745,13 @@ export async function buyTicket(memberId: number, prizeKeyRaw: string, preview =
     const ball = await getBall(memberId);
     if (ball < prize.price) return { ok: false, reason: "insufficient" as const, ballLeft: ball };
 
-    // ⚖️ Adolat qo'rig'i: bitta odam bitta sovrinning hamma chiptasini olib qo'ymasin.
-    // Do'st-safari 40 ballga chiqqach, ko'p do'stli odam butun tirajni sotib olishi mumkin edi.
-    const econ = await getBonusEcon();
-    // ⚠️ Knob YOLG'IZ yetarli emas: knob 3, blender limiti ham 3 → bitta odam butun sovrinni
-    // sotib olib 100% g'olib bo'lardi (bu tiraj emas, XARID). Endi qo'riq limitning yarmidan
-    // oshmaydi — har sovrinda kamida ikki xil da'vogar qoladi.
-    const maxOwn = Math.max(1, Math.min(
-      Math.round(econ.oyinMaxTicketsPerPrize ?? 3),
-      Math.ceil(prize.limit / 2),
-    ));
+    // ⚖️ EGA QARORI 2026-08-19 (ikki marta tasdiqlangan): karta olishda LIMIT YO'Q —
+    // «odamlar xohlagancha olsin va shuncha imkoniyat ko'p bo'lsin… ikkita karta olsam
+    // mutlaq g'olib bo'lishim kerak». Avvalgi YARIM-SLOT qo'rig'i (`ceil(limit/2)`) OLIB
+    // TASHLANDI: endi bitta odam sovrinning hamma joyini ola oladi va 100% g'olib bo'ladi.
+    // Bu ONGLI tanlov — ega buni «harakat ↔ karta ↔ mukofot» zanjirining mohiyati deb biladi.
+    // Yagona chegara: sovrinning O'Z joylari soni (`prize.limit`) + admin knobi + mijoz balli.
+    const maxOwn = Math.max(1, prize.limit);
     // (Mavsum yuqorida BIR MARTA o'qilgan — ichkarida yana `getSeason()` chaqirilardi va tashqi
     // `season` ni SOYALARDI: bir xil qiymat, ortiqcha so'rov, o'quvchi uchun chalg'itadigan ikkilik.)
     const ownRow = await prisma.appState.findUnique({ where: { key: `oyin:tickets:${memberId}` } });
@@ -3443,6 +3443,28 @@ export async function getWinners(): Promise<OyinWinner[]> {
     try { out.push(JSON.parse(r.value) as OyinWinner); } catch { /* buzuq qator — jimgina o'tkazamiz */ }
   }
   return out.sort((a, b) => Date.parse(b.drawnAt) - Date.parse(a.drawnAt));
+}
+
+/** 🏆 OCHIQ g'oliblar tarixi — HAR mijoz ko'radi (ega talabi 2026-08-19: «hamma bilishi kerak,
+ *  bu tarixda saqlanishi kerak hamma uchun»). `getWinners()` bilan BIR XIL manba
+ *  (`oyin:winner:*` bayonnomasi) — ikkinchi haqiqat yaratilmaydi. Farqi faqat TOZALASH:
+ *  telefon va `memberId` chiqarilmaydi (ular bayonnomada qoladi, faqat admin ko'radi). */
+export async function getPublicWinners(limit = 100): Promise<OyinPublicWinner[]> {
+  const all = await getWinners();
+  const out: OyinPublicWinner[] = [];
+  for (const w of all.slice(0, Math.max(1, limit))) {
+    out.push({
+      prizeKey: w.prizeKey,
+      prizeName: w.prizeName,
+      code: await encodeCardCode(w.gno),
+      name: w.name,
+      drawnAt: w.drawnAt,
+      poolSize: w.poolSize,
+      handedAt: w.handedAt,
+      photoUrl: w.photoUrl,
+    });
+  }
+  return out;
 }
 
 // ── Mavsum yopilishi: ≥1 real safar qilganlarga qoldiq ball × 50% = tanga (max 500/odam).

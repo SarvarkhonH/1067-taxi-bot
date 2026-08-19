@@ -318,6 +318,8 @@ export const api = {
   oyinTeaser: () => get<OyinTeaserResponse>("/api/oyin/teaser"),
   oyinState: () => get<OyinStateResponse>("/api/oyin/state"),
   oyinVitrina: () => get<OyinVitrinaResponse>("/api/oyin/vitrina"),
+  // 🏆 Ochiq g'oliblar tarixi — hamma ko'radi (telefon/memberId yo'q, server tozalaydi).
+  oyinWinners: () => get<import("@t1067/shared").OyinWinnersResponse>("/api/oyin/winners"),
   // 🎟 Sovg'a kartalari panjarasi + bitta kartaning sahifasi (ega talabi 2026-08-12).
   // `oyinCard` BOSHQA odamning kartasini ham ochadi — javobda faqat ochiq ma'lumot.
   oyinPrizeCards: (key: string) => get<OyinPrizeCardsResponse>(`/api/oyin/prize/${encodeURIComponent(key)}/cards`),

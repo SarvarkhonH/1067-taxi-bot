@@ -1556,6 +1556,26 @@ export interface OyinCardDetail {
   avatarOptIn: boolean;
 }
 
+/** 🏆 OCHIQ g'oliblar tarixi (ega talabi 2026-08-19: «hamma bilishi kerak, bu tarixda
+ *  saqlanishi kerak hamma uchun»). `OyinWinner` dan FARQI: telefon va `memberId` YO'Q —
+ *  bu ro'yxatni har bir mijoz ko'radi. Manba o'zgarmagan: `oyin:winner:*` bayonnomasi. */
+export interface OyinPublicWinner {
+  prizeKey: string;
+  prizeName: string;
+  /** Ko'rinadigan karta kodi (Feistel+Luhn) — ochiq tekshiruv sahifasi bilan bir xil manba. */
+  code: string;
+  /** G'olibning Telegram ismi (familiya/telefon YO'Q). */
+  name: string;
+  drawnAt: string;
+  /** Nechta karta ichidan o'ynalgan — «adolat» raqami. */
+  poolSize: number;
+  /** Topshirilgan sana (`null` = hali topshirilmagan). */
+  handedAt: string | null;
+  /** Topshirish fotosi — bor bo'lsa isbot sifatida ko'rsatiladi. */
+  photoUrl: string | null;
+}
+export interface OyinWinnersResponse { winners: OyinPublicWinner[] }
+
 /** 🗒 Karta qaydini o'zgartirish (faqat egasi, faqat o'z kartasi). */
 export interface OyinSetCardNoteInput {
   gno: number;

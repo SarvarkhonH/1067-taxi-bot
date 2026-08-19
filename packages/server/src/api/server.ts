@@ -1555,6 +1555,13 @@ export function createApiServer(opts: ApiOptions = {}) {
   // 🌐 K1 — ochiq tekshiruv sahifasi (`/api/track/:token` bilan BIR XIL naqsh: PAROLSIZ, faqat
   // o'qish, hech qanday shaxsiy ma'lumot). Rate-limit — ketma-ket kod taxmin qilishning oldini
   // oladi (Luhn ham yordam beradi: 10 xonadan 9tasi tasodifiy bo'lsa ham ~90% urinish "not_found").
+  // 🏆 OCHIQ g'oliblar tarixi (ega talabi 2026-08-19: «hamma bilishi kerak … hamma uchun»).
+  // Admin yo'li (`/api/admin/oyin/winners`) telefon bilan to'liq bayonnomani beradi; bu yo'l
+  // TOZALANGAN ro'yxatni beradi (telefon/memberId yo'q) va har mijozga ochiq.
+  app.get("/api/oyin/winners", requireUser, rateLimit(30), async (_req, res) => {
+    const { getPublicWinners } = await import("../services/oyinService");
+    res.json({ winners: await getPublicWinners(100) });
+  });
   app.get("/api/oyin/verify/:code", rateLimit(30), async (req, res) => {
     const { getPublicCardVerify } = await import("../services/oyinService");
     const r = await getPublicCardVerify(String(req.params.code ?? ""));

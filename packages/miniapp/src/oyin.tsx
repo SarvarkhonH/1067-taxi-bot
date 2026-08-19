@@ -10,7 +10,7 @@
 // soxta QR-kvadrat — real QR-generatsiya (referralQrService) B1-B5 doirasida qurilmagan, shuning
 // uchun olib tashlandi (ishlamaydigan grafika ko'rsatish — yolg'on).
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { OYIN_FINAL_LOCK_MS, OYIN_CANCEL_WINDOW_MS, OYIN_JAMOA_MIN, OYIN_JAMOA_MAX, OYIN_PRIZE_FILTERS, oyinFilterPrizes, oyinHintOf, type OyinCardDetail, type OyinCommentListResponse, type OyinPrizeCardsResponse, type OyinPrizeFilter, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
+import { OYIN_FINAL_LOCK_MS, OYIN_CANCEL_WINDOW_MS, OYIN_JAMOA_MIN, OYIN_JAMOA_MAX, OYIN_PRIZE_FILTERS, oyinFilterPrizes, oyinHintOf, type OyinCardDetail, type OyinCommentListResponse, type OyinPrizeCardsResponse, type OyinPrizeFilter, type OyinActivityAction, type OyinActivityResponse, type OyinFriendRow, type OyinGashtakSearchHit, type OyinJamoamResponse, type OyinJamoaResult, type OyinJamoaView, type OyinMyTicketsResponse, type OyinPrizeView, type OyinPublicWinner, type OyinSeasonClientView, type OyinStateResponse, type OyinVitrinaResponse } from "@t1067/shared";
 import { api } from "./api";
 import { addToHomeScreen, copyText, haptic, homeScreenStatus, inviteLandingUrl, onHomeScreenAdded, openUserChat, shareLink, shareStory } from "./telegram";
 import { OyinStory } from "./oyinStory";
@@ -216,15 +216,14 @@ function ballRows(h: OyinStateResponse["hints"]): BallRow[] {
  *  `final_lock`) "Ball yetarli emas" ga tushardi: balansi to'la mijozga balansi haqida yolg'on
  *  aytilardi va u nima qilishni bilmay qolardi. */
 /** ⚖️ Bitta sovrindan ol(in)adigan maksimum — SERVER formulasining AYNAN nusxasi
- *  (`oyinService.buyTicket`: `min(knob, ceil(prize.limit / 2))`).
+ *  (`oyinService.buyTicket`: `min(knob, prize.limit)`).
  *
- *  Ega qarori 2026-08-19: qattiq «3 ta» limit olib tashlandi (knob 50) — ko'proq karta =
- *  ko'proq imkoniyat. Lekin YARIM-SLOT qo'rig'i qoladi: bitta odam sovrin joylarining
- *  yarmidan ko'pini ololmaydi, aks holda u butun sovrinni yolg'iz egallab, tirajni XARIDGA
- *  aylantirardi. Klient shu formulani BILISHI shart — aks holda ekran serverdan ko'proq
- *  va'da qiladi (miqdor tanlash 5 ko'rsatadi, server 3-da rad etadi). */
+ *  Ega qarori 2026-08-19 (ikki marta tasdiqlangan): LIMIT YO'Q — xohlagancha karta olish
+ *  mumkin, hatto sovrinning hamma joyini (o'shanda mijoz 100% g'olib bo'ladi). Yarim-slot
+ *  qo'rig'i OLIB TASHLANDI. Klient formulani BILISHI shart — aks holda ekran serverdan
+ *  ko'proq/kamroq va'da qiladi. */
 function prizeCap(limit: number, knobMax: number): number {
-  return Math.max(1, Math.min(Math.round(knobMax), Math.ceil(limit / 2)));
+  return Math.max(1, Math.min(Math.round(knobMax), limit));
 }
 
 function buyReasonText(reason: string | undefined, maxPerPrize?: number): string {
@@ -234,9 +233,9 @@ function buyReasonText(reason: string | undefined, maxPerPrize?: number): string
     case "off": return "📅 Dastur hali yopiq — tez orada boshlanadi";
     case "season_off": return "📅 Dastur hozir faol emas — karta olish yopiq";
     case "final_lock": return "🔒 Karta olish yopildi — ro'yxat mukofot kuniga tayyor. Kartalaringiz «Kartalarim» bo'limida";
-    case "own_limit": return maxPerPrize
-      ? `⚖️ Bu mukofotdan limitga yetdingiz (${maxPerPrize} ta) — boshqasini tanlang`
-      : "⚖️ Bu mukofotdan limitga yetdingiz — boshqasini tanlang";
+    // Limit olib tashlangach (ega qarori 2026-08-19) bu holat FAQAT sovrinning hamma joyini
+    // olib bo'lganda yuz beradi — ya'ni mijoz allaqachon 100% g'olib.
+    case "own_limit": return "🏆 Bu mukofotning hamma kartasi sizda — boshqa sovrinni tanlang";
     case "unknown_prize": return "🚫 Bu mukofot ro'yxatdan olib tashlandi — boshqasini tanlang";
     // ⚠️ `staff` ENDI SERVERDAN KELMAYDI — ega/admin xaridi to'silish o'rniga TEST-karta bo'ladi.
     // Matn eski javoblar (kesh/qayta urinish) uchun qoldirildi.
@@ -522,11 +521,11 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
               <li>Sodiqlik kartasi akkauntingizga biriktirilgan — egasi o'zgartirilmaydi va karta
                 qayta berilmaydi. Mavsum tugashi kartaga ta'sir qilmaydi. Akkaunt o'chirilsa,
                 karta arxivlangan holatda qoladi.</li>
-              {/* ⚖️ 2026-08-19 (ega qarori: «xohlagancha olsin»): qattiq «N ta» chegara olib
-                  tashlandi. Haqiqiy qoida — YARIM-SLOT qo'rig'i (server: `min(knob, ceil(limit/2))`),
-                  ya'ni bitta odam sovrinni yolg'iz egallab ololmaydi. Matn shuni aytadi. */}
-              <li>Karta sonida cheklov yo'q — ko'proq karta, ko'proq imkoniyat. Faqat bitta odam
-                bitta mukofot joylarining yarmidan ko'pini ola olmaydi (boshqalarga ham joy qoladi).</li>
+              {/* ⚖️ 2026-08-19 (ega qarori, ikki marta tasdiqlangan): karta sonida CHEKLOV YO'Q.
+                  Yarim-slot qo'rig'i ham olib tashlandi — mijoz sovrinning hamma joyini olsa,
+                  u 100% g'olib bo'ladi. Matn shu haqiqatni ochiq aytadi. */}
+              <li>Karta sonida cheklov yo'q — ko'proq karta, ko'proq imkoniyat. Sovrinning barcha
+                kartalarini olsangiz, mukofot kafolatlangan holda sizniki bo'ladi.</li>
             </ul>
           </RuleSec>
 
@@ -552,7 +551,7 @@ type OyinTab = "home" | "vitrina" | "tickets" | "jamoam";
 // (Dastur/Jamoam/Mukofotlar tablaridan) — hub o'zi faqat qo'shimcha qavat edi.
 // 🗑 "how" (statik "Qanday ishlaydi?" varag'i) OLIB TASHLANDI 2026-08-13 — kirish tugmasi
 // endi story'ni ochadi (`setOnboard`), sheet emas.
-type SheetKind = "buy" | "ball" | "earn" | "bell" | "rules" | "gashtak" | "cards" | "card" | "comments" | null;
+type SheetKind = "buy" | "ball" | "earn" | "bell" | "rules" | "gashtak" | "cards" | "card" | "comments" | "winners" | null;
 type LoadState = "loading" | "ready" | "error";
 
 export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?: string | null } = {}) {
@@ -628,6 +627,10 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
   // yig'ildi (avval har kartada 4 tugma yonma-yon edi — «tugma devori»). Bir vaqtda bitta
   // karta menyusi ochiq (shu sovrin `key`i); boshqa kartaga bosilsa avvalgisi yopiladi.
   const [menuKey, setMenuKey] = useState<string | null>(null);
+  // 🏆 Ochiq g'oliblar tarixi (ega talabi 2026-08-19: «hamma bilishi kerak … tarixda saqlanishi
+  // kerak hamma uchun»). Xato holati ALOHIDA: `null` = yuklanmoqda, `[]` = haqiqatan bo'sh.
+  const [winners, setWinners] = useState<OyinPublicWinner[] | null>(null);
+  const [winnersErr, setWinnersErr] = useState(false);
   const [buyKey, setBuyKey] = useState<string | null>(null);
   const [buyQty, setBuyQty] = useState(1); // 🎟 miqdor (max 3) — YAKUNIY DIZAYN §7 tafsilot ekrani
   const [busy, setBusy] = useState(false); // faqat CHIPTA XARIDI
@@ -1127,6 +1130,16 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     setCardData(null); setCardErr(false); setEmptySlotNo(no); setSheet("card");
   }, []);
 
+  const openWinners = useCallback(() => {
+    haptic();
+    setSheet("winners");
+    setWinnersErr(false);
+    setWinners(null);
+    api.oyinWinners()
+      .then((r) => setWinners(r.winners))
+      .catch(() => setWinnersErr(true));
+  }, []);
+
   const tapPrize = useCallback((p: OyinPrizeView) => {
     haptic();
     if (p.soldOut) { showToast(buyReasonText("sold_out")); return; }
@@ -1144,7 +1157,7 @@ export function OyinView({ onTaxi, joinCode }: { onTaxi?: () => void; joinCode?:
     if ((state?.seasonRides ?? 0) <= 0) { showToast("🚕 Karta uchun kamida bitta real safar kerak — avval taksi chaqiring"); return; }
     // Limit ekranda yozilgan, lekin tugma baribir varaq ochardi va server rad etardi —
     // "bo'lmaydi / bo'ladi / bo'lmaydi" uch qadamli chalkashlik. Endi darhol aytiladi.
-    const maxP = prizeCap(p.limit, state?.hints.maxPerPrize ?? 3);
+    const maxP = prizeCap(p.limit, state?.hints.maxPerPrize ?? 50);
     if (p.mine >= maxP) { showToast(buyReasonText("own_limit", maxP)); return; }
     if ((state?.ball ?? 0) < p.price) { showToast(`⚡ Yana ${p.price - (state?.ball ?? 0)} ball kerak — do'st chaqiring!`); return; }
     setBuyQty(1);
@@ -1897,6 +1910,12 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
             {/* 📋 Qoidalarga IKKINCHI yo'l (DIZAYN_QOIDALARI #4: har bo'limga kamida ikki
                 kirish). Mijoz ballini AYNAN shu tabda sarflaydi — rasmiy shartlar shu qaror
                 oldida qo'l ostida turishi kerak, "?" tugmasining ichida yashiringan emas. */}
+            {/* 🏆 G'OLIBLAR TARIXI — ochiq, hamma uchun (ega talabi 2026-08-19). Bayonnoma
+                abadiy saqlanadi (`oyin:winner:*`); avval faqat admin ko'rardi. */}
+            <button type="button" className="oyk-info-link" onClick={openWinners}>
+              <span>🏆 G'oliblar tarixi</span>
+              <span aria-hidden="true">›</span>
+            </button>
             <button type="button" className="oyk-info-link" onClick={() => { haptic(); setSheet("rules"); }}>
               <span>📋 Dastur qoidalari</span>
               <span aria-hidden="true">›</span>
@@ -2493,13 +2512,33 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                   const free = Math.max(0, cardsData.limit - cardsData.sold);
                   const mineCards = cardsData.cards.filter((c) => c.mine);
                   const others = cardsData.cards.filter((c) => c.ownerName !== null && !c.mine);
-                  const shown = others.slice(0, 50);
+                  const shown = others.slice(0, 8);
                   return (
                     <>
                       <div className="oyk-coll-meter"><i style={{ width: `${cardsData.limit > 0 ? Math.min(100, (cardsData.sold / cardsData.limit) * 100) : 0}%` }} /></div>
                       <div className="oyk-coll-min">
                         {cardsData.sold} kishi karta oldi · {free} joy ochiq
                         {cardsData.minSell > 0 && !cardsData.willDraw ? ` · topshirilishi uchun yana ${Math.max(0, cardsData.minSell - cardsData.sold)} ta kerak` : ""}
+                      </div>
+                      {/* 🎴 ZAL — sovrinning BARCHA joylari. Egasi bor joy uning bosh harfi bilan
+                          «to'lgan», bo'sh joy neytral nuqta. Raqam YO'Q (u xariddan keyin
+                          biriktiriladi — ko'rsatish yolg'on tanlov taassurotini berardi).
+                          Band joyga bosish → o'sha karta; bo'sh joyga bosish → karta olish. */}
+                      <div className="oyk-hall">
+                        {cardsData.cards.map((c) => (
+                          <button
+                            key={c.no} type="button"
+                            className={`oyk-hdot${c.ownerName === null ? " is-free" : c.mine ? " is-mine" : ""}`}
+                            style={c.ownerName !== null ? { background: `var(--oyk-av-${c.no % 5})` } : undefined}
+                            title={c.ownerName ?? "Bo'sh joy"}
+                            onClick={() => { if (c.gno != null) openCard(c.gno); else if (cardsPrize) tapPrize(cardsPrize); }}
+                          >{c.ownerName ? (c.ownerName.trim()[0] ?? "?") : ""}</button>
+                        ))}
+                      </div>
+                      <div className="oyk-hall-lg">
+                        <span><i className="taken" />egasi bor</span>
+                        <span><i className="mine" />meniki</span>
+                        <span><i className="free" />bo'sh</span>
                       </div>
                       {mineCards.length > 0 && (
                         <button type="button" className="oyk-orow is-me" onClick={() => { const g = mineCards.find((c) => c.gno != null)?.gno; if (g != null) openCard(g); }}>
@@ -2901,6 +2940,44 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
               </>
             )}
 
+            {/* 🏆 G'OLIBLAR TARIXI — har mijoz ko'radi. Server tozalangan ro'yxat beradi
+                (telefon/memberId YO'Q). Xato ≠ bo'sh: aloqa uzilsa «g'olib yo'q» DEYILMAYDI. */}
+            {sheet === "winners" && (
+              <>
+                <div className="oyk-sheet-title">🏆 G'oliblar tarixi</div>
+                {winnersErr ? (
+                  <div className="oyk-load-err">
+                    <div className="oyk-load-err-tx">Ro'yxatni yuklab bo'lmadi — bu «g'olib yo'q» degani EMAS, aloqa uzildi.</div>
+                    <button type="button" className="oyk-load-err-btn" onClick={openWinners}>🔄 Qayta urinish</button>
+                  </div>
+                ) : !winners ? (
+                  <>{[0, 1, 2].map((i) => <div key={i} className="oyk-skel-block oyk-skel-bell" />)}</>
+                ) : winners.length === 0 ? (
+                  <div className="oyk-note-violet">Hali birorta mukofot o'ynalmagan. Birinchi mukofot kunidan keyin g'oliblar shu yerda — abadiy — saqlanadi 🏆</div>
+                ) : (
+                  <>
+                    <div className="oyk-wlist">
+                      {winners.map((w) => (
+                        <div key={`${w.prizeKey}-${w.code}`} className="oyk-wrow">
+                          <span className={`oyk-avatar ${avatarClass(w.poolSize + w.name.length)}`}>{w.name.trim()[0] ?? "?"}</span>
+                          <span className="oyk-wrow-tx">
+                            <b>{w.name}</b>
+                            <small>{w.prizeName}</small>
+                            <i>{uzDate(w.drawnAt)} · {w.poolSize} karta ichidan · {w.code}</i>
+                          </span>
+                          {w.handedAt
+                            ? <span className="oyk-wrow-badge is-done">✅ Topshirilgan</span>
+                            : <span className="oyk-wrow-badge">🏆 G'olib</span>}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="oyk-buy-note">Har mukofot bayonnoma bilan yoziladi va bu ro'yxatdan hech qachon o'chirilmaydi — natija hamma uchun ochiq.</div>
+                  </>
+                )}
+                <button type="button" className="oyk-sheet-ok" onClick={() => { haptic(); setSheet(null); }}>Yopish</button>
+              </>
+            )}
+
             {/* 👑 Gashtak boshqaruvi (2026-08-05, ega talabi) — faqat boshliqqa ko'rinadi
                 (JSX qo'shilish joyida `isLeader` bilan qo'riqlangan). */}
             {sheet === "gashtak" && jamoa?.jamoa && (
@@ -3058,7 +3135,7 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                 )}
                 {/* MIQDOR — STEPPER (chip-qatori emas): limit 3 dan 50 ga ko'tarilgach (ega
                     qarori 2026-08-19) 50 ta chip chizib bo'lmasdi. Stepper `maxQty` bilan
-                    chegaralangan — u ball/qoldiq/yarim-slot qo'rig'ining eng kichigi. */}
+                    chegaralangan — u ball/sovrin-qoldig'i/knob ning eng kichigi. */}
                 {maxQty > 1 && (
                   <div className="oyk-qty">
                     <span className="oyk-qty-lb">Nechta karta?</span>
@@ -3069,11 +3146,11 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                     </div>
                   </div>
                 )}
-                {/* ⚖️ Yarim-slot qo'rig'i — FAQAT chegaraga yetganda jim chiqadi (ijobiy tilda,
-                    «limit» so'zisiz). Sabab: bitta odam butun sovrinni yolg'iz egallab olmasin. */}
-                {qty >= maxQty && buyPrize.mine + maxQty >= prizeCap(buyPrize.limit, state.hints.maxPerPrize) && (
+                {/* 🏆 «Hamma joy sizda» — limit emas, YUTUQ holati: shu miqdorni olsangiz
+                    sovrinning barcha kartalari sizda bo'ladi va mukofot kafolatlanadi. */}
+                {buyPrize.mine + qty >= buyPrize.limit && (
                   <div className="oyk-scarce is-warn">
-                    ⚖️ Bir kishi sovrin joylarining yarmidan ko'pini ololmaydi — boshqalarga ham joy qoladi
+                    🏆 Bu sovrinning BARCHA kartalari sizda bo'ladi — mukofot kafolatlangan
                   </div>
                 )}
                 {/* "Xariddan keyin qoladi" — xaridning ASOSIY savoli. Avval odam ballini

@@ -49,7 +49,6 @@ const QUEST = knob("oyinDailyQuestBall");
 const STREAK = knob("oyinStreakBall");
 const LOGIN = knob("oyinDailyLoginBall");
 const PHONE = knob("oyinPhoneBall");
-const MAX_PER_PRIZE = knob("oyinMaxTicketsPerPrize");
 const MIN_SELL_PCT = knob("oyinMinSellPct");
 
 // ── MODEL ────────────────────────────────────────────────────────────────────────────────────
@@ -95,7 +94,7 @@ const buyCard = (m: Member, p: Prize): BuyReason => {
   if (m.banned) return "banned";
   if (m.rides <= 0) return "no_ride"; // 🚧 safar darvozasi
   if (ballOf(m) < p.price) return "insufficient";
-  const maxOwn = Math.max(1, Math.min(Math.round(MAX_PER_PRIZE), Math.ceil(p.limit / 2)));
+  const maxOwn = Math.max(1, p.limit); // ⚖️ limit yo'q (ega qarori 2026-08-19)
   if ((p.holders.get(m.id) ?? 0) >= maxOwn) return "own_limit";
   const no = reserveSlot(p);
   if (no === null) return "sold_out";
@@ -228,7 +227,7 @@ console.log("\n④ buyCard — darvozalar TARTIBI");
   const banned = addMember(-4, null); doRide(banned); banned.ball = 999_999; banned.banned = true;
   ok(buyCard(banned, p) === "banned", "chetlatilgan → banned (ball darvozadan OLDIN)");
   noRide.ball = 999_999; noRide.spent = 0;
-  const maxOwn = Math.max(1, Math.min(Math.round(MAX_PER_PRIZE), Math.ceil(p.limit / 2)));
+  const maxOwn = Math.max(1, p.limit); // ⚖️ limit yo'q (ega qarori 2026-08-19)
   let bought = 1;
   while (buyCard(noRide, p) === "ok") bought++;
   ok(bought === maxOwn, `limitga yetdi: ${bought} karta (max ${maxOwn})`);
@@ -458,15 +457,26 @@ console.log("━━ 2b. TO'G'RI O'LCHAMDAGI KATALOG — 90 kun ━━\n");
 // ── 3-BOSQICH: SINDIRISH URINISHLARI ────────────────────────────────────────────────────────
 console.log("━━ 3. SINDIRISH — hujum stsenariylari ━━\n");
 
-console.log("🗡 A. Whale bitta mukofotni sotib olishga urinadi");
+// ⚖️ EGA QARORI 2026-08-19 (ikki marta tasdiqlangan): karta olishda LIMIT YO'Q — «odamlar
+// xohlagancha olsin va shuncha imkoniyat ko'p bo'lsin». Avvalgi «whale ≤50%» qo'rig'i ATAYLAB
+// olib tashlandi: ko'p ball yig'gan odam sovrinning hamma kartasini olib, 100% g'olib bo'lishi
+// MUMKIN. Bu test endi shu YANGI qoidani qo'riqlaydi (eskisini emas) + ball baribir yig'ilishi
+// SHART ekanini tekshiradi (bepul emas: har karta narxi yechiladi).
+console.log("🗡 A. Whale bitta mukofotning hamma kartasini oladi (limit yo'q — ONGLI qoida)");
 {
   world.prizes = []; world.members.clear();
   const p = addPrize("Nishon", 350_000, false);
   const whale = addMember(1, null); doRide(whale); whale.ball = 10_000_000;
+  const ballBefore = whale.ball;
   let got = 0;
   while (buyCard(whale, p) === "ok") got++;
-  const share = (got / p.limit) * 100;
-  ok(share <= 50, `whale ${got}/${p.limit} = ${share.toFixed(0)}% oldi (≤50% — mukofotni SOTIB OLA olmadi)`);
+  ok(got === p.limit, `whale ${got}/${p.limit} karta oldi — limit YO'Q (ega qarori)`);
+  // Hamma o'rin tugagach darvoza `sold_out` qaytaradi (jonli `buyTicket` bilan bir xil tartib:
+  // o'rin tekshiruvi limit tekshiruvidan OLDIN).
+  ok(buyCard(whale, p) === "sold_out", "hammasi olingach — sold_out (bo'sh o'rin qolmadi)");
+  // Bepul emas: har karta uchun ball SARFLANADI (`spent` — sim hisobi, jonli `spendBall`).
+  ok(whale.spent === got * p.price, `ball haqiqatan sarflandi: ${got} × ${p.price} = ${whale.spent}`);
+  void ballBefore;
 }
 
 console.log("\n🗡 B. Safarsiz ferma — 20 ta soxta akkaunt");
