@@ -377,8 +377,8 @@ function RulesSheet({ season, prizes, maxPerPrize, onClose }: {
 
           <RuleSec n={1} t="Dastur nomi">
             <b>BirJoy sodiqlik dasturi.</b> Mijoz BirJoy orqali taksi chaqiradi, ball yig'adi va
-            yig'ilgan ballga sodiqlik kartasi oladi. Mukofot kunida shu kartalar orasidan mukofot
-            egalari aniqlanadi.
+            yig'ilgan ballga sodiqlik kartasi oladi. Sovrinning kartalari to'lgach, shu kartalar
+            orasidan mukofot egasi aniqlanadi (jonli efirda).
           </RuleSec>
 
           <RuleSec n={2} t="Tashkilotchi">
@@ -1514,24 +1514,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
     return left < 0.5 ? "warn" : "none";
   };
 
-  // 📅 Ega maketidagi "31-AVGUST, 20:00" — mavsum tugash sanasi (sovg'alar shu kuni
-  // topshiriladi). Boshlanmagan mavsumda esa BOSHLANISH sanasi ko'rsatiladi.
-  // (`upcoming`/`unset` bu yergacha yetmaydi — ular yuqorida erta return bilan ushlangan.)
-  const drawDateText = (() => {
-    const iso = state.season.endIso;
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (!Number.isFinite(d.getTime())) return "";
-    return `${uzDate(iso).toUpperCase()}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-  })();
-
-  // Tiraj VAQTI — mavsum tugash sanasining soati (chiptada "31-avgust, 20:00" bo'lib chiqadi).
-  const drawTime = (() => {
-    const iso = state.season.endIso;
-    if (!iso) return "";
-    const d = new Date(iso);
-    return Number.isFinite(d.getTime()) ? `${pad(d.getHours())}:${pad(d.getMinutes())}` : "";
-  })();
+  // 📅→🎴 `drawDateText` va `drawTime` OLIB TASHLANDI (ega qarori 2026-08-19: «mukofot kuni
+  // kartalar to'lishiga bog'liq, aniq kun aytish kerak emas»). Ular mavsum tugash sanasini
+  // "mukofot kuni" deb ko'rsatardi — sovrin esa kartalari to'lgandagina o'ynaydi, ya'ni sana
+  // hech narsani kafolatlamasdi. Endi ekranlar SHARTNI aytadi (hero, chipta, karta ledgeri).
 
   const setGoal = async (p: OyinPrizeView) => {
     haptic();
@@ -1618,9 +1604,17 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                  ega: "o'yin uy tabida sovrinlar ham, haftalik vazifa ham, jonli ham kerak emas". */
               <>
                 <div className="oyk-draw">
-                  <div className="oyk-draw-h">OY OXIRIDA MUKOFOT KUNI!</div>
-                  <div className="oyk-draw-k">Sovg'alar topshiriladi — har oyda bir marta o'tkaziladi</div>
-                  <div className="oyk-draw-d">{drawDateText}</div>
+                  {/* 📅→🎴 EGA QARORI 2026-08-19: «mukofot kuni kartalar to'lishiga bog'liq va
+                      aniq kun aytish kerak emas». Avval bu yerda mavsum tugash SANASI turardi —
+                      u yolg'on va'da edi: sovrin faqat kartalari to'lganda o'ynaydi
+                      (`willDraw = sold >= minSell`), sana esa hech narsani kafolatlamasdi.
+                      Endi QOIDA aytiladi + mavsum bo'yicha HAQIQIY to'lish soni (`soldTotal`/
+                      `capacityTotal` — allaqachon keladi, yangi so'rov yo'q). */}
+                  <div className="oyk-draw-h">KARTALAR TO'LGANDA MUKOFOT!</div>
+                  <div className="oyk-draw-k">Har sovrin o'z kartalari to'lishi bilan jonli efirda o'ynaladi</div>
+                  {state.capacityTotal > 0 && (
+                    <div className="oyk-draw-d">{state.soldTotal} / {state.capacityTotal} KARTA</div>
+                  )}
                   {/* 🗑 Statik 5-qatorli "how" varag'i O'RNIGA endi story ochiladi (ega talabi
                       2026-08-13: "bosilgandan o'zimizni story ko'rinishi chiqishi kerak") —
                       birinchi kirishda avtomatik ko'rsatiladigan HAQIQIY story (`OyinStory`,
@@ -2165,11 +2159,10 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       </div>
                       <div className="oyk-tkt-info">
                         <div className="oyk-tkt-prize">{t.prizeName}</div>
-                        {/* ⚠️ Yorliq ATAYLAB qisqa («Mukofot kuni:» EMAS). 320px ekranda o'lchandi:
-                            «Mukofot kuni: 14-sentabr, 20:00» ikki qatorga tushib kartani
-                            140.5px dan 155.5px ga cho'zardi va skeleton bilan mos kelmasdi
-                            (DIZAYN_QOIDALARI #11). «Mukofot:» bilan balandlik eski holicha. */}
-                        <div className="oyk-tkt-when">Mukofot: {uzDate(tickets.drawIso)}{drawTime ? `, ${drawTime}` : ""}</div>
+                        {/* 📅→🎴 Sana O'RNIGA holat (ega qarori 2026-08-19): chipta o'z
+                            sovrinining `willDraw` ini biladi — «to'ldi» yoki «to'layapti».
+                            Bitta qator, balandlik o'zgarmadi (skeleton #11 bilan mos). */}
+                        <div className="oyk-tkt-when">{t.willDraw ? "Kartalar to'ldi — o'ynashga tayyor" : "Kartalar to'lgach o'ynaydi"}</div>
                       </div>
                       {/* ⚠️ 2026-08-14 (ega audit topgan teshik): `result` maydoni 2026-08-12 dan
                           beri serverdan kelib turardi (`t.result`), lekin bu yerda HECH QACHON
@@ -2643,14 +2636,15 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                           </div>
                           {/* `uzDate` — `toLocaleDateString("uz-UZ")` ba'zi klientlarda «2026 M08 8» qaytaradi. */}
                           <div className="oyk-lrow"><span className="oyk-lrow-k">Olingan</span><span className="oyk-lrow-v">{uzDate(cardData.at)}</span></div>
-                          {cardData.drawIso && <div className="oyk-lrow"><span className="oyk-lrow-k">Mukofot kuni</span><span className="oyk-lrow-v">{uzDate(cardData.drawIso)}</span></div>}
+                          {/* Sana emas — SHART (ega qarori 2026-08-19): sovrin kartalari to'lgach o'ynaydi. */}
+                          <div className="oyk-lrow"><span className="oyk-lrow-k">Mukofot</span><span className="oyk-lrow-v">Kartalar to'lgach</span></div>
                         </div>
                         <div className="oyk-cert-teach is-flat">
                           <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">🎟</span><span>Bu karta — <b>{cardData.prizeName}</b> uchun o'ynaydigan bitta joy.</span></div>
                           {/* ⚠️ Bu qator HAQIQAT bo'lgandagina chiziladi: sana yo'q bo'lsa umuman
                               yozilmaydi (bo'sh va'da bermaslik qoidasi). */}
                           {cardData.result === null && cardData.drawIso && (
-                            <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">📺</span><span><b>{uzDate(cardData.drawIso)}</b> kuni, Telegram jonli efirida o'ynaydi.</span></div>
+                            <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">📺</span><span>Sovrin <b>kartalari to'lgach</b>, Telegram jonli efirida o'ynaydi.</span></div>
                           )}
                           {cardData.result === null && (
                             <div className="oyk-cert-teach-li"><span className="oyk-cert-teach-em">🤝</span><span>Endigina olgan bo'lsangiz — qisqa vaqt ichida bekor qilib ballingizni qaytarib olishingiz mumkin (Kartalarim). Undan keyin karta akkauntingizga biriktiriladi — egasi o'zgartirilmaydi va qayta berilmaydi.</span></div>
