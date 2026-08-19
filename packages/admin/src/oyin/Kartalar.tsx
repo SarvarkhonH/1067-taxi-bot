@@ -8,7 +8,8 @@
 // ⚠️ DASTUR G'OLIBNI TANLAMAYDI — buni bloger jismonan qiladi. Dastur ro'yxat BUTUNLIGINI
 // kafolatlaydi: muzlatilgan ro'yxat + hash ommaga chiqadi, kiritilgan raqam tekshiriladi.
 import { useMemo, useState } from "react";
-import type { OyinAdminPrizeRow, OyinDrawTicketRow, OyinWinner } from "@t1067/shared";
+import type { OyinAdminPrizeRow, OyinDrawTicketRow, OyinExcludedTicketRow, OyinWinner } from "@t1067/shared";
+import { OYIN_EXCLUDE_REASON_LABEL } from "@t1067/shared";
 import { adminApi } from "../api";
 import { csvName, downloadCsv } from "../lib/csv";
 import { ago, dt, num } from "../lib/fmt";
@@ -68,6 +69,8 @@ export function Kartalar({ onChanged }: { onChanged: () => void }) {
   ];
 
   const usedPrizes = [...new Set(exp.tickets.map((t) => t.prizeKey))];
+  // Eski server (deploy hali chiqmagan) bu maydonni yubormaydi — panel yiqilmasin.
+  const excluded = exp.excludedTickets ?? [];
 
   return (
     <>
@@ -149,14 +152,52 @@ export function Kartalar({ onChanged }: { onChanged: () => void }) {
             ))}
           </div>
         </div>
-        <Table rows={rows} cols={cols} rowKey={(t) => `${t.prizeKey}-${t.ticketNo}`} empty={exp.tickets.length === 0 ? "Hali birorta karta chiqarilmagan." : "Bu filtr bo'yicha karta yo'q."} />
+        <Table
+          rows={rows}
+          cols={cols}
+          rowKey={(t) => `${t.prizeKey}-${t.ticketNo}`}
+          empty={
+            exp.tickets.length === 0
+              ? (excluded.length > 0
+                  ? `Tirajga kiruvchi karta yo'q — lekin ${excluded.length} ta karta CHIQARILGAN. Ular pastdagi jadvalda, sababi bilan.`
+                  : "Hali birorta karta chiqarilmagan.")
+              : "Bu filtr bo'yicha karta yo'q."
+          }
+        />
       </Card>
+
+      {/* 🔴 2026-08-19 (ega: «kartalar admin panelga menga ko'rinmayopti, o'zimni kartam ham»):
+          bu ekran TIRAJ hujjati — undan xodim/sinov/chetlatilgan kartalar va chegaraga yetmagan
+          mukofotlar ATAYLAB chiqariladi (qoida to'g'ri, hash butunligi shunga bog'liq). Lekin
+          natijada ega o'z kartasini HECH QAYERDA ko'rmasdi va ekran «hali birorta karta
+          chiqarilmagan» deb YOLG'ON aytardi. Endi chiqarilganlar alohida jadvalda — kim · qaysi
+          mukofot · karta № · NEGA chiqarilgan. Tiraj ro'yxati va hash O'ZGARMAYDI. */}
+      {excluded.length > 0 && (
+        <Card
+          title="🚫 Tirajga kirmagan kartalar"
+          sub={`${num(excluded.length)} ta — sotilgan, lekin qur'aga tushmaydi`}
+          flush
+        >
+          <Table
+            rows={excluded}
+            rowKey={(t) => `${t.prizeKey}-${t.ticketNo}`}
+            empty="—"
+            cols={[
+              { key: "no", label: "Karta №", sort: (t) => t.ticketNo, render: (t) => <span className="oy-mono oy-main">№{t.ticketNo}</span> },
+              { key: "prize", label: "Mukofot", sort: (t) => prizeOf(t.prizeKey)?.name ?? t.prizeKey, render: (t) => <>{prizeOf(t.prizeKey)?.icon ?? "🎁"} {prizeOf(t.prizeKey)?.name ?? t.prizeKey}</> },
+              { key: "owner", label: "Egasi", sort: (t) => t.name, render: (t) => <>{t.name} <span className="oy-sub oy-mono">#{t.memberId}</span></> },
+              { key: "why", label: "Nega chiqarilgan", sort: (t) => t.reason, render: (t) => <Badge tone="mute">{OYIN_EXCLUDE_REASON_LABEL[t.reason] ?? t.reason}</Badge> },
+            ] satisfies Col<OyinExcludedTicketRow>[]}
+          />
+        </Card>
+      )}
 
       <Note>
         <b>Ro'yxatga kirmaganlar ochiq sanaladi</b> — jimgina yo'qolmaydi: {exp.excludedTest} ta sinov
         kartasi · {exp.excludedBanned} ta chetlatilgan a'zo kartasi · {exp.excludedStaff} ta xodim kartasi.
         {exp.skippedPrizes.length > 0 && <> Chegaraga yetmagani uchun tushmagan mukofotlar: {exp.skippedPrizes.map((s) => `${s.name} (${s.sold}/${s.minSell})`).join(", ")}.</>}
-        <br />Ro'yxat FAQAT joriy mavsumni qamraydi.
+        <br />Xodim/ega kartasi tirajga KIRMAYDI — bu ataylab. Ularni bekor qilish uchun:
+        ⚙️ Sozlama &amp; Audit → 🧪 Men → «🧹 Kartalarimni tozalash», yoki ◍ Odamlar → a'zoni oching → «Kartalari».
       </Note>
     </>
   );

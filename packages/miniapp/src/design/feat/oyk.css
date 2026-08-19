@@ -1562,3 +1562,19 @@
 .oyk-wrow-badge { flex: 0 0 auto; align-self: flex-start; font-size: 9.5px; font-weight: 900; letter-spacing: .04em;
   border-radius: 8px; padding: 4px 8px; background: var(--oyk-warn); color: #4a3300; }
 .oyk-wrow-badge.is-done { background: rgba(31, 157, 85, .14); color: var(--oyk-green); }
+
+/* ═══ 2026-08-19 · ega: «rasm hali ham katta va noqulay — mukofot TO'LIQ ko'rinsin» ═══
+   Ikkinchi urinish. Birinchisi (yuqorida) gradientni pastki yo'lakka qisqartirgan edi, lekin
+   rasm ustida qoraytiruvchi qatlam BOR bo'lib qolgan va banner hamon baland edi. Endi:
+   · qoraytiruvchi qatlam BUTUNLAY olib tashlanadi — sovrin ustida hech narsa yo'q;
+   · nom va narx o'z to'q "tabletka"si ichida turadi (o'qilishi saqlanadi, rasm toza qoladi);
+   · banner yana pasaydi va rasmga ajratilgan maydon o'sadi (matn-yo'lagi 52 → 44px).
+   Natija: mahsulotning HAMMA qismi, har ekran o'lchamida, hech qanday soyasiz ko'rinadi. */
+.oyk-vcard-photo { height: clamp(116px, 30vw, 146px); }
+.oyk-vcard-photo img { padding: 8px 8px 44px; }
+.oyk-vcard-photo-fade { display: none; }
+.oyk-vcard-photo-name,
+.oyk-vcard-photo-price {
+  background: rgba(10, 8, 22, .78); border-radius: 9px; padding: 2px 8px;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+}
