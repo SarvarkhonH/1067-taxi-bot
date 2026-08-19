@@ -1780,7 +1780,12 @@ Taksida yur, ball yig', sodiqlik kartasini ol. Davr oxirida jonli efirda mukofot
                       deb o'qilardi. Affordability tugma matnida. `goalCount` — «N xohlaydi» konteksti. */}
                   <div className="oyk-vimg">
                     {showPhoto
-                      ? <img src={p.photoUrl ?? ""} alt="" loading="lazy" onError={() => markBadPhoto(p.key)} />
+                      ? <>
+                          {/* Orqa qatlam faqat fon: keng/tik rasmda qoladigan joyni xira qilib
+                              to'ldiradi. Oldingi qatlam esa HAR DOIM butun mahsulotni ko'rsatadi. */}
+                          <img className="oyk-vimg-backdrop" src={p.photoUrl ?? ""} alt="" aria-hidden="true" />
+                          <img className="oyk-vimg-product" src={p.photoUrl ?? ""} alt="" loading="lazy" onError={() => markBadPhoto(p.key)} />
+                        </>
                       : <span className="oyk-vimg-emoji">{p.icon}</span>}
                     {p.goalCount > 0 && <div className="oyk-vcard-goal">🎯 {p.goalCount} xohlaydi</div>}
                     <span className="oyk-atom-shine" />
