@@ -1,5 +1,15 @@
 # PROGRESS
 
+## 📢 2026-09-05 — Rasmli reklama skripti (`sendBroadcast.ts`)
+
+**Holat: `ready for verification`.** Ega so'rovi: «men senga rasm, matn va link beraman — chiroyli
+qilib yuborish berasan». `/elonrasm` qo'lda Telegram'da bosishni talab qiladi; endi agent brief
+(JSON: rasm + HTML-izoh + tugma + segment) tuzadi, VPS'da skript avval FAQAT EGAGA preview
+yuboradi (mijozga sinov TAQIQ), ega «ok» desa `--send` bilan hammaga ketadi. Rasm bir marta
+yuklanadi (file_id qayta ishlatiladi), har yuborish `pushSend` orqali (403→blockedAt, 429→qayta),
+natija `Broadcast` jadvaliga (admin «Xabarlar tarixi»). Yugurtirish retsepti fayl boshida.
+Birinchi ishlatilish: Ochil Dasturxon reklamasi (tugma → t.me/ochildasturxonbot, segment=all).
+
 ## 👔 2026-08-18 — JAMOA J6–J10: arxiv · xabarlar · qoidalar · mukofotlar · maqsad-bonusi
 
 **Holat: `ready for verification` (yagona gap: EGA QABUL'i).** Sxema VPS'da qo'llandi, kod
