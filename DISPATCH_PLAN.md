@@ -126,52 +126,306 @@
    Flag hali OFF — sinov uchun `setFlag.ts owndispatch on` (alert keladi), muammo bo'lsa `off` (30s).
 6. QABUL → `EXPECTED_ON` ga qo'shish (alohida commit).
 
-## §7. Ega qo'shimchalari (2026-09-07 xabari): APK · admin panel · walkie-talkie
+## §7. EGA QARORLARI (2026-09-07) — tanlangan variantlar
 
-> Ega: «kas1067 senga apk bergan edim, driverlar uchun apk, admin panel, walkie-talkie kerak».
-> ⚠️ kas1067 haydovchi-ilovasining dekompilyatsiyasi (`client-apk-decomp/`) `.gitignore`da — bu
-> checkout'da YO'Q. Uning ekranlarini birma-bir takrorlash kerak bo'lsa, papkani qayta yuklash
-> (yoki ekranlar ro'yxatini aytish) kerak. Quyidagi reja umumiy taksi-dispetcher ilovalari
-> (kas, Yandex Pro, Bolt Driver) naqshiga qurilgan.
+Ega uch savolga javob berdi va ustiga qo'shdi: **«yaxshiroq tizim kerak — juda kuchli
+kontrolga ega admin panel va driverlar uchun juda tez, qulay APK»**.
 
-### 7.1 Haydovchi ilovasi — «APK»
-
-| Variant | Nima | Muddat | Kamchilik |
-|---|---|---|---|
-| **A (tavsiya) — Telegram Mini App + o'rnatiladigan APK-qobiq (TWA/Capacitor)** | Haydovchi ekrani BIZNING miniapp'da (`driver.tsx` «Liniya» kartasi → to'liq ekran): liniya on/off, GPS fon-yangilash, taklif kartasi (ovoz + tebranish), safar tugmalari, kunlik daromad, ratsiya. Shu sahifa **Capacitor** bilan Android APK'ga o'raladi (bir kodbaza, `pnpm build` → `apk`), APK egadan haydovchilarga havola bilan tarqatiladi (Play Store shart emas). | Mini App: 2–3 kun · APK-qobiq: +1–2 kun (Android SDK egada yoki CI'da) | Fonda GPS: brauzer-qobiqda ekran o'chganda joylashuv to'xtashi mumkin → Capacitor `background-geolocation` plagini (APK'da hal bo'ladi, Telegram ichida hal bo'lmaydi) |
-| B — Telegram bot (hozir qurilayotgan) | Tugmalar + jonli lokatsiya (Telegram o'zi fonda yuboradi — 8 soatgacha). APK YO'Q, o'rnatish shart emas. | 1–2 kun (yadro bilan birga) | «Ilova» hissi yo'q, ovozli signal Telegram bildirishnomasi |
-| C — Sof native (Kotlin) | Alohida loyiha, alohida deploy-quvur, alohida sinov | 3–6 hafta | Eng qimmat; bitta jamoa ikki kodbaza |
-
-**Tavsiya: B (bot) HOZIR — yadro sifatida, keyin A (Mini App ekrani + Capacitor APK).** Bot yo'li
-har holda kerak (mijoz kartasi, ratsiya, zaxira), APK esa o'sha server API'ni ishlatadi.
-
-### 7.2 Admin panel — «Dispetcher konsoli» (admin v2, yangi bo'lim `dispetcher`)
-
-- **Jonli xarita**: liniyadagi haydovchilar (yashil = bo'sh, sariq = safarda, kulrang = joylashuv
-  eskirgan), faol buyurtmalar (olib ketish pin'i), bosilsa — karta.
-- **Buyurtmalar ro'yxati**: qidiruv/yo'lda/safarda/yakun · yoshi · «⚠ 2 daq javobsiz».
-- **Qo'lda tayinlash**: operator buyurtmani ANIQ haydovchiga beradi (taklif kutmasdan) —
-  `adminAssign(rideId, driverId)` (atomik, o'sha `updateMany` qo'riq).
-- **Operator buyurtma yaratadi** (telefon-mijoz uchun): mavjud `createLocalMember` + `createRide`
-  (`source="operator"`), mijozga SMS/Telegram shart emas.
-- **Bekor / haydovchini almashtirish / liniyadan chiqarish**.
-- **Ratsiya paneli**: matn yoki ovoz → hamma liniyadagi haydovchiga (7.3).
-- **Hisobot**: kunlik safar/daromad haydovchi kesimida (mavjud `DataTable`+CSV).
-- Rollar: `operator` roli allowlist'iga `/api/admin/dispatch/*` qo'shiladi (pul yo'q → xavfsiz).
-
-### 7.3 Walkie-talkie — «📻 Ratsiya»
-
-| Variant | Nima | Muddat |
+| Savol | EGA TANLOVI | Nima demak |
 |---|---|---|
-| **A (tavsiya, v1) — Telegram ovozli relay** | Haydovchi botga OVOZLI xabar yuboradi (Telegram o'zi yozib oladi, 1 bosish) → server `file_id` ni **qayta yuklamasdan** hamma liniyadagi haydovchi + dispetcherga `sendVoice` qiladi (soniyalar). Dispetcher admin-paneldan yozsa (matn/ovoz) — hammaga. Kanal-tartib: «Ratsiya: faqat liniyadagilar», spam-cheklov (haydovchi daqiqada 3 ta), «🔕 ratsiyani o'chirish». Tarix admin panelda. | 1 kun |
-| B — Real-vaqt PTT (WebRTC/LiveKit, «tugmani bosib gapir») | Alohida media-server, mobil fon-audio ruxsatlari, Telegram ichida ishlamaydi (faqat APK'da) | 1–2 hafta, +server |
+| Haydovchi ilovasi | **Bot hozir → Mini App → Capacitor APK** | Bitta React kodbaza uch qobiqda ishlaydi. Bot — birinchi kun ishlaydigan yadro va abadiy zaxira; APK — asosiy ish quroli (§8) |
+| Ratsiya | **Real-vaqt PTT (WebRTC)** | «Tugmani bosib gapir», jonli ovoz. Telegram-relay faqat **degradatsiya** yo'li bo'lib qoladi (§10.5) |
+| Admin panel | **To'liq dispetcher konsoli** | Jonli xarita + navbat + qo'lda tayinlash + operator buyurtmasi + ratsiya + hisobot (§9) |
+| Yadro (server+bot) | **Hozir davom etilsin** | §1–§6 o'zgarishsiz |
 
-**Tavsiya: A hozir** (kas'dagi ratsiya odati aynan «ovoz → hammaga»), B — APK chiqqach, ega
-haqiqiy foydalanishni ko'rib qaror qilsa.
+**Muhim ogohlantirish (o'qilishi shart):** kas1067 haydovchi-APK dekompilyatsiyasi
+(`client-apk-decomp/`) `.gitignore`da va bu checkout'da **YO'Q**. Quyidagi ekran/oqimlar
+umumiy dispetcher-ilovalar naqshiga (kas, Yandex Pro, Bolt Driver) qurilgan. Agar aynan
+kas ekranlarini takrorlash kerak bo'lsa — papkani qayta yuklash yoki ekranlar ro'yxati kerak.
 
-### 7.4 Tartib (tasdiqdan keyin)
+---
 
-1. Yadro §1–§6 (server + bot) → VPS sxema → ega sinovi (flag `on`, o'z telefonlari bilan).
-2. Ratsiya 7.3-A (bot relay + admin paneldan yuborish).
-3. Admin dispetcher-konsoli 7.2 (xarita + ro'yxat + qo'lda tayinlash + operator buyurtmasi).
-4. Mini App haydovchi ekrani (to'liq) → Capacitor APK-qobiq (7.1-A).
+## §8. HAYDOVCHI APK — «juda tez, juda qulay»
+
+### 8.1 Arxitektura qarori: BITTA kod, UCH qobiq
+
+```
+packages/miniapp/src/driverapp/     ← YANGI ekran (mijoz ilovasidan ALOHIDA marshrut)
+        │
+        ├─→ Telegram Mini App   (?go=liniya)      — o'rnatishsiz, birinchi kun
+        ├─→ Oddiy brauzer       (app.birjoy.online/haydovchi) — planshet/eski telefon
+        └─→ Capacitor APK       (BirJoy Haydovchi) — ASOSIY ish quroli
+```
+
+Sabab: uchta alohida ilova = uchta xato manbai. Bitta ekran, uchta paket. APK'da
+Capacitor plaginlari orqali **fon-GPS, push, ovoz, ekranni yoqiq ushlash** qo'shiladi —
+brauzer qobig'i bularsiz ham ishlaydi (funksiya kamroq, lekin tirik).
+
+⚠️ **Nega mijoz ilovasiga qo'shilmaydi:** haydovchi ilovasi kun bo'yi ochiq turadi, fon-GPS
+va push talab qiladi, mijoz ilovasi esa yengil bo'lishi kerak. Alohida marshrut =
+alohida bundle (`manualChunks`), mijoz birorta bayt ortiqcha yuklamaydi.
+
+### 8.2 Ekran — bitta, aylanmaydigan (3 soniya testi)
+
+```
+┌──────────────────────────────┐
+│  🟢 LINIYADASIZ    12:04 dan │   ← holat qatori (rang: yashil/kulrang/sariq)
+│  📍 hozirgina · 👥 7 haydovchi│
+├──────────────────────────────┤
+│                              │
+│      [   K A T T A           │   ← YAGONA katta tugma (≥ 96px balandlik)
+│        TUGMA:                │      offline → «🟢 LINIYAGA CHIQISH»
+│        holatga qarab ]       │      online  → «🔴 LINIYANI YOPISH»
+│                              │      taklif  → «✅ QABUL» (taymer halqasi bilan)
+│                              │      safarda → «📍 YETIB KELDIM» → «🚗 BOSHLADIM» → «🏁 YAKUNLASH»
+├──────────────────────────────┤
+│ 📊 Bugun: 7 safar · 84 000   │   ← faqat 2 raqam, boshqa hech narsa
+├──────────────────────────────┤
+│  [📻 RATSIYA — bosib gapir]  │   ← pastda, bosib turilganda gapiradi (§10)
+└──────────────────────────────┘
+```
+
+**Qoidalar (DIZAYN_QOIDALARI.md bilan bir xil):**
+- **Bir ekranda bir qaror.** Haydovchi mashina haydayapti — menyu, tab, ro'yxat YO'Q.
+- Har tugma **≥ 64px**, asosiy tugma **≥ 96px** (qo'lqopda, tebranishda bosiladi).
+- Har bosishda **<100 ms** vizual javob + **tebranish** (server javobi kutilmaydi).
+- Yorug' fon (kunduzi quyoshda ko'rinsin) + kechasi avtomatik qorong'i.
+- **Raqam bilan yolg'on yo'q**: joylashuv eskirgan bo'lsa «📍 eskirgan» deb aytiladi,
+  soxta «hozirgina» ko'rsatilmaydi (DIZAYN_QOIDALARI #5–#7).
+
+### 8.3 Tezlik byudjeti — o'lchanadigan (bu DoD, «tez» degan gap emas)
+
+| O'lcham | Maqsad | Qanday o'lchanadi |
+|---|---|---|
+| APK sovuq ochilish → tugma bosiladigan holat | **< 1.5 s** | Android profiler / qo'lda sekundomer, 5 marta o'rtacha |
+| Taklif serverdan chiqdi → telefonda **ko'rindi + ovoz** | **< 2 s** | server log vaqti ↔ ekran yozuvi |
+| «QABUL» bosildi → ekran o'zgardi | **< 100 ms** (optimistik) | vizual |
+| «QABUL» → server tasdiqladi | **< 1 s** (4G) | tarmoq jurnali |
+| Joylashuv yangilanishi | **10–15 s** harakatda, 60 s turganda | batareya uchun adaptiv |
+| Batareya sarfi | **8 soat smenada < 25%** | telefon sozlamalari statistikasi |
+| APK hajmi | **< 8 MB** | fayl hajmi |
+
+### 8.4 Fon-GPS va uyg'onish (APK'ning asosiy sababi)
+
+- **Foreground service** (Android doimiy bildirishnoma: «BirJoy — liniyadasiz») —
+  ekran o'chsa ham joylashuv va push ishlaydi. Telegram Mini App buni QILA OLMAYDI.
+- **Adaptiv chastota**: harakatda 10–15 s, joyida 60 s, liniyadan chiqqach — **0** (butunlay to'xtaydi).
+- **Batareya optimizatsiyasidan ozod qilish** so'raladi (bir marta, tushuntirish bilan).
+- Ruxsatlar: `ACCESS_FINE_LOCATION`, `FOREGROUND_SERVICE_LOCATION`, `POST_NOTIFICATIONS`,
+  `RECORD_AUDIO` (ratsiya), `WAKE_LOCK`.
+- **Maxfiylik qoidasi:** joylashuv FAQAT liniyada bo'lganda yoziladi. Liniyadan chiqilgach
+  yozuv to'xtaydi va oxirgi nuqta ko'rsatilmaydi. Bu ekranda ochiq yozilади.
+
+### 8.5 Taklif signali — «o'tkazib yubormaslik» muhandisligi
+
+Uch qatlam, biri yiqilsa ikkinchisi ishlaydi:
+1. **WebSocket** (ilova ochiq) — bir zumda, taymer halqasi bilan.
+2. **FCM push** (ilova fonda/yopiq) — to'liq ekranli bildirishnoma + **doimiy signal ovozi**
+   (jimlik rejimidan qat'i nazar, `AudioAttributes` alarm kanali) + tebranish namunasi.
+3. **Telegram bot kartasi** (§2.3) — APK umuman yo'q/o'chirilgan haydovchi uchun.
+
+Har uchala yo'l **AYNAN BIR** `DispatchOffer` qatoriga bog'lanadi — ikki marta qabul bo'lmaydi
+(atomik `updateMany` qo'riqi, §2.4).
+
+### 8.6 Kirish (auth) — parolsiz, 30 soniyada
+
+1. Haydovchi APK'ni ochadi → **telefon raqamini** yozadi.
+2. Bot (`@koson1067bot`) unga **6 xonali kod** yuboradi (mavjud `verifyCodeService` naqshi).
+3. Kod → server **qurilma tokeni** beradi (uzoq muddatli, `DriverDevice` jadvalida).
+4. Keyingi ochilishlarda kirish **umuman so'ralmaydi**.
+5. Admin paneldan token bekor qilinadi (telefon yo'qolsa).
+
+⚠️ Bu YANGI auth yo'li — mavjud Telegram `initData` yo'liga TEGMAYDI. Ikkalasi bir xil
+`memberId` ga olib keladi, ya'ni pul-mantiq bitta.
+
+### 8.7 Uzilish siyosati (tarmoq yomon — Koson realligi)
+
+- Har amal (qabul/yetdim/boshladim/yakunladim) **navbatga yoziladi** va tarmoq qaytganda yuboriladi.
+- Har amalda **idempotent kalit** (`rideId + amal`) — takroriy yuborish zarar qilmaydi.
+- Ekranda halol holat: «📡 Aloqa yo'q — yuborilmoqda…», soxta «bajarildi» YO'Q.
+- Server tomonda «kechikkan yakun» qabul qilinadi (safar allaqachon yopilgan bo'lsa — `settledAt` idempotent).
+
+### 8.8 Qurish va tarqatish
+
+- **Yangi paket:** `packages/driverapp` (Capacitor konfiguratsiyasi + Android loyihasi).
+  Web qismi — `@t1067/miniapp` ning `driverapp` bundle'i.
+- **CI:** yangi `.github/workflows/apk.yml` — `main`ga push'da imzolangan APK yig'adi va
+  **artefakt** qilib qo'yadi (Play Store'siz). Imzo kaliti — GitHub Secret.
+- **Tarqatish:** `app.birjoy.online/haydovchi.apk` (Caddy'dan statik fayl) + botda
+  «📲 Ilovani o'rnatish» tugmasi. Play Store — keyinroq, ixtiyoriy.
+- **Avto-yangilanish:** ilova ochilganda `version.json` ni tekshiradi → yangi versiya bo'lsa
+  «Yangilash» kartasi (mavjud `version.txt` naqshi bilan bir xil mantiq).
+
+### 8.9 v1 da QILINMAYDI (ongli)
+
+Navigatsiya (Yandex/Google'ga uzatiladi) · ichki chat (ratsiya bor) · smena rejalashtirish ·
+haydovchi-haydovchi buyurtma o'tkazish · iOS (Android birinchi, iOS talab bo'lsa keyin).
+
+---
+
+## §9. ADMIN — «juda kuchli kontrol» DISPETCHER KONSOLI
+
+Yangi bo'lim: admin v2 → **🎧 Dispetcher**. Bu ekran operator kun bo'yi ochiq ushlaydi.
+
+### 9.1 Tuzilish — bitta ekran, uch panel
+
+```
+┌─────────────┬───────────────────────────┬──────────────┐
+│ NAVBAT      │        JONLI XARITA       │  TANLANGAN   │
+│ (chap)      │        (markaz)           │  (o'ng)      │
+│             │                           │              │
+│ 🔴 3 kutmoqda│   🟢 bo'sh haydovchi      │  buyurtma yoki│
+│ 🟡 5 yo'lda  │   🟡 safarda              │  haydovchi    │
+│ 🟢 8 safarda │   ⚫ eskirgan joylashuv    │  kartasi +    │
+│             │   📍 kutayotgan buyurtma  │  AMALLAR      │
+│ [qidiruv]   │                           │              │
+├─────────────┴───────────────────────────┴──────────────┤
+│ 📻 RATSIYA: [bosib gapir]  ·  🔊 kim gapiryapti        │
+└────────────────────────────────────────────────────────┘
+```
+
+### 9.2 Jonli xarita
+
+- Mavjud SVG-xarita naqshi (`admin/src/App.tsx:526` LiveMap) kengaytiriladi — yangi
+  kutubxona kerak emas, lekin **Leaflet**ga o'tish ham mumkin (miniapp'da allaqachon bor).
+- Har 5–10 s yangilanadi (`/api/admin/dispatch/drivers` + `/rides`).
+- Haydovchi belgisida: ism · raqam · «3 daq oldin» · bosilsa o'ng panel.
+- Buyurtma pin'ida: kutish vaqti · nechta haydovchiga yuborilgani.
+- Filtr: faqat bo'shlar / faqat safardagilar / faqat muammolilar.
+
+### 9.3 Operator amallari (kuch shu yerda)
+
+| Amal | Nima qiladi | Qo'riq |
+|---|---|---|
+| **Qo'lda tayinlash** | Buyurtmani ANIQ haydovchiga beradi, taklif kutilmaydi | Atomik `updateMany` (ikki marta tayinlanmaydi); haydovchi band bo'lsa rad etadi |
+| **Operator buyurtma yaratadi** | Telefon qilgan mijoz uchun (bot'siz) | Raqam bo'yicha a'zo topiladi yoki `createLocalMember` bilan yaratiladi |
+| **Haydovchini almashtirish** | Joriy haydovchini olib, qaytadan qidiruvga qo'yadi | Mijozga halol xabar |
+| **Bekor qilish** | Buyurtmani yopadi | Ikkala tomonga xabar + sabab yoziladi |
+| **Liniyadan chiqarish** | Haydovchini offline qiladi | Safardagi haydovchini chiqarib bo'lmaydi |
+| **Narxni tuzatish** | Yakunlangan safar narxini o'zgartirish | ⚠️ FAQAT ega; audit yozuvi; tanga qayta hisoblanmaydi (v2) |
+| **Ratsiyaga gapirish** | Hamma liniyadagiga ovoz | §10 |
+| **Haydovchiga shaxsiy xabar** | Bitta haydovchiga matn | Mavjud push yo'li |
+
+Har amal **`AdminAuditLog`** ga yoziladi: kim, qachon, qaysi buyurtma, sabab.
+
+### 9.4 Nazorat signallari (operator ko'rmay qolmasin)
+
+Ekranda qizil chiziq + ovoz beradigan holatlar:
+- Buyurtma **2 daqiqadan beri** haydovchisiz.
+- Haydovchi qabul qilgan, lekin **10 daqiqadan beri** «yetib keldim» bosmagan.
+- Safar **90 daqiqadan** oshdi (yakunlash unutilgan?).
+- Liniyada **0 bo'sh haydovchi**, lekin kutayotgan buyurtma bor.
+- Haydovchi joylashuvi **20 daqiqadan beri** yangilanmagan (ilova o'lganmi?).
+
+### 9.5 Hisobot va KPI (ega uchun — «tizim ishlayaptimi?»)
+
+Kunlik/haftalik: safarlar soni · o'rtacha **topish vaqti** (buyurtmadan qabulgacha) ·
+o'rtacha **yetib kelish vaqti** · bekor foizi (mijoz/haydovchi alohida) · haydovchi kesimida
+safar/daromad/qabul foizi · **kas'ga uzatilgan** buyurtmalar ulushi (= o'z tizim qanchalik
+qoplayapti). Hammasi mavjud `DataTable` + CSV eksport.
+
+### 9.6 Rollar
+
+- **Ega** — hamma narsa, jumladan narx tuzatish va bayroqlar.
+- **Operator** — dispetcher konsoli to'liq (buyurtma/tayinlash/bekor/ratsiya), **pul yo'q**,
+  moliya/a'zolar/bayroqlar YOPIQ (mavjud `pathAllowedForOperator` allowlist'iga
+  `/api/admin/dispatch/*` qo'shiladi).
+
+---
+
+## §10. RATSIYA — real-vaqt PTT (ega tanlovi)
+
+### 10.1 Stack
+
+**LiveKit (o'z VPS'imizda, self-host)** — sabab: ochiq kodli, Android/Web SDK bor,
+bitta Docker konteyner, VPS'da (`169.58.55.249`) ishlaydi, ovoz uchinchi tomon serveriga
+chiqmaydi. Muqobil (Janus/mediasoup) — ko'proq sozlash, foyda yo'q.
+
+### 10.2 Kanal modeli
+
+- **Bitta umumiy kanal**: «BirJoy Liniya» — hamma liniyadagi haydovchi + dispetcher.
+- Kanalga kirish **avtomatik**: liniyaga chiqqanda qo'shiladi, chiqqanda uziladi.
+- **Faqat bosib turganda mikrofon ochiladi** (push-to-talk) — aks holda kabinadagi hamma
+  gap efirga ketardi.
+- **Bir vaqtda bitta gapiruvchi** (навbat): kimdir gapirayotganda boshqasiga «⏳ band» ko'rinadi.
+  Dispetcher **ustuvor** — u bosganda haydovchining gapi to'xtatiladi.
+- Ekranda: «🔊 Sardor gapiryapti» (kim gapirayotgani ismi bilan).
+
+### 10.3 Xavfsizlik
+
+- Server **qisqa muddatli token** beradi (LiveKit JWT, 10 daqiqa), faqat liniyadagi
+  haydovchiga va admin-tokenli operatorga.
+- Ovoz **yozib olinmaydi** (v1) — faqat jonli. Yozib olish kerak bo'lsa alohida ega qarori
+  (maxfiylik + disk).
+- Suiiste'mol: haydovchi ketma-ket **20 soniyadan** uzoq gapira olmaydi; ega istalgan
+  haydovchining ratsiyasini o'chira oladi.
+
+### 10.4 Degradatsiya (PTT ishlamasa — jimlik bo'lmasin)
+
+| Holat | Nima bo'ladi |
+|---|---|
+| APK yo'q (bot'dagi haydovchi) | Ovozli xabar relay: botga ovoz → hammaga `sendVoice` (Telegram) |
+| Tarmoq juda yomon (WebRTC ulanmadi) | Avtomatik ovozli-xabar rejimiga tushadi |
+| LiveKit serveri o'lgan | Ekranда «📻 Ratsiya vaqtincha ishlamayapti» + relay rejimi |
+
+Ya'ni Telegram-relay **o'chirilmaydi** — u zaxira qatlam.
+
+### 10.5 Server resursi
+
+LiveKit ~1 vCPU / 512 MB — hozirgi VPS ko'taradi (bot + Postgres bilan yonma-yon).
+Portlar: 7880 (WS, Caddy orqali `ptt.birjoy.online`), 7881/UDP 50000-60000 (media).
+⚠️ **UDP portlarni ochish kerak** — bu VPS'ning firewall o'zgarishi, ega ruxsati bilan.
+
+---
+
+## §11. BOSQICHLAR — nima qachon
+
+| # | Bosqich | Natija (ega ko'radigan) | Taxminiy hajm |
+|---|---|---|---|
+| **F1** | **Yadro** (§1–§6): server + bot, mijoz oqimi, yakun-mukofot | Ega telefonidan: haydovchi liniyaga chiqadi → mijoz chaqiradi → qabul → yakun → tanga | 2–3 kun |
+| **F2** | **Dispetcher konsoli** (§9) | Operator ekranda hammasini ko'radi va boshqaradi | 2–3 kun |
+| **F3** | **Haydovchi ekrani** (§8.1–8.3, web) | Mini App'da to'liq haydovchi ekrani | 2 kun |
+| **F4** | **APK** (§8.4–8.8) | O'rnatiladigan ilova, fon-GPS, push | 2–3 kun |
+| **F5** | **Ratsiya PTT** (§10) | Bosib gapirish, jonli ovoz | 3–4 kun (+VPS sozlash) |
+| **F6** | **Sayqal** | Signal-ogohlantirishlar, hisobot, KPI, tezlik o'lchovlari | 2 kun |
+
+Har bosqich **alohida commit + alohida ega sinovi**, hammasi `owndispatch` bayrog'i ortida.
+F1 qabul bo'lmaguncha F2 boshlanmaydi (CLAUDE.md DoD tartibi).
+
+---
+
+## §12. XAVFLAR va ular bilan nima qilinadi
+
+| Xavf | Ta'sir | Chora |
+|---|---|---|
+| Liniyada haydovchi kam → mijoz kutadi | Mijoz yo'qotiladi | `dispatchKasFallback=1` — topilmasa kas'ga uzatiladi, mijoz farqni sezmaydi |
+| Haydovchi ilovani yopib qo'yadi, taklif ketmaydi | Buyurtma osilib qoladi | 3 qatlamli signal (§8.5) + 4 soat harakatsizlikda avto-offline |
+| Ikki haydovchi bir buyurtmani oladi | Janjal | Atomik `updateMany` — DB darajasida imkonsiz |
+| Narxni haydovchi oshirib yozadi | Mijoz noroziligi | Taxminiy narx mijozga OLDINDAN ko'rsatiladi; keskin farq → operatorga signal (v2) |
+| Fon-GPS batareyani yeydi | Haydovchi ilovani o'chiradi | Adaptiv chastota + o'lchov (§8.3) |
+| VPS UDP portlari yopiq (ratsiya) | PTT ishlamaydi | Degradatsiya (§10.4) + ega bilan firewall qadami |
+| Ikki sessiya bir vaqtda kod yozadi | Konflikt, buzilgan main | §13 |
+
+---
+
+## §13. SESSIYALAR MUVOFIQLASHTIRUVI (⚠️ MUHIM)
+
+**Hozirgi holat (2026-09-07, shu sessiya):**
+
+| Nima | Holat | Joyi |
+|---|---|---|
+| Reja (shu hujjat) | ✅ yozildi | `DISPATCH_PLAN.md` |
+| Prisma: `DriverShift`, `DispatchRide`, `DispatchOffer` | ✅ commit qilindi (VPS'ga hali QO'LLANMAGAN) | `schema.prisma` |
+| Bayroq `owndispatch` (DEFAULT_OFF) | ✅ commit qilindi | `featureFlags.ts` |
+| Sof yordamchilar + 7 knob + 20 test | ✅ commit qilindi, testlar yashil | `shared/src/dispatch.ts` |
+| Server servisi, bot handlerlari, API, UI | ❌ **YOZILMAGAN** (bu sessiyada yozilmaydi) | — |
+
+Commit: `acaa40c`, shoxobcha `claude/taxi-system-drivers-bsa05f`. **Xatti-harakat o'zgarishi
+NOL** — bayroq OFF va hech bir kod yo'li bu jadval/funksiyalarni chaqirmaydi.
+
+**Boshqa sessiya uchun qoida (CLAUDE.md «bitta ish — bitta sessiya»):**
+1. Ish boshlashdan oldin `git fetch` va shu shoxobchani ko'rish — sxema/bayroq/yordamchilar
+   **allaqachon bor**, qaytadan yozilmasin (ikki xil `DispatchRide` = migratsiya halokati).
+2. Agar boshqa sessiya BOSHQA nom bilan xuddi shu narsani qurgan bo'lsa — **bittasi tanlanadi**,
+   ikkinchisi o'chiriladi. Ikki dispetcher yadrosi bir bazada yashay olmaydi.
+3. `prisma db push` VPS'da **faqat bir marta**, kod push'idan OLDIN (CLAUDE.md).
