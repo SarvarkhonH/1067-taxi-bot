@@ -354,3 +354,70 @@ Har sinov natijasi **raqam bilan** `PROGRESS.md` ga yoziladi. Sinovsiz «tayyor�
      bog'liqlik saqlanadi.
    - _Tavsiyam: (a) dan boshlash, (b) keyin qo'shilishi mumkin._
 8. **iOS kerakmi?** v1 faqat Android. iPhone'li haydovchi bo'lsa — bot yo'li bilan ishlaydi.
+
+---
+
+## §13. ⚠️ MAVJUD ILOVA TOPILDI — reja qayta baholandi (2026-09-07)
+
+`SarvarkhonH/1067-taxi` repo sessiyaga ulandi. **Native Kotlin haydovchi ilovasi allaqachon
+mavjud**: `apps/driver-android`, versiya **1.3.0** (versionCode 5), 26 ta Kotlin fayli.
+Ya'ni §2 dagi «native Kotlin» qarori to'g'ri chiqdi va **noldan yozish SHART EMAS**.
+
+### 13.1 Nima allaqachon bor (isbot bilan)
+
+| Element | Fayl | Holat |
+|---|---|---|
+| Foreground service, `foregroundServiceType="location"` | `service/LocationForegroundService.kt` + manifest | ✅ bor |
+| `WAKE_LOCK` (soket ekran qulflanganda o'lmasin) | manifest, izohda «eski versiyada buyurtma o'tkazib yuborishning #1 sababi» | ✅ bor |
+| WebSocket (Socket.IO) | `service/SocketManager.kt` | ✅ bor |
+| FCM push | `service/TaxiFirebaseMessagingService.kt` | ✅ bor |
+| Taklif ovozi | `service/OfferSoundService.kt` | ✅ bor |
+| Navigatsiyaga uzatish | `util/NavigationLauncher.kt` | ✅ bor |
+| Ekranlar: kirish, bosh (xarita, chat, safar yakuni), daromad, profil, ballar | `ui/**` (Compose) | ✅ bor |
+| Retrofit API klienti | `data/remote/api/ApiService.kt` | ✅ bor |
+| Hilt DI | `di/AppModule.kt` | ✅ bor |
+
+Server tomoni ham katta: **40 kontroller, 228 endpoint, 70 jadval** (Drizzle, `packages/db`).
+Uch raqam ham buyruq bilan sanaldi.
+
+### 13.2 Ega talablariga qarshi GAP jadvali (o'lchangan)
+
+| Ega talabi | Hozirgi holat | Gap |
+|---|---|---|
+| «Eski androidlarda kuchli ishlaydigan» | `minSdk = 26` → **Android 8.0+** | ❌ Android 5, 6, 7 UMUMAN qamralmagan |
+| «Fon rejimida 10x yaxshiroq» | Foreground service + WAKE_LOCK bor | 🟡 Yetti qatlamdan **uchtasi yo'q**: `BootReceiver` klassi (ruxsat bor, qabul qiluvchi YO'Q), WorkManager qorovul, OEM avtoishga tushirish yordamchisi |
+| Uzilishda amal yo'qolmasin | Room yo'q, navbat yo'q | ❌ tarmoq uzilsa amal yo'qoladi |
+| «Qulay, tez» · APK ≤ 6 MB | Compose + Google Maps + Play Services | ❌ taxminan 15–25 MB |
+| Play Services yo'q telefonlar | Maps, FusedLocation, FCM — uchalasi ham Play Services talab qiladi | ❌ ishlamaydi |
+| Chiqarishga tayyorlik | `signingConfig = debug`, izohda `TODO: production signing` | ❌ imzolanmagan |
+| Server manzili | `one067-taxi-api.onrender.com` | ❌ Render 2026-07-25 da tashlangan (Contabo cutover) |
+
+### 13.3 Yangi baho — 3–4 hafta emas, **taxminan 1 hafta**
+
+Noldan yozish o'rniga mavjud ilovani tuzatish:
+
+| # | Ish | Hajm |
+|---|---|---|
+| B1 | `minSdk` 26 → 21, eski Androidda sinash va tuzatish | 1–2 kun |
+| B2 | Fon rejimini to'ldirish: `BootReceiver` klassi, WorkManager qorovul, OEM yordamchisi | 2 kun |
+| B3 | Room bilan offline navbat (amal yo'qolmasin) | 1 kun |
+| B4 | Play Services yo'q holat: `LocationManager` zaxira, xaritani yengil variantga almashtirish | 1–2 kun |
+| B5 | Hajm va tezlik: R8, resurs qisqartirish, §6 byudjetini o'lchash | 1 kun |
+| B6 | Chiqarish: haqiqiy imzo, CI, server manzili, avto-yangilanish | 1 kun |
+
+⚠️ **Avval qaror kerak:** ilova qaysi serverga ulanadi? `1067-taxi` API'siga (228 endpoint,
+lekin Render'da o'lgan) yoki BirJoy serveriga (`DISPATCH_PLAN.md` §7 shartnomasi)? Bu ikki
+tizimni birlashtirish savoli va u §12.3 dagi ochiq savol bilan bir xil.
+
+### 13.4 Boshqa sessiya topgan kamchilik tasdiqlandi
+
+`createBooking` uchun REST endpoint yo'q — kod `orders.service.ts` da bor, lekin uni faqat
+`telegram.service.ts` chaqiradi. Ya'ni buyurtma faqat o'sha bot ichidan yaratiladi. Bizning
+botimiz uchun marshrut ochish kerak.
+
+### 13.5 ⚠️ ZAXIRA OGOHLANTIRISHI
+
+GitHub'dagi `1067-taxi` ning oxirgi commit'i — **2026-05-01** (`7d130ec`). Boshqa sessiya
+«8 ta commit» haqida yozgan edi. Agar o'sha commitlar sizning kompyuteringizda bo'lib,
+push qilinmagan bo'lsa — ular **faqat o'sha kompyuterda**. Kompyuter buzilsa yo'qoladi.
+**Birinchi ish: `git push` qiling.**
