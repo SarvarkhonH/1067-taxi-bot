@@ -421,3 +421,165 @@ GitHub'dagi `1067-taxi` ning oxirgi commit'i — **2026-05-01** (`7d130ec`). Bos
 «8 ta commit» haqida yozgan edi. Agar o'sha commitlar sizning kompyuteringizda bo'lib,
 push qilinmagan bo'lsa — ular **faqat o'sha kompyuterda**. Kompyuter buzilsa yo'qoladi.
 **Birinchi ish: `git push` qiling.**
+
+---
+
+## §14. CHUQUR NAZORAT VA YANGI XUSUSIYATLAR (ega talabi 2026-09-07)
+
+> Ega: «haydovchilarni chuqur nazorat, APKda misli ko'rilmagan xususiyatlar — avto-SMS
+> (ism-familiya, mashina raqami, yo'lga chiqdi, yetib keldi, bot reklamasi, safar narxi,
+> o'yin reklamasi), ovozini eshitish, walkie-talkie, aniq GPS kuzatuv, keyingi buyurtmani
+> oldindan ulash, mijozga taxminiy narx».
+>
+> Har xususiyat: **nima · qanday · xavf/cheklov · tavsiya**. Ba'zilari huquqiy yoki texnik
+> jihatdan nozik — ochiq yozaman, qaror egadinи (§14.9 savollar).
+> Mavjud kodda: matn-chat BOR (`ChatSheet.kt`, `/chat/driver/orders/*`), SOS BOR
+> (`/safety/sos/driver`); ovoz, SMS, navbat — YO'Q.
+
+### 14.1 📩 Avto-SMS — haydovchi telefonidan mijozga (marketing dvigateli)
+
+**Nima:** safar bosqichlarida haydovchining SIM kartasidan mijozga avtomatik SMS: yo'lga
+chiqqanda, yetib kelganda, safar tugaganda. Har SMS oxirida BirJoy reklamasi (bot havolasi,
+o'yin, cashback).
+
+**Namuna matnlar:**
+| Bosqich | Matn |
+|---|---|
+| Qabul qilindi | `Salom! Aziz H. (01A777AA) buyurtmangizni qabul qildi, yo'ldaman. Kuzating: birjoy.uz/t/abc` |
+| Yetib keldi | `Yetib keldim, kutyapman. Aziz · 01A777AA` |
+| Safar tugadi | `Rahmat! Yo'l haqi ~14 000 so'm. BirJoy bilan har safar cashback → t.me/koson1067bot` |
+
+**Qanday:** ilova `SmsManager` bilan yuboradi (matnni server beradi — reklama, narx, havola
+markazdan boshqariladi, har APK'da qattiq yozilmaydi). Sideload APK bo'lgani uchun `SEND_SMS`
+ruxsati ishlaydi (Play Store buni cheklaydi, lekin biz Play Store'dan tarqatmaymiz).
+
+**Xavf/cheklov:**
+1. **Har SMS haydovchining SIM pulini yeydi.** Uzun matn (>70 belgi lotin / >standart kirill)
+   = 2–3 SMS = 2–3× pul. **Kim to'laydi?** Agar haydovchi — u norozi bo'ladi. Yechim: matnni
+   qisqa (1 SMS) tut yoki tanga bilan qopla.
+2. **Mijoz spam deb hisoblashi mumkin** — ayniqsa har safar. Yechim: faqat MUHIM bosqich
+   (masalan «yetib keldim»), safariga 1 ta, va marketing qatori ixtiyoriy.
+3. **`SEND_SMS` ruxsati** har ochilishda emas, bir marta so'raladi. Ba'zi OEM buni ham
+   cheklaydi.
+4. **Mijozning roziligisiz SMS** — reklama qismi O'zbekiston reklama qonuniga bog'liq
+   bo'lishi mumkin (ommaviy SMS-marketing rozilik talab qiladi). Safar-holati SMS'i (xizmat
+   xabari) — muammosiz; reklama qatori — nozikroq.
+
+**Muqobil (tavsiya):** ikki qatlam —
+- **(a) Xizmat SMS** (yetib keldim/narx) haydovchi SIM'idan — qisqa, 1 SMS, reklamasiz yoki
+  bitta qisqa havola bilan.
+- **(b) Marketing** (o'yin, cashback) — server SMS-gateway (Eskiz) yoki Telegram orqali, ya'ni
+  haydovchi pulini yemaydi va rozilik/opt-out boshqariladi.
+
+Bu **kuchli organik kanal**: 550 haydovchi × kunlik safarlar × har SMS'da bot havolasi. Lekin
+iqtisodini (kim to'laydi) va rozilikni oldindan hal qilish shart.
+
+### 14.2 📍 Aniq GPS kuzatuv (dispetcher haydovchini real vaqtda ko'radi)
+
+**Nima:** har haydovchining joylashuvi admin xaritasida real vaqtda, iz (trail) bilan: qayerga
+bordi, qancha tezlikda, safar marshruti.
+
+**Qanday:** ilova joylashuvni yuboradi (fon-servis bor, §4). Yangi: safar davomida chastota
+oshadi (5 s), server izni saqlaydi, admin xaritada chizadi. «Safar qayta ijro» — tugagan
+safarni xaritada ko'rsatish.
+
+**Xavf/cheklov:** batareya (safar davomida 5 s — qabul qilinadigan, safar ~10–20 daq);
+maxfiylik — joylashuv FAQAT liniyada/safarda yoziladi, liniyadan chiqqach to'xtaydi (§8.4
+qoidasi). Bu qism toza — nazoratning eng oddiy va halol turi.
+
+### 14.3 🎧 Ovozni eshitish — DIQQAT: huquqiy/etik nozik
+
+**Ega so'ragani:** dispetcher haydovchining ovozini (kabinadagi) eshita olishi.
+
+**Ochiq gap:** haydovchini BILDIRMASDAN tinglash — ko'p joyda qonunga zid (yashirin audio
+yozib olish/eshitish), Google Play siyosatiga ham zid, va haydovchi bilib qolsa BUTUN
+ishonch yo'qoladi (550 haydovchini yo'qotish xavfi). Shuning uchun men **yashirin tinglashni
+tavsiya qilmayman** va uni shunday qurmaslikni maslahat beraman.
+
+**O'rniga — shaffof, rozilik bilan (qonuniy va ishonchni buzmaydigan):**
+1. **Xavfsizlik SOS oqimi** (server'da `/safety/sos/driver` ALLAQACHON bor): favqulodda
+   holatda haydovchi yoki mijoz SOS bosadi → shundagina dispetcher jonli ovozga ulanadi.
+   Bu qonuniy, kutilgan, hayot qutqaradigan xususiyat.
+2. **Ratsiya (§14.4)** — ikki tomonlama, haydovchi biladi va o'zi ochadi. Nazorat emas, aloqa.
+3. Agar ega baribir «dispetcher xohlagan payt tinglasin» desa — ilovada **DOIMIY KO'RINADIGAN
+   indikator** («🔴 Dispetcher eshityapti») + haydovchi ishga kirishda bu haqda **yozma
+   rozilik** bergan bo'lishi shart. Yashirin — YO'Q. Bu chegara kod bilan emas, siyosat bilan
+   o'rnatiladi va men uni rejaga shu tarzda yozaman.
+
+**Tavsiya:** SOS + ratsiya yetarli va xavfsiz. Doimiy yashirin tinglash — huquqiy va biznes
+xavfi eganing foydasidan katta. Yakuniy qaror §14.9.
+
+### 14.4 📻 Walkie-talkie / ratsiya (ikki tomonlama, haydovchi biladi)
+
+**Nima:** dispetcher ↔ haydovchi(lar) jonli ovoz. «Bosib gapir». Bu `DISPATCH_PLAN.md` §10
+dagi ratsiya — shu yerda haydovchi ilovasidagi ko'rinishi.
+
+**Qanday:** WebRTC (LiveKit, o'z serverimizda). Ilovada bitta katta «📻 bosib gapir» tugmasi.
+Dispetcher hammaga yoki bitta haydovchiga gapiradi. Bir vaqtda bitta gapiruvchi, dispetcher
+ustuvor.
+
+**Xavf/cheklov:** `RECORD_AUDIO` ruxsati; VPS'da media-server + UDP portlar (firewall, ega
+ruxsati); eski telefonda WebRTC og'irroq → ovozli-xabar zaxira (§10.4). Bu — nazoratning
+ishonchni buzmaydigan, kutilgan turi (kas'da ham ratsiya bor).
+
+### 14.5 🔗 Keyingi buyurtmani oldindan ulash (haydovchi bo'sh qolmaydi)
+
+**Nima:** haydovchi joriy safarni tugatmasdan, keyingi buyurtmani qabul qilib qo'yadi. Safar
+tugagach darhol keyingisiga o'tadi, bo'sh vaqt yo'q. (Yandex/Bolt'dagi «chain/queue».)
+
+**Qanday:** server bo'shashга yaqin (safar `started`, manzilga yaqin) haydovchiga yaqin-atrofdagi
+kutayotgan buyurtmani taklif qiladi → haydovchi «keyingi» slotiga oladi. Ilovada: «⏭ Keyingi
+buyurtma tayyor» karta. Holat-mashina kengaytiriladi (`nextRideId`).
+
+**Xavf/cheklov:** haydovchi ikki buyurtmani chalkashtirmasin — UI aniq ajratadi («HOZIRGI» /
+«KEYINGI»); joriy safar bekor bo'lsa keyingisi qayta taqsimlanadi; mijoz ko'p kutmasin (keyingi
+buyurtma egasiga «haydovchi 5 daqiqada bo'shaydi» deyiladi, aldov yo'q). Iqtisod: bu ta'minotni
+30–40% samaraliroq ishlatadi — 21.5% haydovchisiz muammoga bevosita ta'sir.
+
+### 14.6 💰 Mijozga taxminiy narx (buyurtmadan oldin)
+
+**Nima:** mijoz buyurtma bermasdan OLDIN taxminiy narxni ko'radi («~14 000 so'm»).
+
+**Qanday:** olib ketish + borish nuqtasi → masofa (haversine yoki marshrut) × tarif →
+taxminiy narx. `1067-taxi` da tarif/narx moduli bor (`pricing`, GPS taximetr); BirJoy da
+`estimateFare` (bookingService) bor. Diapazon ko'rsatiladi («13 000–16 000»), aniq raqam emas
+— taksometr/yakuniy narx haqiqiy safardan keladi.
+
+**Xavf/cheklov:** taxmin haqiqatdan uzoq bo'lsa mijoz noroziligi → diapazon + «taxminiy» yozuvi
+majburiy, aniq va'da YO'Q. Trafik/kutish qo'shilishi mumkinligi aytiladi (halol).
+
+### 14.7 Server tomoni — bu xususiyatlar nima talab qiladi
+
+| Xususiyat | Server ishi |
+|---|---|
+| Avto-SMS | SMS matn shabloni (markazdan boshqariladigan), yuborilgan SMS jurnali, opt-out ro'yxati |
+| GPS kuzatuv | joylashuv izini saqlash (safar davomida), admin xarita endpoint'i |
+| SOS/tinglash | `/safety/sos/*` bor; jonli audioga LiveKit token |
+| Ratsiya | LiveKit token servisi, kanal boshqaruvi |
+| Keyingi buyurtma | holat-mashinaga `next` slot, taqsimlash mantiqi |
+| Taxminiy narx | narx-hisob endpoint'i (BirJoy `estimateFare` yoki `1067-taxi pricing`) |
+
+⚠️ Hammasi `DISPATCH_PLAN.md` §7 server shartnomasiga qo'shiladi. Bu xususiyatlar APKni
+mustaqil qilmaydi — server bilan birga quriladi.
+
+### 14.8 Bularning bosqichga ta'siri
+
+Bu xususiyatlar `DRIVER_APK_PLAN.md` §10 bosqichlariga qo'shiladi:
+- **A3** (safar oqimi) ← taxminiy narx, GPS kuzatuv, avto-SMS (xizmat qismi)
+- **A4** (to'liq funksional) ← keyingi buyurtma, chuqur nazorat paneli
+- **F5** (ratsiya) ← walkie-talkie, SOS jonli ovoz
+- Avto-SMS marketing qismi + tinglash siyosati — alohida ega qarori kutadi (§14.9)
+
+Bu qo'shimchalar umumiy bahoni ~1 haftadan **~2 haftaga** oshiradi (SMS, WebRTC, kuzatuv izi
+va navbat mantiqi — har biri o'z sinovi bilan).
+
+### 14.9 ⚠️ EGA QARORI KUTAYOTGAN SAVOLLAR
+
+1. **Avto-SMS pulini kim to'laydi?** Haydovchi SIM'i (unga qimmat) yoki server-gateway (bizga
+   pul, lekin nazorat va rozilik yaxshi)? Tavsiyam: xizmat-SMS haydovchidan (qisqa), marketing
+   server-gateway'dan.
+2. **Reklama SMS'iga mijoz roziligi** qanday olinadi? (Birinchi safarda «SMS olishni xohlaysizmi?»
+   yoki opt-out havola.)
+3. **Ovoz tinglash: yashirinmi yoki shaffofmi?** Tavsiyam qat'iy: SHAFFOF (indikator + rozilik)
+   yoki umuman faqat SOS. Yashirin tinglash — huquqiy va ishonch xavfi, tavsiya qilmayman.
+4. **Taxminiy narx aniq raqammi yoki diapazonmi?** Tavsiyam: diapazon (aldov xavfi kam).
