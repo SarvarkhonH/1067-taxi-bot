@@ -380,6 +380,14 @@ export const BONUS_ECON_KNOBS: BonusEconKnob[] = [
   // yig'ilib ketishidan himoya). Ikkalasi ham admin-tunable knob — qattiq kod EMAS.
   { key: "oyinAdjustMaxPerAction", label: "🛡 Ball tuzatish — bitta amal maksimumi", def: 3000, min: 1, max: 20000, step: 100, group: "Koson O'yini" },
   { key: "oyinAdjustMaxPerSeason", label: "🛡 Ball tuzatish — mavsum jami maksimumi (a'zo boshiga)", def: 10000, min: 0, max: 100000, step: 500, group: "Koson O'yini" },
+  // ── 🚕 O'z dispetcher (feature "owndispatch", DISPATCH_PLAN.md §3) — taklif to'lqinlari va zaxira ──
+  { key: "dispatchOfferSec", label: "🚕 Taklifga javob kutish (soniya)", def: 20, min: 10, max: 90, step: 5, group: "O'z dispetcher" },
+  { key: "dispatchOfferBatch", label: "🚕 Bir to'lqinda nechta haydovchiga", def: 4, min: 1, max: 10, step: 1, group: "O'z dispetcher" },
+  { key: "dispatchMaxWaves", label: "🚕 Maksimal to'lqin soni", def: 4, min: 1, max: 10, step: 1, group: "O'z dispetcher" },
+  { key: "dispatchSearchMaxSec", label: "🚕 Umumiy qidiruv muddati (soniya)", def: 120, min: 30, max: 600, step: 10, group: "O'z dispetcher" },
+  { key: "dispatchLocFreshMin", label: "🚕 Joylashuv «yangi» muddati (daqiqa)", def: 20, min: 5, max: 120, step: 5, group: "O'z dispetcher" },
+  { key: "dispatchRadiusKm", label: "🚕 Joylashuvli haydovchi radiusi (km)", def: 8, min: 1, max: 50, step: 1, group: "O'z dispetcher" },
+  { key: "dispatchKasFallback", label: "🚕 Topilmasa kas1067'ga uzatish (1=ha, 0=yo'q)", def: 1, min: 0, max: 1, step: 1, group: "O'z dispetcher" },
 ];
 // 🏅 level index → cashback-multiplier knob key (null for Yangi = baseline ×1.0).
 const TIER_MULT_KNOB: Record<number, string> = {

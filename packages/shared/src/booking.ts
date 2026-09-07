@@ -166,6 +166,11 @@ export function bookingStatusLabel(status: string): string {
     take_back: "↩️ Qaytarildi",
     cancel_by_operator: "✖ Bekor qilindi",
     cancel_by_server: "✖ Bekor qilindi",
+    // kas'ning qolgan bekor-holatlari (sweep CANCEL_STATUSES bilan bir xil ro'yxat) + o'z dispetcher
+    // (dispatch.ts `dispatchToBookingStatus`) — avval bular ℹ️ fallback'ka tushardi.
+    cancel_by_client: "✖ Bekor qilindi",
+    cancel_by_driver: "✖ Haydovchi bekor qildi",
+    cancel: "✖ Bekor qilindi",
   };
   return map[status] ?? `ℹ️ ${status}`;
 }

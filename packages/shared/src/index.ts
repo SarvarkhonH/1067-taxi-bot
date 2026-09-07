@@ -10,3 +10,4 @@ export * from "./types";
 export * from "./inspection";
 export * from "./staff";
 export * from "./oyin";
+export * from "./dispatch";

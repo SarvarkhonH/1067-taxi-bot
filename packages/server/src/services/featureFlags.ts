@@ -173,13 +173,19 @@ export const FEATURES = [
               // TEGMAYDI, mavsum yopilishida qoldiq qismi tangaga aylanadi (o'z idempotent
               // markeri bilan). OFF = miniappda o'yin ekrani yo'q, bookingNotifier push yubormaydi,
               // uy-ekran kartasi ko'rinmaydi. DARK until owner QABUL.
+  "owndispatch", // 🚕 O'Z DISPETCHER (DISPATCH_PLAN.md): mijoz buyurtmasi kas1067 o'rniga BIZNING
+              // liniyadagi haydovchilarga (Telegram bot) taklif qilinadi, birinchi qabul qilgan oladi,
+              // holatlar (yetib keldim → safar → yakun) haydovchi tugmalari bilan, yakun mukofoti
+              // MAVJUD idempotent yo'llar (rollRideCashback → grantRideCoins ≤350). Liniya bo'sh yoki
+              // haydovchi topilmasa → knob `dispatchKasFallback` bilan kas'ga uzatiladi. OFF = bugungi
+              // kas-yo'li AYNAN (o'z-dispetcher kodi umuman ishga tushmaydi). DARK until owner QABUL.
 ] as const;
 export type FeatureName = (typeof FEATURES)[number];
 
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "pickup2", "pickup2b", "pickup2lt", "taxistory", "operatorAssist", "jamoa", "oyin"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "pickup2", "pickup2b", "pickup2lt", "taxistory", "operatorAssist", "jamoa", "oyin", "owndispatch"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

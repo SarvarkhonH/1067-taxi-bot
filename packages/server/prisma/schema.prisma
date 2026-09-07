@@ -1336,6 +1336,84 @@ model IntercityWaitEntry {
 }
 
 // Admin-configured peak hours: drivers earn bonusTanga per completed ride in this window.
+// ─── 🚕 O'Z DISPETCHER (feature "owndispatch", DISPATCH_PLAN.md) ─────────────────────────────
+// Faqat QO'SHIMCHA jadvallar — mavjud Member/CoinTxn tegilmagan. Loose FK → Member.id
+// (DriverCall / ScheduledRide naqshi, @relation yo'q). Pul bu jadvallarda YO'Q: tanga faqat
+// CoinTxn orqali (`settleRide` → grantRideCoins, ≤350 clamp), bookingId = 900_000_000 + ride.id.
+
+/// Haydovchi liniya holati — bir qator / haydovchi (Member.type="driver").
+model DriverShift {
+  memberId      Int       @id
+  online        Boolean   @default(false)
+  lat           Float?
+  lng           Float?
+  locAt         DateTime? // oxirgi joylashuv vaqti (Telegram jonli lokatsiya yoki miniapp GPS)
+  onlineAt      DateTime?
+  offlineAt     DateTime?
+  currentRideId Int? // accepted|arrived|started safar; null = bo'sh
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([online, locAt])
+}
+
+/// O'z safar (kas'siz). status: searching|accepted|arrived|started|finished|cancelled|expired
+model DispatchRide {
+  id              Int       @id @default(autoincrement())
+  riderId         Int
+  driverId        Int?
+  status          String    @default("searching")
+  source          String    @default("bot") // bot | miniapp | fallback
+  pickupName      String
+  pickupLat       Float?
+  pickupLng       Float?
+  pickupAddrId    Int? // kas katalog id (ma'lumot uchun; dispetcherlik kas'ga bormaydi)
+  destName        String?
+  destLat         Float?
+  destLng         Float?
+  fareEstimate    Int? // so'm, taxminiy (mavjud tarif-konfig)
+  fareFinal       Int? // so'm, haydovchi yakunda tasdiqlagan
+  wave            Int       @default(0) // yuborilgan taklif to'lqinlari
+  offeredCount    Int       @default(0) // taklif olgan haydovchilar (halol «N haydovchiga yuborildi»)
+  riderCardMsgId  Int? // mijozdagi BITTA jonli karta (joyida tahrirlanadi)
+  driverCardMsgId Int? // haydovchidagi safar kartasi
+  cancelBy        String? // rider | driver | system | admin
+  cancelReason    String?
+  kasFallbackAt   DateTime? // topilmagach kas1067'ga uzatilgan vaqt
+  acceptedAt      DateTime?
+  arrivedAt       DateTime?
+  startedAt       DateTime?
+  finishedAt      DateTime?
+  cancelledAt     DateTime?
+  settledAt       DateTime? // mukofotlar bir marta (idempotent yakun markeri)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  offers DispatchOffer[]
+
+  @@index([status, createdAt])
+  @@index([riderId, status])
+  @@index([driverId, status])
+}
+
+/// Bitta haydovchiga bitta safar uchun BIR taklif. response: accept|reject|timeout|lost
+model DispatchOffer {
+  id          Int          @id @default(autoincrement())
+  ride        DispatchRide @relation(fields: [rideId], references: [id], onDelete: Cascade)
+  rideId      Int
+  driverId    Int
+  wave        Int          @default(1)
+  distanceKm  Float?
+  msgId       Int? // haydovchidagi taklif kartasi (javob/vaqt tugashi bilan tahrirlanadi)
+  response    String?
+  sentAt      DateTime     @default(now())
+  respondedAt DateTime?
+
+  @@unique([rideId, driverId])
+  @@index([driverId, response])
+  @@index([rideId, response])
+}
+
 model PeakHour {
   id         Int      @id @default(autoincrement())
   label      String // e.g. "Ertalab pik"
