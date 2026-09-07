@@ -133,7 +133,7 @@ kontrolga ega admin panel va driverlar uchun juda tez, qulay APK»**.
 
 | Savol | EGA TANLOVI | Nima demak |
 |---|---|---|
-| Haydovchi ilovasi | **Bot hozir → Mini App → Capacitor APK** | Bitta React kodbaza uch qobiqda ishlaydi. Bot — birinchi kun ishlaydigan yadro va abadiy zaxira; APK — asosiy ish quroli (§8) |
+| Haydovchi ilovasi | **native Kotlin APK — BIRINCHI navbatda** | Ega ikkinchi xabarida aniqlashtirdi: eski Android + kuchli fon rejimi. Capacitor tavsiyasi shu sabab bekor qilindi. Bot yo'li zaxira bo'lib qoladi. To'liq reja: `DRIVER_APK_PLAN.md` |
 | Ratsiya | **Real-vaqt PTT (WebRTC)** | «Tugmani bosib gapir», jonli ovoz. Telegram-relay faqat **degradatsiya** yo'li bo'lib qoladi (§10.5) |
 | Admin panel | **To'liq dispetcher konsoli** | Jonli xarita + navbat + qo'lda tayinlash + operator buyurtmasi + ratsiya + hisobot (§9) |
 | Yadro (server+bot) | **Hozir davom etilsin** | §1–§6 o'zgarishsiz |
@@ -145,123 +145,20 @@ kas ekranlarini takrorlash kerak bo'lsa — papkani qayta yuklash yoki ekranlar 
 
 ---
 
-## §8. HAYDOVCHI APK — «juda tez, juda qulay»
+## §8. HAYDOVCHI APK → **`DRIVER_APK_PLAN.md`** ga ko'chirildi
 
-### 8.1 Arxitektura qarori: BITTA kod, UCH qobiq
+⚠️ **Ega qarori 2026-09-07 (ikkinchi xabar): APK — BIRINCHI navbatda.** Talab aniqlashtirildi:
+«to'liq funksional, kuchli, eski androidlarda kuchli ishlaydigan, fon rejimida kas1067 driver
+ilovasidan 10x yaxshiroq, qulay va tez».
 
-```
-packages/miniapp/src/driverapp/     ← YANGI ekran (mijoz ilovasidan ALOHIDA marshrut)
-        │
-        ├─→ Telegram Mini App   (?go=liniya)      — o'rnatishsiz, birinchi kun
-        ├─→ Oddiy brauzer       (app.birjoy.online/haydovchi) — planshet/eski telefon
-        └─→ Capacitor APK       (BirJoy Haydovchi) — ASOSIY ish quroli
-```
+**Texnologiya tavsiyasi O'ZGARDI.** Bu hujjatning oldingi tahririda Capacitor (web-ilova
+Android qobig'ida) tavsiya qilingan edi. Yangi talablar — eski Android va kuchli fon rejimi —
+uni to'g'ri kelmaydigan qiladi: Capacitor WebView ustida ishlaydi, eski Androidda WebView
+sekin va tizim uni fonda birinchi bo'lib o'ldiradi. **Yangi tavsiya: native Kotlin.**
 
-Sabab: uchta alohida ilova = uchta xato manbai. Bitta ekran, uchta paket. APK'da
-Capacitor plaginlari orqali **fon-GPS, push, ovoz, ekranni yoqiq ushlash** qo'shiladi —
-brauzer qobig'i bularsiz ham ishlaydi (funksiya kamroq, lekin tirik).
-
-⚠️ **Nega mijoz ilovasiga qo'shilmaydi:** haydovchi ilovasi kun bo'yi ochiq turadi, fon-GPS
-va push talab qiladi, mijoz ilovasi esa yengil bo'lishi kerak. Alohida marshrut =
-alohida bundle (`manualChunks`), mijoz birorta bayt ortiqcha yuklamaydi.
-
-### 8.2 Ekran — bitta, aylanmaydigan (3 soniya testi)
-
-```
-┌──────────────────────────────┐
-│  🟢 LINIYADASIZ    12:04 dan │   ← holat qatori (rang: yashil/kulrang/sariq)
-│  📍 hozirgina · 👥 7 haydovchi│
-├──────────────────────────────┤
-│                              │
-│      [   K A T T A           │   ← YAGONA katta tugma (≥ 96px balandlik)
-│        TUGMA:                │      offline → «🟢 LINIYAGA CHIQISH»
-│        holatga qarab ]       │      online  → «🔴 LINIYANI YOPISH»
-│                              │      taklif  → «✅ QABUL» (taymer halqasi bilan)
-│                              │      safarda → «📍 YETIB KELDIM» → «🚗 BOSHLADIM» → «🏁 YAKUNLASH»
-├──────────────────────────────┤
-│ 📊 Bugun: 7 safar · 84 000   │   ← faqat 2 raqam, boshqa hech narsa
-├──────────────────────────────┤
-│  [📻 RATSIYA — bosib gapir]  │   ← pastda, bosib turilganda gapiradi (§10)
-└──────────────────────────────┘
-```
-
-**Qoidalar (DIZAYN_QOIDALARI.md bilan bir xil):**
-- **Bir ekranda bir qaror.** Haydovchi mashina haydayapti — menyu, tab, ro'yxat YO'Q.
-- Har tugma **≥ 64px**, asosiy tugma **≥ 96px** (qo'lqopda, tebranishda bosiladi).
-- Har bosishda **<100 ms** vizual javob + **tebranish** (server javobi kutilmaydi).
-- Yorug' fon (kunduzi quyoshda ko'rinsin) + kechasi avtomatik qorong'i.
-- **Raqam bilan yolg'on yo'q**: joylashuv eskirgan bo'lsa «📍 eskirgan» deb aytiladi,
-  soxta «hozirgina» ko'rsatilmaydi (DIZAYN_QOIDALARI #5–#7).
-
-### 8.3 Tezlik byudjeti — o'lchanadigan (bu DoD, «tez» degan gap emas)
-
-| O'lcham | Maqsad | Qanday o'lchanadi |
-|---|---|---|
-| APK sovuq ochilish → tugma bosiladigan holat | **< 1.5 s** | Android profiler / qo'lda sekundomer, 5 marta o'rtacha |
-| Taklif serverdan chiqdi → telefonda **ko'rindi + ovoz** | **< 2 s** | server log vaqti ↔ ekran yozuvi |
-| «QABUL» bosildi → ekran o'zgardi | **< 100 ms** (optimistik) | vizual |
-| «QABUL» → server tasdiqladi | **< 1 s** (4G) | tarmoq jurnali |
-| Joylashuv yangilanishi | **10–15 s** harakatda, 60 s turganda | batareya uchun adaptiv |
-| Batareya sarfi | **8 soat smenada < 25%** | telefon sozlamalari statistikasi |
-| APK hajmi | **< 8 MB** | fayl hajmi |
-
-### 8.4 Fon-GPS va uyg'onish (APK'ning asosiy sababi)
-
-- **Foreground service** (Android doimiy bildirishnoma: «BirJoy — liniyadasiz») —
-  ekran o'chsa ham joylashuv va push ishlaydi. Telegram Mini App buni QILA OLMAYDI.
-- **Adaptiv chastota**: harakatda 10–15 s, joyida 60 s, liniyadan chiqqach — **0** (butunlay to'xtaydi).
-- **Batareya optimizatsiyasidan ozod qilish** so'raladi (bir marta, tushuntirish bilan).
-- Ruxsatlar: `ACCESS_FINE_LOCATION`, `FOREGROUND_SERVICE_LOCATION`, `POST_NOTIFICATIONS`,
-  `RECORD_AUDIO` (ratsiya), `WAKE_LOCK`.
-- **Maxfiylik qoidasi:** joylashuv FAQAT liniyada bo'lganda yoziladi. Liniyadan chiqilgach
-  yozuv to'xtaydi va oxirgi nuqta ko'rsatilmaydi. Bu ekranda ochiq yozilади.
-
-### 8.5 Taklif signali — «o'tkazib yubormaslik» muhandisligi
-
-Uch qatlam, biri yiqilsa ikkinchisi ishlaydi:
-1. **WebSocket** (ilova ochiq) — bir zumda, taymer halqasi bilan.
-2. **FCM push** (ilova fonda/yopiq) — to'liq ekranli bildirishnoma + **doimiy signal ovozi**
-   (jimlik rejimidan qat'i nazar, `AudioAttributes` alarm kanali) + tebranish namunasi.
-3. **Telegram bot kartasi** (§2.3) — APK umuman yo'q/o'chirilgan haydovchi uchun.
-
-Har uchala yo'l **AYNAN BIR** `DispatchOffer` qatoriga bog'lanadi — ikki marta qabul bo'lmaydi
-(atomik `updateMany` qo'riqi, §2.4).
-
-### 8.6 Kirish (auth) — parolsiz, 30 soniyada
-
-1. Haydovchi APK'ni ochadi → **telefon raqamini** yozadi.
-2. Bot (`@koson1067bot`) unga **6 xonali kod** yuboradi (mavjud `verifyCodeService` naqshi).
-3. Kod → server **qurilma tokeni** beradi (uzoq muddatli, `DriverDevice` jadvalida).
-4. Keyingi ochilishlarda kirish **umuman so'ralmaydi**.
-5. Admin paneldan token bekor qilinadi (telefon yo'qolsa).
-
-⚠️ Bu YANGI auth yo'li — mavjud Telegram `initData` yo'liga TEGMAYDI. Ikkalasi bir xil
-`memberId` ga olib keladi, ya'ni pul-mantiq bitta.
-
-### 8.7 Uzilish siyosati (tarmoq yomon — Koson realligi)
-
-- Har amal (qabul/yetdim/boshladim/yakunladim) **navbatga yoziladi** va tarmoq qaytganda yuboriladi.
-- Har amalda **idempotent kalit** (`rideId + amal`) — takroriy yuborish zarar qilmaydi.
-- Ekranda halol holat: «📡 Aloqa yo'q — yuborilmoqda…», soxta «bajarildi» YO'Q.
-- Server tomonda «kechikkan yakun» qabul qilinadi (safar allaqachon yopilgan bo'lsa — `settledAt` idempotent).
-
-### 8.8 Qurish va tarqatish
-
-- **Yangi paket:** `packages/driverapp` (Capacitor konfiguratsiyasi + Android loyihasi).
-  Web qismi — `@t1067/miniapp` ning `driverapp` bundle'i.
-- **CI:** yangi `.github/workflows/apk.yml` — `main`ga push'da imzolangan APK yig'adi va
-  **artefakt** qilib qo'yadi (Play Store'siz). Imzo kaliti — GitHub Secret.
-- **Tarqatish:** `app.birjoy.online/haydovchi.apk` (Caddy'dan statik fayl) + botda
-  «📲 Ilovani o'rnatish» tugmasi. Play Store — keyinroq, ixtiyoriy.
-- **Avto-yangilanish:** ilova ochilganda `version.json` ni tekshiradi → yangi versiya bo'lsa
-  «Yangilash» kartasi (mavjud `version.txt` naqshi bilan bir xil mantiq).
-
-### 8.9 v1 da QILINMAYDI (ongli)
-
-Navigatsiya (Yandex/Google'ga uzatiladi) · ichki chat (ratsiya bor) · smena rejalashtirish ·
-haydovchi-haydovchi buyurtma o'tkazish · iOS (Android birinchi, iOS talab bo'lsa keyin).
-
----
+To'liq spetsifikatsiya (o'lchanadigan «10x» jadvali, 9 ekran, fon rejimining 7 qatlami, OEM
+o'ldirgichlari, tezlik byudjeti, server shartnomasi, sinov rejasi, bosqichlar):
+**`DRIVER_APK_PLAN.md`**.
 
 ## §9. ADMIN — «juda kuchli kontrol» DISPETCHER KONSOLI
 
@@ -378,21 +275,22 @@ Portlar: 7880 (WS, Caddy orqali `ptt.birjoy.online`), 7881/UDP 50000-60000 (medi
 
 ---
 
-## §11. BOSQICHLAR — nima qachon
+## §11. BOSQICHLAR — nima qachon (ega tartibi: **APK birinchi**)
 
 | # | Bosqich | Natija (ega ko'radigan) | Taxminiy hajm |
 |---|---|---|---|
-| **F1** | **Yadro** (§1–§6): server + bot, mijoz oqimi, yakun-mukofot | Ega telefonidan: haydovchi liniyaga chiqadi → mijoz chaqiradi → qabul → yakun → tanga | 2–3 kun |
+| **F1** | **Yadro** (§1–§6): server + bot, mijoz oqimi, yakun-mukofot | Haydovchi liniyaga chiqadi → mijoz chaqiradi → qabul → yakun → tanga. **APK shu serverga ulanadi** | 2–3 kun |
+| **A1–A6** | **HAYDOVCHI APK** — `DRIVER_APK_PLAN.md` §10 | O'rnatiladigan native ilova: fon rejimi, taklif, safar, daromad | 3–4 hafta |
 | **F2** | **Dispetcher konsoli** (§9) | Operator ekranda hammasini ko'radi va boshqaradi | 2–3 kun |
-| **F3** | **Haydovchi ekrani** (§8.1–8.3, web) | Mini App'da to'liq haydovchi ekrani | 2 kun |
-| **F4** | **APK** (§8.4–8.8) | O'rnatiladigan ilova, fon-GPS, push | 2–3 kun |
-| **F5** | **Ratsiya PTT** (§10) | Bosib gapirish, jonli ovoz | 3–4 kun (+VPS sozlash) |
-| **F6** | **Sayqal** | Signal-ogohlantirishlar, hisobot, KPI, tezlik o'lchovlari | 2 kun |
+| **F5** | **Ratsiya PTT** (§10) | Bosib gapirish, jonli ovoz | 3–4 kun |
+| **F6** | **Sayqal** | Signal-ogohlantirishlar, hisobot, KPI | 2 kun |
 
-Har bosqich **alohida commit + alohida ega sinovi**, hammasi `owndispatch` bayrog'i ortida.
-F1 qabul bo'lmaguncha F2 boshlanmaydi (CLAUDE.md DoD tartibi).
+**F1 nega APK'dan oldin:** APK — bu ekran, uning orqasida server bo'lishi shart. F1siz ilova
+ulanadigan joy yo'q. F1 kichik (2–3 kun) va APK ishi shu server ustiga quriladi.
 
----
+Telegram bot yo'li (§2) **abadiy qoladi** — APK o'rnatmagan yoki iPhone'li haydovchi uchun.
+
+Har bosqich alohida commit va alohida ega sinovi bilan, hammasi `owndispatch` bayrog'i ortida.
 
 ## §12. XAVFLAR va ular bilan nima qilinadi
 
