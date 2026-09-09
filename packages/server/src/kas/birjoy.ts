@@ -157,9 +157,49 @@ export class BirJoySource implements KasDataSource {
   fetchByPhone(_phone: string, _only?: MemberType): Promise<KasMember[]> { return this.notImpl("fetchByPhone"); }
   checkClient(_phone: string): Promise<ClientBookingInfo | null> { return this.notImpl("checkClient"); }
   cancelBooking(_bookingId: number): Promise<BookingResult> { return this.notImpl("cancelBooking"); }
-  getActiveBooking(_phone: string): Promise<ActiveBooking | null> { return this.notImpl("getActiveBooking"); }
+  async getActiveBooking(phone: string): Promise<ActiveBooking | null> {
+    const order = await this.request<any>("GET", "/orders/by-phone/active", { query: { phone } });
+    if (!order) return null;
+    return {
+      id: order.id,
+      // B vocab (pending/dispatching/accepted/…). A status-vocab adapter
+      // (dispatchToBookingStatus, salvaged per §4) is a follow-up.
+      status: String(order.status ?? ""),
+      addressName: order.pickupAddress ?? "",
+      lat: order.pickupLat != null ? Number(order.pickupLat) : undefined,
+      lng: order.pickupLng != null ? Number(order.pickupLng) : undefined,
+      clientBonus: 0,          // tanga — filled by A's coin ledger in 5c (§5.5)
+      priceTier: "standard",   // B has vehicleClassId; tier-name mapping is a follow-up
+      createdDate: String(order.createdAt ?? ""),
+      driver: order.driver
+        ? {
+            fullName: order.driver.fullName ?? "",
+            phone: order.driver.phone ?? "",
+            carModel: order.driver.carModel ?? "",
+            carNumber: order.driver.carNumber ?? "",
+            rating: Number(order.driver.avgRating ?? 0),
+            lat: 0, lng: 0,    // live position comes from getDriverPins, not this row (§3.3)
+          }
+        : null,
+    };
+  }
+
   listActiveBookings(): Promise<ActiveBookingLite[]> { return this.notImpl("listActiveBookings"); }
-  getRideHistory(_phone: string, _size?: number, _page?: number): Promise<RideHistoryItem[]> { return this.notImpl("getRideHistory"); }
+
+  async getRideHistory(phone: string, size?: number, _page?: number): Promise<RideHistoryItem[]> {
+    const rows = await this.request<any[]>("GET", "/orders/by-phone/history", { query: { phone, limit: size } });
+    return (rows ?? []).map((r) => ({
+      id: r.id,
+      addressName: r.pickupAddress ?? "",
+      status: String(r.status ?? ""),
+      carNumber: "",   // B history has no driver join yet (gap — follow-up)
+      carModel: "",
+      payment: Number(r.finalFareUzs ?? 0),
+      cashback: 0,     // tanga — A adds the per-ride award in 5c (§5.5)
+      distance: r.distanceKm != null ? Number(r.distanceKm) : undefined,
+      at: String(r.completedAt ?? r.createdAt ?? ""),
+    }));
+  }
   getRidesByCar(_carNumber: string, _size?: number): Promise<RideHistoryItem[]> { return this.notImpl("getRidesByCar"); }
   getDriverPins(): Promise<DriverPin[]> { return this.notImpl("getDriverPins"); }
   getDriverByCar(_carNumber: string): Promise<BookingDriver | null> { return this.notImpl("getDriverByCar"); }
