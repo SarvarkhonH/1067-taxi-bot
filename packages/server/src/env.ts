@@ -26,7 +26,9 @@ const schema = z.object({
   ADMIN_PANEL_URL: z.string().default("https://admin.birjoy.online"),
 
   KAS_BASE_URL: z.string().default("http://46.8.176.53/kas1067"),
-  KAS_MODE: z.enum(["mock", "live"]).default("mock"),
+  KAS_MODE: z.enum(["mock", "live", "birjoy"]).default("mock"),
+  KAS_BIRJOY_URL: z.string().optional().default("http://localhost:4000/api/v1"),
+  KAS_SERVICE_TOKEN: z.string().optional().default(""),
   KAS_USERNAME: z.string().optional().default(""),
   KAS_PASSWORD: z.string().optional().default(""),
   KAS_BONUS_SECRET_KEY: z.string().optional().default("1303"), // kas1067 bonus-edit secret

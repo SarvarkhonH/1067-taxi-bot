@@ -208,7 +208,7 @@ export interface DriverRosterRow {
 }
 
 export interface KasDataSource {
-  readonly name: "mock" | "live";
+  readonly name: "mock" | "live" | "birjoy";
   /** Full pull (mock seed / optional bulk import). */
   fetchMembers(): Promise<KasMember[]>;
   /**
