@@ -93,14 +93,69 @@ export class BirJoySource implements KasDataSource {
     }));
   }
 
-  // ── 5b: HTTP mappers (stubbed) ────────────────────────────────────────────
+  // ── 5b: HTTP mappers ──────────────────────────────────────────────────────
+
+  /** B addresses row → kas SavedAddress. B stores lat/lng as decimal strings and
+   *  the per-address surcharge as additional_payment_uzs. */
+  private static toSavedAddress(r: {
+    id: number; name: string;
+    lat?: string | number | null; lng?: string | number | null;
+    additionalPayment?: number | null; additionalPaymentUzs?: number | null;
+  }): SavedAddress {
+    return {
+      id: r.id,
+      name: r.name,
+      lat: r.lat != null ? Number(r.lat) : undefined,
+      lng: r.lng != null ? Number(r.lng) : undefined,
+      surcharge: r.additionalPayment ?? r.additionalPaymentUzs ?? 0,
+    };
+  }
+
+  async searchAddresses(text: string): Promise<SavedAddress[]> {
+    const rows = await this.request<Parameters<typeof BirJoySource.toSavedAddress>[0][]>(
+      "GET", "/addresses/search", { query: { q: text } },
+    );
+    return rows.map(BirJoySource.toSavedAddress);
+  }
+
+  async getAllAddresses(): Promise<SavedAddress[]> {
+    const rows = await this.request<Parameters<typeof BirJoySource.toSavedAddress>[0][]>(
+      "GET", "/addresses",
+    );
+    return rows.map(BirJoySource.toSavedAddress);
+  }
+
+  async getBookingAddons(): Promise<KasAddon[]> {
+    const rows = await this.request<Array<{ id: number; name: string; priceUzs?: number; price?: number }>>(
+      "GET", "/order-requirements",
+    );
+    return rows.map((r) => ({ id: r.id, name: r.name, price: r.priceUzs ?? r.price ?? 0 }));
+  }
+
+  async createBooking(req: BookingRequest): Promise<BookingResult> {
+    // B (createServiceOrder) resolves the client by phone and pickup coords from
+    // addressId (catalog) OR raw lat/lng — mirrors the B5 decision. clientName is
+    // unused (B find-or-creates by phone).
+    try {
+      await this.request("POST", "/orders", {
+        body: {
+          phone:          req.phoneNumber,
+          pickupAddress:  req.addressName,
+          addressId:      req.addressId > 0 ? req.addressId : undefined,
+          pickupLat:      req.addressLatitude,
+          pickupLng:      req.addressLongitude,
+        },
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    }
+  }
+
+  // ── 5b (remaining) / 5c: stubbed ──────────────────────────────────────────
   fetchMembers(): Promise<KasMember[]> { return this.notImpl("fetchMembers"); }
   fetchByPhone(_phone: string, _only?: MemberType): Promise<KasMember[]> { return this.notImpl("fetchByPhone"); }
   checkClient(_phone: string): Promise<ClientBookingInfo | null> { return this.notImpl("checkClient"); }
-  searchAddresses(_text: string): Promise<SavedAddress[]> { return this.notImpl("searchAddresses"); }
-  getAllAddresses(): Promise<SavedAddress[]> { return this.notImpl("getAllAddresses"); }
-  createBooking(_req: BookingRequest): Promise<BookingResult> { return this.notImpl("createBooking"); }
-  getBookingAddons(): Promise<KasAddon[]> { return this.notImpl("getBookingAddons"); }
   cancelBooking(_bookingId: number): Promise<BookingResult> { return this.notImpl("cancelBooking"); }
   getActiveBooking(_phone: string): Promise<ActiveBooking | null> { return this.notImpl("getActiveBooking"); }
   listActiveBookings(): Promise<ActiveBookingLite[]> { return this.notImpl("listActiveBookings"); }
