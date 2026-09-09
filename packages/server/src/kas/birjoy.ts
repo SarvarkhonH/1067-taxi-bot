@@ -202,7 +202,18 @@ export class BirJoySource implements KasDataSource {
   }
   getRidesByCar(_carNumber: string, _size?: number): Promise<RideHistoryItem[]> { return this.notImpl("getRidesByCar"); }
   getDriverPins(): Promise<DriverPin[]> { return this.notImpl("getDriverPins"); }
-  getDriverByCar(_carNumber: string): Promise<BookingDriver | null> { return this.notImpl("getDriverByCar"); }
+  async getDriverByCar(carNumber: string): Promise<BookingDriver | null> {
+    const d = await this.request<any>("GET", `/drivers/by-car/${encodeURIComponent(carNumber)}`);
+    if (!d) return null;
+    return {
+      fullName: d.fullName ?? "",
+      phone: d.phone ?? "",
+      carModel: d.carModel ?? "",
+      carNumber: d.carNumber ?? carNumber,
+      rating: Number(d.avgRating ?? 0),
+      lat: 0, lng: 0,   // by-car carries no live position; getDriverPins does (§3.3)
+    };
+  }
   getReportsPage(_page: number, _size: number): Promise<RideHistoryItem[]> { return this.notImpl("getReportsPage"); }
   listDriverRoster(): Promise<DriverRosterRow[]> { return this.notImpl("listDriverRoster"); }
   setClientName(_phone: string, _fullName: string): Promise<{ ok: boolean; status?: number }> { return this.notImpl("setClientName"); }
