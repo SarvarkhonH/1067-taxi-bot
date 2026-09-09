@@ -29,6 +29,11 @@ const schema = z.object({
   KAS_MODE: z.enum(["mock", "live", "birjoy"]).default("mock"),
   KAS_BIRJOY_URL: z.string().optional().default("http://localhost:4000/api/v1"),
   KAS_SERVICE_TOKEN: z.string().optional().default(""),
+  // Shared secret for the 1067-taxi (B) → BirJoy (A) driver-OTP bridge. B sends
+  // it in the X-Service-Token header; A's /api/internal/driver-otp route fails
+  // CLOSED when this is empty (so the route is inert until the owner sets it on
+  // the live env, matching B's SERVICE_TOKEN).
+  TAXI_SERVICE_TOKEN: z.string().optional().default(""),
   KAS_USERNAME: z.string().optional().default(""),
   KAS_PASSWORD: z.string().optional().default(""),
   KAS_BONUS_SECRET_KEY: z.string().optional().default("1303"), // kas1067 bonus-edit secret

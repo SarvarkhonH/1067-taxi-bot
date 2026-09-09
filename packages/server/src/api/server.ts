@@ -478,6 +478,53 @@ export function createApiServer(opts: ApiOptions = {}) {
     }
   });
 
+  // 🚕 Driver OTP bridge (1067-taxi → BirJoy bot). The taxi core (B) has its own
+  // bot token intentionally BLANK (isolation), so it cannot message drivers
+  // directly. Instead B POSTs the phone+code here; we resolve the driver's
+  // linked Telegram chat by phone (endsWith, like every other phone lookup) and
+  // send via the live BirJoy bot. Machine-to-machine: guarded by the A↔B shared
+  // secret (KAS_SERVICE_TOKEN), fails CLOSED, and sends ONLY to the number the
+  // login was requested for (never a broadcast). No new customer surface.
+  app.post("/api/internal/driver-otp", async (req: Request, res: Response) => {
+    const token = req.header("X-Service-Token") || "";
+    if (!env.TAXI_SERVICE_TOKEN || !tokenEquals(token, env.TAXI_SERVICE_TOKEN)) {
+      res.status(403).json({ error: "forbidden" });
+      return;
+    }
+    const phone = String(req.body?.phone ?? "").trim();
+    const code  = String(req.body?.code ?? "").trim();
+    if (!phone || !/^\d{4,8}$/.test(code)) {
+      res.status(400).json({ error: "bad_request" });
+      return;
+    }
+    // Match by the last 9 digits so "+998 90 …" / "998…" / "90…" all resolve to
+    // the same person, regardless of how the number was stored on each side.
+    const tail = phone.replace(/\D/g, "").slice(-9);
+    if (tail.length < 9) {
+      res.status(400).json({ error: "bad_phone" });
+      return;
+    }
+    const tu = await prisma.telegramUser.findFirst({
+      where: { phone: { endsWith: tail } },
+      select: { id: true },
+      orderBy: { lastSeenAt: "desc" }, // most recently active wins if a number was re-linked
+    });
+    if (!tu || !opts.sendMessage) {
+      res.json({ delivered: false, reason: "no_telegram" });
+      return;
+    }
+    const html =
+      "🚗 <b>BirJoy Haydovchi — kirish kodi</b>\n\n" +
+      `Kodingiz: <code>${code}</code>\n\n` +
+      "⏰ 5 daqiqa amal qiladi.\n⚠️ Kodni hech kimga bermang!";
+    try {
+      await opts.sendMessage(tu.id, html);
+      res.json({ delivered: true });
+    } catch (e) {
+      res.status(502).json({ delivered: false, reason: "send_failed", detail: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
   app.get("/api/me", allowGuest, async (_req, res) => {
     const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
