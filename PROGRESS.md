@@ -1,5 +1,68 @@
 # PROGRESS
 
+## 🚕 2026-09-08…10 — TAXI YADROSI (1067-taxi / B): F1-core, F1-bridge, audit
+
+**Holat: `in progress (gaps: ko'p)`.** Bu dastur haqida PROGRESS'da shu paytgacha **bitta ham
+qator yo'q edi** — R7 ("PROGRESS = LITERAL haqiqat") buzilgan. Aynan shuning uchun har sessiya
+"nima qolgani" ni qaytadan qidirdi. Bu yozuv o'sha qarzni yopadi.
+
+### Uch mustaqil audit natijasi (2026-09-10)
+| Hujjat to'plami | Bajarilgan | Asos |
+|---|---|---|
+| MASTER + TAXI_10X_PLAN + QAROR | **35%** (qat'iy **23%**) | 113 va'da: 26 done · 23 qisman · 8 yozilgan-ulanmagan · **56 yo'q** |
+| TELEFON + ADMIN_JAVOB + ADMIN_QOSHIMCHALAR | **~23%** | 51 va'dadan 11.5 |
+| KAS_PARITET / BirJoySource DoD | **~40% / ~30%** | 27 metoddan **8 ishlaydi, 19 stub** |
+
+Hisobotlar: `VADA_VS_HAQIQAT_MASTER.md`, `..._TELEFON.md`, `..._GARAJ.md`.
+Yaxlit reja: `YANGI_REJA.md`. (`GARAJ_PLAN.md` — taksi emas, 2026-07-02 da ega bekor qilgan o'yin.)
+
+### `owner-accepted` (ega real telefonda ko'rgan)
+- **To'liq safar** real APK bilan (order 4): dispatch→offer→accept→arrived→start→GPS taximetr
+  1.47 km→complete→narx 11 000→komissiya −2 000 (1 qator, idempotent)
+- **Xarita** haydovchi ilovasida chiqdi (Maps SDK + billing ega yoqgach)
+
+### `ready for verification` — F1-core P0 (6/6, jonli isbot bilan)
+P0-1 `no_drivers` qutqaruv · P0-2 o'lik buyurtma sweep · P0-3 arvoh haydovchi GEO tozalash ·
+P0-4 yakuniy narxda surge/class · P0-5 komissiya atomik+idempotent · P0-6 OTP 6 xona + throttle
+
+### `ready for verification` — 2026-09-09/10 tuzatishlari
+**Haydovchi ilovasi:** socket tokeni 15 daqiqada o'lardi (butun smena ko'rinmas bo'lardi) →
+har ulanishda yangilanadi · GPS servisi cold-start'da fondan ishga tushib Android tomonidan
+bloklanardi → ON_RESUME'dan · taximetr backenddan 30-60% past ko'rsatardi → moslandi ·
+bekor qilish 400 qaytarardi → `CancelOrderDto` · mijoz bekor qilsa haydovchi bilmasdi → xabar
+boradi · SOS **har bosishda 400 bilan rad etilardi**, ilova "yuborildi" derdi → ishlaydi va
+yetmasa rostini aytadi
+**Admin/operator:** 8 o'lik sahifa (`/api/v1` tushib qolgan) · operator "tayinlash"/"bekor"
+tugmalari 404 edi · taxta ochilganda bo'sh edi · har 15 daqiqada qayta login · **rol tekshiruvi
+umuman ishlatilmagan** (dispatcher super-admin yarata olardi) · audit jurnali hech qachon
+yozilmasdi · TypeScript darvozasi o'chiq edi (6 o'lik API chaqiruvi shundan o'tgan)
+**Xavfsizlik:** `PATCH /drivers/:id` istalgan ustunni yozardi (`balanceUzs` — izsiz pul) ·
+`scheduled-rides` POST/cancel **umuman himoyasiz** edi
+**Dispatch:** radius 5 km qat'iy edi → 3/5/8/12 bosqichli · **bosilgan rad va jim taymer bir xil
+`timeout` yozilardi** → ajratildi (bu "haydovchi ko'rmadi mi, xohlamadi mi" savolining yagona kaliti)
+**CTI:** popup→operator ekrani uzatmasi uzuq edi · qo'ng'iroq raqami aynan solishtirilardi
+(tanish mijoz "notanish" chiqardi) → oxirgi 9 raqam bo'yicha
+**Infra:** B endi `systemd taxi1067-api` (avval qo'lda `nohup`, reboot'da o'lardi) — `kill -9`
+bilan avto-tiklanish isbotlandi · `git bundle` zaxira VPS'da (`/opt/backups/code`, sha256 mos)
+**Pul:** parallel "ball" valyutasiga **kill-switch** (`LOYALTY_BALLS`, `GAMIFICATION_BALLS`)
+
+### GAP — ochiq va yashirilmayapti (R8)
+| Gap | Nega muhim |
+|---|---|
+| **TANGA birlashuvi 0%** — B hali parallel valyuta chiqaradi (clamp yo'q, CoinTxn yo'q) | MASTER §5.6 to'xtatishni buyurgan; hozir faqat kalit qo'yildi |
+| **id-space (`900_000_000+id`) ko'chirilmagan** | B id'lari kas id'lari bilan to'qnashadi → CoinTxn idempotentligi buziladi |
+| **`KAS_MODE=birjoy` bosilsa jonli tizim buziladi** — 20 faylda 49 chaqiruv rad etiladi | 19 stub metod |
+| **FCM yarim** — server chaqiradi, ilova qabul qila olmaydi | `google-services.json` yo'q (ega Firebase'i) |
+| **F2 soya rejimi — 0 qator** | cutover'dan oldingi yagona xavfsizlik darvozasi |
+| **Ratsiya/PTT — 0 qator · SIP — 0 qator** | ADMIN_QOSHIMCHALAR "eng muhim yangilik" degan edi |
+| **CTI: `/ring` ni chaqiradigan narsa yo'q** | operator-helper APK yoki SIP hook kerak |
+| **B'ning 36 commit'i push qilinmagan** (oxirgi push 2026-05-01) | zaxira bundle bor, lekin origin eskirgan |
+| **B `.git/config` da GitHub tokeni ochiq matnda** | ega revoke qilishi kerak |
+| **B'ning VPS deploy quvuri yo'q** (`deploy.yml` o'lik Render'ga qaraydi) | qo'lda build+restart |
+| **Ikkinchi mijoz boti `@koson1067bot` hali to'liq jonli** | bitta bozorda ikki mijoz shaxsi |
+| **`incentives`(7) · `queue`(2) · `fleet`(6) endpoint — 0 chaqiruvchi** | yozilgan, ishlamaydi |
+| **`GET /drivers/heatmap` va `/drivers/pending` `:id` route soyasida** | ilovada heatmap hech qachon ishlamaydi |
+
 ## 📢 2026-09-05 — Rasmli reklama skripti (`sendBroadcast.ts`)
 
 **Holat: `ready for verification`.** Ega so'rovi: «men senga rasm, matn va link beraman — chiroyli
