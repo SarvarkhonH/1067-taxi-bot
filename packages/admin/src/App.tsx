@@ -3715,17 +3715,54 @@ function BoshqaruvView() {
     adminApi.withdrawals(30).then(setWds).catch(() => undefined);
   }, []);
 
-  const tgId = users?.find((u) => u.telegram)?.telegram?.id ?? null;
   const done = async (m: string) => {
     setMsg(m);
     await search();
   };
+  /**
+   * Move a Telegram account onto another member row.
+   *
+   * The intended use is merging two records of the SAME person. It used to take
+   * `users.find(u => u.telegram)` — the first result carrying a Telegram — and
+   * attach it to whichever row the operator clicked. But `users` is a search
+   * result, so a broad query (a common name, a partial phone) returns DIFFERENT
+   * people, and the operator would silently move a stranger's Telegram — with
+   * their coins, history and identity — onto someone else.
+   *
+   * Now: refuse when the results contain more than one distinct Telegram, and
+   * always show whose account is about to move before doing it.
+   */
   const relink = async (memberId: number) => {
-    if (!tgId) {
+    const sources = (users ?? []).filter((u) => u.telegram);
+    const distinct = Array.from(new Set(sources.map((u) => u.telegram!.id)));
+
+    if (distinct.length === 0) {
       setMsg("⚠️ Bu odamning hech qaysi akkauntiga Telegram ulanmagan");
       return;
     }
-    const r = await adminApi.relinkUser(tgId, memberId).catch(() => ({ ok: false, reason: "net" }));
+    if (distinct.length > 1) {
+      setMsg(`⚠️ Qidiruvda ${distinct.length} xil Telegram bor — qaysi biri ekani noaniq. Qidiruvni aniqlashtiring (telefon raqami bo'yicha).`);
+      return;
+    }
+
+    const src = sources[0];
+    if (!src?.telegram) {
+      setMsg("⚠️ Telegram manbasi topilmadi");
+      return;
+    }
+    const target = (users ?? []).find((u) => u.id === memberId);
+    if (src.id === memberId) {
+      setMsg("ℹ️ Bu Telegram allaqachon shu yozuvga ulangan");
+      return;
+    }
+    const ok = window.confirm(
+      `Telegram ${src.telegram!.id}${src.telegram!.username ? " @" + src.telegram!.username : ""}\n` +
+      `«${src.fullName}» (id=${src.id}, ${src.phone ?? "telefon yo'q"}) dan\n` +
+      `«${target?.fullName ?? "?"}» (id=${memberId}, ${target?.phone ?? "telefon yo'q"}) ga ko'chirilsinmi?`,
+    );
+    if (!ok) return;
+
+    const r = await adminApi.relinkUser(src.telegram!.id, memberId).catch(() => ({ ok: false, reason: "net" }));
     await done(r.ok ? "✅ Telegram qayta ulandi" : "❌ " + (r.reason ?? "xato"));
   };
   const unlink = async (id: string) => {
