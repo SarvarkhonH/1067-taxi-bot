@@ -1,4 +1,5 @@
 import type { MemberType } from "@t1067/shared";
+import { toBridgeId, fromBridgeId } from "@t1067/shared";
 import type {
   ActiveBooking,
   ActiveBookingLite,
@@ -72,6 +73,14 @@ export class BirJoySource implements KasDataSource {
     if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   }
+
+  // Id namespacing lives in @t1067/shared (bridgeIds) so it is covered by the CI
+  // shield — packages/server has no test runner, and this is money logic: B's
+  // order ids collide with historical kas booking ids inside CoinTxn /
+  // RideReward idempotency keys.
+  private toOuterId(id: number): number { return toBridgeId(id); }
+  /** An id from A → B's real order id (kept for the write paths in 5b/5c). */
+  private toInnerId(id: number): number { return fromBridgeId(id); }
 
   /** Placeholder for methods implemented in Slice 5b/5c. Never reached while
    *  KAS_MODE !== "birjoy". */
@@ -161,7 +170,7 @@ export class BirJoySource implements KasDataSource {
     const order = await this.request<any>("GET", "/orders/by-phone/active", { query: { phone } });
     if (!order) return null;
     return {
-      id: order.id,
+      id: this.toOuterId(order.id),
       // B vocab (pending/dispatching/accepted/…). A status-vocab adapter
       // (dispatchToBookingStatus, salvaged per §4) is a follow-up.
       status: String(order.status ?? ""),
@@ -189,7 +198,7 @@ export class BirJoySource implements KasDataSource {
   async getRideHistory(phone: string, size?: number, _page?: number): Promise<RideHistoryItem[]> {
     const rows = await this.request<any[]>("GET", "/orders/by-phone/history", { query: { phone, limit: size } });
     return (rows ?? []).map((r) => ({
-      id: r.id,
+      id: this.toOuterId(r.id),
       addressName: r.pickupAddress ?? "",
       status: String(r.status ?? ""),
       carNumber: "",   // B history has no driver join yet (gap — follow-up)

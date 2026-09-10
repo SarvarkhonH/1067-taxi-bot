@@ -5,6 +5,7 @@ export * from "./economy";
 export * from "./clientinfo";
 export * from "./booking";
 export * from "./pickup";
+export * from "./bridgeIds";
 export * from "./format";
 export * from "./types";
 export * from "./inspection";
