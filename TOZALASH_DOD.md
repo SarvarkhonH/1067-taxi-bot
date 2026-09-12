@@ -4,8 +4,53 @@
 kerak … barcha qoldiqlar, eski linklar, eski usullar ketadi». Doira ega tomonidan tasdiqlangan:
 **(1) kod-qoldiqlar** + **(2) bazadagi eski jadvallar**.
 
-> Bu hujjat kod yozishdan OLDIN yozildi (CLAUDE.md DoD qoidasi #2). Ega tasdiqlamaguncha
-> birorta ham qator o'zgartirilmaydi.
+> Bu hujjat kod yozishdan OLDIN yozildi (CLAUDE.md DoD qoidasi #2).
+
+---
+
+## ✅ HOLAT 2026-09-12 — ega «TOZALASH_DOD ochilsin» dedi, qayta o'lchandi
+
+Hujjat 2026-07-29 da yozilgan. Olti hafta o'tgan, shuning uchun **hech narsaga tegmasdan avval
+hammasi qayta o'lchandi**. Natija kutilganidan boshqacha chiqdi:
+
+| Blok | Hujjatda | **Haqiqat (2026-09-12, buyruq bilan)** |
+|---|---|---|
+| **BLOK B** — 20 yetim jadval | «o'chirilishi kerak» | **Allaqachon yo'q.** Yigirmasi ham jonli bazada topilmadi |
+| **A2** — 3 o'lik flag qatori | «o'chirilishi kerak» | **Allaqachon yo'q** (`AppState` da 0 qator) |
+| **A1** — `home.tsx` + `livinghome` | «o'chirilishi kerak» | **Allaqachon yo'q** (`featureFlags.ts:227` buni yozib qoldirgan) |
+| **A3/A4** — yetim model havolalari | «tozalanishi kerak» | **Toza** — `grep` 0 natija; sxema 122 → **102 model** |
+| **Intercity** (tegilmasin) | «qoldiriladi» | **Butun** — `IntercityCity` = 34 qator |
+| **🔴 BLOK 0** — tungi zaxira | «`blockEvent` qo'shilsin» | **HALI BUZUQ, sababi boshqa** — quyiga qarang |
+
+### BLOK 0 — yagona haqiqiy qolgan ish, va u tuzatildi
+
+Hujjat `blockEvent` yetishmayotganini yozgan. Bugungi xato **boshqa**:
+
+```
+❌ backup.ts is out of sync with schema.prisma:
+   missing from backup (data would be LOST): [ 'staffNotice', 'staffNoticeRead', 'staffGoal' ]
+```
+
+Ya'ni iyulda `blockEvent` tuzatilgan, keyin **JAMOA moduli qo'shilganda yana sindi**.
+`/root/backups/` da bironta `snapshot-*.json` **yo'q** — bu qatlam **olti haftadan beri o'lik**
+(pg_dump ishlagan va offsite ketgan, shuning uchun ma'lumot yo'qolmagan).
+
+**Tuzatish — nomlarni qo'shish emas, sinfni yo'q qilish.** Jadval ro'yxati qo'lda yozilardi
+(98 qator), va har yangi model tungi zaxirani sindirardi. Endi ro'yxat **Prisma'ning o'zidan**
+olinadi; sxema sanog'i bilan solishtiriladi (client eskirgan bo'lsa to'xtaydi).
+
+**Jonli isbot:** `✅ 152 339 qator, 102 jadval` · `staffNotice` 1 · `blockEvent` 429 ·
+`coinTxn` 21 700 · `member` 3 478. VPS repo asl holatiga qaytarildi, sinov snapshot o'chirildi.
+
+### A5 — eskirgan hujjat da'volari (tuzatildi)
+
+`ARCHITECTURE.md` da uchta yolg'on bor edi: Phase 3 `KozachaTxn`/`OfisLedger` ni o'chirishga
+ro'yxatlagan (ular allaqachon yo'q edi) · 84 GarajCar «saqlanmoqda» degan (jadval yo'q) ·
+Phase 2 `mahallaService` «o'chirilgan» degan — **u mavjud va `server.ts`/`market.ts` ishlatadi**.
+Oxirgisi eng xavflisi: hujjat jonli kodni «o'chirilgan» desa, keyingi agent uni **rostdan
+o'chiradi**.
+
+**Qolgan:** bu commit `origin`ga push qilinishi kerak (repo A push → CI → jonli deploy), ega tasdig'i bilan.
 
 ---
 

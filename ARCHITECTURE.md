@@ -121,12 +121,17 @@ RESTORED — its code stays.)
 
 Owner decision 2026-07-02: strip all heavy game systems; keep taxi + wallet + light hooks.
 - **Phase 1 (DONE)** — 9 flags off (above). Code still present; rollback = flag on.
-- **Phase 2 (DONE 2026-07-02)** — code strip ~10k LOC: garajService/garageService/tolqinService/
-  mahallaService + ai/concierge deleted; garaj.tsx/garaj.css/tolqin.tsx deleted; all /api/garaj|garage|
+- **Phase 2 (DONE 2026-07-02)** — code strip ~10k LOC: garajService/garageService/tolqinService
+  + ai/concierge deleted; garaj.tsx/garaj.css/tolqin.tsx deleted; all /api/garaj|garage|
   tolqin|mahalla routes + motor-econ/part-event admin routes gone; sweep hooks removed from
   `pushBookingUpdates`; garajGame.ts/garage.ts dropped from shared; garaj/motor test scripts deleted.
   Flag NAMES stay in featureFlags.ts (DB rows exist; setFlag keeps working). `livinghome` was
   RESTORED (kept), not stripped.
+  > Correction 2026-09-12: this line used to say `mahallaService` was deleted with the rest.
+  > It was not. `packages/server/src/services/mahallaService.ts` exists and is imported by
+  > `api/server.ts` and `bot/market.ts` — the shop catalogue depends on it. Only the group
+  > game (`MahallaGroup*`) is gone. A doc that says live code is deleted is how the next
+  > agent deletes it for real.
 - **Phase 2.5 (DONE 2026-07-07)** — owner asked to fully remove Motor Olami/GARAJ v2 (a separate,
   later deep-game track than the Phase-2 v1 strip — built after Phase 2, briefly went live per
   MOTOR_OLAMI_GOLIVE_PLAN.md/GARAJ_PLAN.md, both **kept** — a parallel session reverted an attempt
@@ -138,11 +143,14 @@ Owner decision 2026-07-02: strip all heavy game systems; keep taxi + wallet + li
   deliberately UNTOUCHED (owner decision — see Phase 3 below, unchanged). Other now-stale untracked
   root docs (GARAJ_POLISH_QUEUE.md/.pdf, MOTOR_FUEL_PLAN.md/.pdf, MOTOR_OLAMI_PLAN.md/.pdf,
   GARAJ_PLAN.pdf) were deleted (never committed, so no history lost).
-- **Phase 3** — drop the orphaned Prisma models (16 Garaj\* models + KozachaTxn + OfisLedger +
-  MemberMechanicSkill; NOT `MemberCar`, a separate/older model, still unresolved — do not conflate).
-  Refund policy: NO auto-refund; pay manually if a customer complains. As of 2026-07-07: **84 GarajCar
-  rows across 57 owners**, most recently updated 2026-07-02 — still preserved, no date set for this
-  phase.
+- **Phase 3 (DONE — verified 2026-09-12)** — the orphaned models are gone. Measured against the
+  live database: all 20 tables named in `TOZALASH_DOD.md` §BLOK B return "no such table", the three
+  dead flag rows (`garajx`/`kozacha`/`motorolami`) are gone from `AppState`, and `schema.prisma` is
+  down to **102 models** from 122. `KozachaTxn` and `OfisLedger` were already absent when this line
+  still listed them for removal. The owner's refund policy stands (no auto-refund; pay by hand on a
+  complaint) and the 84 GarajCar rows are recoverable from `pg_dump` if anyone ever asks.
+  Deliberately untouched and re-verified: **Intercity** — `IntercityCity` still holds 34 rows; it is
+  a sleeping feature behind a flag, not a remnant.
 
 ## 8. V-NEXT — "strongest architecture" backlog (do in this order, each is small + isolated)
 

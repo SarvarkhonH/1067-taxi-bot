@@ -1,146 +1,76 @@
 // Portable logical backup: dumps every table to a timestamped JSON snapshot
 // (no pg_dump dependency). Restorable via restore.ts. Run: tsx backup.ts
 //
-// HARDENING-P0.1 — this script is the disaster-recovery path for the Render free-tier Postgres
-// expiry (deadline 2026-07-10). The table list MUST stay in sync with prisma/schema.prisma:
-// every `model Foo {...}` declared there must have a `foo: () => prisma.foo.findMany()` entry
-// below. A missing entry silently loses that table's data. The CI smoke-test below counts the
-// schema's models vs this list and fails if they diverge.
+// HARDENING-P0.1 — the disaster-recovery path alongside pg_dump.
+//
+// The table list USED to be hand-written, one `foo: () => prisma.foo.findMany()`
+// line per model, with a guard that refused to run when it drifted from
+// schema.prisma. The guard worked exactly as designed and the design was wrong:
+// adding a model to the schema broke the nightly backup until someone edited
+// this file, and the failure was a line in a log nobody reads. It happened in
+// July (`blockEvent`) and again in September (the JAMOA tables `staffNotice`,
+// `staffNoticeRead`, `staffGoal`), and between them this layer produced NO
+// snapshot for six weeks while pg_dump carried the whole burden alone.
+//
+// The list is derived now, so a new model is backed up the moment it exists
+// and there is nothing left to forget.
 import "../env";
 import { mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { repoRoot } from "../env";
 
 async function main(): Promise<void> {
   const snapshot: Record<string, unknown[]> = {};
-  // Every model in packages/server/prisma/schema.prisma — alphabetical for review.
-  // To add a model: declare it in schema.prisma + add one line here. CI guard below.
-  const tables = {
-    adContact: () => prisma.adContact.findMany(),
-    adPhoto: () => prisma.adPhoto.findMany(),
-    adReaction: () => prisma.adReaction.findMany(),
-    adView: () => prisma.adView.findMany(),
-    adminAuditLog: () => prisma.adminAuditLog.findMany(),
-    aiKnowledge: () => prisma.aiKnowledge.findMany(),
-    appState: () => prisma.appState.findMany(),
-    blockEvent: () => prisma.blockEvent.findMany(),
-    boxOpen: () => prisma.boxOpen.findMany(),
-    broadcast: () => prisma.broadcast.findMany(),
-    broadcastRecipient: () => prisma.broadcastRecipient.findMany(),
-    cashoutRequest: () => prisma.cashoutRequest.findMany(),
-    categoryDef: () => prisma.categoryDef.findMany(),
-    classifiedAd: () => prisma.classifiedAd.findMany(),
-    coinTxn: () => prisma.coinTxn.findMany(),
-    corpAccount: () => prisma.corpAccount.findMany(),
-    corpEmployee: () => prisma.corpEmployee.findMany(),
-    dailyStat: () => prisma.dailyStat.findMany(),
-    driverCall: () => prisma.driverCall.findMany(),
-    driverDebtPayment: () => prisma.driverDebtPayment.findMany(),
-    driverRecruit: () => prisma.driverRecruit.findMany(),
-    driverSession: () => prisma.driverSession.findMany(),
-    employee: () => prisma.employee.findMany(),
-    familyMember: () => prisma.familyMember.findMany(),
-    foodOrder: () => prisma.foodOrder.findMany(),
-    gap: () => prisma.gap.findMany(),
-    gapMember: () => prisma.gapMember.findMany(),
-    gashtakReward: () => prisma.gashtakReward.findMany(),
-    homeFeatured: () => prisma.homeFeatured.findMany(),
-    intercityBooking: () => prisma.intercityBooking.findMany(),
-    intercityCity: () => prisma.intercityCity.findMany(),
-    intercityCommissionDebt: () => prisma.intercityCommissionDebt.findMany(),
-    intercityDriverEnrollment: () => prisma.intercityDriverEnrollment.findMany(),
-    intercityDriverPenalty: () => prisma.intercityDriverPenalty.findMany(),
-    intercityRefund: () => prisma.intercityRefund.findMany(),
-    intercityRoute: () => prisma.intercityRoute.findMany(),
-    intercityRouteStop: () => prisma.intercityRouteStop.findMany(),
-    intercityTrip: () => prisma.intercityTrip.findMany(),
-    intercityWaitEntry: () => prisma.intercityWaitEntry.findMany(),
-    item: () => prisma.item.findMany(),
-    itemListing: () => prisma.itemListing.findMany(),
-    itemType: () => prisma.itemType.findMany(),
-    leaveRequest: () => prisma.leaveRequest.findMany(),
-    mahalla: () => prisma.mahalla.findMany(),
-    marketDemand: () => prisma.marketDemand.findMany(),
-    marketOrder: () => prisma.marketOrder.findMany(), // V2a — schema-commiti bilan birga commit qilinadi
-    marketShop: () => prisma.marketShop.findMany(),
-    member: () => prisma.member.findMany(),
-    memberAchievement: () => prisma.memberAchievement.findMany(),
-    memberMemory: () => prisma.memberMemory.findMany(),
-    menuItem: () => prisma.menuItem.findMany(),
-    missionProgress: () => prisma.missionProgress.findMany(),
-    notifyLog: () => prisma.notifyLog.findMany(),
-    organization: () => prisma.organization.findMany(),
-    oyinComment: () => prisma.oyinComment.findMany(),
-    peakHour: () => prisma.peakHour.findMany(),
-    platformLedger: () => prisma.platformLedger.findMany(),
-    product: () => prisma.product.findMany(),
-    productFavorite: () => prisma.productFavorite.findMany(),
-    productPhoto: () => prisma.productPhoto.findMany(),
-    productReview: () => prisma.productReview.findMany(),
-    ravellaAddon: () => prisma.ravellaAddon.findMany(),
-    ravellaCategory: () => prisma.ravellaCategory.findMany(),
-    ravellaItem: () => prisma.ravellaItem.findMany(),
-    ravellaItemPhoto: () => prisma.ravellaItemPhoto.findMany(),
-    ravellaOrder: () => prisma.ravellaOrder.findMany(),
-    ravellaStory: () => prisma.ravellaStory.findMany(),
-    ravellaStoryView: () => prisma.ravellaStoryView.findMany(),
-    referral: () => prisma.referral.findMany(),
-    reminder: () => prisma.reminder.findMany(),
-    restaurant: () => prisma.restaurant.findMany(),
-    restaurantReview: () => prisma.restaurantReview.findMany(),
-    rewardGrant: () => prisma.rewardGrant.findMany(),
-    rideGuess: () => prisma.rideGuess.findMany(),
-    rideRating: () => prisma.rideRating.findMany(),
-    rideReward: () => prisma.rideReward.findMany(),
-    scheduledRide: () => prisma.scheduledRide.findMany(),
-    serviceCategory: () => prisma.serviceCategory.findMany(),
-    serviceFavorite: () => prisma.serviceFavorite.findMany(),
-    serviceListing: () => prisma.serviceListing.findMany(),
-    servicePhoto: () => prisma.servicePhoto.findMany(),
-    servicePriceItem: () => prisma.servicePriceItem.findMany(),
-    serviceRequest: () => prisma.serviceRequest.findMany(),
-    serviceReview: () => prisma.serviceReview.findMany(),
-    shiftSwapRequest: () => prisma.shiftSwapRequest.findMany(),
-    shopPurchase: () => prisma.shopPurchase.findMany(),
-    shopStory: () => prisma.shopStory.findMany(),
-    shopStoryView: () => prisma.shopStoryView.findMany(),
-    staffLedger: () => prisma.staffLedger.findMany(),
-    streak: () => prisma.streak.findMany(),
-    supportMsg: () => prisma.supportMsg.findMany(),
-    syncRun: () => prisma.syncRun.findMany(),
-    telegramUser: () => prisma.telegramUser.findMany(),
-    transfer: () => prisma.transfer.findMany(),
-    waitCompReward: () => prisma.waitCompReward.findMany(),
-    weeklyScore: () => prisma.weeklyScore.findMany(),
-    wheelSpin: () => prisma.wheelSpin.findMany(),
-    withdrawal: () => prisma.withdrawal.findMany(),
-    workSession: () => prisma.workSession.findMany(),
-  };
 
-  // ── HARDENING-P0.1 schema-vs-backup-list parity check ────────────────────
-  // Counts `model Foo {` declarations in schema.prisma and compares to the keys above.
-  // A divergence means a new table was added without updating this script → silent data loss.
-  // Throws BEFORE any dump so the operator immediately knows the backup would be incomplete.
+  // Two sources on purpose, because each catches what the other cannot.
+  //
+  // Prisma's own metadata gives the exact delegate name for every model —
+  // guessing it by lower-casing the first letter breaks the day someone
+  // declares `AIThing`, and a backup is the wrong place to be clever.
+  //
+  // schema.prisma gives the count that SHOULD exist. If the generated client
+  // is behind the schema, dmmf silently knows fewer models and a snapshot
+  // taken from it would be short a table without saying so. Comparing the two
+  // is what turns that into a refusal.
+  const modelNames = Prisma.dmmf.datamodel.models
+    .map((m) => m.name.charAt(0).toLowerCase() + m.name.slice(1))
+    .sort();
+
   const schemaPath = resolve(repoRoot, "packages/server/prisma/schema.prisma");
-  const schemaSrc = readFileSync(schemaPath, "utf8");
-  const schemaModels = new Set(
-    [...schemaSrc.matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]!.charAt(0).toLowerCase() + m[1]!.slice(1)),
+  const declared = new Set(
+    [...readFileSync(schemaPath, "utf8").matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]!),
   );
-  const listedTables = new Set(Object.keys(tables));
-  const missing = [...schemaModels].filter((m) => !listedTables.has(m));
-  const extra = [...listedTables].filter((m) => !schemaModels.has(m));
-  if (missing.length || extra.length) {
-    console.error("❌ backup.ts is out of sync with schema.prisma:");
-    if (missing.length) console.error("   missing from backup (data would be LOST):", missing);
-    if (extra.length) console.error("   not in schema (typo or removed model):", extra);
-    console.error(`\n   Update the tables map in this file to include all ${schemaModels.size} models, then re-run.`);
+
+  if (declared.size === 0) {
+    console.error("❌ no models found in schema.prisma — refusing to write an empty snapshot");
+    process.exit(2);
+  }
+  if (declared.size !== modelNames.length) {
+    console.error(
+      `❌ schema.prisma declares ${declared.size} models, the generated client knows ${modelNames.length}.`,
+    );
+    console.error("   Run `prisma generate` — a snapshot now would be missing tables.");
+    process.exit(2);
+  }
+  const schemaModels = modelNames;
+
+  // A delegate has to exist and be callable for every model. If one does not,
+  // the client is out of date (`prisma generate` not run) and a snapshot taken
+  // now would be silently short a table — the exact failure this file exists
+  // to prevent.
+  const client = prisma as unknown as Record<string, { findMany?: () => Promise<unknown[]> }>;
+  const unusable = schemaModels.filter((m) => typeof client[m]?.findMany !== "function");
+  if (unusable.length) {
+    console.error("❌ the Prisma client has no delegate for:", unusable);
+    console.error("   Run `prisma generate` — the client is behind schema.prisma.");
     process.exit(2);
   }
 
   let total = 0;
-  for (const [name, fn] of Object.entries(tables)) {
-    const rows = await fn();
+  for (const name of schemaModels) {
+    const rows = await client[name]!.findMany!();
     snapshot[name] = rows;
     total += rows.length;
     console.log(`  ${name}: ${rows.length}`);
@@ -153,12 +83,12 @@ async function main(): Promise<void> {
   // BigInt columns (tgId/ownerTgId in xizmatlar-reviews) serialize as strings — a restore must
   // coerce them back per-column from schema.prisma; plain JSON.stringify throws on BigInt.
   const json = JSON.stringify(
-    { at: stamp, total, schemaModelCount: schemaModels.size, tables: snapshot },
+    { at: stamp, total, schemaModelCount: schemaModels.length, tables: snapshot },
     (_k, v: unknown) => (typeof v === "bigint" ? v.toString() : v),
     0,
   );
   writeFileSync(file, json);
-  console.log(`\n✅ ${total} rows across ${Object.keys(tables).length}/${schemaModels.size} tables → ${file}`);
+  console.log(`\n✅ ${total} rows across ${schemaModels.length} tables → ${file}`);
   await prisma.$disconnect();
 }
 
