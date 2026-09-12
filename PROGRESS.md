@@ -6718,3 +6718,67 @@ farq bo'lsa ALERT beradi.
 
 **Ochiq qolgan 3 gap ataylab ochiq** — ular ega bugun so'ragan ishning ichida emas, lekin
 yashirilmayapti (R8: qisman = qisman deb aytiladi).
+
+---
+
+## 2026-09-12 — 🧹 TOZALASH_DOD ochildi: zaxiraning yarmi olti haftadan beri o'lik edi
+
+**Ega:** «TOZALASH_DOD ochilsin». Hujjat 2026-07-29 da yozilgan — olti hafta oldin, shuning uchun
+**hech narsaga tegmasdan avval hammasi qayta o'lchandi**. To'g'ri qaror bo'ldi: rejadagi ishning
+katta qismi allaqachon bajarilgan ekan, va hujjatda **yo'q** bitta narsa buzuq turgan ekan.
+
+### Qayta o'lchov — reja vs haqiqat
+
+| Blok | Hujjatda | Haqiqat (buyruq bilan, 2026-09-12) |
+|---|---|---|
+| BLOK B — 20 yetim jadval | «o'chirilsin» | **yigirmasi ham yo'q** |
+| A2 — 3 o'lik flag qatori | «o'chirilsin» | **yo'q** (`AppState` da 0) |
+| A1 — `home.tsx` + `livinghome` | «o'chirilsin» | **yo'q** · jonli `/api/me` javobida kalit yo'q |
+| A3/A4 — yetim model havolalari | «tozalansin» | **toza** · sxema 122 → **102 model** |
+| Intercity (tegilmasin) | «qoldirilsin» | **butun** — `IntercityCity` = 34 |
+| 🔴 BLOK 0 — tungi zaxira | «`blockEvent` qo'shilsin» | **hali buzuq, sababi BOSHQA** |
+
+### BLOK 0 — yagona haqiqiy ish
+
+`blockEvent` iyulda tuzatilgan; zaxira **JAMOA moduli qo'shilganda yana singan**
+(`staffNotice`, `staffNoticeRead`, `staffGoal`). `/root/backups/` da bironta `snapshot-*.json`
+**yo'q edi** — JSON qatlami **olti haftadan beri o'lik**. pg_dump ishlagan va offsite ketgan,
+shuning uchun ma'lumot yo'qolmagan, lekin ikki qatlamning biri yo'q edi.
+
+**Tuzatish — uch nom qo'shish emas.** Jadval ro'yxati qo'lda yozilardi (98 qator) va qorovul
+mos kelmasa zaxirani **butunlay to'xtatardi**. Qorovul to'g'ri ishlagan, **dizayn noto'g'ri** edi:
+har yangi model tungi zaxirani sindiradi, xato esa hech kim o'qimaydigan logda qoladi. Olti
+haftada ikki marta shunday bo'ldi. Endi ro'yxat **Prisma metama'lumotidan** olinadi (nomni
+taxmin qilmaydi — `AIThing` kabi nomda ham to'g'ri), sanoq `schema.prisma` bilan solishtiriladi
+(client eskirsa **kam jadvalli snapshot yozilmaydi**, to'xtaydi).
+
+### A5 — `ARCHITECTURE.md` da uchta yolg'on da'vo
+
+Phase 3 `KozachaTxn`/`OfisLedger` ni o'chirishga ro'yxatlagan — ular allaqachon yo'q edi ·
+«84 GarajCar saqlanmoqda» — jadval yo'q · **Phase 2 `mahallaService` «o'chirilgan» degan — u
+mavjud va `api/server.ts` bilan `bot/market.ts` ishlatadi**, do'kon katalogi unga bog'liq.
+Oxirgisi eng xavflisi: hujjat jonli kodni «o'chirilgan» desa, keyingi agent uni rostdan o'chiradi.
+
+### DoD — 10 mezondan 10 tasi
+
+| # | Mezon | Isbot |
+|---|---|---|
+| 1 | Zaxiraning **ikkala** qatlami | `bash deploy/backup-cron.sh` → `✅ 152 339 qator, 102 jadval` · `pg=12M json=35M` · offsite 23MB ketdi · alert yo'q |
+| 2 | 4 paket typecheck | `pnpm -r typecheck` → **4/4 Done** |
+| 3 | Pul-matematikasi | shared **211/211** · simEconomy «≤350 BUZILMAS» · simLoyalty 17.1% < 30% · simGuards to'liq |
+| 4 | Yetim modelga havola 0 | `grep` → bo'sh |
+| 5 | 3 o'lik flag qatori yo'q | jonli SQL → 0 qator |
+| 6 | `home.tsx` va `livinghome` yo'q | fayl yo'q · jonli `/api/me` da kalit yo'q |
+| 7 | 20 jadval yo'q | jonli: yigirmasi ham «jadval yo'q» |
+| 8 | Jonli tizim buzilmagan | `/health` `{"ok":true,"mode":"live","bot":true,"db":"up"}` · deploydan keyin `journalctl -p err` → **No entries** |
+| 9 | Intercity butun | `IntercityCity` = **34** |
+| 10 | PROGRESS literal haqiqat | shu yozuv |
+
+**Deploy:** `15594f89`, CI yashil, 30 soniyada tushdi. Push'da olti commit ketdi — to'rttasi
+oldingi sessiyalardan (`c66e110f` kas-eksport skripti · `204df96b` ko'prik id'lari va
+`KAS_MODE=birjoy` rad etilishi · `3741795c` PROGRESS · `47701158` admin relink xavfsizligi).
+Ularning eng nozigi `204df96b` — jonli `KAS_MODE="live"` bo'lgani uchun o'sha tarmoq olinmaydi,
+ya'ni u faqat himoya qo'shadi.
+
+**Qolgan (yashirilmayapti):** bot tokenini almashtirish (ega: «oxirida») · `booking.tsx` va
+Intercity ataylab qoldirildi (ega qarori 2026-07-29).
