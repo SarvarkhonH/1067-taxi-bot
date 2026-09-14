@@ -196,3 +196,37 @@ describe("the cutover rehearsal writes nothing", () => {
     expect(src).toContain("fetchMembers");
   });
 });
+
+describe("the address catalog is not lost to an empty answer", () => {
+  const client = () =>
+    fs.readFileSync(path.join(__dirname, "..", "..", "..", "server", "src", "kas", "client.ts"), "utf8");
+
+  function getAllAddressesBody(): string {
+    const src = client();
+    const from = src.indexOf("async getAllAddresses(");
+    expect(from).toBeGreaterThan(-1);
+    const rest = src.slice(from + 1);
+    const next = rest.search(/\n {2}(?:private )?(?:async )?\w+\(/);
+    return rest.slice(0, next < 0 ? 2500 : next);
+  }
+
+  it("uses the shared rule rather than its own", () => {
+    // The pure function is tested; this is what makes the tested thing the
+    // thing that runs. Without it the rule can be reverted here and every test
+    // stays green — which is exactly what happened when this was checked.
+    expect(getAllAddressesBody()).toContain("chooseCatalog(");
+  });
+
+  it("only caches an answer that has something in it", () => {
+    expect(getAllAddressesBody()).toContain("if (rows.length)");
+  });
+
+  it("says so when the source answers with nothing", () => {
+    // Shadow mode found this one; the log is what makes the NEXT one findable
+    // without it. A silent empty catalog looks exactly like a town with no
+    // addresses in it.
+    const body = getAllAddressesBody();
+    expect(body).toContain("console.warn");
+    expect(body.toLowerCase()).toContain("0 addresses");
+  });
+});

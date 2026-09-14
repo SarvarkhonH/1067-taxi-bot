@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareShadow, BY_DESIGN, ProblemLog, SHAPE_CAP } from "../shadowCompare";
+import { compareShadow, BY_DESIGN, ProblemLog, SHAPE_CAP, chooseCatalog } from "../shadowCompare";
 
 // --- Why this file exists ----------------------------------------------------
 //
@@ -175,5 +175,36 @@ describe("a finding is printed once, not every five seconds", () => {
     log.fresh("getTariff", ["minimalPayment: live=8000 shadow=9500"]);
     log.fresh("getTariff", ["minimalPayment: live=8000 shadow=9500"]);
     expect(log.distinct).toBe(1);
+  });
+});
+
+describe("an empty answer never replaces a good one", () => {
+  it("serves what was fetched when it has something in it", () => {
+    const { rows, servedStale } = chooseCatalog([1, 2, 3], [9]);
+    expect(rows).toEqual([1, 2, 3]);
+    expect(servedStale).toBe(false);
+  });
+
+  it("falls back to the cache when the source answers with nothing", () => {
+    // The live failure: kas answered with zero addresses fourteen times out of
+    // fourteen while a good copy sat in the cache, unused, because the code
+    // only looked at it when the request THREW.
+    const { rows, servedStale } = chooseCatalog([], [1, 2, 3]);
+    expect(rows).toEqual([1, 2, 3]);
+    expect(servedStale).toBe(true);
+  });
+
+  it("does not claim to have served stale when there was none", () => {
+    // First call after a restart, source empty: nothing to fall back to, and
+    // nothing to warn about either — the warning is for a catalog we LOST.
+    const { rows, servedStale } = chooseCatalog([], undefined);
+    expect(rows).toEqual([]);
+    expect(servedStale).toBe(false);
+  });
+
+  it("is not newest-wins", () => {
+    // Stated as its own case because that is the rule somebody would reach for
+    // when changing this, and it is exactly the bug.
+    expect(chooseCatalog([], [1]).rows).toEqual([1]);
   });
 });

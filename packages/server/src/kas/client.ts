@@ -24,6 +24,7 @@ import type {
   SavedAddress,
 } from "./types";
 import type { MemberType } from "@t1067/shared";
+import { chooseCatalog } from "@t1067/shared";
 import { recordKas, classifyKasError } from "../services/kasHealth";
 
 // ─── kas booking status normalization ────────────────────────────────────────
@@ -493,8 +494,30 @@ export class KasLiveSource implements KasDataSource {
     try {
       const data = await this.getJson("api/addresses/");
       const rows = mapAddresses(data);
-      if (rows.length) this.allAddrCache = { at: Date.now(), rows };
-      return rows;
+      if (rows.length) {
+        this.allAddrCache = { at: Date.now(), rows };
+        return rows;
+      }
+      // kas ANSWERED, and said there are no addresses in the town.
+      //
+      // Shadow mode caught this on 2026-09-14: fourteen comparisons out of
+      // fourteen, kas 0 places and the taxi core 112 — and nothing threw, so
+      // every customer typing an address got an empty catalog while a good copy
+      // sat in the cache below, untouched, because the old code only looked at
+      // it when the request FAILED. The catalog is half of how a typed address
+      // resolves; the other half is a narrow list that, in this file's own
+      // words, "MISSES many real places".
+      //
+      // An answer of zero from a source that has always had about a hundred and
+      // eleven is not news about the town.
+      const { rows: served, servedStale } = chooseCatalog(rows, this.allAddrCache?.rows);
+      console.warn(
+        `[kas] api/addresses/ answered with 0 addresses (shape: ${Array.isArray(data) ? "array" : typeof data}` +
+        `${!Array.isArray(data) && data ? ", keys: " + Object.keys(data).slice(0, 5).join(",") : ""}) — ` +
+        (servedStale ? `serving ${served.length} cached` : "and nothing cached to fall back on") +
+        ". Typed address search is degraded.",
+      );
+      return served;
     } catch {
       return this.allAddrCache?.rows ?? []; // serve stale on a transient error rather than nothing
     }
