@@ -193,7 +193,38 @@ export class BirJoySource implements KasDataSource {
     };
   }
 
-  listActiveBookings(): Promise<ActiveBookingLite[]> { return this.notImpl("listActiveBookings"); }
+  /**
+   * Every live booking at once — what the status sweep runs on.
+   *
+   * One call, not one per passenger: the sweep asks what changed about all of
+   * them on a timer, and doing that per phone is how a background job becomes
+   * the reason the bot is slow.
+   *
+   * `clientBonus` is 0 here on purpose. In kas it is the passenger's cashback
+   * balance, which travels with the booking; ours is tanga and lives in A's own
+   * ledger, so the caller reads it from there. Returning a made-up number would
+   * put a wrong balance on a live card.
+   *
+   * The three-way additional payment is one column in B, so it is reported as
+   * the address share and the other two are left at 0 rather than split by
+   * guesswork (KAS_PARITET §3.1).
+   */
+  async listActiveBookings(): Promise<ActiveBookingLite[]> {
+    const rows = await this.request<any[]>("GET", "/orders/active-lite");
+    return (rows ?? []).map((r) => ({
+      id:          this.toOuterId(r.id),
+      phoneNorm:   String(r.phoneNorm ?? ""),
+      status:      String(r.status ?? ""),
+      carNumber:   r.carNumber ?? "",
+      addressName: r.addressName ?? "",
+      clientBonus: 0,
+      lat:         r.lat != null ? Number(r.lat) : undefined,
+      lng:         r.lng != null ? Number(r.lng) : undefined,
+      additionalPaymentAddress: Number(r.additionalPayment ?? 0),
+      additionalPaymentClient:  0,
+      additionalPaymentCompany: 0,
+    }));
+  }
 
   async getRideHistory(phone: string, size?: number, _page?: number): Promise<RideHistoryItem[]> {
     const rows = await this.request<any[]>("GET", "/orders/by-phone/history", { query: { phone, limit: size } });
@@ -233,8 +264,106 @@ export class BirJoySource implements KasDataSource {
   getServiceArea(): Promise<GeoPoint[]> { return this.notImpl("getServiceArea"); }
   getMainReport(): Promise<KasMainReport> { return this.notImpl("getMainReport"); }
 
-  // ── 5c: tanga methods — resolve inside A (coinService), not B ──────────────
-  setClientBonus(_phone: string, _newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }> { return this.notImpl("setClientBonus"); }
-  addClientBonus(_phone: string, _delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }> { return this.notImpl("addClientBonus"); }
-  getBonusRules(): Promise<BonusRules> { return this.notImpl("getBonusRules"); }
+  // ── 5c: tanga methods — resolve inside A, not over HTTP ───────────────────
+  //
+  // These three are the exception to the whole design of this class. Everything
+  // else here maps a kas call onto the taxi core (B); the passenger's balance
+  // does not live in B and never will. In kas it is cashback in so'm; here it is
+  // tanga, in A's own ledger, which the owner settled on 2026-09-12: "BirJoy'da
+  // bor-ku, ikkalasi bitta deb bil."
+  //
+  // So they resolve against coinService, and the ledger rules hold: no raw
+  // balance write, ever. Every movement is a CoinTxn with a reason, because a
+  // balance that changed with no row behind it is the one thing nobody can
+  // audit afterwards (CLAUDE.md).
+  //
+  // Imported lazily so this file stays inert while KAS_MODE !== "birjoy" — the
+  // same reason the class is never constructed.
+
+  /** Phone → member, the way A matches everywhere else: last 9 digits. */
+  private async memberByPhone(phone: string) {
+    const { prisma } = await import("../db");
+    const last9 = String(phone ?? "").replace(/\D/g, "").slice(-9);
+    if (last9.length !== 9) return null;
+    return prisma.member.findFirst({
+      where: { phone: { endsWith: last9 } },
+      select: { id: true, fullName: true, coins: true },
+    });
+  }
+
+  /**
+   * Set a passenger's balance to an absolute figure.
+   *
+   * kas writes the number straight in. We compute the difference and move it
+   * through the ledger, which has a property worth having: setting the same
+   * figure twice is a no-op, because the second delta is zero. A retry after a
+   * timeout cannot double-credit anybody.
+   */
+  async setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }> {
+    const m = await this.memberByPhone(phone);
+    if (!m) return { ok: false, oldBonus: 0, status: 404 };
+
+    const target = Math.floor(Number(newBonus));
+    if (!Number.isFinite(target) || target < 0) return { ok: false, oldBonus: m.coins, name: m.fullName, status: 400 };
+
+    const delta = target - m.coins;
+    if (delta === 0) return { ok: true, oldBonus: m.coins, name: m.fullName };
+
+    const { grantCoins, spendCoins } = await import("../services/coinService");
+    const res = delta > 0
+      ? await grantCoins(m.id, delta, "bridge_set", `kas setClientBonus → ${target}`)
+      : await spendCoins(m.id, -delta, "bridge_set", `kas setClientBonus → ${target}`);
+
+    return { ok: res.ok, oldBonus: m.coins, name: m.fullName, status: res.ok ? 200 : 409 };
+  }
+
+  /**
+   * Move a passenger's balance by a delta.
+   *
+   * Not idempotent, and kas's is not either: two calls add twice, by design.
+   * The caller owns the retry question.
+   */
+  async addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }> {
+    const m = await this.memberByPhone(phone);
+    if (!m) return { ok: false, oldBonus: 0, newBonus: 0, status: 404 };
+
+    const amount = Math.floor(Number(delta));
+    if (!Number.isFinite(amount) || amount === 0) {
+      return { ok: false, oldBonus: m.coins, newBonus: m.coins, status: 400 };
+    }
+
+    const { grantCoins, spendCoins } = await import("../services/coinService");
+    const res = amount > 0
+      ? await grantCoins(m.id, amount, "bridge_add", "kas addClientBonus")
+      : await spendCoins(m.id, -amount, "bridge_add", "kas addClientBonus");
+
+    return { ok: res.ok, oldBonus: m.coins, newBonus: res.balance, status: res.ok ? 200 : 409 };
+  }
+
+  /**
+   * The cashback rules, in kas's shape, from A's own economy knobs.
+   *
+   * Two fields are answered honestly rather than invented:
+   *
+   *   call vs app — kas pays a different rate for a booking made in the app
+   *     than for one made by phone, and that difference is one of its real
+   *     levers on the 10.6% app share. We do not have it: one rate, both
+   *     channels. Returning two different numbers here would be a number
+   *     nothing in our code honours.
+   *   minimalDistance — kas refuses cashback below a distance. We have no such
+   *     rule, so this is 0, which is what our engine actually does.
+   */
+  async getBonusRules(): Promise<BonusRules> {
+    const { getBonusEcon } = await import("../services/bonusConfig");
+    const econ = await getBonusEcon();
+    const perRide = Number(econ.rideBase ?? 0);
+    return {
+      enabled: perRide > 0,
+      clientBonusCall: perRide,
+      clientBonusApp: perRide,          // no channel split exists yet — see above
+      clientBonusCallFirstTime: Number(econ.firstRide ?? 0),
+      clientBonusAppFirstTime: Number(econ.firstRide ?? 0),
+      clientBonusMinimalDistance: 0,    // no minimum distance rule in our engine
+    };
+  }
 }
