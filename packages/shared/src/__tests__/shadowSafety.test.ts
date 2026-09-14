@@ -230,3 +230,51 @@ describe("the address catalog is not lost to an empty answer", () => {
     expect(body.toLowerCase()).toContain("0 addresses");
   });
 });
+
+describe("the address catalog survives a restart", () => {
+  const service = () =>
+    fs.readFileSync(
+      path.join(__dirname, "..", "..", "..", "server", "src", "services", "addressCatalog.ts"),
+      "utf8",
+    );
+
+  it("keeps the last good copy where a restart cannot reach it", () => {
+    // The real cause, found by chasing the shadow finding: kas rate-limits our
+    // login (429), so after a deploy the client cannot fetch and its in-memory
+    // cache is cold. The bot restarts on every deploy. A hundred and eleven
+    // street names must not depend on a login.
+    const src = service();
+    expect(src).toContain("prisma.appState");
+    expect(src).toContain("upsert");
+  });
+
+  it("prefers the live list, and only falls back when it is empty", () => {
+    // Inside the function body, not the whole file: loadSaved is DEFINED above
+    // it, and an earlier version of this test read that definition as the call
+    // and failed for the wrong reason.
+    const src = service();
+    const from = src.indexOf("export async function getAddressCatalog");
+    expect(from).toBeGreaterThan(-1);
+    const body = src.slice(from);
+    const live = body.indexOf("live.length > 0");
+    const saved = body.indexOf("await loadSaved()");
+    expect(live).toBeGreaterThan(-1);
+    expect(saved).toBeGreaterThan(live);
+  });
+
+  it("is what the bot actually asks", () => {
+    // The durable copy is worth nothing if the booking flow still goes straight
+    // to kas — which is what it did until 2026-09-14.
+    const booking = fs.readFileSync(
+      path.join(__dirname, "..", "..", "..", "server", "src", "bot", "booking.ts"),
+      "utf8",
+    );
+    expect(booking).toContain("getAddressCatalog()");
+    expect(booking).not.toContain("ds.getAllAddresses()");
+  });
+
+  it("says when it is serving a saved copy", () => {
+    // Working-but-not-refreshing is a state somebody has to be able to see.
+    expect(service()).toContain("console.warn");
+  });
+});

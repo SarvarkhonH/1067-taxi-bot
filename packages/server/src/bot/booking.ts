@@ -10,7 +10,8 @@ import { getDataSource, type ActiveBooking, type SavedAddress } from "../kas";
 import { getMe, getMemberId } from "../services/memberService";
 import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, claimDispatchSlot, getActiveBookingFor, getQuickPickup, releaseDispatchSlot, rememberPickup } from "../services/bookingService";
-import { getAddressAliases } from "../services/addressAlias";
+import { getAddressAliases } from "../services/addressAlias";
+import { getAddressCatalog } from "../services/addressCatalog";
 
 interface BookingSession {
   awaitingText: boolean;
@@ -146,7 +147,10 @@ async function resolveAddresses(query: string): Promise<SavedAddress[]> {
   const ds = getDataSource();
   const [byName, catalog] = await Promise.all([
     ds.searchAddresses(query).catch(() => [] as SavedAddress[]),
-    ds.getAllAddresses().catch(() => [] as SavedAddress[]),
+    // Through the catalogue service, not straight to kas: kas rate-limits our
+    // login, and after a restart it answers with zero places. Shadow mode caught
+    // customers searching half a catalogue because of it. See addressCatalog.ts.
+    getAddressCatalog().catch(() => [] as SavedAddress[]),
   ]);
   const q = normAddr(query);
   const sub =
