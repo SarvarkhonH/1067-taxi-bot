@@ -50,11 +50,11 @@ va ular 1956 safar tashiyapti, biz **0 ta to'lovli safar**.
 | Zaxira / tiklash | ✅ | Tungi, shifrlangan, tiklash isbotlangan; **skanlar bugun qo'shildi** |
 | Onlayn vaqt o'lchovi | ✅ | |
 | Qo'ng'iroq natijasi | ✅ | |
-| **kas'dan chiqish ko'prigi (27/27)** | ❌ **8/27** | `packages/server/src/kas/birjoy.ts` — 19 ta `notImpl`; `KAS_MODE=birjoy` **boot'da rad etiladi** |
+| **kas'dan chiqish ko'prigi (27/27)** | 🟡 **27/27 kod, 0 kun tekshiruv** | `packages/server/src/kas/birjoy.ts` — stub qolmadi (2026-09-14). `KAS_MODE=birjoy` hamon **boot'da rad etiladi**: kod to'liq ≠ ishonchli. Soya rejimi 2026-09-14 15:23 da yoqildi |
 | Buzilganda qo'ng'iroq qiladigan odam | ❌ | Tashkiliy |
 
-**Cutover kunida eng og'rig'i uchtasi:** ko'prik (19 stub) · cashback hamyoni (umuman yo'q) ·
-telefon kanali (CTI + yo'lovchiga SMS).
+**Cutover kunida eng og'rig'i uchtasi:** ko'prikning **tekshiruvi** (kod bor, isbot yo'q) ·
+cashback hamyoni (umuman yo'q) · telefon kanali (CTI + yo'lovchiga SMS).
 
 **Biz kas'dan oldinda:** FCM push · HTTPS + domen · paneldan jonli tarif · taklif logi va
 «rad ≠ javob bermadi» KPI'si · manzilsiz server taksometri · oflayn amal navbati · ilova ichida
@@ -67,9 +67,9 @@ qutqaruv navbati, ta'minot-qayta-urinishi, to'lqin, zona FIFO (oxirgi ikkitasi q
 
 | # | Ish | Kun | Qayerda |
 |---|---|---|---|
-| K-A | **`BirJoySource` 19 ta stub** — kas'dan chiqishning yagona yo'li | 8–12 | `packages/server/src/kas/birjoy.ts:165-239` |
+| ~~K-A~~ | ~~**`BirJoySource` 19 ta stub**~~ → **27/27 yozildi 2026-09-14**. Qolgani kod emas, **vaqt**: 7 kunlik soya taqqoslovi (G6) | 0 | `packages/server/src/kas/birjoy.ts` |
 | K-B | **Mijoz cashback hamyoni** (ustun + ledger + route) | 5 | Yo'q; ko'prikning 3 metodini ochadi |
-| K-C | **Soya rejimi** (G6) | 4 | Umuman yo'q |
+| K-C | **Soya rejimi** (G6) | 0 kod / **7 kun kalendar** | Qurildi va **jonli yoqildi 2026-09-14 15:23** (`KAS_SHADOW_ENABLED=1`, har 3-o'qish). Qolgani — kutish va hisobotni o'qish |
 | K-D | `in_progress` ni qayta biriktirish | 1 | `operator.service.ts` — safar o'rtasida mashina almashtirish **pulni bo'lish** masalasi |
 | K-E | Komissiya pog'onasi paneldan | 1 | Tarif naqshini takrorlash |
 | K-F | Versiya chegarasi DB'dan (hozir env) | 1 | `drivers.service.ts` |
@@ -83,7 +83,8 @@ qutqaruv navbati, ta'minot-qayta-urinishi, to'lqin, zona FIFO (oxirgi ikkitasi q
 | K-N | Kotlin testlari: `BootReceiver`, tanaffus | 1 | Hozir 24 ta test, 4 fayl |
 | K-O | Rol jadvali skanerda to'liq emas (7 fragment) | 0.5 | `staff-routes.spec.ts` |
 
-**Jami ≈ 29 muhandis-kun**, shundan **ko'prik + hamyon = 17 kun** (kas'dan chiqish uchun).
+**Jami ≈ 17 muhandis-kun** (K-A 12 kun va K-C 4 kun 2026-09-14 da yopildi), shundan
+**hamyon = 5 kun** (kas'dan chiqish uchun) + **7 kun kalendar** soya taqqoslovi.
 
 ---
 
@@ -131,7 +132,21 @@ qutqaruv navbati, ta'minot-qayta-urinishi, to'lqin, zona FIFO (oxirgi ikkitasi q
 | **G3** yetkazish | 🟡 | FCM, overlay, qo'lda biriktirish, «Band», boot — hammasi kodda ✅. Qolgani: **C3/C4 telefonda** + `in_progress` qayta biriktirish |
 | **G4** pilot | ⬜ | **E2 (5 haydovchi)** — kodsiz to'siq |
 | **G5** ta'minot hujumi | ⬜ | FIFO va to'lqin **qurilgan, qorong'i**; E1 kerak; komissiya paneli (K-E) |
-| **G6** kanal + uzilish | ⬜ | Ko'prik 8/27 · hamyon yo'q · soya rejimi yo'q |
+| **G6** kanal + uzilish | 🟡 | Ko'prik 27/27 · **soya rejimi ishlamoqda (boshlandi 2026-09-14)** · hamyon yo'q |
+
+### Soya rejimini o'qish (G6)
+
+Jonli bot 2026-09-14 15:23 dan beri **ikkala manbadan** so'rayapti: javob har doim kas1067 niki,
+har 3-o'qish esa `1067-taxi` ga ham yuboriladi va taqqoslanadi. **Yozuvlar ikkilanmaydi.**
+
+```
+ssh root@169.58.55.249 'journalctl -u bot1067 --since "7 days ago" | grep "\[shadow\] SUMMARY" | tail -1'   # umumiy hisob
+ssh root@169.58.55.249 'journalctl -u bot1067 --since "7 days ago" | grep "\[shadow\] NEW"'                  # har xil farq — har biri BIR MARTA
+```
+
+`NEW` qatorlari qisqa bo'lishi kerak: har farq shakli bir marta yoziladi, takrorlari
+yarim soatlik `SUMMARY` da faqat sanaladi. O'chirish: `/opt/app/.env` dagi `KAS_SHADOW_*`
+uch satrini olib tashlab `systemctl restart bot1067` (zaxira: `.env.bak.shadow.*`).
 
 ---
 

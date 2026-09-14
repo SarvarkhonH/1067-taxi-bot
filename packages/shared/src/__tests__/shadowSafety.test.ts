@@ -100,3 +100,24 @@ describe("shadow mode cannot change an answer", () => {
     expect(read("shadow.ts")).toContain("withTimeout");
   });
 });
+
+describe("a shadow run that never ran must not look like a clean one", () => {
+  it("says something the first time a method is compared, agreement included", () => {
+    // Agreement is silent by design — but so is a method nobody calls, a URL
+    // that 404s, and a sample rate that never comes round. If the only line
+    // ever printed is a disagreement, those four are indistinguishable, and
+    // "the two sources agree" is the one conclusion this exercise must earn
+    // rather than assume. So the first comparison is logged BEFORE the
+    // agreement early-exit.
+    const src = read("shadow.ts");
+    const firstLog = src.indexOf("[shadow] FIRST");
+    const okReturn = src.indexOf("if (diff.ok) return;");
+    expect(firstLog).toBeGreaterThan(-1);
+    expect(okReturn).toBeGreaterThan(-1);
+    expect(firstLog).toBeLessThan(okReturn);
+  });
+
+  it("does not read an empty summary as a good week", () => {
+    expect(read("shadow.ts")).toContain("NOTHING COMPARED YET");
+  });
+});

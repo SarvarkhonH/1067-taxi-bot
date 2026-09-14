@@ -70,7 +70,21 @@ export class ShadowRecorder {
 
   record(diff: ShadowDiff): void {
     const m = (this.stats.methods[diff.method] ??= { compared: 0, differed: 0 });
+    const first = m.compared === 0;
     m.compared++;
+
+    // The first comparison of a method says so EITHER WAY, once, forever.
+    //
+    // Without this, agreement is silent and so is a shadow that never ran — a
+    // method nobody calls, a URL that 404s, a sample rate that never comes
+    // round. Those look identical to "the two sources agree", which is the one
+    // conclusion this whole exercise exists to earn rather than assume.
+    if (first) {
+      console.warn(
+        `[shadow] FIRST ${diff.method}: ${diff.ok ? "agreed" : "DIFFERS"} ` +
+        `(${diff.checked} fields checked${diff.expected.length ? `, ${diff.expected.length} expected difference(s)` : ""})`,
+      );
+    }
     if (diff.ok) return;
 
     m.differed++;
@@ -122,7 +136,16 @@ export const shadowRecorder = new ShadowRecorder();
 export function startShadowSummaryLog(everyMs = 30 * 60 * 1000): void {
   const t = setInterval(() => {
     const rows = shadowRecorder.summary();
-    if (rows.length === 0) return;
+    if (rows.length === 0) {
+      // Nothing compared is a finding, not a reason to stay quiet: it means the
+      // bot never asked either source anything shadowable, and a week of that
+      // would otherwise read as a clean run.
+      console.warn(
+        `[shadow] SUMMARY since ${shadowRecorder.stats.startedAt}: NOTHING COMPARED YET — ` +
+        "no shadowable read has been made. Either the bot is idle, or shadow mode is not on the path it uses.",
+      );
+      return;
+    }
     const total = rows.reduce((n, r) => n + r.compared, 0);
     const bad = rows.reduce((n, r) => n + r.differed, 0);
     console.warn(
