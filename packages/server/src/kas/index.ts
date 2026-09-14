@@ -22,7 +22,7 @@ export function getDataSource(): KasDataSource {
       maxPages: Number(process.env.KAS_MAX_PAGES) || undefined,
     });
   } else if (env.KAS_MODE === "birjoy") {
-    // ⚠️ BirJoySource is INCOMPLETE — 15 of 27 KasDataSource methods still
+    // ⚠️ BirJoySource is INCOMPLETE — 12 of 27 KasDataSource methods still
     // reject with "not implemented yet". Selecting this mode today still takes
     // down driver-debt repayment and the obzvon roster, because both call a
     // stubbed method and get a rejected promise.
@@ -40,15 +40,15 @@ export function getDataSource(): KasDataSource {
     const forced = String(process.env.KAS_BIRJOY_FORCE ?? "").trim();
     if (forced !== "1" && forced.toLowerCase() !== "true") {
       throw new Error(
-        "KAS_MODE=birjoy refused: BirJoySource still has 15 unimplemented methods " +
-        "(addDriverPayment, cancelBooking, checkClient, fetchByPhone, fetchMembers, " +
-        "getCompanyInfo, getDriverAccount, getDriverPins, getMainReport, getReportsPage, " +
-        "getRidesByCar, getServiceArea, getTariff, listDriverRoster, setClientName). " +
+        "KAS_MODE=birjoy refused: BirJoySource still has 12 unimplemented methods " +
+        "(addDriverPayment, fetchByPhone, fetchMembers, getCompanyInfo, " +
+        "getDriverAccount, getDriverPins, getMainReport, getReportsPage, " +
+        "getRidesByCar, getServiceArea, getTariff, listDriverRoster). " +
         "Switching now breaks driver-debt repayment and the obzvon roster. " +
         "Finish F1-bridge Slice 5b first, or set KAS_BIRJOY_FORCE=1 to override.",
       );
     }
-    console.warn("[kas] ⚠️ KAS_MODE=birjoy FORCED — 15 methods are stubs; expect failures.");
+    console.warn("[kas] ⚠️ KAS_MODE=birjoy FORCED — 12 methods are stubs; expect failures.");
     cached = new BirJoySource({
       baseUrl: env.KAS_BIRJOY_URL,
       serviceToken: env.KAS_SERVICE_TOKEN,

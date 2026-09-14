@@ -164,8 +164,46 @@ export class BirJoySource implements KasDataSource {
   // ── 5b (remaining) / 5c: stubbed ──────────────────────────────────────────
   fetchMembers(): Promise<KasMember[]> { return this.notImpl("fetchMembers"); }
   fetchByPhone(_phone: string, _only?: MemberType): Promise<KasMember[]> { return this.notImpl("fetchByPhone"); }
-  checkClient(_phone: string): Promise<ClientBookingInfo | null> { return this.notImpl("checkClient"); }
-  cancelBooking(_bookingId: number): Promise<BookingResult> { return this.notImpl("cancelBooking"); }
+  /**
+   * Who is calling — name, the addresses they use, and whether a car is
+   * already on its way.
+   *
+   * `null` for an unknown number rather than an empty record: the operator has
+   * to be able to tell a new caller from a known one with nothing saved, and
+   * those are different first sentences.
+   */
+  async checkClient(phone: string): Promise<ClientBookingInfo | null> {
+    const info = await this.request<any>("GET", "/orders/by-phone/booking-info", { query: { phone } });
+    if (!info) return null;
+    return {
+      clientName:  info.clientName ?? "",
+      phoneNumber: info.phoneNumber ?? phone,
+      addresses:   (info.addresses ?? []).map(BirJoySource.toSavedAddress),
+      activeBooking: info.activeBooking
+        ? {
+            addressName: info.activeBooking.addressName ?? "",
+            createdDate: String(info.activeBooking.createdDate ?? ""),
+          }
+        : null,
+    };
+  }
+  /**
+   * The passenger cancelled from the bot.
+   *
+   * The id arriving here is namespaced (A's ids and kas booking ids share a
+   * space), so it is translated back before it reaches B — the same direction
+   * `toOuterId` sends them out.
+   */
+  async cancelBooking(bookingId: number): Promise<BookingResult> {
+    try {
+      await this.request("PATCH", `/orders/${this.toInnerId(bookingId)}/cancel-service`, {
+        body: { reason: "mijoz bekor qildi (bot)" },
+      });
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+    }
+  }
   async getActiveBooking(phone: string): Promise<ActiveBooking | null> {
     const order = await this.request<any>("GET", "/orders/by-phone/active", { query: { phone } });
     if (!order) return null;
@@ -256,7 +294,23 @@ export class BirJoySource implements KasDataSource {
   }
   getReportsPage(_page: number, _size: number): Promise<RideHistoryItem[]> { return this.notImpl("getReportsPage"); }
   listDriverRoster(): Promise<DriverRosterRow[]> { return this.notImpl("listDriverRoster"); }
-  setClientName(_phone: string, _fullName: string): Promise<{ ok: boolean; status?: number }> { return this.notImpl("setClientName"); }
+  /**
+   * Give a caller the name the operator learned on the phone.
+   *
+   * Never creates a customer: an unknown number is not one yet, and a row
+   * invented here would show up in every count as a passenger who has never
+   * ridden.
+   */
+  async setClientName(phone: string, fullName: string): Promise<{ ok: boolean; status?: number }> {
+    try {
+      const res = await this.request<{ ok: boolean }>("PATCH", "/orders/by-phone/name", {
+        body: { phone, fullName },
+      });
+      return { ok: res?.ok === true, status: res?.ok ? 200 : 404 };
+    } catch {
+      return { ok: false, status: 500 };
+    }
+  }
   addDriverPayment(_driverId: number, _carNumber: string, _amount: number, _comment?: string, _debt?: boolean): Promise<{ ok: boolean; balance: number | null; status: number }> { return this.notImpl("addDriverPayment"); }
   getDriverAccount(_carNumber: string): Promise<DriverAccount | null> { return this.notImpl("getDriverAccount"); }
   getTariff(): Promise<ClientTariff> { return this.notImpl("getTariff"); }
