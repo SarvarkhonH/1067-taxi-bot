@@ -174,3 +174,74 @@ export function compareShadow(
 
   return { method, ok: problems.length === 0, problems, checked, expected };
 }
+
+// ─── Saying a thing once ──────────────────────────────────────────────────────
+//
+// The comparator above decides WHETHER two answers disagree. This decides
+// whether that disagreement is worth printing AGAIN.
+//
+// It matters more than it sounds. While a rider is waiting for a driver the bot
+// polls active bookings every 5 seconds; kas has their ride, the taxi core does
+// not, and that one true finding would print ~240 identical lines an hour. A
+// week of it buries every other finding under a hundred thousand copies of the
+// first one — which is the same failure as reporting nothing, arrived at from
+// the other direction.
+//
+// So a problem is printed the first time its SHAPE appears and counted every
+// time after. The running totals live in the half-hourly summary, where a count
+// belongs.
+
+/**
+ * The shape of a problem: the same finding with different numbers in it.
+ *
+ * "length: live=2 shadow=0" and "length: live=7 shadow=0" are one finding, so
+ * digits are stripped. Quoted values are kept — two drivers whose names differ
+ * are genuinely two findings.
+ */
+export function problemShape(method: string, problem: string): string {
+  return `${method}|${problem.replace(/\d+/g, "#")}`;
+}
+
+/** Past this many distinct shapes, detail stops and only counts continue. */
+export const SHAPE_CAP = 300;
+
+/**
+ * Remembers which disagreements have already been printed.
+ *
+ * Pure and in @t1067/shared on purpose: packages/server has no test runner, and
+ * "which lines does a week of shadow mode actually print" is the difference
+ * between a readable report and an unreadable one.
+ */
+export class ProblemLog {
+  private readonly seen = new Set<string>();
+  private announcedCap = false;
+
+  /** How many distinct disagreements have been seen. */
+  get distinct(): number {
+    return this.seen.size;
+  }
+
+  /**
+   * The problems worth printing now — empty when every one of them has been
+   * printed before. Returns the cap notice exactly once, when it is reached.
+   */
+  fresh(method: string, problems: string[]): string[] {
+    const out: string[] = [];
+    for (const p of problems) {
+      if (this.seen.size >= SHAPE_CAP) {
+        if (this.announcedCap) return out;
+        this.announcedCap = true;
+        out.push(
+          `${SHAPE_CAP} distinct disagreements printed — further detail suppressed, ` +
+          "counts continue in the summary",
+        );
+        return out;
+      }
+      const key = problemShape(method, p);
+      if (this.seen.has(key)) continue;
+      this.seen.add(key);
+      out.push(p);
+    }
+    return out;
+  }
+}

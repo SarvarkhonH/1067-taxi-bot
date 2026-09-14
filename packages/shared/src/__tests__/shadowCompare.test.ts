@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { compareShadow, BY_DESIGN } from "../shadowCompare";
+import { compareShadow, BY_DESIGN, ProblemLog, SHAPE_CAP } from "../shadowCompare";
 
 // --- Why this file exists ----------------------------------------------------
 //
@@ -123,5 +123,57 @@ describe("the by-design list is a list of claims", () => {
         expect(`${method}.${field}: ${reason}`.length).toBeGreaterThan(`${method}.${field}: `.length + 15);
       }
     }
+  });
+});
+
+describe("a finding is printed once, not every five seconds", () => {
+  it("prints the first time and stays quiet after", () => {
+    const log = new ProblemLog();
+    expect(log.fresh("listActiveBookings", ["length: live=2 shadow=0"])).toHaveLength(1);
+    expect(log.fresh("listActiveBookings", ["length: live=2 shadow=0"])).toHaveLength(0);
+  });
+
+  it("treats the same finding with different numbers as the same finding", () => {
+    // While a rider waits this is polled every 5s and the count keeps changing.
+    // It is still one finding: the taxi core does not have their ride.
+    const log = new ProblemLog();
+    log.fresh("listActiveBookings", ["length: live=2 shadow=0"]);
+    expect(log.fresh("listActiveBookings", ["length: live=7 shadow=0"])).toHaveLength(0);
+  });
+
+  it("still prints a different finding on the same method", () => {
+    const log = new ProblemLog();
+    log.fresh("getTariff", ["minimalPayment: live=8000 shadow=9500"]);
+    const next = log.fresh("getTariff", ["baseFare: live=5000 shadow=4000"]);
+    expect(next.join(" ")).toContain("baseFare");
+  });
+
+  it("keeps findings apart per method", () => {
+    const log = new ProblemLog();
+    log.fresh("getRideHistory", ["length: live=1 shadow=0"]);
+    expect(log.fresh("getReportsPage", ["length: live=1 shadow=0"])).toHaveLength(1);
+  });
+
+  it("stops describing and says so, once, rather than growing forever", () => {
+    // A problem carrying a free-text value mints a new shape every call. Without
+    // a cap, a week of that is its own flood.
+    const log = new ProblemLog();
+    // Letters, not numbers: digits are stripped by design, so a counter would
+    // collapse into one shape — which is the point of the previous test.
+    const word = (i: number) =>
+      String.fromCharCode(97 + Math.floor(i / 26)) + String.fromCharCode(97 + (i % 26));
+    for (let i = 0; i < SHAPE_CAP; i++) log.fresh("listDriverRoster", [`fullName: live="${word(i)}" shadow="z"`]);
+    const capped = log.fresh("listDriverRoster", ['fullName: live="brand new" shadow="z"']);
+    expect(capped.join(" ")).toContain("further detail suppressed");
+    expect(log.fresh("listDriverRoster", ['fullName: live="another" shadow="z"'])).toHaveLength(0);
+  });
+
+  it("counts what it does not print", () => {
+    // The half-hourly summary is where a repeat belongs; silence in the log must
+    // not mean the disagreement stopped happening.
+    const log = new ProblemLog();
+    log.fresh("getTariff", ["minimalPayment: live=8000 shadow=9500"]);
+    log.fresh("getTariff", ["minimalPayment: live=8000 shadow=9500"]);
+    expect(log.distinct).toBe(1);
   });
 });

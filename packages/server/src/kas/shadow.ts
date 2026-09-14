@@ -1,5 +1,5 @@
 import type { KasDataSource } from "./types";
-import { compareShadow, type ShadowDiff } from "@t1067/shared";
+import { compareShadow, ProblemLog, type ShadowDiff } from "@t1067/shared";
 
 // ─── Shadow mode ──────────────────────────────────────────────────────────────
 //
@@ -65,22 +65,34 @@ const SHADOW_TIMEOUT_MS = 8_000;
 export class ShadowRecorder {
   readonly stats: ShadowStats = { startedAt: new Date().toISOString(), methods: {}, errors: {} };
 
+  /** Each distinct disagreement is printed once; the rest are counted. */
+  private readonly printed = new ProblemLog();
+
   record(diff: ShadowDiff): void {
     const m = (this.stats.methods[diff.method] ??= { compared: 0, differed: 0 });
     m.compared++;
-    if (!diff.ok) {
-      m.differed++;
-      m.lastProblem = diff.problems[0];
-      // One line per real disagreement, tagged so a week of them can be pulled
-      // out of the log in one grep. Expected differences are NOT logged: a log
-      // that prints the known ones is a log nobody reads.
-      console.warn(`[shadow] ${diff.method}: ${diff.problems.slice(0, 3).join(" | ")}`);
-    }
+    if (diff.ok) return;
+
+    m.differed++;
+    m.lastProblem = diff.problems[0];
+
+    // One line the FIRST time a disagreement appears, tagged so a week of them
+    // can be pulled out in one grep. Expected differences are not logged at all
+    // — a log that prints the known ones is a log nobody reads — and a repeat of
+    // something already printed is not logged either: while a rider waits, the
+    // same true finding would print every few seconds and bury the rest.
+    const fresh = this.printed.fresh(diff.method, diff.problems.slice(0, 3));
+    if (fresh.length > 0) console.warn(`[shadow] NEW ${diff.method}: ${fresh.join(" | ")}`);
   }
 
   recordError(method: string, e: unknown): void {
     this.stats.errors[method] = (this.stats.errors[method] ?? 0) + 1;
     console.warn(`[shadow] ${method} FAILED in shadow: ${e instanceof Error ? e.message : String(e)}`);
+  }
+
+  /** How many genuinely different disagreements have been seen, not how many times. */
+  get distinctProblems(): number {
+    return this.printed.distinct;
   }
 
   /** What a week of running looks like, in one object. */
@@ -114,7 +126,8 @@ export function startShadowSummaryLog(everyMs = 30 * 60 * 1000): void {
     const total = rows.reduce((n, r) => n + r.compared, 0);
     const bad = rows.reduce((n, r) => n + r.differed, 0);
     console.warn(
-      `[shadow] SUMMARY since ${shadowRecorder.stats.startedAt}: ${total} compared, ${bad} differed — ` +
+      `[shadow] SUMMARY since ${shadowRecorder.stats.startedAt}: ${total} compared, ${bad} differed, ` +
+      `${shadowRecorder.distinctProblems} distinct — ` +
       rows.map((r) => `${r.method} ${r.differed}/${r.compared}`).join(", "),
     );
   }, everyMs);
