@@ -278,8 +278,50 @@ export class BirJoySource implements KasDataSource {
       at: String(r.completedAt ?? r.createdAt ?? ""),
     }));
   }
-  getRidesByCar(_carNumber: string, _size?: number): Promise<RideHistoryItem[]> { return this.notImpl("getRidesByCar"); }
-  getDriverPins(): Promise<DriverPin[]> { return this.notImpl("getDriverPins"); }
+  /**
+   * What a plate has been doing — the driver-side history.
+   *
+   * `cashback` is 0: it is tanga, and it lives in A's ledger keyed by member,
+   * not against the ride row in B. The caller adds it; a number invented here
+   * would show a driver a reward that never moved.
+   */
+  async getRidesByCar(carNumber: string, size?: number): Promise<RideHistoryItem[]> {
+    const rows = await this.request<any[]>(
+      "GET", `/drivers/rides-by-car/${encodeURIComponent(carNumber)}`, { query: { limit: size } },
+    );
+    return (rows ?? []).map((r) => ({
+      id:          this.toOuterId(r.id),
+      addressName: r.addressName ?? "",
+      status:      String(r.status ?? ""),
+      carNumber:   r.carNumber ?? carNumber,
+      carModel:    r.carModel ?? "",
+      payment:     Number(r.payment ?? 0),
+      cashback:    0,
+      distance:    r.distance != null ? Number(r.distance) : undefined,
+      at:          String(r.at ?? ""),
+      additionalPaymentCompany: Number(r.additionalPaymentCompany ?? 0),
+    }));
+  }
+  /**
+   * Live cars for a passenger's map.
+   *
+   * A point, a heading and busy/free — nothing that identifies a person. This
+   * is the one bridge read whose output reaches a screen belonging to somebody
+   * who is not staff, and a map carrying plates lets any passenger watch a
+   * named driver move around town all day. B strips it at the source; this
+   * takes only those four fields even so.
+   */
+  async getDriverPins(): Promise<DriverPin[]> {
+    const pins = await this.request<any[]>("GET", "/drivers/pins");
+    return (pins ?? [])
+      .map((p) => ({
+        lat: Number(p?.lat),
+        lng: Number(p?.lng),
+        bearing: Number(p?.bearing ?? 0),
+        busy: p?.busy === true,
+      }))
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  }
   async getDriverByCar(carNumber: string): Promise<BookingDriver | null> {
     const d = await this.request<any>("GET", `/drivers/by-car/${encodeURIComponent(carNumber)}`);
     if (!d) return null;
