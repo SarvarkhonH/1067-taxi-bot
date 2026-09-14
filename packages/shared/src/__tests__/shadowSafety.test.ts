@@ -121,3 +121,25 @@ describe("a shadow run that never ran must not look like a clean one", () => {
     expect(read("shadow.ts")).toContain("NOTHING COMPARED YET");
   });
 });
+
+describe("sampling cannot silently skip a whole method", () => {
+  it("always compares the first call, whatever the rate", () => {
+    // tariff / bonus rules / company / car models are read ONCE, while the
+    // config cache warms at boot. At a sample rate of 3 their turn never comes,
+    // so a whole week would compare everything except the reads that carry the
+    // fares.
+    expect(read("shadow.ts")).toContain("n === 1 || n % sampleEvery === 0");
+  });
+});
+
+describe("an outage in the primary is not a finding about the shadow", () => {
+  it("awaits the two separately rather than together", () => {
+    // Promise.all rejects on whichever side failed, so a kas1067 outage would
+    // be recorded as "birjoy FAILED in shadow" — blaming the source under
+    // evaluation for an outage it had no part in, in exactly the hour somebody
+    // is reading the log to find out what broke.
+    const src = read("shadow.ts");
+    expect(src).not.toContain("Promise.all([");
+    expect(src).toContain("recordError");
+  });
+});

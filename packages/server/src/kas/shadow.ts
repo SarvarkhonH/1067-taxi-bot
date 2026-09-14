@@ -192,16 +192,39 @@ export function withShadow(
 
         // Sample AFTER the primary call is under way, so sampling can never
         // delay the answer the caller is waiting for.
+        //
+        // The FIRST call of each method is always compared, whatever the sample
+        // rate. Otherwise the config reads — tariff, bonus rules, company, car
+        // models — would never be compared at all: they are read once while the
+        // cache warms at boot, so with a rate of 3 their turn never comes. Those
+        // are the reads that carry the fares, and a sampling rule that silently
+        // excludes them is worse than no sampling.
         const n = (seen[prop] = (seen[prop] ?? 0) + 1);
-        if (n % sampleEvery === 0) {
+        if (n === 1 || n % sampleEvery === 0) {
           void (async () => {
+            const shadowFn = (shadow as unknown as Record<string, unknown>)[prop];
+            if (typeof shadowFn !== "function") return;
+
+            // The two are awaited SEPARATELY, not with Promise.all, so that the
+            // two failures stay distinguishable. If kas1067 is down, the primary
+            // rejects — that is the caller's problem, already surfaced by the
+            // caller, and recording it here would blame the shadow for an
+            // outage it had no part in. During a real incident that is the
+            // difference between reading the log and being misled by it.
+            let liveValue: unknown;
             try {
-              const shadowFn = (shadow as unknown as Record<string, unknown>)[prop];
-              if (typeof shadowFn !== "function") return;
-              const [liveValue, shadowValue] = await Promise.all([
-                Promise.resolve(live),
-                withTimeout(Promise.resolve((shadowFn as (...a: unknown[]) => unknown).apply(shadow, args)), SHADOW_TIMEOUT_MS),
-              ]);
+              liveValue = await Promise.resolve(live);
+            } catch {
+              return;
+            }
+
+            // A shadow that cannot answer IS a finding — it is the source we
+            // are deciding whether to trust.
+            try {
+              const shadowValue = await withTimeout(
+                Promise.resolve((shadowFn as (...a: unknown[]) => unknown).apply(shadow, args)),
+                SHADOW_TIMEOUT_MS,
+              );
               recorder.record(compareShadow(prop, liveValue, shadowValue));
             } catch (e) {
               recorder.recordError(prop, e);
