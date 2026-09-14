@@ -1,141 +1,151 @@
 # BIRJOY TAXI — QOLGAN ISHLARNING YAGONA REYESTRI
 
-**Sana:** 2026-09-13 · **Manba:** `BIRJOY_TAXI_REJA_V3.md` (G0–G6) + `YAKUNIY_AUDIT_2026-09-12.md` (§3 a/b/c/d) +
-`BIRJOY_TAXI_MASTER.md` (v2 F0–F9) + `docs/TESTING-PLAN.md` (C1–C7) + `ZANJIRLI_DISPATCH_DOD.md` +
-`SMS_SHLYUZ_DOD.md` + `ROLLAR_TAKLIF.md`
+**Oxirgi o'lchov: 2026-09-14** · Manba: `BIRJOY_TAXI_REJA_V3.md` (G0–G6) · `YAKUNIY_AUDIT_2026-09-12.md`
+(§2.3, §2.4, §3a/b/c) · `BIRJOY_TAXI_MASTER.md` (F0–F9) · `KAS_PARITET.md` · `docs/TESTING-PLAN.md`
+(C1–C7) · `ZANJIRLI_DISPATCH_DOD.md` · `SMS_SHLYUZ_DOD.md` · `ROLLAR_TAKLIF.md`
 
-> **Bu fayl nima uchun bor.** Rejalar sakkizta hujjatga tarqalgan va auditning bir qismi
-> **eskirgan** — yozilganidan keyin bir kunda o'nlab band yopilgan. Ega «hammasini tugat» degach,
-> birinchi ish — *nima qolganini* bitta joyda, **bugungi kodga qarshi qayta o'lchab** yozish edi.
->
-> **Usul:** har band 2026-09-13 da to'rtta mustaqil tekshiruvchi agent tomonidan hozirgi kodga
-> qarshi qayta o'lchandi (dispatch · pul · Android · panel), har biri `fayl:qator` isboti bilan.
-> Auditdan ko'chirilgan, lekin qayta o'lchanmagan bironta satr yo'q.
+> **Usul.** Har band **hozirgi kodga qarshi** uchta mustaqil tekshiruvchi agent tomonidan qayta
+> o'lchandi (audit ro'yxatlari · kas pariteti · reja darvozalari), har biri `fayl:qator` isboti bilan.
+> Hujjatdan ko'chirilgan, lekin qayta o'lchanmagan bironta satr yo'q. Auditning **o'zi ham 6 joyda
+> noto'g'ri chiqdi** — §6 ga qarang.
 
 ---
 
-## 0. Uch raqam — bugungi holat
+## 0. Egangizning uch savoliga qisqa javob
 
-| O'lchov | 09-12 audit | **09-13** | Nega o'zgardi |
+| Savol | Javob |
+|---|---|
+| **Auditdagi hamma ish bo'ldimi?** | **Yo'q, lekin ko'pi bo'ldi.** 57 banddan **31 bajarildi · 10 qisman · 16 ochiq**. Birinchi real safarni to'sadigan bandlarning deyarli hammasi 09-13/09-14 da yopildi |
+| **kas1067 dan qolishmaydigan bo'ldikmi?** | **Hali yo'q — lekin farq torayib, bir tomonga siljidi.** kas oldinda bo'lgan ~22 banddan **9 tasi yopildi, 5 qisman, 10 ochiq**. Dispatch/narx/platformada paritetdamiz yoki oldindamiz; **yo'lovchi tomoni va kas'dan chiqish ko'prigi** tegilmagan |
+| **Rejadagi hamma ish bo'ldimi?** | **Yo'q. Yashil darvoza bittasi — G1.** G0 bitta `.env` satri va ikkita sir almashtirishdan uzoqda; G2/G3 kod tomondan deyarli tugagan, **real telefonga** taqaladi; G4/G5/G6 yaqin emas |
+
+**Bitta jumlada:** muhandislik farqi asosan yopildi; qolgani — **ko'prik, hamyon va telefon liniyasi**,
+va ular 1956 safar tashiyapti, biz **0 ta to'lovli safar**.
+
+---
+
+## 1. kas1067 PARITETI — kas oldinda bo'lgan bandlar
+
+| Band | Bizda hozir | Qayerda / nima qoldi |
+|---|---|---|
+| Qorong'i ekranga taklif | ✅ | `OfferAlert.kt` full-screen intent + Android 14 ruxsat satri |
+| Yopiq ilovaga push | ✅ **biz oldinda** — kas'da FCM umuman yo'q | Jonli: 750 dan **1 ta** token |
+| Qo'lda biriktirish telefonga yetadi | ✅ | socket + FCM push |
+| Android 5/6/7 da o'rnatiladi | ❌ | `minSdk = 26` (kas: 21) — ega qarori |
+| Real telefonda isbotlangan | 🟡 | Kirish + profil + taklif + qabul ✅; **safarni yakunlash** ❌ |
+| Taksi navbati (FIFO) | 🟡 | Dvigatel + dispatch + panel ekrani tayyor; **qorong'i** va `queue_zones` bo'sh |
+| Qo'ng'iroqda mijoz kartasi (CTI) | ❌ | Route va popup bor, **ring yuboruvchi yo'q** |
+| Pog'onali km tarifi | ✅ | `pricing.tiers` |
+| Shahar/qishloq stavkasi | 🟡 | Zona koeffitsienti o'qiladi, ikkala Koson zonasi ×1.00 |
+| Tarifni deploysiz o'zgartirish | ✅ | Panel, chegara + audit + manba yorlig'i |
+| Kutish narxi | ✅ | Bitta formula |
+| **Mijoz cashback hamyoni (so'm)** | ❌ | Ustun ham, ledger ham, route ham **yo'q**. 3 ta ko'prik metodini bloklaydi |
+| App vs qo'ng'iroq stavkasi | ❌ | `sourceChannel` yoziladi, **hech kim guruhlamaydi** |
+| **Yo'lovchiga SMS** (mashina, raqam, havola) | ❌ | Shlyuzda faqat `test`/`invite` maqsadi bor |
+| Haydovchi qarzi maydoni | ❌ | Manfiy balans — de-fakto o'rinbosar |
+| Uch qismli qo'shimcha to'lov | ❌ | Bitta yig'ma ustun — ega qarori |
+| Kompaniya ma'lumoti (nom, dispetcher raqamlari) | ❌ | Seed, ~1 soat |
+| Guvohnoma muddati | 🟡 | Endpoint + panel bor, obzvon ro'yxatiga ulanmagan |
+| Rol ajratmasi | ✅ | 35/35 admin kontroller `RolesGuard` bilan |
+| Zaxira / tiklash | ✅ | Tungi, shifrlangan, tiklash isbotlangan; **skanlar bugun qo'shildi** |
+| Onlayn vaqt o'lchovi | ✅ | |
+| Qo'ng'iroq natijasi | ✅ | |
+| **kas'dan chiqish ko'prigi (27/27)** | ❌ **8/27** | `packages/server/src/kas/birjoy.ts` — 19 ta `notImpl`; `KAS_MODE=birjoy` **boot'da rad etiladi** |
+| Buzilganda qo'ng'iroq qiladigan odam | ❌ | Tashkiliy |
+
+**Cutover kunida eng og'rig'i uchtasi:** ko'prik (19 stub) · cashback hamyoni (umuman yo'q) ·
+telefon kanali (CTI + yo'lovchiga SMS).
+
+**Biz kas'dan oldinda:** FCM push · HTTPS + domen · paneldan jonli tarif · taklif logi va
+«rad ≠ javob bermadi» KPI'si · manzilsiz server taksometri · oflayn amal navbati · ilova ichida
+ratsiya · xarita/heatmap/TTS · RBAC · mock-GPS + 7 firibgarlik signali · isbotlangan zaxira ·
+qutqaruv navbati, ta'minot-qayta-urinishi, to'lqin, zona FIFO (oxirgi ikkitasi qorong'i).
+
+---
+
+## 2. QOLGAN — kod ishi, hech kimdan javob kerak emas
+
+| # | Ish | Kun | Qayerda |
 |---|---|---|---|
-| Kod kengligi | ~70% | **~72%** | Tarif jonli, qutqaruv navbati ishlaydi, o'lik tugmalar kamaydi |
-| Darvoza progressi | ~15% | **~20%** | G1 amalda yopildi, G3 ning markaziy savoliga javob topildi |
-| **Shaharni ko'tarishga tayyorlik** | ~10% | **~12%** | Hali **0 real to'lovli safar**, 1 telefonda 1 ilova |
+| K-A | **`BirJoySource` 19 ta stub** — kas'dan chiqishning yagona yo'li | 8–12 | `packages/server/src/kas/birjoy.ts:165-239` |
+| K-B | **Mijoz cashback hamyoni** (ustun + ledger + route) | 5 | Yo'q; ko'prikning 3 metodini ochadi |
+| K-C | **Soya rejimi** (G6) | 4 | Umuman yo'q |
+| K-D | `in_progress` ni qayta biriktirish | 1 | `operator.service.ts` — safar o'rtasida mashina almashtirish **pulni bo'lish** masalasi |
+| K-E | Komissiya pog'onasi paneldan | 1 | Tarif naqshini takrorlash |
+| K-F | Versiya chegarasi DB'dan (hozir env) | 1 | `drivers.service.ts` |
+| K-G | Web test yurgizgichi + birinchi testlar | 3 | `apps/web` da test skripti yo'q (qisman `panel-route-coverage.spec.ts` qoplaydi) |
+| K-H | `priorityPosition` API'dan qaytmaydi → ilovadagi navbat pilligi o'lik | 1 | `HomeViewModel.kt:95` |
+| K-I | `values-uz-rCyrl` (~70 qattiq matn) | 2 | 45+ yoshli haydovchilar |
+| K-J | OEM autostart (Xiaomi/MIUI) | 1 | Qayta yuklangan Xiaomi dispatch'ga ko'rinmaydi |
+| K-K | `TZ=Asia/Tashkent` repo konfiguratsiyasida yo'q | 0.2 | Jonli `.env` da **bor**; qayta qurilsa yo'qoladi |
+| K-L | `.env.example` da `TELEGRAM_INITDATA_DEV_BYPASS=1` | 0.1 | Jonli'da o'chirilgan, namunada qolgan |
+| K-M | `vehicle_classes`, `cancellation_rules`, `queue_zones` seed qilinmagan | 0.5 | Endpointlar `[]` qaytaradi |
+| K-N | Kotlin testlari: `BootReceiver`, tanaffus | 1 | Hozir 24 ta test, 4 fayl |
+| K-O | Rol jadvali skanerda to'liq emas (7 fragment) | 0.5 | `staff-routes.spec.ts` |
 
-Jonli o'lchov (`psql`, 15:00 UTC): 750 haydovchi (1 onlayn) · 13 buyurtma (4 tugallangan, hammasi sinov) ·
-`fcm_token` 1/750 · real mijoz safari **0**.
+**Jami ≈ 29 muhandis-kun**, shundan **ko'prik + hamyon = 17 kun** (kas'dan chiqish uchun).
 
 ---
 
-## 1. BUGUN YOPILDI — `ready for verification` (8 commit, deploy qilinmagan)
+## 3. QOLGAN — egadan javob kerak
 
-| # | Ish | Isbot |
+| # | Savol | Nimani bloklaydi |
 |---|---|---|
-| 1 | **Ekrandagi tarif = olinadigan tarif.** 14 raqam hech kim o'qimaydigan jadvalga saqlanardi: panel tungi ×1.3 ko'rsatardi, tizim ×1.5 olardi | `rates.service.ts` (jadval → env → sukut); pricing 110/110 |
-| 2 | Tarifni **paneldan** o'zgartirish — deploysiz, keyingi buyurtmadanoq | Chegara tekshiruvi + audit satri + har satrda «qayerdan olinyapti» |
-| 3 | Bo'sh quti **nol emas** (`Number('')` = 0 → har kutish daqiqasi bepul bo'lardi) | `rates.service.spec.ts` |
-| 4 | Kutish narxi bitta formula (jonlisi 5 daqiqa, chaqirilmaydigan nusxa 3 derdi) | `waitingFare()` yagona yo'l |
-| 5 | **Mashina bo'shaganda** «mashina yo'q» buyurtmasi qayta uriniladi (~183/oy) | `supply-retry.spec.ts`, har qorovul yiqiluvchi tomondan |
-| 6 | **To'lqinli taklif** — bir necha haydovchiga parallel · **DARK** (`DISPATCH_WAVE_ENABLED=0`) | `wave-offer.spec.ts`; default testda qulflangan |
-| 7 | **Qabuldan keyin qotgan safar** sweep'i — avval faqat `pending`/`dispatching` ko'rilardi | `stalled-ride.spec.ts`; hech narsani o'zgartirmaydi, faqat aytadi |
-| 8 | Dispetcher biriktirsa endi **push ham** ketadi (fon'dagi ilova hech nima olmasdi) | `manual-assign.spec.ts` |
-| 9 | Taklif bekor sababi — **enum**, matn emas | Dispetcher ko'chirgan haydovchiga «kech qoldingiz» deyilardi |
-| 10 | **Rad sabablari panelda ko'rinadi** (API kecha yozgan, hech kim ko'rsatmagan) | `CallOutcomes` — tarkib + `unexplained` bir xil ko'rinarli |
-| 11 | **Kuzatuv havolasi** tugmasi operator kartasida | Sahifa va token yaratuvchi bor edi, chaqiruvchi yo'q edi |
-| 12 | `intercity` ning ikki GET yo'li **internetga ochiq edi** → staff-only | `public-routes.spec` / `staff-routes.spec` |
-| 13 | Mijozning **o'rtacha safar narxi** yozila boshladi (panelda abadiy «0 UZS») | `completeRide` da yugurish o'rtachasi |
-| 14 | **Release build'da ochiq HTTP butunlay yopildi** | Manifest merge: release `false`, debug `true` |
-| 15 | **Tanaffus holati saqlanadi** (ilova o'lsa haydovchi stolda taklif olardi) | DataStore + tiklash |
-| 16 | **Crash hisoboti 3 marta uriniladi** (avval yuborishdan oldin o'chirilardi) | Hisob chaqiruvdan oldin oshadi — sikl imkonsiz |
-| 17 | Ilovada 3 ta o'lik tugma | Shartlar/Maxfiylik olib tashlandi · «Hammasini ko'rish» ishlaydi · mashina «O'zgartirish» → matn |
-| 18 | Broadcast «yuborildi» emas, «jo'natildi» deydi | `sent` = FCM qabul qildi |
-| 19 | Kodni yolg'on tasvirlagan 3 joy | `notifyNoDrivers` izohi · `SurgeService` dagi o'lik inject · `driver_en_route` |
-
-**Tekshiruv:** API **470/470** (47 suite; kun boshida 437/43) · Kotlin **8/8** · web `tsc` toza ·
-Android debug+release assemble ✅. **Jonli sinov yo'q** — commitlar hali VPS'da emas.
+| E1 | **Taksi to'xtash nuqtalari** (nom + nuqta + metr) | Zona FIFO — kod tayyor, panel ekrani tayyor, `queue_zones` bo'sh |
+| E2 | **5 pilot haydovchi** | **Butun G4** |
+| E3 | Ekranda push ko'rindimi (bitta tasdiq) | C4 |
+| E4 | **APK chiqarilsinmi** | Bugungi ilova tuzatishlari hech bir telefonda yo'q |
+| E5 | Bekor qilish jarimasi bormi, qancha | `CancellationService` chaqirilmaydi |
+| E6 | Surge yoqilsinmi, `maxSurge` qancha | G0 yopilishi |
+| E7/E8 | Bot tokeni va super-admin parolini almashtirish | G0 |
+| E9 | Ma'lumot joylashuvi (yurist) | Xavf #2 |
+| E10 | Naqd modelda «Yechib olish» nima qiladi | G4 |
+| E11 | SMS shlyuzini yoqish | C6, yo'lovchiga SMS |
+| E12 | **v3 §1.1–§1.2 dagi 27 band** — o'chirilsinmi / qurilmasinmi | Hech biri bajarilmagan: `apps/client` joyida, haftalik settlement cron qurollangan, `sla`/`surge` bo'sh papkalar, OSRM va route-deviation cron o'lik |
+| E13 | Cashback stavkasi: app vs qo'ng'iroq, va ≤350 tanga klampi bilan qanday birlashadi | G6 |
 
 ---
 
-## 2. QOLGAN — **kod ishi** (egadan hech narsa kerak emas)
+## 4. QOLGAN — real telefon yoki real safar kerak (men qila olmayman)
 
-| # | Ish | Kun | Tegadigan raqam | Hozirgi holat |
-|---|---|---|---|---|
-| K3 | **`in_progress` ni qayta biriktirish** (yo'lda buzilgan mashina) | 1 | Safar o'rtasidagi halokat | `operator.service.ts:300` — `activeStatuses` ichida yo'q |
-| K4 | **Zona FIFO ni ulash** — dvigatel to'liq, bitta ham chaqiruvchi yo'q | 6 | 16.5 onlayn | Zona yaratadigan POST yo'q; ilovadagi «#N navbatda» `null`. **E1 (zona nuqtalari) bilan birga** |
-| K8 | **Hujjat skanlari shifrsiz**, `uploads/` hech qanday volume'da emas; saqlangan `fileUrl` mavjud bo'lmagan route'ga ishora qiladi | 1 | Huquqiy + ma'lumot yo'qolishi | `driver-documents.service.ts:34,92,95` |
-| K9 | **Tungi oyna ikki marta hisoblanishi mumkin** — 22-06 vaqt qoidasi tungi ×1.5 ustiga ko'payadi | 0.5 | Narx ishonchi | Panelda ogohlantirish kerak |
-| K10 | **Versiya darvozasi env'dan** — chegarani ko'tarish uchun deploy kerak | 1 | 622 telefon | Tarif naqshini sozlamalar ekraniga ham qo'llash (ega qarori: matn qutisi dispatch raqamlarini qimirlatadi) |
-| K12 | **Android 14 da full-screen ruxsati so'ralmaydi** — jimgina heads-up ga tushadi | 0.5 | 238 rad | `OfferAlert.kt:95` faqat logga yozadi |
-| K14 | **Ilovada ~70 ta qattiq yozilgan matn** (`values-ru` to'liq, `values-uz-rCyrl` yo'q) | 2 | 45+ yoshli haydovchilar | `RadioManager`, `HomeViewModel`, `LocationForegroundService` |
-| K15 | **Kotlin testlari 8 ta** — `RideActionQueue`, `VersionGate`, `BootReceiver`, tanaffus qoplanmagan | 3 | Jimgina regressiya | 2 fayl |
-| K16 | **Web'da 0 ta test** — CI faqat `tsc --noEmit` | 3 | Operator ekrani | Test skripti ham yo'q |
-| K17 | `HomeScreen.kt` da ~250 satr chaqirilmaydigan composable | 0.3 | Chalkashlik | `OfferPopup`/`ActiveRideSheet` bilan almashtirilgan |
-| K23 | **Komissiya pog'onasi paneldan tahrirlanmaydi** | 1 | 16.5 onlayn | Tarif jadvali naqshini takrorlash |
-| K24 | Migratsiyalar jonli sxemadan orqada (2 fayl, jonli 84 jadval) | 1 | Faqat DR hujjati | Jonli bazada `commissions_order_type_uq` **bor** (tekshirildi); tiklash `pg_restore` orqali |
-
-**Jami: ~20 muhandis-kun** (kun boshida ~33 edi).
-
----
-## 3. QOLGAN — **egadan kerak** (kod emas, javob)
-
-| # | Savol | Nega to'sadi |
+| # | Nima | Nega men qila olmayman |
 |---|---|---|
-| E1 | **Taksi to'xtash nuqtalari** (bozor, avtovokzal, kasalxona…) | K4 (zona FIFO) shunga taqaladi — `queue_zones` **bo'sh** |
-| E2 | **5 pilot haydovchi** — ism, telefon, Android versiyasi | G4 ning butun mezoni |
-| E3 | **Ekranda push ko'rindimi** — telefoningizda bitta tasdiq | C4, hali hech kim ko'rmagan |
-| E4 | **187 commit `origin`ga push qilinsinmi** | Kod bitta noutbukda |
-| E5 | **Bekor qilish jarimasi bormi, qancha** | `cancellation_rules` bo'sh → har bekor qilish bepul |
-| E6 | **Surge yoqilsinmi** (hozir qurolsiz, default o'chiq) | Mexanizm tayyor |
-| E7 | **Bot tokenini almashtirish** (git tarixida qoladi) | «Oxirida» deb qoldirilgan |
-| E8 | **Super-admin parolini almashtirish** (git tarixida) | Faqat 2 ta super_admin bor |
-| E9 | **Ma'lumot joylashuvi** — Germaniya VPS, shifrsiz pasport skanlari | «Qabul qilingan xavf» deyilgan, K8 buni yumshatadi |
-| E10 | **Haydovchi puli qanday chiqadi** — naqd modelda «Yechib olish» tugmasi nima qiladi | Hozir «tez orada» oynasi |
+| C2 | Ruxsat oqimi Android 12/13/14 | Har versiyada boshqa dialog |
+| C3 | Taklif → qabul → **yakunlash** telefonda | Yagona haqiqiy «ishlaydi» |
+| C4 | Ekran o'chiq holda taklif | `fcm_token` ilova o'rnatilmaguncha 0 |
+| C5 | Qayta yuklangandan keyin smena | Boot broadcast'ni taqlid qilib bo'lmaydi |
+| G4 | Batareya ≤25%/8 soat · 4/5 «yaxshi» · 0 halokat | 5 haydovchi × 8 soat |
+| G4 | Pul 3 joyda — **real to'lovli** safarda | 0 ta real safar |
+| G5 | Onlayn 16.5 → 40 · rad <12% | O'lchov asboblari tayyor, **vaqt** kerak |
+| G6 | Soya rejimi 7 kun · 30 kun orqaga qaytish | Kalendar vaqti |
 
 ---
 
-## 4. QOLGAN — **real telefon / real safar kerak** (men qila olmayman)
-
-| # | Tekshiruv | Holat |
-|---|---|---|
-| C2 | Ruxsat oqimi Android 12 / 13 / 14 da | Kod 5 unit test bilan qoplangan, **qurilmada emas** |
-| C3 | Bitta to'liq real safar: taklif → qabul → **yakunlash** | Taklif+qabul real telefonda ✅, yakunlash ❌ |
-| C4 | **Ekran o'chiq holda** taklif keladimi | FCM zanjiri isbotlangan, ekranda ko'rilmagan |
-| C5 | Qayta yuklangandan keyin smena davom etadimi | Manifest tekshirilgan, qurilmada emas |
-| C6 | Yo'lovchiga SMS | Ega ruxsati kerak |
-| C7 | Operator panelida bitta real qo'ng'iroq | Panel jonli render bilan hech qachon tekshirilmagan |
-
----
-
-## 5. Reja «QURILMASIN» deydi — **27 band, ega ha/yo'q demagan**
-
-`BIRJOY_TAXI_REJA_V3.md` §1.1 (o'chirish, 9 ta) va §1.2 (qurilmasin, 18 ta) — **hammasi tasdiq kutadi**,
-shuning uchun bugun ham hech narsa o'chirilmadi, hech narsa qurilmadi.
-
-**O'chirish taklifi (9):** `apps/client` (26 fayl — Vercel va CI hali quradi) · ikkinchi surge · ikkinchi
-incentive dvigateli · haftalik settlement cron · `sla` (**bo'sh papka**) · `surge` (**bo'sh papka**) ·
-route-deviation cron · OSRM qatlami · promo dvigateli.
-
-**Qurilmasin taklifi (18):** Payme/Click/karta · haydovchi payout rellari · korporativ · fleet ·
-intercity · kafolatlangan daromad · selfie/liveness · audio yozish · raqam maskalash · ichki chat ·
-certificate pinning · batch/Hungarian/RL matching · pooling · ETA ML · Prometheus/Grafana · K8s ·
-iOS · ovozli AI operator.
-
-> Bularning hammasi **kodi bor, chaqiruvchisi yo'q** holatda turibdi (pul, promo, korporativ, fleet,
-> intercity, incentives — hech bir UI chaqirmaydi). Ha/yo'q aytmaguningizcha shunday qoladi.
-
----
-
-## 6. Darvozalar — G0…G6
+## 5. Darvozalar — G0…G6 (2026-09-14 o'lchovi)
 
 | Darvoza | Holat | Qolgani |
 |---|---|---|
-| **G0** qon to'xtatish | 🟢 deyarli | E4 (push), E7/E8 (sirlar) |
-| **G1** ko'z ochish | 🟢 **yopildi** | Rad sabablari · onlayn vaqt · hisobot · tarif — hammasi jonli |
-| **G2** birinchi real safar | 🟡 | C2, C5, K10. Cleartext yopildi |
-| **G3** yetkazish | 🟡 markaziy savol yopildi | C3 (yakunlash), C4 (ekran o'chiq), K12. To'lqin qurildi — DARK |
-| **G4** pilot | ⬜ | E2 (5 haydovchi) — kodsiz to'siq |
-| **G5** ta'minot hujumi | ⬜ | K4 (FIFO) + E1 (zona nuqtalari), K23. Qutqaruv navbati qurildi |
-| **G6** kanal + uzilish | ⬜ | `BirJoySource` ~8/27 metod · mijoz cashback · soya rejimi |
+| **G0** qon to'xtatish | 🟡 | `.env.example` bypass satri · bot tokeni va parol almashtirish (E7/E8) · surge qarori (E6). **Commitlar push qilingan** |
+| **G1** ko'z ochish | 🟢 **YAGONA YASHIL** | Rad sabablari · onlayn vaqt · ertalabki hisobot — hammasi jonli va tekshirilgan |
+| **G2** birinchi real safar | 🟡 | Kod tayyor (ruxsat, crash, versiya darvozasi, cleartext yopildi) → **C2 telefonlar** |
+| **G3** yetkazish | 🟡 | FCM, overlay, qo'lda biriktirish, «Band», boot — hammasi kodda ✅. Qolgani: **C3/C4 telefonda** + `in_progress` qayta biriktirish |
+| **G4** pilot | ⬜ | **E2 (5 haydovchi)** — kodsiz to'siq |
+| **G5** ta'minot hujumi | ⬜ | FIFO va to'lqin **qurilgan, qorong'i**; E1 kerak; komissiya paneli (K-E) |
+| **G6** kanal + uzilish | ⬜ | Ko'prik 8/27 · hamyon yo'q · soya rejimi yo'q |
+
+---
+
+## 6. Auditning O'ZI noto'g'ri chiqqan joylar
+
+1. «`getAvailableDrivers` da status filtri yo'q — bu **bug**» — kod ataylab **rozi emas**: band mashinalar
+   ro'yxatda qoladi (qo'lda zanjir haqiqiy asbob), lekin yorliq bilan. **2026-09-14 da server tomonda
+   rad etish qo'shildi** — yorliq qorovul emas edi.
+2. «15% reyting og'irligi o'lik» — `redistributeRatingWeight` bilan tuzatilgan; konstanta hali `0.15`
+   ko'rinadi, chunki ish vaqtida qayta taqsimlanadi.
+3. «`deviceModel` hech qachon to'lmaydi» — to'ladi (`DeviceInfo.kt`).
+4. «P0-4: zona va vaqt ko'paytirgichi qotib qolgan 1.0» — tuzatilgan, buyurtmaga qotiriladi.
+5. «Kotlin'da 0 test» — hozir **24 test, 4 fayl**.
+6. «`/api/health` baza o'lik bo'lsa ham 200» — endi **503**.
 
 ---
 
