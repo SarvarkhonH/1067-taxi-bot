@@ -152,3 +152,39 @@ describe("what a source is allowed to overwrite", () => {
     expect(mayOverwritePoints({ type: "client", kasId: "tg_5", phone: "901234567" })).toBe(true);
   });
 });
+
+describe("the way back", () => {
+  it("does not duplicate a member when we roll back to kas1067", () => {
+    // The rehearsal the boot guard asks for, run here instead of on live data.
+    //
+    // On cutover day a member's row is ADOPTED and its kasId is rewritten to
+    // "bj_…" (memberService writes `kasId: km.kasId` on adopt). If we then roll
+    // back — KAS_MODE=live, the one way out — kas sends that same human under
+    // their original numeric id. It no longer matches anything.
+    //
+    // Their entire tanga balance is on the bj_ row. A second row here means it
+    // stays there, invisible, and nobody finds out until somebody tries to
+    // spend it. That is the same failure the cutover step was written to
+    // prevent, arrived at from the other direction.
+    const adoptedAtCutover = [{ id: 41, type: "client", kasId: "bj_9", phone: "+998901234567" }];
+    const backFromKas = { type: "client" as const, kasId: "4812", phone: "998901234567" };
+
+    const verdict = chooseMemberRow(backFromKas, adoptedAtCutover);
+    expect(verdict.action).toBe("adopt");
+    if (verdict.action === "adopt") expect(verdict.id).toBe(41);
+  });
+
+  it("takes the row back even when the cutover changed their type", () => {
+    const adopted = [{ id: 7, type: "driver", kasId: "bj_3", phone: "+998935550011" }];
+    const v = chooseMemberRow({ type: "client", kasId: "551", phone: "998935550011" }, adopted);
+    expect(v.action).toBe("adopt");
+  });
+
+  it("still refuses to merge two rows that came from the same place", () => {
+    // Two kas ids sharing a phone are two records in kas, and merging them here
+    // would hide a duplicate that belongs to be fixed there.
+    const twoKasRows = [{ id: 1, type: "client", kasId: "100", phone: "998901112233" }];
+    const v = chooseMemberRow({ type: "client", kasId: "200", phone: "998901112233" }, twoKasRows);
+    expect(v.action).toBe("create");
+  });
+});

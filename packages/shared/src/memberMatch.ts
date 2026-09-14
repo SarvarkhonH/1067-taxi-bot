@@ -41,7 +41,7 @@ export type MemberMatch =
   /** This exact record is already tracked — update it in place. */
   | { action: "update"; id: number; why: "same-id" }
   /** A different id, same human — take over that row so the balance travels. */
-  | { action: "adopt"; id: number; why: "self-registered" | "cutover" }
+  | { action: "adopt"; id: number; why: "self-registered" | "cutover" | "rollback" }
   /** Nobody here is this person. */
   | { action: "create"; why: "new" };
 
@@ -60,6 +60,11 @@ export function isSelfRegisteredKasId(kasId: string): boolean {
   return kasId.startsWith("tg_");
 }
 
+/** An id minted by kas1067 itself — neither ours nor the bot's. */
+export function isKasMintedId(kasId: string): boolean {
+  return !isBridgeKasId(kasId) && !isSelfRegisteredKasId(kasId);
+}
+
 /**
  * Decide where an incoming member lands.
  *
@@ -70,8 +75,9 @@ export function isSelfRegisteredKasId(kasId: string): boolean {
  *  2. a bridge id + a matching phone → adopt whatever row that phone already
  *     has, including a real kas row. This is the cutover, and it is the only
  *     step that keeps a balance attached to its owner.
- *  3. a real kas id + a matching self-registered row → adopt it. Today's
- *     behaviour: a person the bot met first, whom kas has now heard of.
+ *  3. a real kas id + a matching row kas did not mint → adopt it. Two cases:
+ *     a person the bot met first (tg_), and — the way back — a row the cutover
+ *     renamed (bj_), which rolling back to kas1067 would otherwise duplicate.
  *  4. otherwise create.
  *
  * Never adopts across two rows that both came from the same source: two bridge
@@ -101,8 +107,30 @@ export function chooseMemberRow(incoming: IncomingMember, rows: MemberRow[]): Me
     return { action: "create", why: "new" };
   }
 
-  const selfReg = samePhone.find((r) => isSelfRegisteredKasId(r.kasId));
-  if (selfReg) return { action: "adopt", id: selfReg.id, why: "self-registered" };
+  // A real kas id landing on a row that kas did not mint. Two of those exist and
+  // the second is the way back:
+  //
+  //   tg_   a person the bot met before kas had heard of them.
+  //   bj_   a row the CUTOVER renamed. Rolling back — KAS_MODE=live, the only
+  //         way out — sends that same human under their original numeric id,
+  //         which now matches nothing. Creating a second row leaves their whole
+  //         tanga balance on the orphan, invisible, until somebody tries to
+  //         spend it: the exact failure step 2 exists to prevent, arrived at
+  //         from the other direction.
+  //
+  // So this is the mirror of step 2 — same type first, then any — and between
+  // them the rule is symmetric: adopt a row whose id came from somewhere else,
+  // never one that came from the same place.
+  const target =
+    samePhone.find((r) => r.type === incoming.type && !isKasMintedId(r.kasId)) ??
+    samePhone.find((r) => !isKasMintedId(r.kasId));
+  if (target) {
+    return {
+      action: "adopt",
+      id: target.id,
+      why: isBridgeKasId(target.kasId) ? "rollback" : "self-registered",
+    };
+  }
 
   return { action: "create", why: "new" };
 }

@@ -169,3 +169,30 @@ describe("a sick primary must still teach us something", () => {
     expect(src.slice(emptyBranch, emptyBranch + 400)).toContain("down");
   });
 })
+
+describe("the cutover rehearsal writes nothing", () => {
+  it("opens no write path at all", () => {
+    // The script runs against the LIVE member table while the bot is serving.
+    // "It only reads" is a claim, and a claim is not a guard — one prisma
+    // update in a later edit would rewrite real people's identities during what
+    // everybody still calls a dry run.
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "..", "..", "server", "src", "scripts", "dryRunCutover.ts"),
+      "utf8",
+    );
+    const writes = ["prisma.member.update", "prisma.member.create", "prisma.member.upsert",
+      "prisma.member.delete", ".updateMany", ".createMany", ".deleteMany", "$executeRaw"];
+    const found = writes.filter((w) => src.includes(w));
+    expect(found.length === 0 ? "" : `dry run can WRITE: ${found.join(", ")}`).toBe("");
+  });
+
+  it("uses the real matcher rather than a copy of it", () => {
+    // A rehearsal against a re-implementation rehearses the re-implementation.
+    const src = fs.readFileSync(
+      path.join(__dirname, "..", "..", "..", "server", "src", "scripts", "dryRunCutover.ts"),
+      "utf8",
+    );
+    expect(src).toContain("chooseMemberRow");
+    expect(src).toContain("fetchMembers");
+  });
+});
