@@ -67,18 +67,25 @@ export function getDataSource(): KasDataSource {
     // answers with, and is covered where the logic is dangerous (the member
     // matcher, the coin paths, the id namespacing).
     //
-    // What has NOT been proven, and cannot be from here:
+    // Two of the four reasons this guard used to give were closed on
+    // 2026-09-14. What it says now is what is actually left:
     //
-    //   • no shadow run. Nobody has put the two sources side by side for a day
-    //     and compared what they answer. The plan asks for seven (G6).
-    //   • ids change shape. Every member arrives with a "bj_" id at the
-    //     moment of the switch, and the matcher takes over their existing row
-    //     so the tanga travels. That path is unit-tested and has never run
-    //     against real data.
+    //   • the shadow run has STARTED, not finished. KAS_SHADOW_ENABLED=1 since
+    //     2026-09-14 15:23; the plan asks for seven days (G6). A day of kas1067
+    //     being unreachable is not a week of agreement.
+    //   • ids change shape — REHEARSED. scripts/dryRunCutover.ts ran the real
+    //     matcher over the real member table and the taxi core's real answers:
+    //     every member with a shared phone is adopted, nobody's balance is
+    //     stranded, and the way back produces no duplicates. The rehearsal
+    //     found a real bug doing it (rollback used to duplicate every adopted
+    //     member). What it cannot prove: the cutover happens against whatever
+    //     the two tables hold ON THE DAY, not what they held when it ran.
     //   • a customer's money is not in B. Their balance stays in this
-    //     system's ledger; the bridge deliberately refuses to write it.
-    //   • no rollback drill. KAS_MODE=live is the way back, and nobody has
-    //     walked it.
+    //     system's ledger; the bridge deliberately refuses to write it. This
+    //     one is by design and is not going to change.
+    //   • the rollback is WRITTEN and its file surgery has been run
+    //     (deploy/rollback-to-kas.sh). The one step nobody can rehearse without
+    //     cutting over first is the value actually changing back from birjoy.
     //
     // So the switch stays a deliberate act with a name on it, rather than a
     // config change somebody makes on a Tuesday. Set KAS_BIRJOY_FORCE=1 when
@@ -86,10 +93,11 @@ export function getDataSource(): KasDataSource {
     const forced = String(process.env.KAS_BIRJOY_FORCE ?? "").trim();
     if (forced !== "1" && forced.toLowerCase() !== "true") {
       throw new Error(
-        "KAS_MODE=birjoy refused: the bridge is code-complete (27/27) but UNVERIFIED. " +
-        "No shadow run has compared it against kas1067, the cutover member-matching " +
-        "has never touched real data, and no rollback has been rehearsed. " +
-        "Run the shadow comparison first (G6), then set KAS_BIRJOY_FORCE=1.",
+        "KAS_MODE=birjoy refused: the bridge is code-complete (27/27) and the cutover " +
+        "matching is rehearsed against real data, but the shadow run that decides " +
+        "whether the two sources AGREE has only just started (G6 asks for seven days). " +
+        "Read it — journalctl -u bot1067 | grep '[shadow] SUMMARY' — and when the owner " +
+        "has said go, set KAS_BIRJOY_FORCE=1.",
       );
     }
     console.warn(

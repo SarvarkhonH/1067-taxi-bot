@@ -12,11 +12,17 @@ import * as path from "node:path";
 // On 2026-09-14 the list emptied: 27 of 27 implemented. So the check changes
 // shape, and the thing it now protects is more important than the old one.
 //
-// Code-complete is NOT safe-to-switch. Nothing has compared the two sources
-// side by side, the cutover member-matching has never touched real data, and no
-// rollback has been rehearsed. The guard that stands between a config change on
-// a Tuesday and every customer getting a duplicate account is a single `throw`,
-// and these tests are what keep it there.
+// Code-complete is NOT safe-to-switch, and by 2026-09-14 evening two of the
+// three reasons had been closed: the cutover matching has now been rehearsed
+// against the real member table (scripts/dryRunCutover.ts), and the way back is
+// written and its file surgery run (deploy/rollback-to-kas.sh). The rehearsal
+// earned its keep — it found that rolling back duplicated every member the
+// cutover had adopted, stranding their tanga on the orphan.
+//
+// What is still open is the one thing no amount of code can settle: whether the
+// two sources AGREE, which needs the shadow run to have actually run. The guard
+// that stands between a config change on a Tuesday and every customer getting a
+// duplicate account is a single `throw`, and these tests are what keep it there.
 
 const SERVER = path.join(__dirname, "..", "..", "..", "server", "src", "kas");
 
