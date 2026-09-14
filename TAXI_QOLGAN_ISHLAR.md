@@ -68,7 +68,7 @@ qutqaruv navbati, ta'minot-qayta-urinishi, to'lqin, zona FIFO (oxirgi ikkitasi q
 | # | Ish | Kun | Qayerda |
 |---|---|---|---|
 | ~~K-A~~ | ~~**`BirJoySource` 19 ta stub**~~ → **27/27 yozildi 2026-09-14**. Qolgani kod emas, **vaqt**: 7 kunlik soya taqqoslovi (G6) | 0 | `packages/server/src/kas/birjoy.ts` |
-| K-B | **Mijoz cashback hamyoni** (ustun + ledger + route) | 5 | Yo'q; ko'prikning 3 metodini ochadi |
+| K-B | **Mijoz cashback hamyoni** — ~~ko'prikni bloklaydi~~ **XATO edi, 2026-09-14 tuzatildi**: `setClientBonus`/`addClientBonus`/`checkClient` botning O'Z daftarida (`grantCoins`/`spendCoins`) hal bo'ladi, B da som-hamyon **kerak emas**. Qolgan haqiqiy kamchilik: **panel operatori mijoz tangasini ko'ra/qo'llay olmaydi** — telefon kanalidagi funksiya kamchiligi, kalit to'sig'i emas | 2 | `birjoy.ts:596-640` |
 | K-C | **Soya rejimi** (G6) | 0 kod / **7 kun kalendar** | Qurildi va **jonli yoqildi 2026-09-14 15:23** (`KAS_SHADOW_ENABLED=1`, har 3-o'qish). Qolgani — kutish va hisobotni o'qish |
 | K-D | `in_progress` ni qayta biriktirish | 1 | `operator.service.ts` — safar o'rtasida mashina almashtirish **pulni bo'lish** masalasi |
 | K-E | Komissiya pog'onasi paneldan | 1 | Tarif naqshini takrorlash |
@@ -93,7 +93,7 @@ qutqaruv navbati, ta'minot-qayta-urinishi, to'lqin, zona FIFO (oxirgi ikkitasi q
 | # | Savol | Nimani bloklaydi |
 |---|---|---|
 | E1 | **Taksi to'xtash nuqtalari** (nom + nuqta + metr) | Zona FIFO — kod tayyor, panel ekrani tayyor, `queue_zones` bo'sh |
-| E2 | **5 pilot haydovchi** | **Butun G4** |
+| E2 | **5 pilot haydovchi** — 2026-09-14 o'lchovi: bazada **750** haydovchi, **4 tasi ilovani ochgan**, **1 tasida push tokeni bor**, hozir onlayn **0**. APK jonli va yuklab olinadi (200, 3.4 MB) | **Butun G4 + har qanday kanal** |
 | E3 | Ekranda push ko'rindimi (bitta tasdiq) | C4 |
 | E4 | **APK chiqarilsinmi** | Bugungi ilova tuzatishlari hech bir telefonda yo'q |
 | E5 | Bekor qilish jarimasi bormi, qancha | `CancellationService` chaqirilmaydi |
