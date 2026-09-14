@@ -1,0 +1,126 @@
+// ─── Which row does an incoming member belong to? ─────────────────────────────
+//
+// This is the most dangerous decision in the bridge, and it does not fail
+// loudly when it is wrong. Every coin, tier, mission, referral and streak in
+// this system hangs off a Member row; put an incoming person on the wrong one
+// and you have moved somebody's balance, and nothing errors.
+//
+// Members arrive from three places, each with its own id shape:
+//
+//   kas1067        a numeric id, e.g. "4812"
+//   self-register  "tg_<telegramId>" or "tg_call:<phone>" — a person the bot
+//                  met before kas1067 did
+//   the taxi core  "bj_<id>" — us, once we dispatch our own rides
+//
+// The rule that matters is the third one, and it only bites on ONE day: the
+// cutover. Every existing customer is stored today under their kas id. The
+// moment the taxi core starts answering instead, the same human arrives with a
+// "bj_" id — and without this, the sync creates a SECOND row for them and their
+// tanga balance stays behind on the first, invisible, forever. Nobody would
+// notice until somebody tries to spend it.
+//
+// Kept as a pure function, away from Prisma, so the rule is covered by the CI
+// shield rather than by whoever is awake at cutover.
+
+export type MemberKind = "client" | "driver";
+
+export interface MemberRow {
+  id: number;
+  type: string;
+  kasId: string;
+  phone: string | null;
+}
+
+export interface IncomingMember {
+  type: MemberKind;
+  kasId: string;
+  phone?: string | null;
+}
+
+export type MemberMatch =
+  /** This exact record is already tracked — update it in place. */
+  | { action: "update"; id: number; why: "same-id" }
+  /** A different id, same human — take over that row so the balance travels. */
+  | { action: "adopt"; id: number; why: "self-registered" | "cutover" }
+  /** Nobody here is this person. */
+  | { action: "create"; why: "new" };
+
+/** Last nine digits: the only part of a phone every source agrees on. */
+export function normPhone(s: string | null | undefined): string {
+  return String(s ?? "").replace(/\D/g, "").slice(-9);
+}
+
+/** An id minted by the taxi core rather than by kas1067. */
+export function isBridgeKasId(kasId: string): boolean {
+  return kasId.startsWith("bj_");
+}
+
+/** An id the bot invented for somebody kas1067 had never heard of. */
+export function isSelfRegisteredKasId(kasId: string): boolean {
+  return kasId.startsWith("tg_");
+}
+
+/**
+ * Decide where an incoming member lands.
+ *
+ * Order matters, and each step exists because of a specific way of being wrong:
+ *
+ *  1. the same (type, kasId) → update. Anything else would duplicate the record
+ *     we are already tracking.
+ *  2. a bridge id + a matching phone → adopt whatever row that phone already
+ *     has, including a real kas row. This is the cutover, and it is the only
+ *     step that keeps a balance attached to its owner.
+ *  3. a real kas id + a matching self-registered row → adopt it. Today's
+ *     behaviour: a person the bot met first, whom kas has now heard of.
+ *  4. otherwise create.
+ *
+ * Never adopts across two rows that both came from the same source: two bridge
+ * ids sharing a phone are two records in B, and merging them here would hide a
+ * duplicate that belongs to be fixed there.
+ */
+export function chooseMemberRow(incoming: IncomingMember, rows: MemberRow[]): MemberMatch {
+  const exact = rows.find((r) => r.type === incoming.type && r.kasId === incoming.kasId);
+  if (exact) return { action: "update", id: exact.id, why: "same-id" };
+
+  const want = normPhone(incoming.phone);
+  if (want.length !== 9) return { action: "create", why: "new" };
+
+  const samePhone = rows
+    .filter((r) => normPhone(r.phone) === want && r.kasId !== incoming.kasId)
+    // Oldest first, so two runs never disagree about which row wins.
+    .sort((a, b) => a.id - b.id);
+
+  if (isBridgeKasId(incoming.kasId)) {
+    // Cutover. Prefer the same type; otherwise take over a row of the other
+    // type — a self-registered "client" who turns out to be our driver is the
+    // same person, and splitting them loses whichever half holds the coins.
+    const target =
+      samePhone.find((r) => r.type === incoming.type && !isBridgeKasId(r.kasId)) ??
+      samePhone.find((r) => !isBridgeKasId(r.kasId));
+    if (target) return { action: "adopt", id: target.id, why: "cutover" };
+    return { action: "create", why: "new" };
+  }
+
+  const selfReg = samePhone.find((r) => isSelfRegisteredKasId(r.kasId));
+  if (selfReg) return { action: "adopt", id: selfReg.id, why: "self-registered" };
+
+  return { action: "create", why: "new" };
+}
+
+/**
+ * May this source overwrite the member's `points`?
+ *
+ * `points` mirrors a kas1067 figure: a client's cashback in so'm, a driver's
+ * account balance. It also feeds XP, level and the leaderboards.
+ *
+ * The taxi core holds a driver's balance, so for a driver the answer is yes.
+ * It does NOT hold a customer's money — that is tanga, in this system's own
+ * ledger — so a bridge-sourced client carries no opinion about it, and writing
+ * one would drop every customer's level to zero on cutover day while looking
+ * like a successful sync.
+ *
+ * A source that does not know a number must not overwrite it with a guess.
+ */
+export function mayOverwritePoints(incoming: IncomingMember): boolean {
+  return !(isBridgeKasId(incoming.kasId) && incoming.type === "client");
+}

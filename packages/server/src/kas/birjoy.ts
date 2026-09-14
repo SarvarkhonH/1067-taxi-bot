@@ -162,8 +162,43 @@ export class BirJoySource implements KasDataSource {
   }
 
   // ── 5b (remaining) / 5c: stubbed ──────────────────────────────────────────
-  fetchMembers(): Promise<KasMember[]> { return this.notImpl("fetchMembers"); }
-  fetchByPhone(_phone: string, _only?: MemberType): Promise<KasMember[]> { return this.notImpl("fetchByPhone"); }
+  /** The bulk pull the nightly sync runs on. */
+  async fetchMembers(): Promise<KasMember[]> {
+    return this.fetchMembersFrom();
+  }
+  /**
+   * Members, in the bot's vocabulary.
+   *
+   * Ids come back prefixed `bj_` and that prefix is load-bearing: it is what
+   * tells the member matcher this is CUTOVER rather than a stranger, so an
+   * existing customer's row is taken over instead of duplicated and their tanga
+   * travels with them. Without it, every customer would quietly get a second
+   * account on the day we switch, with the balance left on the first.
+   */
+  private async fetchMembersFrom(query?: Record<string, string | number | undefined>): Promise<KasMember[]> {
+    const rows = await this.request<any[]>("GET", "/public-config/members", { query });
+    return (rows ?? []).map((m) => ({
+      type:      m.type === "driver" ? ("driver" as MemberType) : ("client" as MemberType),
+      kasId:     String(m.kasId ?? ""),
+      fullName:  m.fullName ?? "",
+      phone:     m.phone ?? undefined,
+      carNumber: m.carNumber ?? undefined,
+      points:    Number(m.points ?? 0),
+      trips:     Number(m.trips ?? 0),
+      rating:    Number(m.rating ?? 0),
+    }));
+  }
+  /**
+   * One phone, on demand — the call the bot makes on almost every interaction.
+   *
+   * `only` narrows client-vs-driver at the caller rather than at the source:
+   * one person can be both, and asking B twice to save filtering here would
+   * double the traffic on the hottest path in the system.
+   */
+  async fetchByPhone(phone: string, only?: MemberType): Promise<KasMember[]> {
+    const all = await this.fetchMembersFrom({ phone });
+    return only ? all.filter((m) => m.type === only) : all;
+  }
   /**
    * Who is calling — name, the addresses they use, and whether a car is
    * already on its way.

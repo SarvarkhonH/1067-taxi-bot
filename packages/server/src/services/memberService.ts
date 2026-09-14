@@ -1,3 +1,4 @@
+import { chooseMemberRow, mayOverwritePoints } from "@t1067/shared";
 import {
   badgesForType,
   computeXp,
@@ -266,11 +267,16 @@ export async function upsertKasMember(km: {
   trips: number;
   rating: number;
 }): Promise<{ id: number; type: MemberType; fullName: string }> {
+  // `points` is only written by a source that actually holds the number. The
+  // taxi core holds a driver's balance but NOT a customer's money — that is
+  // tanga, in this system's own ledger — so a bridge-sourced client must leave
+  // it alone. Writing a guess there would drop every customer's level to zero
+  // on cutover day while looking like a successful sync. See mayOverwritePoints.
   const data = {
     fullName: km.fullName,
     phone: km.phone ?? null,
     carNumber: km.carNumber ?? null,
-    points: km.points,
+    ...(mayOverwritePoints({ type: km.type, kasId: km.kasId, phone: km.phone }) ? { points: km.points } : {}),
     trips: km.trips,
     rating: km.rating,
     active: true,
@@ -282,18 +288,40 @@ export async function upsertKasMember(km: {
     const m = await prisma.member.update({ where: { id: byKas.id }, data });
     return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
   }
-  // 2) ADOPT a self-registered member (synthetic tg_ kasId) with the same phone — ACROSS TYPES.
-  //    A person who self-registered as a CLIENT (the default when they weren't in kas yet) and later
-  //    turns out to be a kas DRIVER is UPGRADED IN PLACE: same member id, telegram link + tangas kept,
-  //    type corrected. Without this they got a duplicate driver row and stayed a "client" in the bot,
-  //    so their recruit/welcome bonuses landed on the orphan account they don't see.
+  // 2) ADOPT an existing row for the same human under a different id.
+  //
+  //    Two cases, and the second only happens once:
+  //
+  //    • a person who self-registered as a CLIENT (the default before kas had
+  //      heard of them) and turns out to be a kas DRIVER is UPGRADED IN PLACE:
+  //      same member id, telegram link and tangas kept, type corrected. Without
+  //      it they got a duplicate driver row and their recruit/welcome bonuses
+  //      landed on an orphan account they cannot see.
+  //
+  //    • CUTOVER. When the taxi core starts answering instead of kas1067, every
+  //      existing customer arrives with a "bj_" id. Creating a new row for them
+  //      would leave their entire tanga balance on the old one, invisible,
+  //      until somebody tried to spend it.
+  //
+  //    The decision itself lives in @t1067/shared (chooseMemberRow) so it is
+  //    covered by the CI shield rather than by whoever is awake at cutover.
   if (km.phone) {
     const want = normPhone(km.phone);
-    const selfRegs = await prisma.member.findMany({ where: { kasId: { startsWith: "tg_" }, phone: { not: null } } });
-    const tg = selfRegs.find((m) => m.phone && normPhone(m.phone) === want);
-    if (tg) {
+    const candidates = await prisma.member.findMany({
+      where: { phone: { not: null } },
+      select: { id: true, type: true, kasId: true, phone: true },
+    });
+    const nearby = candidates.filter((m) => normPhone(m.phone ?? "") === want);
+    const verdict = chooseMemberRow(
+      { type: km.type, kasId: km.kasId, phone: km.phone },
+      nearby.map((m) => ({ id: m.id, type: m.type, kasId: m.kasId, phone: m.phone })),
+    );
+    if (verdict.action === "adopt") {
       try {
-        const m = await prisma.member.update({ where: { id: tg.id }, data: { type: km.type, kasId: km.kasId, ...data } });
+        const m = await prisma.member.update({
+          where: { id: verdict.id },
+          data: { type: km.type, kasId: km.kasId, ...data },
+        });
         return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
       } catch {
         // a concurrent path (or an existing real row for this type+kasId) won — read it back

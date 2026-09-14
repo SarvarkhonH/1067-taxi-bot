@@ -22,33 +22,44 @@ export function getDataSource(): KasDataSource {
       maxPages: Number(process.env.KAS_MAX_PAGES) || undefined,
     });
   } else if (env.KAS_MODE === "birjoy") {
-    // ⚠️ BirJoySource is INCOMPLETE — 2 of 27 KasDataSource methods still
-    // reject with "not implemented yet". Selecting this mode today still takes
-    // down the driver map pins, the member sync and the analytics reports,
-    // because each calls a stubbed method and gets a rejected promise.
+    // ⚠️ Every method is implemented now — 27 of 27, as of 2026-09-14. That is
+    // NOT the same as "safe to switch", and the difference is the whole reason
+    // this guard still exists.
     //
-    // The coin ledger and the booking sweep are no longer among them: the
-    // three tanga methods resolve inside A, and listActiveBookings has its B
-    // endpoint (2026-09-14).
+    // What has been proven: each method compiles, maps the shape kas1067
+    // answers with, and is covered where the logic is dangerous (the member
+    // matcher, the coin paths, the id namespacing).
     //
-    // Failing loudly at boot beats failing quietly at 2am on a real customer's
-    // ride. Set KAS_BIRJOY_FORCE=1 to proceed anyway (F1-bridge testing).
+    // What has NOT been proven, and cannot be from here:
     //
-    // This list is checked against the code by
-    // packages/shared/src/__tests__/bridgeStubs.test.ts — a refusal message
-    // naming methods that now work is how people learn to ignore the refusal.
+    //   • no shadow run. Nobody has put the two sources side by side for a day
+    //     and compared what they answer. The plan asks for seven (G6).
+    //   • ids change shape. Every member arrives with a "bj_" id at the
+    //     moment of the switch, and the matcher takes over their existing row
+    //     so the tanga travels. That path is unit-tested and has never run
+    //     against real data.
+    //   • a customer's money is not in B. Their balance stays in this
+    //     system's ledger; the bridge deliberately refuses to write it.
+    //   • no rollback drill. KAS_MODE=live is the way back, and nobody has
+    //     walked it.
+    //
+    // So the switch stays a deliberate act with a name on it, rather than a
+    // config change somebody makes on a Tuesday. Set KAS_BIRJOY_FORCE=1 when
+    // the shadow run is done and the owner has said go.
     const forced = String(process.env.KAS_BIRJOY_FORCE ?? "").trim();
     if (forced !== "1" && forced.toLowerCase() !== "true") {
       throw new Error(
-        "KAS_MODE=birjoy refused: BirJoySource still has 2 unimplemented methods " +
-        "(fetchByPhone, fetchMembers). " +
-        
-        "Switching now breaks the member sync, which is what coins, tiers and " +
-        "missions all hang off. " +
-        "Finish F1-bridge Slice 5b first, or set KAS_BIRJOY_FORCE=1 to override.",
+        "KAS_MODE=birjoy refused: the bridge is code-complete (27/27) but UNVERIFIED. " +
+        "No shadow run has compared it against kas1067, the cutover member-matching " +
+        "has never touched real data, and no rollback has been rehearsed. " +
+        "Run the shadow comparison first (G6), then set KAS_BIRJOY_FORCE=1.",
       );
     }
-    console.warn("[kas] ⚠️ KAS_MODE=birjoy FORCED — 2 methods are stubs; expect failures.");
+    console.warn(
+      "[kas] ⚠️ KAS_MODE=birjoy FORCED — code-complete but unverified against kas1067. " +
+      "Watch the member sync: an unexpected 'create' where you expected 'adopt' means " +
+      "somebody's tanga was left on their old row.",
+    );
     cached = new BirJoySource({
       baseUrl: env.KAS_BIRJOY_URL,
       serviceToken: env.KAS_SERVICE_TOKEN,

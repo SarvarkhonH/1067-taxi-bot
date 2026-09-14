@@ -4,19 +4,19 @@ import * as path from "node:path";
 
 // --- Why this file exists ----------------------------------------------------
 //
-// `KAS_MODE=birjoy` refuses to boot and names, in prose, the methods that are
-// still stubs: "BirJoySource still has 19 unimplemented methods (addClientBonus,
-// addDriverPayment, cancelBooking, …)". That sentence is the only thing standing
-// between somebody flipping the mode and the booking sweep, the coin ledger and
-// debt repayment all failing at 2am on a real customer's ride.
+// It began as a check that the boot refusal named the right stubs: the message
+// listed them in prose, and a hand-written list goes stale the first time
+// somebody implements one — a refusal naming methods that now work teaches
+// people to ignore the refusal. It caught its own drift four times in a day.
 //
-// It is also a hand-written list, which means it is a list that goes stale the
-// first time somebody implements a method — and a refusal message naming
-// methods that now work teaches the next person to ignore it. That is the same
-// defect this project keeps finding in its own documents; here it would be
-// wired into the one guard that protects a live cutover.
+// On 2026-09-14 the list emptied: 27 of 27 implemented. So the check changes
+// shape, and the thing it now protects is more important than the old one.
 //
-// So: the message is checked against the code it describes.
+// Code-complete is NOT safe-to-switch. Nothing has compared the two sources
+// side by side, the cutover member-matching has never touched real data, and no
+// rollback has been rehearsed. The guard that stands between a config change on
+// a Tuesday and every customer getting a duplicate account is a single `throw`,
+// and these tests are what keep it there.
 
 const SERVER = path.join(__dirname, "..", "..", "..", "server", "src", "kas");
 
@@ -33,68 +33,61 @@ function actualStubs(): string[] {
     .sort();
 }
 
-/** Methods the boot refusal claims are stubs — read from the message. */
-function claimedStubs(): string[] {
-  const src = read("index.ts");
-  const block = src.match(/still has \d+ unimplemented methods[\s\S]*?\(([^)]*)\)/);
-  if (!block) throw new Error("the KAS_MODE=birjoy refusal message was not found");
-  return (block[1] ?? "")
-    .split(",")
-    .map((s) => s.replace(/["+\s]/g, ""))
+/** Every method the interface requires. */
+function interfaceMethods(): string[] {
+  const src = read("types.ts");
+  const block = src.match(/export interface KasDataSource \{([\s\S]*?)\n\}/);
+  if (!block) throw new Error("KasDataSource not found");
+  return [...(block[1] ?? "").matchAll(/^\s{2}([a-zA-Z]+)\(/gm)]
+    .map((m) => m[1] ?? "")
     .filter(Boolean)
     .sort();
 }
 
-/** The count the message states. */
-function claimedCount(): number {
-  const src = read("index.ts");
-  const m = src.match(/still has (\d+) unimplemented methods/);
-  if (!m) throw new Error("the refusal message does not state a count");
-  return Number(m[1]);
-}
-
-describe("the KAS_MODE=birjoy refusal describes the bridge as it is", () => {
-  it("finds both sides (guards against a broken scanner)", () => {
-    // If either collapses to nothing the comparison below passes for the wrong
-    // reason and stops protecting the cutover.
-    expect(actualStubs().length).toBeGreaterThan(0);
-    expect(claimedStubs().length).toBeGreaterThan(0);
-  });
-
-  it("names exactly the methods that are still stubs", () => {
-    const actual = actualStubs();
-    const claimed = claimedStubs();
-
-    const nowWorking = claimed.filter((m) => !actual.includes(m));
-    const missedByMessage = actual.filter((m) => !claimed.includes(m));
-
+describe("the bridge is finished", () => {
+  it("has no method left rejecting with 'not implemented'", () => {
+    const stubs = actualStubs();
     expect(
-      nowWorking.length === 0 && missedByMessage.length === 0
-        ? ""
-        : [
-            nowWorking.length
-              ? `the refusal still lists these, but they are implemented: ${nowWorking.join(", ")}`
-              : "",
-            missedByMessage.length
-              ? `these are stubs and the refusal does not mention them: ${missedByMessage.join(", ")}`
-              : "",
-          ]
-            .filter(Boolean)
-            .join("\n"),
+      stubs.length === 0 ? "" : `still stubbed: ${stubs.join(", ")}`,
     ).toBe("");
   });
 
-  it("states the number it is actually listing", () => {
-    // The count is the part a person reads and repeats in a status report.
-    expect(claimedCount()).toBe(claimedStubs().length);
+  it("implements every method the interface asks for", () => {
+    // The scanner's own blind spot, closed: counting stubs says nothing about a
+    // method that was never written at all.
+    const src = read("birjoy.ts");
+    const missing = interfaceMethods().filter(
+      (m) => !new RegExp(`\\b(?:async\\s+)?${m}\\s*\\(`).test(src),
+    );
+    expect(
+      missing.length === 0 ? "" : `declared on KasDataSource but absent from BirJoySource: ${missing.join(", ")}`,
+    ).toBe("");
   });
+});
 
-  it("still refuses to boot while any method is a stub", () => {
-    // The day this list empties, the guard should come out — deliberately, with
-    // somebody deciding to. Until then it must be impossible to boot past it by
-    // accident.
+describe("finished is not the same as safe", () => {
+  it("still refuses to boot into birjoy mode without a deliberate override", () => {
+    // The one line between "the code is done" and every customer getting a
+    // second account with their tanga left on the first.
     const src = read("index.ts");
     expect(src).toContain("KAS_MODE=birjoy refused");
-    expect(actualStubs().length).toBeGreaterThan(0);
+    expect(src).toContain("KAS_BIRJOY_FORCE");
+  });
+
+  it("says what is unverified, not just that something is", () => {
+    // A refusal that only says "no" gets overridden. One that names the shadow
+    // run, the untested cutover matching and the un-rehearsed rollback tells
+    // the person holding the flag what they are deciding.
+    const src = read("index.ts");
+    for (const claim of ["shadow", "cutover", "rollback"]) {
+      expect(src.toLowerCase()).toContain(claim);
+    }
+  });
+
+  it("does not claim the bridge is unfinished any more", () => {
+    // The old message named stubs. Leaving it would be the same lie in reverse:
+    // a warning about a problem that no longer exists, next to one that does.
+    const src = read("index.ts");
+    expect(src).not.toContain("unimplemented methods");
   });
 });
