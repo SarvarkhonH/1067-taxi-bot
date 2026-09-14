@@ -28,7 +28,8 @@ function read(file: string): string {
 function actualStubs(): string[] {
   const src = read("birjoy.ts");
   return [...src.matchAll(/this\.notImpl\("([A-Za-z]+)"\)/g)]
-    .map((m) => m[1])
+    .map((m) => m[1] ?? "")
+    .filter(Boolean)
     .sort();
 }
 
@@ -37,7 +38,7 @@ function claimedStubs(): string[] {
   const src = read("index.ts");
   const block = src.match(/still has \d+ unimplemented methods[\s\S]*?\(([^)]*)\)/);
   if (!block) throw new Error("the KAS_MODE=birjoy refusal message was not found");
-  return block[1]
+  return (block[1] ?? "")
     .split(",")
     .map((s) => s.replace(/["+\s]/g, ""))
     .filter(Boolean)
