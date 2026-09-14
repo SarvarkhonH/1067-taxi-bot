@@ -22,7 +22,7 @@ export function getDataSource(): KasDataSource {
       maxPages: Number(process.env.KAS_MAX_PAGES) || undefined,
     });
   } else if (env.KAS_MODE === "birjoy") {
-    // ⚠️ BirJoySource is INCOMPLETE — 4 of 27 KasDataSource methods still
+    // ⚠️ BirJoySource is INCOMPLETE — 2 of 27 KasDataSource methods still
     // reject with "not implemented yet". Selecting this mode today still takes
     // down the driver map pins, the member sync and the analytics reports,
     // because each calls a stubbed method and gets a rejected promise.
@@ -40,14 +40,15 @@ export function getDataSource(): KasDataSource {
     const forced = String(process.env.KAS_BIRJOY_FORCE ?? "").trim();
     if (forced !== "1" && forced.toLowerCase() !== "true") {
       throw new Error(
-        "KAS_MODE=birjoy refused: BirJoySource still has 4 unimplemented methods " +
-        "(fetchByPhone, fetchMembers, getMainReport, getReportsPage). " +
+        "KAS_MODE=birjoy refused: BirJoySource still has 2 unimplemented methods " +
+        "(fetchByPhone, fetchMembers). " +
         
-        "Switching now breaks the member sync and the analytics reports. " +
+        "Switching now breaks the member sync, which is what coins, tiers and " +
+        "missions all hang off. " +
         "Finish F1-bridge Slice 5b first, or set KAS_BIRJOY_FORCE=1 to override.",
       );
     }
-    console.warn("[kas] ⚠️ KAS_MODE=birjoy FORCED — 4 methods are stubs; expect failures.");
+    console.warn("[kas] ⚠️ KAS_MODE=birjoy FORCED — 2 methods are stubs; expect failures.");
     cached = new BirJoySource({
       baseUrl: env.KAS_BIRJOY_URL,
       serviceToken: env.KAS_SERVICE_TOKEN,

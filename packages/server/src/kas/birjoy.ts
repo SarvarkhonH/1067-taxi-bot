@@ -334,7 +334,28 @@ export class BirJoySource implements KasDataSource {
       lat: 0, lng: 0,   // by-car carries no live position; getDriverPins does (§3.3)
     };
   }
-  getReportsPage(_page: number, _size: number): Promise<RideHistoryItem[]> { return this.notImpl("getReportsPage"); }
+  /**
+   * A page of completed rides, newest first — the analytics pull.
+   *
+   * Paged because the caller pages: it walks backwards until it has the window
+   * it wants. Handing it everything would move the memory problem from their
+   * process into ours.
+   */
+  async getReportsPage(page: number, size: number): Promise<RideHistoryItem[]> {
+    const rows = await this.request<any[]>("GET", "/public-config/reports", { query: { page, size } });
+    return (rows ?? []).map((r) => ({
+      id:          this.toOuterId(r.id),
+      addressName: r.addressName ?? "",
+      status:      String(r.status ?? ""),
+      carNumber:   r.carNumber ?? "",
+      carModel:    r.carModel ?? "",
+      payment:     Number(r.payment ?? 0),
+      cashback:    0,   // tanga — A's ledger, not a column on a B ride
+      distance:    r.distance != null ? Number(r.distance) : undefined,
+      at:          String(r.at ?? ""),
+      additionalPaymentCompany: Number(r.additionalPaymentCompany ?? 0),
+    }));
+  }
   /**
    * The whole driver list, for the call panel.
    *
@@ -480,7 +501,27 @@ export class BirJoySource implements KasDataSource {
       .map((p) => ({ lat: Number(p?.lat), lng: Number(p?.lng) }))
       .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
   }
-  getMainReport(): Promise<KasMainReport> { return this.notImpl("getMainReport"); }
+  /**
+   * Yesterday in five numbers — the morning digest.
+   *
+   * Yesterday, not today: a day still happening gives a figure that falls every
+   * time somebody reads it early, and a digest whose numbers move is one people
+   * stop believing.
+   *
+   * `onlineDrivers` is the exception and is live — nothing records how many
+   * cars were on at 3pm yesterday, and the caller uses it as a now-number
+   * anyway (bookingNotifier reads it to decide whether anyone is working).
+   */
+  async getMainReport(): Promise<KasMainReport> {
+    const r = await this.request<any>("GET", "/public-config/main-report");
+    return {
+      completedYesterday: Number(r?.completedYesterday ?? 0),
+      bookingsYesterday:  Number(r?.bookingsYesterday ?? 0),
+      onlineDrivers:      Number(r?.onlineDrivers ?? 0),
+      activeDrivers:      Number(r?.activeDrivers ?? 0),
+      serviceCost:        Number(r?.serviceCost ?? 0),
+    };
+  }
 
   // ── 5c: tanga methods — resolve inside A, not over HTTP ───────────────────
   //
