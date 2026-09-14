@@ -77,9 +77,22 @@ function report(title: string, results: { m: Incoming; v: MemberMatch }[], rows:
   let strandedPoints = 0;
   const stranded: string[] = [];
 
+  // What each verdict is carrying. An adopt count answers "how many rows", and
+  // the only question anybody actually has is "how much of somebody's money
+  // moved with them".
+  const money: Record<string, { coins: number; points: number }> = {};
+
   for (const { m, v } of results) {
     counts[v.action]++;
-    if (v.action === "adopt") whys[v.why] = (whys[v.why] ?? 0) + 1;
+    if (v.action === "adopt") {
+      whys[v.why] = (whys[v.why] ?? 0) + 1;
+      const row = rows.find((r) => r.id === v.id);
+      if (row) {
+        const bucket = (money[v.why] ??= { coins: 0, points: 0 });
+        bucket.coins += row.coins;
+        bucket.points += row.points;
+      }
+    }
 
     // The failure this whole exercise is about: a NEW row for somebody who
     // already has one. Their balance stays behind on the old row.
@@ -100,6 +113,9 @@ function report(title: string, results: { m: Incoming; v: MemberMatch }[], rows:
   console.log(`  kirgan: ${results.length}`);
   console.log(`  update : ${counts.update}   (o'sha qator, o'sha id)`);
   console.log(`  adopt  : ${counts.adopt}   ${Object.entries(whys).map(([w, n]) => `${w}=${n}`).join(" ")}`);
+  for (const [why, mo] of Object.entries(money)) {
+    console.log(`           ${why}: ${uzs(mo.coins)} tanga + ${uzs(mo.points)} ball o'z egasi bilan ketadi`);
+  }
   console.log(`  create : ${counts.create}`);
 
   if (strandedCoins + strandedPoints > 0) {
