@@ -390,9 +390,54 @@ export class BirJoySource implements KasDataSource {
       active:      a.active === true,
     };
   }
-  getTariff(): Promise<ClientTariff> { return this.notImpl("getTariff"); }
-  getCompanyInfo(): Promise<CompanyInfo> { return this.notImpl("getCompanyInfo"); }
-  getServiceArea(): Promise<GeoPoint[]> { return this.notImpl("getServiceArea"); }
+  /**
+   * The tariff, as the bot quotes it.
+   *
+   * Straight from the snapshot the fare engine is using this second — not a
+   * second copy. A price list that can disagree with the price charged is the
+   * defect this project spent a day removing from its own admin screen.
+   *
+   * City and region carry the same numbers because that is what we charge: the
+   * village coefficient is a zone multiplier applied on top, not a second price
+   * list. `minimalDistance` is 0 — we have no such rule.
+   */
+  async getTariff(): Promise<ClientTariff> {
+    const t = await this.request<any>("GET", "/public-config/tariff");
+    return {
+      minimalDistance:               Number(t?.minimalDistance ?? 0),
+      minimalPayment:                Number(t?.minimalPayment ?? 0),
+      firstKilometerPaymentInCity:   Number(t?.firstKilometerPaymentInCity ?? 0),
+      secondKilometerPaymentInCity:  Number(t?.secondKilometerPaymentInCity ?? 0),
+      distancePaymentInCity:         Number(t?.distancePaymentInCity ?? 0),
+      firstKilometerPaymentInRegion: Number(t?.firstKilometerPaymentInRegion ?? 0),
+      secondKilometerPaymentInRegion:Number(t?.secondKilometerPaymentInRegion ?? 0),
+      distancePaymentInRegion:       Number(t?.distancePaymentInRegion ?? 0),
+      timePayment:                   Number(t?.timePayment ?? 0),
+    };
+  }
+  /** Who we are and which number a passenger rings. Editable in B's settings. */
+  async getCompanyInfo(): Promise<CompanyInfo> {
+    const c = await this.request<any>("GET", "/public-config/company");
+    return {
+      companyName:      c?.companyName ?? "BirJoy Taxi",
+      dispatcherPhones: Array.isArray(c?.dispatcherPhones) ? c.dispatcherPhones : [],
+      lat:              Number(c?.lat ?? 0),
+      lng:              Number(c?.lng ?? 0),
+    };
+  }
+  /**
+   * The area we serve.
+   *
+   * The widest zone an operator actually drew, and an EMPTY list when none
+   * exists — which is the honest answer. A boundary invented here tells a
+   * passenger outside it that no car can come, or one inside it that one can.
+   */
+  async getServiceArea(): Promise<GeoPoint[]> {
+    const ring = await this.request<any[]>("GET", "/public-config/service-area");
+    return (ring ?? [])
+      .map((p) => ({ lat: Number(p?.lat), lng: Number(p?.lng) }))
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+  }
   getMainReport(): Promise<KasMainReport> { return this.notImpl("getMainReport"); }
 
   // ── 5c: tanga methods — resolve inside A, not over HTTP ───────────────────
