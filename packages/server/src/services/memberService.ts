@@ -1,4 +1,4 @@
-import { chooseMemberRow, mayOverwritePoints } from "@t1067/shared";
+import { chooseMemberRow, mayOverwritePoints, mergeBridgeCounters } from "@t1067/shared";
 import {
   badgesForType,
   computeXp,
@@ -272,20 +272,22 @@ export async function upsertKasMember(km: {
   // tanga, in this system's own ledger — so a bridge-sourced client must leave
   // it alone. Writing a guess there would drop every customer's level to zero
   // on cutover day while looking like a successful sync. See mayOverwritePoints.
-  const data = {
+  // `trips` and `rating` depend on the row we are about to land on, because a
+  // source with no history must not erase one: the taxi core answers trips: 0
+  // for a customer with 1382 kas rides. See mergeBridgeCounters.
+  const dataFor = (existing: { trips: number; rating: number } | null) => ({
     fullName: km.fullName,
     phone: km.phone ?? null,
     carNumber: km.carNumber ?? null,
     ...(mayOverwritePoints({ type: km.type, kasId: km.kasId, phone: km.phone }) ? { points: km.points } : {}),
-    trips: km.trips,
-    rating: km.rating,
+    ...mergeBridgeCounters({ kasId: km.kasId, trips: km.trips, rating: km.rating }, existing),
     active: true,
     lastSyncAt: new Date(),
-  };
+  });
   // 1) we already track this real kas record → update it
   const byKas = await prisma.member.findUnique({ where: { type_kasId: { type: km.type, kasId: km.kasId } } });
   if (byKas) {
-    const m = await prisma.member.update({ where: { id: byKas.id }, data });
+    const m = await prisma.member.update({ where: { id: byKas.id }, data: dataFor(byKas) });
     return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
   }
   // 2) ADOPT an existing row for the same human under a different id.
@@ -309,7 +311,8 @@ export async function upsertKasMember(km: {
     const want = normPhone(km.phone);
     const candidates = await prisma.member.findMany({
       where: { phone: { not: null } },
-      select: { id: true, type: true, kasId: true, phone: true },
+      // trips/rating come along because the merge depends on what the row holds.
+      select: { id: true, type: true, kasId: true, phone: true, trips: true, rating: true },
     });
     const nearby = candidates.filter((m) => normPhone(m.phone ?? "") === want);
     const verdict = chooseMemberRow(
@@ -317,10 +320,11 @@ export async function upsertKasMember(km: {
       nearby.map((m) => ({ id: m.id, type: m.type, kasId: m.kasId, phone: m.phone })),
     );
     if (verdict.action === "adopt") {
+      const target = nearby.find((m) => m.id === verdict.id) ?? null;
       try {
         const m = await prisma.member.update({
           where: { id: verdict.id },
-          data: { type: km.type, kasId: km.kasId, ...data },
+          data: { type: km.type, kasId: km.kasId, ...dataFor(target) },
         });
         return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
       } catch {
@@ -331,7 +335,7 @@ export async function upsertKasMember(km: {
     }
   }
   // 3) brand-new kas member
-  const m = await prisma.member.create({ data: { type: km.type, kasId: km.kasId, ...data } });
+  const m = await prisma.member.create({ data: { type: km.type, kasId: km.kasId, ...dataFor(null) } });
   return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
 }
 

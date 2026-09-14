@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { chooseMemberRow, normPhone, isBridgeKasId, mayOverwritePoints, type MemberRow } from "../memberMatch";
+import { chooseMemberRow, normPhone, isBridgeKasId, mayOverwritePoints, type MemberRow, mergeBridgeCounters } from "../memberMatch";
 
 // --- Why this file exists ----------------------------------------------------
 //
@@ -186,5 +186,32 @@ describe("the way back", () => {
     const twoKasRows = [{ id: 1, type: "client", kasId: "100", phone: "998901112233" }];
     const v = chooseMemberRow({ type: "client", kasId: "200", phone: "998901112233" }, twoKasRows);
     expect(v.action).toBe("create");
+  });
+});
+
+describe("a source that has no history must not erase one", () => {
+  it("keeps a customer's ride count when the taxi core reports zero", () => {
+    // The taxi core has sixteen orders. kas1067 has years. On cutover day the
+    // bridge answers trips: 0 for somebody with 1382 rides.
+    const merged = mergeBridgeCounters({ kasId: "bj_9", trips: 0, rating: 0 }, { trips: 1382, rating: 4.8 });
+    expect(merged.trips).toBe(1382);
+    expect(merged.rating).toBe(4.8);
+  });
+
+  it("lets the count grow once the taxi core really has the rides", () => {
+    const merged = mergeBridgeCounters({ kasId: "bj_9", trips: 1400, rating: 4.9 }, { trips: 1382, rating: 4.8 });
+    expect(merged.trips).toBe(1400);
+    expect(merged.rating).toBe(4.9);
+  });
+
+  it("leaves kas1067 alone — a correction from it is a real correction", () => {
+    const merged = mergeBridgeCounters({ kasId: "4812", trips: 3, rating: 0 }, { trips: 900, rating: 4.5 });
+    expect(merged.trips).toBe(3);
+    expect(merged.rating).toBe(0);
+  });
+
+  it("takes the incoming numbers when there is no row yet", () => {
+    const merged = mergeBridgeCounters({ kasId: "bj_1", trips: 7, rating: 5 }, null);
+    expect(merged).toEqual({ trips: 7, rating: 5 });
   });
 });

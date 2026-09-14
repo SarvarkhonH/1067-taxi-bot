@@ -152,3 +152,35 @@ export function chooseMemberRow(incoming: IncomingMember, rows: MemberRow[]): Me
 export function mayOverwritePoints(incoming: IncomingMember): boolean {
   return !(isBridgeKasId(incoming.kasId) && incoming.type === "client");
 }
+
+
+/**
+ * How many rides has this person taken, and how are they rated?
+ *
+ * `points` is already protected — a source that does not hold a number must not
+ * overwrite it with a guess — but `trips` and `rating` were written by whoever
+ * answered last, and on cutover day that is a system with sixteen orders in it.
+ * kas1067 has years. The bridge answers `trips: 0` for a customer with 1382
+ * rides, and the sync writes it: their whole visible history, their level and
+ * every badge hanging off it, gone, while the log says the sync succeeded.
+ *
+ * A lifetime ride count only ever goes up, which makes the safe answer easy —
+ * take the larger. A rating of zero is not a rating, it is "no opinion", so it
+ * never replaces one somebody earned.
+ *
+ * Scoped to bridge ids on purpose: kas is authoritative today and a correction
+ * from it, downward or not, is a real correction. This is about the one day the
+ * two systems swap places.
+ */
+export function mergeBridgeCounters(
+  incoming: { kasId: string; trips: number; rating: number },
+  existing: { trips: number; rating: number } | null,
+): { trips: number; rating: number } {
+  if (!isBridgeKasId(incoming.kasId) || !existing) {
+    return { trips: incoming.trips, rating: incoming.rating };
+  }
+  return {
+    trips: Math.max(incoming.trips, existing.trips),
+    rating: incoming.rating > 0 ? incoming.rating : existing.rating,
+  };
+}
