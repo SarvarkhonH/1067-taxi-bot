@@ -134,6 +134,27 @@ qutqaruv navbati, ta'minot-qayta-urinishi, to'lqin, zona FIFO (oxirgi ikkitasi q
 | **G5** ta'minot hujumi | ⬜ | FIFO va to'lqin **qurilgan, qorong'i**; E1 kerak; komissiya paneli (K-E) |
 | **G6** kanal + uzilish | 🟡 | Ko'prik 27/27 · **soya rejimi ishlamoqda (boshlandi 2026-09-14)** · hamyon yo'q |
 
+### Cutover mashqi — 2026-09-14 da JONLI ma'lumotda yurgizildi
+
+`scripts/dryRunCutover.ts` — haqiqiy moslashtirgich, haqiqiy a'zo jadvali, taksi yadrosining
+haqiqiy javoblari. **Hech narsa yozmaydi** (qorovul-test faylni o'qib tekshiradi).
+
+| | Oldinga (cutover) | Orqaga (rollback) |
+|---|---|---|
+| kirgan | 767 | 2981 |
+| o'sha qator (update) | 0 | 2786 |
+| **egallandi (adopt)** | **205** | **195** |
+| pul egasi bilan ketadi | 1 079 738 tanga + 3 138 149 ball | 993 581 tanga + 3 137 284 ball |
+| yangi qator (create) | 562 (rostdan yangi odamlar) | **0** |
+| orfan qolgan pul | **yo'q** | **yo'q** |
+
+**Mashq haqiqiy bug topdi:** tuzatishdan oldin orqaga qaytish o'sha 195 qatorni **ikkilantirardi**
+va **993 581 tanga + 3 137 284 ball** ko'rinmas qatorda qolardi. `chooseMemberRow` 3-qadami endi
+2-qadamning ko'zgusi: kas idsi kas yaratmagan qatorni egallaydi (`tg_` yoki `bj_`).
+
+Orqaga qaytish: `bash /opt/app/deploy/rollback-to-kas.sh` (quruq) · `--go` (bajarish).
+Jonli yurgizildi — «allaqachon kas1067 da» deb chiqdi, hech narsaga tegmadi.
+
 ### Soya rejimini o'qish (G6)
 
 Jonli bot 2026-09-14 15:23 dan beri **ikkala manbadan** so'rayapti: javob har doim kas1067 niki,
