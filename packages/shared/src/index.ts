@@ -1,5 +1,6 @@
 export * from "./gamify";
 export * from "./memberMatch";
+export * from "./shadowCompare";
 export * from "./missions";
 export * from "./weekly";
 export * from "./economy";
