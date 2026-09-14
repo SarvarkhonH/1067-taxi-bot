@@ -22,10 +22,10 @@ export function getDataSource(): KasDataSource {
       maxPages: Number(process.env.KAS_MAX_PAGES) || undefined,
     });
   } else if (env.KAS_MODE === "birjoy") {
-    // ⚠️ BirJoySource is INCOMPLETE — 12 of 27 KasDataSource methods still
+    // ⚠️ BirJoySource is INCOMPLETE — 9 of 27 KasDataSource methods still
     // reject with "not implemented yet". Selecting this mode today still takes
-    // down driver-debt repayment and the obzvon roster, because both call a
-    // stubbed method and get a rejected promise.
+    // down the driver map pins, the member sync and the analytics reports,
+    // because each calls a stubbed method and gets a rejected promise.
     //
     // The coin ledger and the booking sweep are no longer among them: the
     // three tanga methods resolve inside A, and listActiveBookings has its B
@@ -40,15 +40,14 @@ export function getDataSource(): KasDataSource {
     const forced = String(process.env.KAS_BIRJOY_FORCE ?? "").trim();
     if (forced !== "1" && forced.toLowerCase() !== "true") {
       throw new Error(
-        "KAS_MODE=birjoy refused: BirJoySource still has 12 unimplemented methods " +
-        "(addDriverPayment, fetchByPhone, fetchMembers, getCompanyInfo, " +
-        "getDriverAccount, getDriverPins, getMainReport, getReportsPage, " +
-        "getRidesByCar, getServiceArea, getTariff, listDriverRoster). " +
-        "Switching now breaks driver-debt repayment and the obzvon roster. " +
+        "KAS_MODE=birjoy refused: BirJoySource still has 9 unimplemented methods " +
+        "(fetchByPhone, fetchMembers, getCompanyInfo, getDriverPins, " +
+        "getMainReport, getReportsPage, getRidesByCar, getServiceArea, getTariff). " +
+        "Switching now breaks the map pins, the member sync and the reports. " +
         "Finish F1-bridge Slice 5b first, or set KAS_BIRJOY_FORCE=1 to override.",
       );
     }
-    console.warn("[kas] ⚠️ KAS_MODE=birjoy FORCED — 12 methods are stubs; expect failures.");
+    console.warn("[kas] ⚠️ KAS_MODE=birjoy FORCED — 9 methods are stubs; expect failures.");
     cached = new BirJoySource({
       baseUrl: env.KAS_BIRJOY_URL,
       serviceToken: env.KAS_SERVICE_TOKEN,

@@ -293,7 +293,36 @@ export class BirJoySource implements KasDataSource {
     };
   }
   getReportsPage(_page: number, _size: number): Promise<RideHistoryItem[]> { return this.notImpl("getReportsPage"); }
-  listDriverRoster(): Promise<DriverRosterRow[]> { return this.notImpl("listDriverRoster"); }
+  /**
+   * The whole driver list, for the call panel.
+   *
+   * Two fields are null rather than guessed. `address` is not held in B at all,
+   * and `licenseTerm` lives in driver_documents rather than on the driver row —
+   * a licence expiry invented here would be an expiry somebody schedules a
+   * phone call around.
+   *
+   * `lastRideAt` carries B's last-online time, which is the nearest honest
+   * answer to "is this driver still working" that B can give today.
+   */
+  async listDriverRoster(): Promise<DriverRosterRow[]> {
+    const rows = await this.request<any[]>("GET", "/drivers/roster");
+    return (rows ?? []).map((d) => ({
+      kasId:      this.toOuterId(d.driverId),
+      fullName:   d.fullName ?? "",
+      phone:      d.phone ?? null,
+      carNumber:  d.carNumber ?? null,
+      carModel:   d.carModel ?? null,
+      address:    null,
+      balance:    Number(d.balance ?? 0),
+      debt:       Number(d.debt ?? 0),
+      trips:      Number(d.trips ?? 0),
+      cancels:    Number(d.cancels ?? 0),
+      rating:     Number(d.rating ?? 0),
+      active:     d.active === true,
+      lastRideAt: d.lastOnlineAt ?? null,
+      licenseTerm: null,
+    }));
+  }
   /**
    * Give a caller the name the operator learned on the phone.
    *
@@ -311,8 +340,56 @@ export class BirJoySource implements KasDataSource {
       return { ok: false, status: 500 };
     }
   }
-  addDriverPayment(_driverId: number, _carNumber: string, _amount: number, _comment?: string, _debt?: boolean): Promise<{ ok: boolean; balance: number | null; status: number }> { return this.notImpl("addDriverPayment"); }
-  getDriverAccount(_carNumber: string): Promise<DriverAccount | null> { return this.notImpl("getDriverAccount"); }
+  /**
+   * Move a driver's balance — the debt-repaid-with-tanga path.
+   *
+   * `debt` is accepted for signature compatibility and ignored: in kas it
+   * selects which of two accounts to touch, and B has one. Reading it would
+   * mean pretending to a distinction the schema does not make.
+   *
+   * The plate is sent alongside the id because A's driver ids are namespaced
+   * and B can resolve either — the plate is the identifier a human can check
+   * against a real car if the money ever has to be traced back.
+   */
+  async addDriverPayment(
+    driverId: number,
+    carNumber: string,
+    amount: number,
+    comment?: string,
+    _debt?: boolean,
+  ): Promise<{ ok: boolean; balance: number | null; status: number }> {
+    try {
+      const res = await this.request<{ ok: boolean; balance: number | null; reason?: string }>(
+        "POST", "/drivers/payment",
+        { body: { driverId: driverId ? this.toInnerId(driverId) : undefined, carNumber, amountUzs: amount, note: comment } },
+      );
+      return { ok: res?.ok === true, balance: res?.balance ?? null, status: res?.ok ? 200 : 400 };
+    } catch {
+      return { ok: false, balance: null, status: 500 };
+    }
+  }
+  /**
+   * A driver's account by plate — what the bot shows before offering to clear
+   * a debt with tanga.
+   *
+   * `debt` is the negative half of the balance, not a field of its own: a
+   * driver owing 12,000 is a balance of -12,000 in B, and a second number for
+   * one fact is two numbers that can disagree.
+   */
+  async getDriverAccount(carNumber: string): Promise<DriverAccount | null> {
+    const a = await this.request<any>("GET", `/drivers/account/${encodeURIComponent(carNumber)}`);
+    if (!a) return null;
+    return {
+      kasId:       this.toOuterId(a.driverId),
+      carNumber:   a.carNumber ?? carNumber,
+      balance:     Number(a.balance ?? 0),
+      debt:        Number(a.debt ?? 0),
+      rating:      Number(a.rating ?? 0),
+      takeCount:   Number(a.takeCount ?? 0),
+      cancelCount: Number(a.cancelCount ?? 0),
+      active:      a.active === true,
+    };
+  }
   getTariff(): Promise<ClientTariff> { return this.notImpl("getTariff"); }
   getCompanyInfo(): Promise<CompanyInfo> { return this.notImpl("getCompanyInfo"); }
   getServiceArea(): Promise<GeoPoint[]> { return this.notImpl("getServiceArea"); }
