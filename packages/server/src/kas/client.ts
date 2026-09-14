@@ -206,6 +206,7 @@ export class KasLiveSource implements KasDataSource {
     for (let attempt = 0; ; attempt++) {
       this.jar.clear();
       const page = await rawRequest(this.url("login"), { headers: this.baseHeaders() });
+      if (page.status === 429) recordKas(false, "429");
       if (page.status === 429 && attempt < 4) {
         await sleep(2000 * (attempt + 1));
         continue;
@@ -221,6 +222,7 @@ export class KasLiveSource implements KasDataSource {
         headers: { ...this.baseHeaders(), "Content-Type": "application/x-www-form-urlencoded" },
         body: form.toString(),
       });
+      if (res.status === 429) recordKas(false, "429");
       if (res.status === 429 && attempt < 4) {
         await sleep(2000 * (attempt + 1));
         continue;
@@ -234,11 +236,17 @@ export class KasLiveSource implements KasDataSource {
           await sleep(2000 * (attempt + 1)); // transient 200 / redirect-to-login → retry with a fresh jar
           continue;
         }
+        // Tell the early-warning monitor. It watches the getText chokepoint and
+        // NOTHING had ever reported the login path to it — which is why the
+        // 2026-09-14 outage, twelve hours of nothing but failed logins, produced
+        // not one alert: from the monitor's side the system was idle, not sick.
+        recordKas(false, "login");
         throw new Error(
           `kas1067 login failed (status ${res.status}, redirect "${loc}"). Check KAS_USERNAME / KAS_PASSWORD.`,
         );
       }
       this.loggedIn = true;
+      recordKas(true);
       return;
     }
   }

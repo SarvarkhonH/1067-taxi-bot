@@ -284,8 +284,14 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
     await rememberPickup(memberId, pinMem, source);
     // ⚡ arm the instant-status socket NOW (before the driver accepts) so take_booking lands in ~1-2s
     void import("./kasClientSocket").then(({ armInstant }) => armInstant(memberId, who.phone)).catch(() => undefined);
-  } else await releaseDispatchSlot(memberId, slot.prev);
-  return { ok: res.ok, live: true, message: res.message };
+    return { ok: true, live: true, message: res.message };
+  }
+  await releaseDispatchSlot(memberId, slot.prev);
+  // A failure that is ours, not theirs, is said in words a passenger can act
+  // on — with the dispatcher's number — instead of the client's raw error.
+  const { customerFacingKasError } = await import("./kasHealth");
+  const friendly = customerFacingKasError(res.message);
+  return { ok: false, live: true, message: friendly ?? res.message };
 }
 
 export async function cancelBookingFor(memberId: number): Promise<BookingCancelResponse> {

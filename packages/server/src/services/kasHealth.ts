@@ -93,3 +93,38 @@ export async function maybeAlertKasHealth(alert: (html: string) => Promise<void>
     await alert(`✅ <b>kas tiklandi</b> — so'nggi so'rovlar muvaffaqiyatli o'tdi. Booking normal holatga qaytdi.`);
   }
 }
+
+/**
+ * What to tell the PASSENGER when their booking failed because of kas, not
+ * because of them.
+ *
+ * Until now `createBookingFor` returned the raw client error, so a rider in
+ * Koson could be shown `kas1067 login failed (status 429, redirect "")` in a
+ * Telegram chat. That sentence tells them nothing they can act on, and it hides
+ * the one thing they can: the dispatcher answers a phone.
+ *
+ * Returns null when the failure is NOT infrastructure — a refusal kas made on
+ * purpose (duplicate booking, unknown address) is the customer's business and
+ * must reach them unchanged.
+ */
+export function customerFacingKasError(raw: string | undefined): string | null {
+  const m = (raw ?? "").toLowerCase();
+  const infra =
+    m.includes("login failed") ||
+    m.includes("timed out") ||
+    m.includes("timeout") ||
+    m.includes("econnrefused") ||
+    m.includes("enotfound") ||
+    m.includes("econnreset") ||
+    m.includes("socket hang up") ||
+    m.includes("fetch failed") ||
+    /(^|[^0-9])(429|500|502|503|504)([^0-9]|$)/.test(m);
+  if (!infra) return null;
+  // Two lines, built without escapes: the message is assembled here and sent
+  // straight into Telegram HTML.
+  const NL = String.fromCharCode(10);
+  return (
+    "Hozir buyurtma yuborilmadi — tizimda vaqtincha nosozlik." + NL + NL +
+    "Iltimos, taksini to‘g‘ridan-to‘g‘ri <b>1067</b> raqamiga qo‘ng‘iroq qilib chaqiring. Uzr so‘raymiz."
+  );
+}
