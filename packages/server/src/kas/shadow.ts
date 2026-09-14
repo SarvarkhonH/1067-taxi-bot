@@ -58,12 +58,14 @@ export interface ShadowStats {
   methods: Record<string, { compared: number; differed: number; lastProblem?: string }>;
   /** Shadow calls that threw or timed out — a source that cannot answer is itself a finding. */
   errors: Record<string, number>;
+  /** Times kas1067 could not answer, and how often the taxi core could have. */
+  primaryDown: Record<string, { failed: number; shadowServed: number }>;
 }
 
 const SHADOW_TIMEOUT_MS = 8_000;
 
 export class ShadowRecorder {
-  readonly stats: ShadowStats = { startedAt: new Date().toISOString(), methods: {}, errors: {} };
+  readonly stats: ShadowStats = { startedAt: new Date().toISOString(), methods: {}, errors: {}, primaryDown: {} };
 
   /** Each distinct disagreement is printed once; the rest are counted. */
   private readonly printed = new ProblemLog();
@@ -99,6 +101,28 @@ export class ShadowRecorder {
     if (fresh.length > 0) console.warn(`[shadow] NEW ${diff.method}: ${fresh.join(" | ")}`);
   }
 
+  /**
+   * kas1067 could not answer at all.
+   *
+   * This is not a difference of opinion, so it is not a comparison — but it is
+   * half of the question the cutover turns on, and on a bad kas day it is the
+   * only half producing any signal. Counted per method, with whether the taxi
+   * core could have served the same call, and announced once so a sick kas does
+   * not fill the log with the same sentence.
+   */
+  recordPrimaryDown(method: string, shadowServed: boolean): void {
+    const p = (this.stats.primaryDown[method] ??= { failed: 0, shadowServed: 0 });
+    const first = p.failed === 0;
+    p.failed++;
+    if (shadowServed) p.shadowServed++;
+    if (first) {
+      console.warn(
+        `[shadow] PRIMARY-DOWN ${method}: kas1067 could not answer; the taxi core ` +
+        `${shadowServed ? "could" : "could NOT either"}. Counting from here.`,
+      );
+    }
+  }
+
   recordError(method: string, e: unknown): void {
     this.stats.errors[method] = (this.stats.errors[method] ?? 0) + 1;
     console.warn(`[shadow] ${method} FAILED in shadow: ${e instanceof Error ? e.message : String(e)}`);
@@ -107,6 +131,18 @@ export class ShadowRecorder {
   /** How many genuinely different disagreements have been seen, not how many times. */
   get distinctProblems(): number {
     return this.printed.distinct;
+  }
+
+  /** kas1067's outages, and whether we could have covered them. Empty when there were none. */
+  primaryDownLine(): string {
+    const entries = Object.entries(this.stats.primaryDown);
+    if (entries.length === 0) return "";
+    const total = entries.reduce((n, [, p]) => n + p.failed, 0);
+    const served = entries.reduce((n, [, p]) => n + p.shadowServed, 0);
+    return (
+      ` | kas1067 could not answer ${total}× (taxi core could have served ${served}): ` +
+      entries.map(([m, p]) => `${m} ${p.shadowServed}/${p.failed}`).join(", ")
+    );
   }
 
   /** What a week of running looks like, in one object. */
@@ -136,13 +172,15 @@ export const shadowRecorder = new ShadowRecorder();
 export function startShadowSummaryLog(everyMs = 30 * 60 * 1000): void {
   const t = setInterval(() => {
     const rows = shadowRecorder.summary();
+    const down = shadowRecorder.primaryDownLine();
     if (rows.length === 0) {
       // Nothing compared is a finding, not a reason to stay quiet: it means the
       // bot never asked either source anything shadowable, and a week of that
       // would otherwise read as a clean run.
       console.warn(
         `[shadow] SUMMARY since ${shadowRecorder.stats.startedAt}: NOTHING COMPARED YET — ` +
-        "no shadowable read has been made. Either the bot is idle, or shadow mode is not on the path it uses.",
+        "no shadowable read completed on BOTH sources. Either the bot is idle, kas1067 is not " +
+        `answering, or shadow mode is not on the path it uses.${down}`,
       );
       return;
     }
@@ -151,7 +189,7 @@ export function startShadowSummaryLog(everyMs = 30 * 60 * 1000): void {
     console.warn(
       `[shadow] SUMMARY since ${shadowRecorder.stats.startedAt}: ${total} compared, ${bad} differed, ` +
       `${shadowRecorder.distinctProblems} distinct — ` +
-      rows.map((r) => `${r.method} ${r.differed}/${r.compared}`).join(", "),
+      rows.map((r) => `${r.method} ${r.differed}/${r.compared}`).join(", ") + down,
     );
   }, everyMs);
   t.unref?.();
@@ -215,6 +253,18 @@ export function withShadow(
             try {
               liveValue = await Promise.resolve(live);
             } catch {
+              // The shadow is still asked, so the record says "could the other
+              // one have served this?" instead of shrugging. Reads only — this
+              // path cannot reach a write.
+              try {
+                await withTimeout(
+                  Promise.resolve((shadowFn as (...a: unknown[]) => unknown).apply(shadow, args)),
+                  SHADOW_TIMEOUT_MS,
+                );
+                recorder.recordPrimaryDown(prop, true);
+              } catch {
+                recorder.recordPrimaryDown(prop, false);
+              }
               return;
             }
 

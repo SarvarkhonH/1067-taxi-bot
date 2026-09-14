@@ -143,3 +143,29 @@ describe("an outage in the primary is not a finding about the shadow", () => {
     expect(src).toContain("recordError");
   });
 });
+
+describe("a sick primary must still teach us something", () => {
+  it("asks the shadow anyway when kas cannot answer, and counts it", () => {
+    // A comparison needs BOTH sources. On a day when kas1067 times out, a run
+    // that only records comparisons learns nothing at all — while the one fact
+    // the cutover turns on is being demonstrated live: kas could not answer,
+    // and the taxi core could.
+    // Checked at the CALL SITE, not by the presence of the name anywhere in the
+    // file: the recorder method and its log line would still be there with the
+    // call deleted, and a test that passes with the behaviour removed is worse
+    // than no test.
+    const src = read("shadow.ts");
+    const start = src.indexOf("liveValue = await Promise.resolve(live);");
+    expect(start).toBeGreaterThan(-1);
+    const primaryFailedBlock = src.slice(start, src.indexOf("return;", start));
+    expect(primaryFailedBlock).toContain("recordPrimaryDown");
+  });
+
+  it("still reports kas outages when nothing was comparable", () => {
+    // The empty-summary branch is exactly the branch a bad kas day lands in.
+    const src = read("shadow.ts");
+    const emptyBranch = src.indexOf("NOTHING COMPARED YET");
+    expect(emptyBranch).toBeGreaterThan(-1);
+    expect(src.slice(emptyBranch, emptyBranch + 400)).toContain("down");
+  });
+})
