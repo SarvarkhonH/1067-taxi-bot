@@ -248,13 +248,23 @@ export class KasLiveSource implements KasDataSource {
       this.jar.setFrom(res.headers);
 
       const loc = (res.headers.location as string) ?? "";
-      const outcome = classifyKasLogin({ status: res.status, location: loc, body: res.body });
+      let outcome = classifyKasLogin({ status: res.status, location: loc, body: res.body });
       if (outcome === "ok") {
         this.loggedIn = true;
         this.loginFails = 0;
         this.loginBlockedUntil = 0; // the circuit closes the moment kas lets us back in
         recordKas(true);
         return;
+      }
+      // kas uses the SAME /login?error redirect for a wrong password and for its own rate limiter,
+      // and the reason lives ONLY in the body of the page that redirect points at — a page this
+      // client never fetched. That is the whole reason eighteen hours of throttling were logged as
+      // "Check KAS_USERNAME / KAS_PASSWORD", and why a password that was never wrong got changed.
+      // So on a rejection we spend ONE GET to read what kas actually said. The circuit breaker
+      // below means that costs one extra request per cooldown, not one per customer.
+      if (outcome === "rejected" && loc) {
+        const why = await rawRequest(this.url(loc), { headers: this.baseHeaders() });
+        if (classifyKasLogin({ status: why.status, body: why.body }) === "throttled") outcome = "throttled";
       }
       if (kasLoginShouldRetry(outcome, attempt)) continue; // one clean pass for a stale cookie
 

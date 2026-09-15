@@ -31,6 +31,17 @@ describe("classifyKasLogin — telling the limiter apart from a wrong password",
     expect(classifyKasLogin({ status: 302, location: "/kas1067/login?error" })).toBe("rejected");
   });
 
+  // Measured live on 2026-09-15: the POST's own response carries NO body — kas puts the reason on
+  // the page the redirect points at. So the client fetches that page and classifies it again, and
+  // only this second look can tell a throttle from a wrong password.
+  it("reads the error PAGE that redirect points at, where kas actually puts the reason", () => {
+    expect(
+      classifyKasLogin({ status: 200, body: '{"error":"Too many login attempts. Try later."}' }),
+    ).toBe("throttled");
+    // the same page for a genuinely wrong password is just the form again — still a rejection
+    expect(classifyKasLogin({ status: 200, body: '<form class="form-signin">' })).toBe("stale-session");
+  });
+
   it("reads a redirect away from /login as success", () => {
     expect(classifyKasLogin({ status: 302, location: "/kas1067/index" })).toBe("ok");
   });
