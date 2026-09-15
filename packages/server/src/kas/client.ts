@@ -23,8 +23,14 @@ import type {
   RideHistoryItem,
   SavedAddress,
 } from "./types";
-import type { MemberType } from "@t1067/shared";
-import { chooseCatalog } from "@t1067/shared";
+import type { MemberType, KasLoginOutcome } from "@t1067/shared";
+import {
+  chooseCatalog,
+  classifyKasLogin,
+  kasLoginCooldownMs,
+  kasLoginShouldRetry,
+  kasLoginMessage,
+} from "@t1067/shared";
 import { recordKas, classifyKasError } from "../services/kasHealth";
 
 // ─── kas booking status normalization ────────────────────────────────────────
@@ -153,6 +159,15 @@ export class KasLiveSource implements KasDataSource {
   // others) and kas rate-limits login itself. Now the first caller logs in; the rest await the SAME
   // promise. A rejected login clears the slot so the next call retries fresh.
   private loginInFlight: Promise<void> | null = null;
+  // 🚧 login circuit breaker (2026-09-14 outage — see @t1067/shared/kasLogin for the full story).
+  // The old loop retried a 429 five times, and one retry is two requests. Measured at the firewall
+  // during the outage: 327 login requests in 13 minutes — 25 a minute against a limiter that was
+  // already saying stop, which is why it never drained in eighteen hours. Now a failed login opens
+  // this circuit and NOTHING opens a socket to kas until it closes.
+  private loginBlockedUntil = 0;
+  private loginFails = 0;
+  private lastLoginOutcome: KasLoginOutcome = "unreachable";
+  private lastLoginDetail = "";
 
   constructor(private opts: KasClientOptions) {
     this.pageSize = opts.pageSize ?? 200;
@@ -175,6 +190,15 @@ export class KasLiveSource implements KasDataSource {
 
   private async ensureLogin(): Promise<void> {
     if (this.loggedIn) return;
+    const waitMs = this.loginBlockedUntil - Date.now();
+    if (waitMs > 0) {
+      // The circuit is open. Refuse WITHOUT touching the network: every attempt made while kas is
+      // throttling us re-arms its limiter, and that feedback loop is the whole outage.
+      throw new Error(
+        `${kasLoginMessage(this.lastLoginOutcome, this.lastLoginDetail)} ` +
+          `Next attempt in ${Math.ceil(waitMs / 1000)}s (${this.loginFails} consecutive failures).`,
+      );
+    }
     if (!this.loginInFlight) {
       this.loginInFlight = this.login().finally(() => {
         this.loginInFlight = null;
@@ -198,18 +222,17 @@ export class KasLiveSource implements KasDataSource {
     if (!this.opts.username || !this.opts.password) {
       throw new Error("kas1067 live mode needs KAS_USERNAME and KAS_PASSWORD in .env");
     }
-    // kas1067 rate-limits login (429) AND a STALE session cookie makes a re-login return the login
-    // page (200, no redirect) instead of a fresh CSRF form → "login failed". A long-running process
-    // accumulates that stale JSESSIONID, so each login starts from a CLEARED jar (anonymous GET
-    // /login → fresh CSRF), and a 200-failure is RETRIED with backoff (transient under load) before
-    // giving up. A fresh client instance already logs in fine — this makes the long-lived one match.
+    // One login pass is TWO requests: an anonymous GET /login for a fresh CSRF form (a stale
+    // JSESSIONID makes kas hand back the form instead of a session, so the jar is cleared first),
+    // then the POST. At most two passes ever run, and ONLY a stale session earns the second one.
+    // A 429 never does — retrying a rate limiter is what turned one 429 into eighteen hours.
     for (let attempt = 0; ; attempt++) {
       this.jar.clear();
       const page = await rawRequest(this.url("login"), { headers: this.baseHeaders() });
-      if (page.status === 429) recordKas(false, "429");
-      if (page.status === 429 && attempt < 4) {
-        await sleep(2000 * (attempt + 1));
-        continue;
+      // The limiter answers the FORM too. Stop here rather than spend a POST proving it again.
+      if (classifyKasLogin({ status: page.status, body: page.body }) === "throttled") {
+        recordKas(false, "429");
+        this.pauseLogins("throttled", `GET /login → ${page.status}`);
       }
       this.jar.setFrom(page.headers);
       const csrf = extractCsrf(page.body);
@@ -222,33 +245,42 @@ export class KasLiveSource implements KasDataSource {
         headers: { ...this.baseHeaders(), "Content-Type": "application/x-www-form-urlencoded" },
         body: form.toString(),
       });
-      if (res.status === 429) recordKas(false, "429");
-      if (res.status === 429 && attempt < 4) {
-        await sleep(2000 * (attempt + 1));
-        continue;
-      }
       this.jar.setFrom(res.headers);
 
       const loc = (res.headers.location as string) ?? "";
-      const ok = res.status >= 300 && res.status < 400 && !/\/login/.test(loc) && !/error/i.test(loc);
-      if (!ok) {
-        if (attempt < 4) {
-          await sleep(2000 * (attempt + 1)); // transient 200 / redirect-to-login → retry with a fresh jar
-          continue;
-        }
-        // Tell the early-warning monitor. It watches the getText chokepoint and
-        // NOTHING had ever reported the login path to it — which is why the
-        // 2026-09-14 outage, twelve hours of nothing but failed logins, produced
-        // not one alert: from the monitor's side the system was idle, not sick.
-        recordKas(false, "login");
-        throw new Error(
-          `kas1067 login failed (status ${res.status}, redirect "${loc}"). Check KAS_USERNAME / KAS_PASSWORD.`,
-        );
+      const outcome = classifyKasLogin({ status: res.status, location: loc, body: res.body });
+      if (outcome === "ok") {
+        this.loggedIn = true;
+        this.loginFails = 0;
+        this.loginBlockedUntil = 0; // the circuit closes the moment kas lets us back in
+        recordKas(true);
+        return;
       }
-      this.loggedIn = true;
-      recordKas(true);
-      return;
+      if (kasLoginShouldRetry(outcome, attempt)) continue; // one clean pass for a stale cookie
+
+      // Tell the early-warning monitor. It watches the getText chokepoint and
+      // NOTHING had ever reported the login path to it — which is why the
+      // 2026-09-14 outage, twelve hours of nothing but failed logins, produced
+      // not one alert: from the monitor's side the system was idle, not sick.
+      recordKas(false, outcome === "throttled" ? "429" : "login");
+      this.pauseLogins(outcome, `status ${res.status}${loc ? `, redirect "${loc}"` : ""}`);
     }
+  }
+
+  /**
+   * Open the circuit: remember what kas actually said, set the quiet window, and throw a message
+   * that names the real cause. The old message ended "Check KAS_USERNAME / KAS_PASSWORD" for all
+   * five failure modes, so eighteen hours of rate-limiting read as a password problem in the log.
+   */
+  private pauseLogins(outcome: KasLoginOutcome, detail: string): never {
+    this.loginFails += 1;
+    this.lastLoginOutcome = outcome;
+    this.lastLoginDetail = detail;
+    const cooldown = kasLoginCooldownMs(outcome, this.loginFails);
+    this.loginBlockedUntil = Date.now() + cooldown;
+    throw new Error(
+      `${kasLoginMessage(outcome, detail)} Pausing kas1067 logins for ${Math.round(cooldown / 1000)}s.`,
+    );
   }
 
   async getText(path: string, accept = "application/json, text/plain, */*"): Promise<RawResponse> {
