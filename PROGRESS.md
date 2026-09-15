@@ -1,5 +1,45 @@
 # PROGRESS
 
+## 🔌 2026-09-14…15 — kas1067 LOGIN UZILISHI (18 soat) — yopildi
+
+**Holat: parol tuzatildi va jonli isbotlandi (`owner-accepted` — ega panelga kira olgani + jonli
+o'qish). Kod tuzatishlari: `ready for verification`.**
+
+### Nima bo'lgan
+09:57 (14-sent) da kas1067 paroli o'zgardi. Bizning loginlar rad etila boshladi, kod esa har
+rad etilishda **5 marta** qayta urindi (bir urinish = 2 so'rov: GET /login + POST). Natijada
+**daqiqasiga ~25 ta muvaffaqiyatsiz login** — o'lchangan: iptables sanog'i bilan 13 daqiqada 327 ta.
+kas'ning IP-limiteri bizni to'sdi va `429 {"error":"Too many login attempts"}` qaytara boshladi.
+O'sha 429 asl sababni (noto'g'ri parol) **yashirdi**: kas throttle'da ham, noto'g'ri parolda ham
+bir xil `302 → /login?error` beradi, farq faqat o'sha sahifaning **ichida**. Mijoz o'sha sahifani
+hech qachon ochmagan. 18 soat "parol xatomi yoki limitermi" deb chalkashlik shundan.
+
+### Asl sabab — ikki tomonlama
+1. **Parol**: yangi parol `F_een4005$?` (savol belgisi parolning **o'zidan**). Agent uni matn
+   tinish belgisi deb tashlab yuborgan → butun tekshiruv noto'g'ri yo'lga ketgan.
+2. **Kod**: rate-limiter'ga qayta urinish + xato matnining har doim parolni ayblashi.
+
+### Tuzatildi
+| Commit | Nima |
+|---|---|
+| `0dc57e28` | Login avtomat uzgichi: 429 ga **hech qachon** qayta urinilmaydi; xatodan keyin tanaffus (429 → 5 daq, boshqasi 30s → 2daq → 5daq); uzgich ochiq ekan **soket ham ochilmaydi** |
+| `9f7c3774` | Rad etilganda `/login?error` sahifasi **o'qiladi** va qayta tasniflanadi — throttle endi "noto'g'ri parol" niqobini kiya olmaydi |
+
+### Isbot
+- **Yadro sanog'i**: 30 ta mijoz so'rovi → kas'ga **1 ta TCP ulanish** (eski kod bilan ~300 so'rov)
+- `classifyKasLogin` / `kasLoginShouldRetry` / `kasLoginCooldownMs` — **17 yangi test**, jumladan
+  18 soatlik uzilishni qayta o'ynatuvchi sim: ~29 450 → ≤450 so'rov
+- Butun repo: `grep "attempt < 4"` → **0 ta** · 300/300 test · 4/4 paket typecheck · 3/3 sim
+- **Jonli o'qish** (jonli `.env`, jonli mijoz): `api/carModels` HTTP 200 (1013 bayt),
+  `api/bookings` HTTP 200 (jonli buyurtma #85108)
+
+### Qolgan qarz
+- kas'ning IP-limiteri bizni to'sganda **hech qanday ogohlantirish yo'q edi** — `f5ed88f5` login
+  yo'lini monitorga ulagan, lekin uzgich ochiq turgan holat alohida signal bermaydi.
+- Uzilish davomida `[shadow] PRIMARY-DOWN` ko'rsatdiki, **o'z taxi yadromiz** kas javob bera
+  olmagan so'rovga javob bergan. Zaxira yo'l sifatida rasmiylashtirish kerak.
+
+
 ## 🚕 2026-09-08…10 — TAXI YADROSI (1067-taxi / B): F1-core, F1-bridge, audit
 
 **Holat: `in progress (gaps: ko'p)`.** Bu dastur haqida PROGRESS'da shu paytgacha **bitta ham
