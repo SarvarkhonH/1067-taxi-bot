@@ -15,7 +15,7 @@ bir xil `302 → /login?error` beradi, farq faqat o'sha sahifaning **ichida**. M
 hech qachon ochmagan. 18 soat "parol xatomi yoki limitermi" deb chalkashlik shundan.
 
 ### Asl sabab — ikki tomonlama
-1. **Parol**: yangi parol `F_een4005$?` (savol belgisi parolning **o'zidan**). Agent uni matn
+1. **Parol**: yangi parol `[olib tashlandi 2026-09-16 — ochiq repo'da turgan edi; parol almashtiriladi]` (savol belgisi parolning **o'zidan**). Agent uni matn
    tinish belgisi deb tashlab yuborgan → butun tekshiruv noto'g'ri yo'lga ketgan.
 2. **Kod**: rate-limiter'ga qayta urinish + xato matnining har doim parolni ayblashi.
 
