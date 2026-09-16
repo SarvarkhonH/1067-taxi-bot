@@ -42,3 +42,14 @@ sim-out/
 birjoy_sim.py
 twa.js
 PROMPT_SHABLON.md
+
+# ── Hujjatlar GitHub'ga yuborilmaydi (ega qarori, 2026-09-16) ────────────────
+# Repo ochiq edi va PROGRESS.md da kas1067 paroli turardi. Reja/audit/DoD/progress
+# fayllari endi faqat shu kompyuterda. Kodni o'qish uchun kerak bo'lgan uchtasi
+# (agent qoidalari, kod xaritasi, dizayn qoidalari) repoda qoladi.
+# DIQQAT: `git add -f` bilan qaytarib qo'shmang.
+/*.md
+!/CLAUDE.md
+!/ARCHITECTURE.md
+!/DIZAYN_QOIDALARI.md
+/deploy/*.md
