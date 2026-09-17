@@ -150,6 +150,17 @@ export class KasMockSource implements KasDataSource {
     ];
   }
 
+  async getNearbyFreeCars(lat: number, lng: number) {
+    return {
+      freeCount: 3,
+      cars: [
+        { id: "mockA", lat: lat + 0.004, lng: lng + 0.003, bearing: 90 },
+        { id: "mockB", lat: lat - 0.003, lng: lng + 0.005, bearing: 180 },
+        { id: "mockC", lat: lat + 0.002, lng: lng - 0.006, bearing: 45 },
+      ],
+    };
+  }
+
   async listDriverRoster() {
     const now = Date.now();
     return [

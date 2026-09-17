@@ -156,26 +156,8 @@ function ghostPersonIcon(shirt: string, skin: string, size = 22, hail = false): 
   return L.divIcon({ className: "", html: `<div class="b3-ghostperson">${ghostPersonSvg(shirt, skin, size, hail)}</div>`, iconSize: [size, size * 1.4], iconAnchor: [size / 2, size * 1.4 - 2] });
 }
 
-// M5: OSRM road route (driver → pickup). Public demo server; it can be slow/blocked on some
-// UZ networks (same lesson as OSM tiles), so the caller falls back to a straight dashed line —
-// there is ALWAYS a visual link from the car to the pickup. coords come back [lng,lat] → swap.
-async function osrmRoute(
-  from: { lat: number; lng: number },
-  to: { lat: number; lng: number },
-  signal: AbortSignal,
-): Promise<L.LatLngTuple[] | null> {
-  try {
-    const url = `https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${to.lng},${to.lat}?overview=full&geometries=geojson`;
-    const r = await fetch(url, { signal });
-    if (!r.ok) return null;
-    const j = (await r.json()) as { routes?: { geometry?: { coordinates?: [number, number][] } }[] };
-    const coords = j.routes?.[0]?.geometry?.coordinates;
-    if (!coords?.length) return null;
-    return coords.map(([lng, lat]) => [lat, lng] as L.LatLngTuple);
-  } catch {
-    return null; // aborted / network blocked / bad JSON → straight-line fallback
-  }
-}
+/** What a map-pin pickup is called when no catalogue place is right there. */
+const MAP_PIN_LABEL = "Xaritada belgilangan joy";
 
 // D: the map must NEVER be blank. Leaflet needs no WebGL, but ?nomap=1 still forces the
 // placeholder for testing; if no tile loads (network blocked / offline) we show a clear
@@ -301,13 +283,17 @@ async function shareTrip(d: BookingDriverView): Promise<void> {
   // 🛡 family safety: mint a public read-only link — recipient opens it in ANY browser (no login) and
   // watches the car + live fare until the trip ends. Falls back to the bot link if the mint fails.
   let link = "https://t.me/koson1067bot";
+  let live = false;
   try {
     const { token } = await api.createTrack();
-    link = `${location.origin}/?track=${token}`;
+    if (token) { link = `${location.origin}/?track=${token}`; live = true; } // null: no ride the server can name
   } catch {
     /* keep the fallback */
   }
-  const text = `🚕 Men 1067 taxidaman — jonli kuzatib boring!\n🚘 ${d.carModel} · ${d.carNumber}\n🛡 Mashina xaritada qayerda + narx — hammasi real vaqtda 👇`;
+  // Promise a live map only when the link really is one; the fallback still carries the car and plate.
+  const text = live
+    ? `🚕 Men 1067 taxidaman — jonli kuzatib boring!\n🚘 ${d.carModel} · ${d.carNumber}\n🛡 Mashina xaritada qayerda + narx — hammasi real vaqtda 👇`
+    : `🚕 Men 1067 taxidaman.\n🚘 ${d.carModel} · ${d.carNumber}`;
   const url = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent(text)}`;
   const w = tg as { openTelegramLink?: (u: string) => void } | undefined;
   if (w?.openTelegramLink) w.openTelegramLink(url);
@@ -480,6 +466,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [searching, setSearching] = useState(false);
   // ── pickup2: the rebuilt pickup sheet. OFF → every branch below falls back to today's UI. ──
   const pickup2 = !!me.flags?.pickup2;
+  // 🚕 livecars (B qism P0-3, ega qarori Q1): xaritada REAL bo'sh mashinalar. ON = bezak-mashina va
+  // odamlar yo'q, «so'ralmoqda» nuri yo'q, son yadroning haqiqiy soni (11-pol va ×2 yo'q).
+  const liveCars = !!me.flags?.livecars;
   const layoutB = !!me.flags?.pickup2b; // B = list-first; A (default) = answer-first
   // ☀️ Yorug' varaq (ega maketidagi oq dunyo). Ega ikkala ko'rinishni real telefonda solishtiradi;
   // tanlangani qoladi, ikkinchisining klassi o'sha commit'da o'chiriladi (ikki yo'l qoldirilmaydi).
@@ -749,6 +738,60 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // kas REST call per request), so we can poll often enough that cars visibly move like the app. ──
   useEffect(() => {
     let alive = true;
+    // 🚕 livecars: yadro joylashtirgan real bo'sh mashinalar, xarita markazi atrofida. Belgi (id) har
+    // 10 daqiqada almashadi — eskisi so'nib ketadi, yangisi paydo bo'ladi (faqat opacity). Xarita
+    // 1 km dan uzoqqa surilsa o'sha joy uchun qayta so'raladi; aks holda bitta 15 s halqa (15 s
+    // halqaning o'rnida — yangi poller emas).
+    let asked: { lat: number; lng: number } | null = null;
+    const loadLive = async () => {
+      const at = map.current?.getCenter() ?? info.center;
+      asked = { lat: at.lat, lng: at.lng };
+      const r = await api.bookingNearbyFree(at.lat, at.lng).catch(() => null);
+      if (!alive || !r) return;
+      setFreeDrivers(r.freeCount ?? 0); // noma'lum → 0 → son umuman yozilmaydi
+      fleetRef.current = [];
+      const m = map.current;
+      if (!m) return;
+      const markers = pinMarkers.current;
+      const seen = new Set<string>();
+      for (const car of r.cars) {
+        seen.add(car.id);
+        const entry = markers.get(car.id);
+        if (entry) {
+          entry.mk.setLatLng([car.lat, car.lng]); // glides
+          const inner = entry.mk.getElement()?.querySelector(".b3-carmark") as HTMLElement | null;
+          if (inner) inner.style.transform = `rotate(${car.bearing}deg)`;
+        } else {
+          const mk = L.marker([car.lat, car.lng], { icon: carIcon("#22c55e", car.bearing, 26), opacity: 0, interactive: false }).addTo(m);
+          // setTimeout, not requestAnimationFrame: a paused WebView never runs rAF, and a car must never
+          // stay invisible just because its fade-in did not get a frame.
+          window.setTimeout(() => { mk.getElement()?.classList.add("b3-livecar"); mk.setOpacity(1); }, 30);
+          markers.set(car.id, { mk, busy: false });
+        }
+      }
+      for (const [id, entry] of markers) {
+        if (seen.has(id)) continue;
+        markers.delete(id);
+        entry.mk.setOpacity(0);
+        window.setTimeout(() => entry.mk.remove(), 240);
+      }
+    };
+    if (liveCars) {
+      if (!appActive) { return () => { alive = false; }; }
+      void loadLive();
+      const t = setInterval(() => void loadLive(), 15_000); // the core's snapshot changes at most every 15 s
+      const m = map.current;
+      const onMoved = () => {
+        const c = m?.getCenter();
+        if (c && asked && haversineKm(asked, { lat: c.lat, lng: c.lng }) > 1) void loadLive();
+      };
+      m?.on("moveend", onMoved);
+      return () => {
+        alive = false;
+        clearInterval(t);
+        m?.off("moveend", onMoved);
+      };
+    }
     const load = async () => {
       const r = await api.bookingNearby().catch(() => null);
       if (!alive || !r || !map.current) return;
@@ -798,13 +841,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       clearInterval(t);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appActive]);
+  }, [appActive, liveCars, liveCars && mapReady]); // flag off: exactly the old deps (mapReady stays out)
 
   // 🚗 ghost fleet: once the map is up, scatter decoy cars around the view and keep a few "rides"
   // gliding so the city never looks empty (owner). Own marker ref → the 15s real-pin refresh never
   // wipes them; zIndexOffset −50 keeps them BEHIND real pins + the assigned driver. VISUAL ONLY.
   useEffect(() => {
-    if (!mapOk) return;
+    if (!mapOk || liveCars) return; // livecars: real cars only — no decoys at all
     const rnd = (r: number) => (Math.random() - 0.5) * 2 * r;
     const tick = () => {
       if (!map.current) return; // wait until the map exists
@@ -845,7 +888,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const gt = window.setInterval(tick, 2000);
     return () => clearInterval(gt);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapOk]);
+  }, [mapOk, liveCars]);
 
   // place pickup marker + recenter (remove+recreate replays the pin-drop animation). During PICKING
   // (pinpick/map) the center-pin character IS the pickup indicator — showing a second person at the
@@ -884,7 +927,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // car, cycling through the closest few every ~2.6s (mirrors kas offering each driver in turn). The
   // line is recreated each switch so the reach animation replays toward the new car. Stops on accept. ──
   useEffect(() => {
-    const searching = screen === "searching" && !active?.driver;
+    // livecars: no beam. It cycles through the nearest cars as if each were being asked in turn —
+    // the core does not offer that way, so next to real cars it would be a made-up story.
+    const searching = screen === "searching" && !active?.driver && !liveCars;
     if (!map.current || !searching || typeof pickup?.lat !== "number" || typeof pickup?.lng !== "number") {
       if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; }
       if (targetMarker.current) { targetMarker.current.remove(); targetMarker.current = null; }
@@ -918,7 +963,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     reach();
     const timer = setInterval(reach, 2600);
     return () => { clearInterval(timer); if (beamLine.current) { beamLine.current.remove(); beamLine.current = null; } if (targetMarker.current) { targetMarker.current.remove(); targetMarker.current = null; } if (pingMarker.current) { pingMarker.current.remove(); pingMarker.current = null; } };
-  }, [screen, active?.driver, pickup?.lat, pickup?.lng]);
+  }, [screen, active?.driver, pickup?.lat, pickup?.lng, liveCars]);
 
   // ── C: live assigned-driver car marker — glides toward you + rotates by bearing ──
   useEffect(() => {
@@ -940,12 +985,15 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     if (inner && typeof d.bearing === "number") inner.style.transform = `rotate(${d.bearing}deg)`;
   }, [active?.driver?.lat, active?.driver?.lng, active?.driver?.bearing, active?.status]);
 
-  // ── M5: road route driver → pickup, only while the driver is en route (not yet started).
-  // Real OSRM road line when the server answers; straight dashed fallback otherwise. Re-runs on
-  // each driver-position poll so the line tracks the car; fits bounds once so both ends are seen.
+  // ── M5: car → pickup link, only while the driver is en route (not yet started). A straight dashed
+  // line, recomputed on each driver-position update; fits bounds once so both ends are seen.
+  // 🔒 Yo'l chizig'i ATAYLAB to'g'ri chiziq. Ilgari u ommaviy `router.project-osrm.org` dan
+  // so'ralardi — ya'ni har safarda mijozning uyi va haydovchining joyi BEGONA serverga ketardi,
+  // u server esa O'zbekiston tarmoqlarida sekin edi (6 s kutish). Haydovchi yo'lni o'zi biladi;
+  // mijozga kerakli narsa — mashina qayerda va qaysi tomonga kelyapti. Rang `b3.css` dagi `--b3-route` dan.
   useEffect(() => {
     const d = active?.driver;
-    const enRoute = !!active && active.status !== "started"; // kas is pickup-only → no in-trip route
+    const enRoute = !!active && active.status !== "started"; // pickup-only → no in-trip route
     if (
       !map.current || !enRoute ||
       typeof d?.lat !== "number" || typeof d?.lng !== "number" ||
@@ -954,47 +1002,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       if (routeLine.current) { routeLine.current.remove(); routeLine.current = null; }
       return;
     }
-    const from = { lat: d.lat, lng: d.lng };
-    const to = { lat: pickup.lat, lng: pickup.lng };
-    const firstDraw = !routeLine.current;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 6000);
-    let alive = true;
-
-    const draw = (pts: L.LatLngTuple[], road: boolean) => {
-      if (!alive || !map.current) return;
-      if (routeLine.current) {
-        routeLine.current.setLatLngs(pts);
-        routeLine.current.setStyle({ dashArray: road ? undefined : "6 8" });
-      } else {
-        routeLine.current = L.polyline(pts, { color: "#1a73e8", weight: 5, opacity: 0.85, dashArray: road ? undefined : "6 8" }).addTo(map.current);
-        // ✨ "route draws in" — animate stroke-dashoffset once on creation (solid road line only), then
-        // clear the dash so later position-poll updates track the moving car normally.
-        if (road) {
-          const el = routeLine.current.getElement() as SVGPathElement | null;
-          if (el) {
-            requestAnimationFrame(() => {
-              const len = el.getTotalLength();
-              el.style.transition = "none";
-              el.style.strokeDasharray = String(len);
-              el.style.strokeDashoffset = String(len);
-              el.getBoundingClientRect(); // force reflow so the transition runs
-              el.style.transition = "stroke-dashoffset .85s ease-out";
-              el.style.strokeDashoffset = "0";
-              window.setTimeout(() => { el.style.strokeDasharray = "none"; el.style.transition = "none"; }, 900);
-            });
-          }
-        }
-      }
-      if (firstDraw) map.current.fitBounds(L.latLngBounds(pts).pad(0.25), { animate: true });
-    };
-
-    osrmRoute(from, to, ctrl.signal).then((road) => {
-      if (road) draw(road, true);
-      else draw([[from.lat, from.lng], [to.lat, to.lng]], false); // straight-line fallback
-    });
-
-    return () => { alive = false; clearTimeout(timer); ctrl.abort(); };
+    const pts: L.LatLngTuple[] = [[d.lat, d.lng], [pickup.lat, pickup.lng]];
+    if (routeLine.current) {
+      routeLine.current.setLatLngs(pts);
+    } else {
+      routeLine.current = L.polyline(pts, { className: "b3-route", weight: 5, dashArray: "6 8", interactive: false }).addTo(map.current);
+      map.current.fitBounds(L.latLngBounds(pts).pad(0.25), { animate: true });
+    }
   }, [active?.driver?.lat, active?.driver?.lng, active?.status, pickup?.lat, pickup?.lng]);
 
   // ── M7 center-pin: drag the map → snap to the nearest catalog address (the official app's
@@ -1046,9 +1060,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     let timer: ReturnType<typeof setTimeout> | undefined;
     const tick = async () => {
       const assigned = !!activeRef.current?.driver; // previous tick's state — decides what to fetch
+      // livecars: the live-car loop (map centred on the pickup while searching) owns the count, so this
+      // tick asks nothing — two sources would make the number jump between two values.
       const [a, near] = await Promise.all([
         api.bookingActive().catch(() => null),
-        assigned ? Promise.resolve(null) : api.bookingNearby().catch(() => null),
+        assigned || liveCars ? Promise.resolve(null) : api.bookingNearby().catch(() => null),
       ]);
       if (!alive) return;
       if (near) setFreeDrivers(Math.max(near.freeDrivers, GHOST_FREE + GHOST_RIDES)); // server-inflated; keep ghost floor
@@ -1358,8 +1374,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // eskirgan xabar deb o'ylardi (ega jonli sinovda ko'rsatdi).
     if (!pickup2) flashMsg("📍 Joylashuv aniqlanmoqda…", 16000);
 
-    // Aniqlikni RAQAM bilan aytamiz. Ilgari faqat «aniqlik past» derdi — mijoz ham, biz ham
-    // xato 50 metrmi yoki 800 metrmi, bila olmasdik. Endi ekranning o'zi diagnostika beradi.
+    // Qo'pol fix'da mijozga nima QILISHNI aytamiz, metrni emas. Ilgari «Aniqlik ~800 m» chiqardi —
+    // bu diagnostika biz uchun edi, mijozga esa masofa raqami hech narsa demaydi (masofa
+    // yozilmaydi — ega qarori Q3, 2026-09-17).
     const apply = (lat: number, lng: number, accuracy: number) => {
       // ⚠️ HAR QANDAY fix emas — faqat TIG'IZ fix «Siz shu yerdasiz» deyishga haq beradi.
       // Ilgari 800 m aniqlikdagi uyacha-nuqtasi ham `gpsOk = true` qilardi va karta
@@ -1379,7 +1396,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
         .then((a) => { if (seq === snapSeq.current) { setPinAddr(a); setPinBusy(false); } })
         .catch(() => { if (seq === snapSeq.current) setPinBusy(false); });
       map.current?.setView([lat, lng], 17, { animate: true });
-      flashMsg(accuracy <= 35 ? null : `📍 Aniqlik ~${Math.round(accuracy)} m — pinni biroz suring`, 6000);
+      flashMsg(accuracy <= GOOD_FIX_M ? null : "📍 Joyni aniqroq belgilang — pinni suring", 6000);
     };
 
     // Telegram Mini App: navigator.geolocation is unreliable in the in-app WebView (the OS permission
@@ -1574,10 +1591,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   };
 
   // M7: label the dragged pin with the nearest REAL catalog place (~111 places cover the city, so
-  // there's almost always one close). On it (≤150m) → the bare name ("Shabada"); a bit off → "… yaqini".
-  // The server re-resolves this name authoritatively at booking, so the driver always gets a real place.
-  // pickup2 (ega, 2026-08-08): the "… yaqini" suffix is dropped — the driver is dispatched to the
-  // catalog place either way, so the rider seeing a hedged name only made the answer look unsure.
+  // there's almost always one close). On it → the bare name ("Shabada"); further off → no name at all,
+  // "Xaritada belgilangan joy" (below). The car goes to the pin's own coordinates either way.
   // 📏 Pin bilan topilgan katalog-joy ORASIDAGI masofa. Katalogda ~150 joy bor, lekin ular
   // shaharga TEKIS taqsimlanmagan — chekka mahallada eng yaqin nom 800-900 m narida bo'lishi
   // mumkin. Ega jonli sinovda «gps aniqlashi juda xato» dedi (2026-08-09) va u haq edi:
@@ -1588,11 +1603,14 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     pinPt && pinAddr && typeof pinAddr.lat === "number" && typeof pinAddr.lng === "number"
       ? haversineKm(pinPt, { lat: pinAddr.lat, lng: pinAddr.lng })
       : null;
-  // Chegara va hedge-so'z pickup2 ga BOG'LIQ: eski oqim AYNAN avvalgidek qoladi (150 m,
-  // «X yaqini») — mustaqil audit bu ikkisi bayroq-OFF yo'liga sizib ketganini topdi.
+  // Chegara pickup2 ga BOG'LIQ (150 m / 200 m) — mustaqil audit bu bayroq-OFF yo'liga sizib
+  // ketganini topgan edi.
+  // 🏷 Uzoq bo'lsa joy NOMI aytilmaydi. «Shabada yaqinida» — mashina Shabadaga emas, pinning
+  // O'ZIGA boradi (createBookingFor: xarita-pin → aniq koordinata). Ya'ni to'g'ri javob — joy
+  // xaritada belgilangani; nom esa haydovchiga server tomonida baribir qo'yiladi (`pinLabel`).
   const pinExact = pinDistKm !== null && pinDistKm <= (pickup2 ? 0.2 : 0.15);
   const pinNear = pinAddr && pinDistKm !== null
-    ? (pinExact ? pinAddr.name : `${pinAddr.name} ${pickup2 ? "yaqinida" : "yaqini"}`)
+    ? (pinExact ? pinAddr.name : MAP_PIN_LABEL)
     : null;
   // Ishonchli holat FAQAT ikkalasi ham to'g'ri bo'lganda: haqiqiy GPS fix + yaqin katalog joyi.
   const locSure = gpsOk && pinExact;
@@ -1625,7 +1643,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const confirmPin = () => {
     if (!pinPt || pinBusy) return;
     haptic();
-    setPickup({ id: 0, name: pinNear ?? "Xaritada belgilangan nuqta", lat: pinPt.lat, lng: pinPt.lng });
+    setPickup({ id: 0, name: pinNear ?? MAP_PIN_LABEL, lat: pinPt.lat, lng: pinPt.lng });
     setScreen("confirm");
   };
 
@@ -2121,8 +2139,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 ) : (
                   /* Ikki xil sabab — ikki xil xabar va ikki xil yechim tugmasi.
                      (a) GPS yo'q → joyni aniqlash kerak.
-                     (b) GPS bor, lekin eng yaqin katalog nomi uzoqda → nom taxminiy, aniqroq
-                         qilish uchun xaritadan belgilash kerak. Ilgari ikkalasi ham «aniqlanmadi»
+                     (b) GPS bor, lekin yaqinda nomli joy yo'q → nom ko'rsatilmaydi («Xaritada
+                         belgilangan joy»), kerak bo'lsa xaritadan aniqlashtiriladi. Ilgari ikkalasi ham «aniqlanmadi»
                          derdi — GPS ishlab turganda ham xato xabar chiqardi. */
                   <div className="b3-p2-ok b3-p2-ok-guess">
                     <span className="b3-p2-tick b3-p2-tick-guess">?</span>
@@ -2130,7 +2148,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                       ? "Joylashuv aniqlanmoqda…"
                       : !gpsOk
                         ? "Joylashuvingiz aniqlanmadi — tekshiring"
-                        : "Eng yaqin nom shu — aniqroq bo'lsa xaritadan belgilang"}
+                        : "Bu yerda nomli joy yo'q — kerak bo'lsa xaritadan aniqlang"}
                     {!pinBusy && (
                       !gpsOk
                         ? <button className="b3-p2-fixloc" onClick={() => { haptic(); void locateMe(); }}>Aniqlash</button>
@@ -2261,7 +2279,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             ) : (
               <div className="dim fs13">Narx taksometr bo'yicha — safar oxirida aniqlanadi</div>
             )}
-            <div className="dim fs12 mt4">🚖 {freeDrivers} bo'sh mashina yaqinda · manzilni haydovchiga aytasiz</div>
+            {/* livecars: the real count can be 0 or unknown (→ 0) — no "0 bo'sh mashina" line then.
+                Flag off it never drops below the ghost floor, so this renders exactly as before. */}
+            {freeDrivers > 0 && <div className="dim fs12 mt4">🚖 {freeDrivers} bo'sh mashina yaqinda · manzilni haydovchiga aytasiz</div>}
           </div>
           <div className="dim fs12 b3-honest">💵 To'lov haydovchiga (naqd/karta). 🪙 Tanga = ilova bonuslari, Hamyon'da so'mga yechiladi.</div>
           <Button disabled={busy} onClick={call}>{busy ? "Chaqirilmoqda…" : "🚕 TAXI CHAQIRISH"}</Button>

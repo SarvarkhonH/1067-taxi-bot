@@ -12,6 +12,9 @@ import {
   tierMultKnobKey,
   inflateOnline,
   ONLINE_DISPLAY_MULT,
+  riderFreeCars,
+  riderPins,
+  trackTokenShows,
   RIDE_EMISSION_CAP,
   TRANSFER_MIN,
   TRANSFER_MAX_PER_TX,
@@ -125,6 +128,46 @@ describe("tierMultKnobKey / tierMultFor — level -> cashback multiplier", () =>
   });
   it("missing knob in the econ blob falls back to 1.0 (never NaN/undefined into money math)", () => {
     expect(tierMultFor(2, {})).toBe(1.0);
+  });
+});
+
+describe("riderFreeCars — livecars shows the real number (owner Q1, 2026-09-17)", () => {
+  it("never multiplies once livecars is on", () => {
+    expect(riderFreeCars(7, true)).toBe(7);
+    expect(riderFreeCars(0, true)).toBe(0);
+    expect(riderFreeCars(NaN, true)).toBe(0);
+    expect(riderFreeCars(-3, true)).toBe(0);
+  });
+  it("keeps the old inflated display while livecars is off", () => {
+    expect(riderFreeCars(7, false)).toBe(inflateOnline(7));
+  });
+});
+
+describe("riderPins — no trip ever leaves as a position", () => {
+  const pins = [
+    { lat: 39.03, lng: 65.58, busy: false },
+    { lat: 39.04, lng: 65.59, busy: true },
+  ];
+  it("drops busy cars even with livecars off", () => {
+    expect(riderPins(pins, false)).toEqual([pins[0]]);
+  });
+  it("sends no exact pin at all once livecars is on", () => {
+    expect(riderPins(pins, true)).toEqual([]);
+  });
+});
+
+describe("trackTokenShows — a shared link shows one ride", () => {
+  it("shows the ride it was minted for", () => {
+    expect(trackTokenShows(900000123, 900000123, false)).toBe("show");
+  });
+  it("never shows the rider's next ride", () => {
+    expect(trackTokenShows(900000123, 900000124, false)).toBe("other");
+    expect(trackTokenShows(900000123, 900000124, true)).toBe("other");
+  });
+  it("binds only a token minted before binding existed", () => {
+    expect(trackTokenShows(null, 900000124, true)).toBe("bind");
+    expect(trackTokenShows(undefined, 900000124, true)).toBe("bind");
+    expect(trackTokenShows(null, 900000124, false)).toBe("other");
   });
 });
 

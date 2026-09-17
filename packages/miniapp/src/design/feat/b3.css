@@ -175,6 +175,9 @@
 .b3-spulse span { position: absolute; left: 0; top: 0; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; background: rgba(255,179,0,.28); border: 2px solid rgba(255,179,0,.6); transform: scale(.2); opacity: 0; animation: b3-spulse 2.6s cubic-bezier(.2,.55,.3,1) infinite; }
 .b3-spulse span:nth-child(2) { animation-delay: .85s; }
 .b3-spulse span:nth-child(3) { animation-delay: 1.7s; }
+/* Mashina → mijoz: to'g'ri punktir (tashqi yo'nalish serveri yo'q). Leaflet `color` atributini CSS bosadi. */
+.b3-screen { --b3-route: #0A76FA; }
+.b3-route { stroke: var(--b3-route); stroke-opacity: .85; fill: none; stroke-linecap: round; }
 .b3-beam { stroke: #FFB300; stroke-width: 3.5; fill: none; stroke-linecap: round; stroke-dasharray: 14 700; filter: drop-shadow(0 0 3px rgba(255,179,0,.55)); animation: b3-beam 1.3s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) {
 .b3-spulse span, .b3-beam { animation: none; }
@@ -214,6 +217,9 @@
 }
 .b3-carmark { display: block; transition: transform .8s linear; filter: drop-shadow(0 1px 2px rgba(0,0,0,.55)); }
 .leaflet-marker-icon.b3-glide { transition: transform 1.2s linear; }
+/* livecars: a real car — glides like b3-glide, and fades when its rotating label changes */
+.leaflet-marker-icon.b3-livecar { transition: transform 1.2s linear, opacity 220ms var(--ease-out); }
+@media (prefers-reduced-motion: reduce) { .leaflet-marker-icon.b3-livecar { transition: opacity 120ms linear; } }
 .b3-search-sheet {
   background: rgba(17, 23, 38, .78);
   -webkit-backdrop-filter: blur(14px);

@@ -24,6 +24,7 @@ import type {
   CompanyInfo,
   DriverAccount,
   DriverPin,
+  NearbyFreeCars,
   DriverRosterRow,
   GeoPoint,
   KasAddon,
@@ -396,6 +397,23 @@ export class BirJoySource implements KasDataSource {
         busy: p?.busy === true,
       }))
       .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && p.lat !== 0 && p.lng !== 0);
+  }
+
+  /**
+   * Free cars around a pickup point. The core already hides who and where (a label that rotates every
+   * ten minutes, a point snapped to a 250 m cell, a heading rounded to 45°); this still keeps only
+   * those four fields, so a field added to the core later cannot ride through to a passenger.
+   */
+  async getNearbyFreeCars(lat: number, lng: number): Promise<NearbyFreeCars> {
+    const r = await this.request<any>("GET", "/drivers/nearby-free", { query: { lat, lng } });
+    const count = r?.freeCount;
+    const cars = (Array.isArray(r?.cars) ? r.cars : [])
+      .map((c: any) => ({ id: String(c?.id ?? ""), lat: Number(c?.lat), lng: Number(c?.lng), bearing: Number(c?.bearing ?? 0) }))
+      .filter((c: { id: string; lat: number; lng: number }) => c.id && Number.isFinite(c.lat) && Number.isFinite(c.lng) && !(c.lat === 0 && c.lng === 0));
+    return {
+      freeCount: typeof count === "number" && Number.isFinite(count) && count >= 0 ? Math.round(count) : null,
+      cars,
+    };
   }
 
   async getDriverByCar(carNumber: string): Promise<BookingDriver | null> {

@@ -526,7 +526,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn] = await Promise.all([
+    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn, livecarsOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("intercity"),
@@ -549,6 +549,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("pickup2b"),
       featureOn("pickup2lt"),
       featureOn("taxistory"),
+      featureOn("livecars"),
     ]);
     // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
     // katalogni ko'radi, raqam faqat harakat paytida so'raladi. `guest` = Telegram identifikatori
@@ -598,7 +599,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // HALI DARK — jonli mijozga chiqarish uchun `setFeature` bilan ALOHIDA yoqilishi shart.
     // `pickup2b` ATAYLAB preview'ga kirmadi: A tartifi tavsiya qilingan, B faqat solishtirish uchun.
     const taxiPreview = isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On || taxiPreview, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn || taxiPreview, taxistory: taxistoryOn || taxiPreview, oyin: oyinPreview } });
+    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On || taxiPreview, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn || taxiPreview, taxistory: taxistoryOn || taxiPreview, livecars: livecarsOn || taxiPreview, oyin: oyinPreview } });
   });
 
   /**
@@ -2020,11 +2021,12 @@ export function createApiServer(opts: ApiOptions = {}) {
   app.get("/api/home", requireUser, withMember(async (id) => {
     const { getMeByMemberId } = await import("../services/memberService");
     const { nearbyPins } = await import("../services/bookingPlus");
-    const { inflateOnline } = await import("@t1067/shared");
+    const { riderFreeCars, riderPins } = await import("@t1067/shared");
+    const liveCars = await featureOn("livecars");
     const [info, me, pins] = await Promise.all([
       getBookingInfo(id),
       getMeByMemberId(id),
-      nearbyPins().catch(() => ({ pins: [] as { lat: number; lng: number; bearing: number; busy: boolean }[], freeDrivers: 0 })),
+      nearbyPins({ honest: liveCars }).catch(() => ({ pins: [] as { lat: number; lng: number; bearing: number; busy: boolean }[], freeDrivers: 0 })),
     ]);
     const since = new Date(Date.now() - 24 * 3600 * 1000);
     const todayRides = await prisma.rideReward.count({ where: { memberId: id, createdAt: { gte: since } } });
@@ -2036,8 +2038,10 @@ export function createApiServer(opts: ApiOptions = {}) {
       coins: me?.coins ?? 0,
       cashback: me?.stats.points ?? 0,
       streak: me?.streak?.current ?? 0,
-      freeCars: inflateOnline(pins.freeDrivers), // riders see ~2× free cars (display only)
-      carPins: pins.pins.slice(0, 12),
+      // livecars ON: no town-wide count from exact pins — it includes cars held after a trip and would
+      // time a trip's end to ±10 s (fourth review). The taxi screen gets its count from /nearby-free.
+      freeCars: liveCars ? 0 : riderFreeCars(pins.freeDrivers, false),
+      carPins: riderPins(pins.pins, liveCars).slice(0, 12), // never a busy car; livecars ON: none
       center,
       usualRide: q ? { id: q.id, name: q.name } : null,
       todayRides,
@@ -2088,7 +2092,19 @@ export function createApiServer(opts: ApiOptions = {}) {
     const { createTrackToken } = await import("../services/trackService");
     return { token: await createTrackToken(id) };
   }));
+  // Parolsiz yo'l, har so'rovi esa bazani va taksi yadrosini so'raydi — kim bo'lsa ham uni
+  // cheksiz urib yadroni band qila olmasligi kerak. Token o'zi taxmin qilib bo'lmaydi (72 bit).
+  // TrackView har 5 s da yangilaydi (12/daq). 120/daq: mobil operator bitta IP ortida ko'p odamni
+  // yashiradi (CGNAT) — 10 ta bir vaqtda kuzatuvchi ham to'xtamaydi, cheksiz urish esa to'xtaydi.
+  // Naqsh — pastdagi driver-photo yo'li bilan bir xil (u ham authsiz, telegramId yo'q).
+  const trackHits = new Map<string, { n: number; resetAt: number }>();
   app.get("/api/track/:token", async (req, res) => {
+    const ipKey = String(req.headers["x-forwarded-for"] ?? req.socket.remoteAddress ?? "?").split(",")[0]!.trim();
+    if (trackHits.size > 10_000) trackHits.clear(); // bound memory
+    const now = Date.now();
+    let b = trackHits.get(ipKey);
+    if (!b || now > b.resetAt) { b = { n: 0, resetAt: now + 60_000 }; trackHits.set(ipKey, b); }
+    if (++b.n > 120) { res.status(429).end(); return; }
     const { resolveTrack } = await import("../services/trackService");
     res.json(await resolveTrack(String(req.params.token)));
   });
@@ -2182,9 +2198,26 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
   app.get("/api/booking/nearby", requireUser, async (_req, res) => {
     const { nearbyPins } = await import("../services/bookingPlus");
-    const { inflateOnline } = await import("@t1067/shared");
-    const np = await nearbyPins();
-    res.json({ ...np, freeDrivers: inflateOnline(np.freeDrivers) }); // riders see ~2× free cars; pins stay real
+    const { riderFreeCars, riderPins } = await import("@t1067/shared");
+    const liveCars = await featureOn("livecars");
+    const np = await nearbyPins({ honest: liveCars });
+    // never a busy car (its position is a trip); livecars ON: no exact pins at all
+    // livecars ON: neither exact pins nor a count built from them (see /api/home above)
+    res.json({ pins: riderPins(np.pins, liveCars), freeDrivers: liveCars ? 0 : riderFreeCars(np.freeDrivers, false) });
+  });
+  // 🚕 B qism P0-3 (`livecars`): real free cars around a point, placed by the core so nobody can be
+  // followed. Replaces /nearby + the invented cars on the taxi screen. Flag off (and not the owner's
+  // preview) → "unknown", so a dark flag never draws anything.
+  app.get("/api/booking/nearby-free", requireUser, rateLimit(30), async (req, res) => {
+    const { nearbyFree } = await import("../services/bookingPlus");
+    const on = (await featureOn("livecars")) || isAdmin(String(res.locals.telegramId ?? ""));
+    const lat = Number(req.query.lat);
+    const lng = Number(req.query.lng);
+    if (!on || !Number.isFinite(lat) || !Number.isFinite(lng) || (lat === 0 && lng === 0)) {
+      res.json({ freeCount: null, cars: [] });
+      return;
+    }
+    res.json(await nearbyFree(lat, lng));
   });
   // 📷 Driver portrait proxy — resolves Telegram file_id (or override URL) to a live image. Public
   // (no auth) so the Mini App can render it as a plain <img src>. V-NEXT #4: sequential memberIds

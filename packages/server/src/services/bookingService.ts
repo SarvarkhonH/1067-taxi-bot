@@ -211,7 +211,7 @@ export async function nearestCatalogAddress(lat: number, lng: number): Promise<{
  *  hundred metres off it (so the driver knows it's an approximate reference, not the exact door). */
 export async function pinLabel(lat: number, lng: number): Promise<string> {
   const hit = await nearestCatalogAddress(lat, lng);
-  if (!hit) return "Xaritada belgilangan nuqta";
+  if (!hit) return "Xaritada belgilangan joy"; // the Mini App's own word for a pin (booking3 MAP_PIN_LABEL)
   return hit.km <= 0.15 ? hit.addr.name : `${hit.addr.name} yaqini`;
 }
 
@@ -253,7 +253,7 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
   // normal saved-address orders → behaviour identical to before.
   const hasPin = Number.isFinite(body.lat) && Number.isFinite(body.lng);
   // Resolve the nearest REAL catalog place server-side so the DRIVER gets a meaningful name (e.g.
-  // "Shabada"), never "Xaritada belgilangan nuqta" — regardless of what the client sent. The exact
+  // "Shabada"), never the bare "Xaritada belgilangan joy" when a place is near — regardless of what the client sent. The exact
   // lat/lng is still dispatched for precise navigation; this only fixes the human label.
   const pinName = hasPin ? await pinLabel(body.lat!, body.lng!) : body.pickupName;
 

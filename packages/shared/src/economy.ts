@@ -150,6 +150,36 @@ export function inflateOnline(real: number): number {
   return Math.round((real || 0) * ONLINE_DISPLAY_MULT);
 }
 
+/**
+ * The free-car number a rider is told. `livecars` on (owner decision Q1, 2026-09-17: real cars
+ * instead of invented ones) → the real count, never multiplied. Off → yesterday's inflated display,
+ * unchanged. Every rider-facing count goes through here, so the switch flips all of them at once.
+ */
+export function riderFreeCars(real: number, liveCars: boolean): number {
+  return liveCars ? Math.max(0, Math.round(real || 0)) : inflateOnline(real);
+}
+
+/**
+ * Exact car pins a RIDER may receive. A busy car's position is somebody's trip, so it never leaves the
+ * server, flag or no flag (B qism P0-1). With `livecars` on, no exact position leaves at all: the taxi
+ * screen gets core-placed cars (/api/booking/nearby-free), and one exact pin next to those would undo
+ * every protection they have. The admin live map does not go through here.
+ */
+export function riderPins<T extends { busy: boolean }>(pins: T[], liveCars: boolean): T[] {
+  return liveCars ? [] : pins.filter((p) => !p.busy);
+}
+
+/**
+ * Whether a share-my-trip token may show the active booking `activeId`. A token belongs to ONE ride:
+ * a link shared for this trip must not show the rider's next one (driver position, pickup) to whoever
+ * still holds it. Tokens minted before binding existed (`legacy`) bind to the first ride they see; a new
+ * token is only minted with its ride, so one without a ride shows nothing.
+ */
+export function trackTokenShows(boundId: number | null | undefined, activeId: number, legacy: boolean): "show" | "bind" | "other" {
+  if (boundId == null) return legacy ? "bind" : "other"; // a new token with no ride names nobody's ride
+  return boundId === activeId ? "show" : "other";
+}
+
 // ── 🎁 dashboard-configurable acquisition bonuses (owner-tunable knobs) ──────
 // The growth levers the owner tunes WITHOUT a deploy. `firstRide` is the single first-ride bonus
 // (welcome + referee + recruit-welcome all read it); the rest are the per-flow sharer rewards.

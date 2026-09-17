@@ -38,8 +38,9 @@ async function main(): Promise<void> {
   ok((await featureOn("trackcta")) === false, "trackcta is DEFAULT_OFF (no row → off)");
 
   // 2) token mint
-  const token = await createTrackToken(member.id);
-  ok(/^[A-Za-z0-9_-]{6,24}$/.test(token), "createTrackToken mints an unguessable token");
+  const minted = await createTrackToken(member.id);
+  ok(!!minted && /^[A-Za-z0-9_-]{6,24}$/.test(minted), "createTrackToken mints an unguessable token for the active ride");
+  const token = minted ?? "";
 
   // 3) flag OFF → public payload has NO ctaLink (page renders exactly as before)
   let trip = await resolveTrack(token);

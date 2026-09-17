@@ -205,8 +205,16 @@ export async function pushBookingUpdates(
   const searchQueue = bookings.filter((x) => SEARCHING.has(x.status) && !x.carNumber).sort((a, b) => a.id - b.id);
   let freeDrivers: number | undefined;
   try {
-    const onlineReal = (await ds.getMainReport()).onlineDrivers;
-    freeDrivers = onlineReal ? inflateOnline(onlineReal) : undefined; // riders see ~2× (display only; dispatch uses real)
+    // livecars (owner Q1, 2026-09-17): no free-car count on the card (below). Off: yesterday's
+    // inflated online figure, unchanged.
+    if (await import("./featureFlags").then((f) => f.featureOn("livecars")).catch(() => false)) {
+      // No count on the card at all: a town-wide number built from exact pins includes cars held
+      // after a trip and would time a trip's end to ±10 s (fourth review). Never doubled, never online.
+      freeDrivers = undefined;
+    } else {
+      const onlineReal = (await ds.getMainReport()).onlineDrivers;
+      freeDrivers = onlineReal ? inflateOnline(onlineReal) : undefined; // riders see ~2× (display only; dispatch uses real)
+    }
   } catch {
     /* optional */
   }

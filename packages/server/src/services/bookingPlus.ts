@@ -5,6 +5,7 @@
 //  - rateRide: E7 post-ride stars + quick tags (idempotent per booking).
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
+import type { NearbyFreeCars } from "../kas/types";
 import { recentReports } from "./analyticsService";
 
 const DONE = new Set(["delivered", "completed", "finished"]);
@@ -42,7 +43,7 @@ let pinCache: { at: number; pins: { lat: number; lng: number; bearing: number; b
 // the map at once, not protect a slow upstream. Ten seconds keeps the cars moving.
 const PIN_TTL_MS = 10_000;
 
-export async function nearbyPins(): Promise<{ pins: { lat: number; lng: number; bearing: number; busy: boolean; id: string }[]; freeDrivers: number }> {
+export async function nearbyPins(opts: { honest?: boolean } = {}): Promise<{ pins: { lat: number; lng: number; bearing: number; busy: boolean; id: string }[]; freeDrivers: number }> {
   if (!pinCache || Date.now() - pinCache.at > PIN_TTL_MS) {
     const pins = await getDataSource().getDriverPins().catch(() => pinCache?.pins ?? []);
     pinCache = { at: Date.now(), pins };
@@ -50,7 +51,8 @@ export async function nearbyPins(): Promise<{ pins: { lat: number; lng: number; 
   // Free cars on the map ARE the honest count; the daily report's online figure is the fallback
   // for a map with no fixes yet (fresh boot, drivers' GPS still connecting).
   let freeDrivers = pinCache.pins.filter((p) => !p.busy).length;
-  if (!freeDrivers) {
+  // `honest` (livecars): "online" counts cars carrying passengers too, so it is not a free-car number.
+  if (!freeDrivers && !opts.honest) {
     try {
       freeDrivers = (await getDataSource().getMainReport()).onlineDrivers || 0;
     } catch {
@@ -60,6 +62,25 @@ export async function nearbyPins(): Promise<{ pins: { lat: number; lng: number; 
   // Pins carry no identity (privacy: a passenger must not be able to follow a named driver) → a
   // per-position id lets the client reconcile markers within one cache window.
   return { pins: pinCache.pins.slice(0, 40).map((p, i) => ({ ...p, id: `r${i}` })), freeDrivers };
+}
+
+// 🚕 B qism P0-3: free cars around a point for the taxi screen. The core does the hiding and answers
+// from a 15 s town snapshot per 1 km query cell; this only absorbs a burst of riders. Keyed by a
+// ~1.1 km square (2 decimals), 5 s, bounded.
+const FREE_TTL_MS = 5_000;
+const freeCache = new Map<string, { at: number; value: NearbyFreeCars }>();
+
+export async function nearbyFree(lat: number, lng: number): Promise<NearbyFreeCars> {
+  const key = `${lat.toFixed(2)}:${lng.toFixed(2)}`;
+  const hit = freeCache.get(key);
+  if (hit && Date.now() - hit.at < FREE_TTL_MS) return hit.value;
+  // Ask for the square's corner, not the rider's exact point: every rider in the square gets one answer.
+  const value = await getDataSource()
+    .getNearbyFreeCars(Number(lat.toFixed(2)), Number(lng.toFixed(2)))
+    .catch((): NearbyFreeCars => ({ freeCount: null, cars: [] })); // unknown — never "no cars"
+  if (freeCache.size > 2_000) freeCache.clear(); // bound memory
+  freeCache.set(key, { at: Date.now(), value });
+  return value;
 }
 
 export const RATING_TAGS = ["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"];

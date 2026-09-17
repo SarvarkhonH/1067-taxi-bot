@@ -113,6 +113,14 @@ export interface DriverPin {
   busy: boolean;
 }
 
+/** Free cars near a point, placed by the core so no driver can be followed (drivers/nearby-free). */
+export interface NearbyFreeCars {
+  /** Free cars within the core's radius, or null when the core could not find out. */
+  freeCount: number | null;
+  /** Empty below two free cars. Never an identity: a rotating label, a cell-snapped point, a rounded heading. */
+  cars: { id: string; lat: number; lng: number; bearing: number }[];
+}
+
 export interface RideHistoryItem {
   id: number;
   addressName: string;
@@ -255,6 +263,8 @@ export interface KasDataSource {
   getRidesByCar(carNumber: string, size?: number): Promise<RideHistoryItem[]>;
   /** E1: free/online driver map pins (best-effort — drivers with live coords). */
   getDriverPins(): Promise<DriverPin[]>;
+  /** Part B P0-3: free cars around a pickup point for a passenger's map (`livecars`). */
+  getNearbyFreeCars(lat: number, lng: number): Promise<NearbyFreeCars>;
   /** Live driver position/identity by car number (the moving pin). */
   getDriverByCar(carNumber: string): Promise<BookingDriver | null>;
   /** Raw bookingReports page (analytics: per-driver distribution, north-star). */

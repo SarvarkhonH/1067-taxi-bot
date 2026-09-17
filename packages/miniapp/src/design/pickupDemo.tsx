@@ -82,13 +82,13 @@ const RIDE_NEXT: Record<Ride, Ride> = {
 };
 
 type Mode = "a" | "b" | "off";
-const ME = (mode: Mode, lt: boolean): MeResponse =>
+const ME = (mode: Mode, lt: boolean, live: boolean): MeResponse =>
   ({
     linked: true,
     type: "client",
     coins: 4820,
     streak: { current: 3 },
-    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true },
+    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true, livecars: live },
   }) as unknown as MeResponse;
 const LABEL: Record<Mode, string> = { a: "A — javob birinchi", b: "B — ro'yxat birinchi", off: "Eski ko'rinish (flag OFF)" };
 const NEXT: Record<Mode, Mode> = { a: "b", b: "off", off: "a" };
@@ -103,6 +103,22 @@ function patchFetch(): void {
     const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
     if (url.includes("/api/booking/info")) return json({ ...INFO, active: ACTIVE(RIDE) });
     if (url.includes("/api/booking/places")) return json(PLACES);
+    // livecars: three real-looking free cars around the asked point, drifting a little each call
+    // (so the glide is visible). MUST be matched before "/api/booking/nearby" — that is its prefix.
+    if (url.includes("/api/booking/nearby-free")) {
+      const q = new URL(url, location.origin).searchParams;
+      const lat = Number(q.get("lat")) || INFO.center.lat;
+      const lng = Number(q.get("lng")) || INFO.center.lng;
+      const d = (Date.now() / 10_000) % 1 * 0.0015;
+      return json({
+        freeCount: 3,
+        cars: [
+          { id: "demoA", lat: lat + 0.004 + d, lng: lng + 0.003, bearing: 0 },
+          { id: "demoB", lat: lat - 0.003, lng: lng + 0.005 - d, bearing: 270 },
+          { id: "demoC", lat: lat + 0.002, lng: lng - 0.006 + d, bearing: 90 },
+        ],
+      });
+    }
     if (url.includes("/api/booking/nearby")) return json({ pins: [], freeDrivers: 4 });
     if (url.includes("/api/booking/active")) return json(ACTIVE(RIDE));
     // ⚠️ Bu yo'l `{ family, scheduled }` OBYEKTI qaytaradi — ilgari bo'sh massiv edi va
@@ -126,6 +142,7 @@ export function PickupDemoPage() {
   useState(() => { try { localStorage.removeItem(STORY_SEEN_KEY); } catch { /* private mode */ } });
   const [mode, setMode] = useState<Mode>("a");
   const [lt, setLt] = useState(true); // ega maketi YORUG' — demo shundan boshlanadi
+  const [live, setLive] = useState(true); // 🚕 livecars: real bo'sh mashinalar (ON) yoki eski bezaklar (OFF)
   const [ride, setRide] = useState<Ride>(RIDE);
   // 🔑 `gen` — safar SEANSI. Ilgari `key` ichida `ride` turardi va har bosishda ekran QAYTA
   // QURILARDI: shu sababli birorta O'TISH ko'rinmasdi — «topildi» quvonchi ham, kelgan mashina
@@ -141,7 +158,7 @@ export function PickupDemoPage() {
   };
   return (
     <div style={{ position: "fixed", inset: 0 }}>
-      <Booking3View key={`${mode}-${lt}-${gen}`} me={ME(mode, lt)} onClose={() => undefined} />
+      <Booking3View key={`${mode}-${lt}-${live}-${gen}`} me={ME(mode, lt, live)} onClose={() => undefined} />
       <button
         className="d-chip"
         style={{ position: "fixed", top: "calc(6px + var(--safe-top))", right: 10, zIndex: 99 }}
@@ -164,6 +181,13 @@ export function PickupDemoPage() {
         onClick={nextRide}
       >
         {RIDE_LABEL[ride]}
+      </button>
+      <button
+        className="d-chip"
+        style={{ position: "fixed", top: "calc(132px + var(--safe-top))", right: 10, zIndex: 99 }}
+        onClick={() => setLive(!live)}
+      >
+        {live ? "🚕 Real mashinalar" : "👻 Bezak mashinalar"}
       </button>
     </div>
   );

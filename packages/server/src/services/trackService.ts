@@ -1,23 +1,32 @@
 // 🛡 Share-my-trip (family safety): the rider mints an unguessable, ACTIVE-ONLY token; anyone with the
 // link watches the trip READ-ONLY (car position + live fare + ETA + driver/car) until it ends. No login.
 // The token reveals ONLY the public subset — never the rider's phone or any PII. Stored as an AppState
-// row (track:<token> = {memberId, at}); 6h TTL and the active-booking check both hide a finished trip.
+// row (track:<token> = {memberId, at, bookingId}); 6h TTL and the active-booking check both hide a finished trip.
+// The token is bound to ONE booking: a link shared for this ride must not show the rider's NEXT ride
+// (driver position, pickup) to whoever still holds it — an independent review found exactly that.
 import crypto from "node:crypto";
 import { prisma } from "../db";
 import { env } from "../env";
 import { getActiveBookingFor } from "./bookingService";
+import { trackTokenShows } from "@t1067/shared";
 
 const TTL_MS = 6 * 60 * 60 * 1000;
 
-export async function createTrackToken(memberId: number): Promise<string> {
+/** A link for the rider's CURRENT ride, or null: no ride, or the core could not say which one it is. */
+export async function createTrackToken(memberId: number): Promise<string | null> {
+  const active = await getActiveBookingFor(memberId, { strict: true }).catch(() => null);
+  if (!active) return null;
   const token = crypto.randomBytes(9).toString("base64url"); // ~12 chars, unguessable
+  const value = JSON.stringify({ memberId, at: Date.now(), bookingId: active.id, v: 2 });
   await prisma.appState.upsert({
     where: { key: `track:${token}` },
-    create: { key: `track:${token}`, value: JSON.stringify({ memberId, at: Date.now() }) },
-    update: { value: JSON.stringify({ memberId, at: Date.now() }) },
+    create: { key: `track:${token}`, value },
+    update: { value },
   });
   return token;
 }
+
+
 
 export interface PublicTrip {
   active: boolean;
@@ -44,10 +53,14 @@ export async function resolveTrack(token: string): Promise<PublicTrip> {
   if (!row) return { active: false };
   let memberId = 0;
   let at = 0;
+  let bookingId: number | null = null;
+  let legacy = true;
   try {
-    const v = JSON.parse(row.value) as { memberId: number; at: number };
+    const v = JSON.parse(row.value) as { memberId: number; at: number; bookingId?: number | null; v?: number };
     memberId = v.memberId;
     at = v.at;
+    bookingId = typeof v.bookingId === "number" ? v.bookingId : null;
+    legacy = v.v !== 2;
   } catch {
     return { active: false };
   }
@@ -74,6 +87,13 @@ export async function resolveTrack(token: string): Promise<PublicTrip> {
   const b = await getActiveBookingFor(memberId).catch(() => null);
   // finished / cancelled → stop revealing position, BUT keep the CTA so the end screen can invite.
   if (!b) return { active: false, ended: true, ctaLink };
+  const bound = trackTokenShows(bookingId, b.id, legacy);
+  if (bound === "other") return { active: false, ended: true, ctaLink }; // the shared ride is over; this is a new one
+  if (bound === "bind") {
+    await prisma.appState
+      .update({ where: { key: row.key }, data: { value: JSON.stringify({ memberId, at, bookingId: b.id }) } })
+      .catch(() => undefined);
+  }
   const d = b.driver;
   // win-badge fusion: a winning mid-ride spin on THIS booking → "sovg'a oldi" (amount never shown)
   let won = false;

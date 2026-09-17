@@ -301,7 +301,7 @@ export const api = {
   elonReport: (id: number) => post<import("@t1067/shared").ClassifiedReportResponse>(`/api/elonlar/ads/${id}/report`),
   elonReact: (id: number, b: import("@t1067/shared").ClassifiedReactBody) => post<import("@t1067/shared").ClassifiedReactResponse>(`/api/elonlar/ads/${id}/react`, b),
   elonTop: (id: number) => post<import("@t1067/shared").ClassifiedTopBuyResponse>(`/api/elonlar/ads/${id}/top`),
-  createTrack: () => post<{ token: string }>("/api/track"),
+  createTrack: () => post<{ token: string | null }>("/api/track"),
   trackTrip: (token: string) => get<PublicTrip>(`/api/track/${encodeURIComponent(token)}`),
   // server defaults the leaderboard to the caller's own member type
   leaderboard: () => get<LeaderboardResponse>("/api/leaderboard"),
@@ -399,6 +399,11 @@ export const api = {
   driverQr: () => get<{ ok: boolean; reason?: string; link?: string; png?: string; shareText?: string }>("/api/driver/qr"),
   fareConfig: () => get<FareConfigResponse>("/api/fare/config"),
   bookingNearby: () => get<{ pins: { lat: number; lng: number; bearing: number; busy: boolean; id: string }[]; freeDrivers: number }>("/api/booking/nearby"),
+  // 🚕 livecars: real free cars around a point (core-placed: rotating label, 250 m cell). freeCount null = unknown.
+  bookingNearbyFree: (lat: number, lng: number) =>
+    get<{ freeCount: number | null; cars: { id: string; lat: number; lng: number; bearing: number }[] }>(
+      `/api/booking/nearby-free?lat=${lat.toFixed(5)}&lng=${lng.toFixed(5)}`,
+    ),
   bookingPredict: (address?: string) => get<{ rides: number; avg: number; p50: number; byAddress?: { name: string; avg: number; rides: number } | null }>(`/api/booking/predict${address ? `?address=${encodeURIComponent(address)}` : ""}`),
   bookingRate: (bookingId: number, stars: number, tags: string[]) => request<{ ok: boolean; reason?: string }>("POST", "/api/booking/rate", { bookingId, stars, tags }, 1),
   bookingScheduled: () => get<{ scheduled: { id: number; addressName: string; runAt: string; phone: string }[]; family: { id: number; phone: string; name: string }[] }>("/api/booking/scheduled"),
