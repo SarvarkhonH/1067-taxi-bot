@@ -119,8 +119,10 @@ export function renderProfile(me: MeResponse): string {
     `<i>${toNext}</i>`,
     DIV,
     `💼 <b>HAMYON</b>`,
-    `🚕 Cashback: <b>${formatNumber(stats.points)} so'm</b> <i>(safarlardan)</i>`,
-    `🪙 Tanga: <b>${formatNumber(me.coins)}</b> <i>(1 tanga = 1 so'm — yechiladi)</i>`,
+    // A passenger's so'm cashback lived in kas1067 and became tanga at the 2026-09-17 cutover; only a
+    // driver still has a so'm balance (in the taxi core).
+    ...(isDriver ? [`💼 Balans: <b>${formatNumber(stats.points)} so'm</b>`] : []),
+    `🪙 Tanga: <b>${formatNumber(me.coins)}</b> <i>(1 tanga = 1 so'm)</i>`,
     DIV,
     `🔥 Streak: <b>${streak} kun</b>   🚕 Safar: <b>${formatNumber(stats.trips)}</b>`,
   ];
@@ -128,7 +130,7 @@ export function renderProfile(me: MeResponse): string {
   lines.push(
     `📊 O'rin: <b>${me.rank ? rankMedal(me.rank) : "—"}</b>/${me.totalMembers}   🎖 <b>${earned.length}/${me.badges.length}</b> ${badgeStrip === "—" ? "" : badgeStrip}`,
     ``,
-    `🎮 <i>Tangani ko'paytiring — «🎮 O'yinlar & Hamyon»da o'yna, yut, so'mga yech!</i>`,
+    `🎮 <i>Tangani ko'paytiring — «🎮 O'yinlar & Hamyon»da o'yna, yut, ishlat!</i>`,
   );
   return lines.join("\n");
 }
@@ -149,7 +151,9 @@ export function renderAccount(me: MeResponse, opts: { joined: Date | null; notif
     `📅 A'zo: <b>${joined}</b>`,
     DIV,
     `🚕 Safar: <b>${formatNumber(stats.trips)}</b>${isDriver ? `   ⭐ Reyting: <b>${stats.rating.toFixed(2)}</b>` : ""}`,
-    `💰 Cashback: <b>${formatNumber(stats.points)} so'm</b>   🪙 Tanga: <b>${formatNumber(me.coins)}</b>`,
+    isDriver
+      ? `💼 Balans: <b>${formatNumber(stats.points)} so'm</b>   🪙 Tanga: <b>${formatNumber(me.coins)}</b>`
+      : `🪙 Tanga: <b>${formatNumber(me.coins)}</b>`,
     `🔥 Streak: <b>${me.streak?.current ?? 0} kun</b>   📊 O'rin: <b>${me.rank ?? "—"}</b>/${me.totalMembers}`,
     DIV,
     `⚙️ <b>Sozlamalar</b>`,
@@ -192,17 +196,17 @@ export function renderWeeklyBlock(w: WeeklyBoardResponse): string {
   return s;
 }
 
-/** kas1067 cashback + fare rules for passengers (the "use kas for clients" view). */
+/** Cashback (tanga) + fare rules for passengers. */
 export function renderFare(cfg: FareConfigResponse): string {
   const cars = cfg.cars.length ? cfg.cars.map((c) => esc(c.name)).join(" · ") : "—";
   return (
     `🚕 <b>Narx va cashback</b> — ${esc(cfg.company.name)}\n\n` +
     `💰 <b>Cashback (har safardan):</b>\n` +
-    `  • Ilovadan buyurtma: <b>+${formatNumber(cfg.cashback.perAppRide)} so'm</b>\n` +
-    `  • Ilk safaringiz: <b>+${formatNumber(cfg.cashback.firstAppBonus)} so'm</b>\n` +
-    `  <i>(${formatNumber(cfg.cashback.minDistanceKm)} km dan boshlab)</i>\n\n` +
-    `🧮 <b>Taxi narxi:</b>\n` +
-    `  • Eng kam: <b>${formatNumber(cfg.minimalPayment)} so'm</b> (${formatNumber(cfg.minimalDistanceKm)} km)\n` +
+    `  • Ilovadan buyurtma: <b>+${formatNumber(cfg.cashback.perAppRide)} tanga</b>\n` +
+    `  • Ilk safaringiz: <b>+${formatNumber(cfg.cashback.firstAppBonus)} tanga</b>\n` +
+    (cfg.cashback.minDistanceKm > 0 ? `  <i>(${formatNumber(cfg.cashback.minDistanceKm)} km dan boshlab)</i>\n` : "") +
+    `\n🧮 <b>Taxi narxi:</b>\n` +
+    `  • Eng kam: <b>${formatNumber(cfg.minimalPayment)} so'm</b>${cfg.minimalDistanceKm > 0 ? ` (${formatNumber(cfg.minimalDistanceKm)} km)` : ""}\n` +
     `  • Keyin har km: <b>${formatNumber(cfg.perKmCity)} so'm</b> (shahar)\n\n` +
     `🚗 <b>Mashinalar:</b> ${cars}\n` +
     (cfg.company.phones.length ? `\n📞 Dispetcher: ${cfg.company.phones.map(esc).join(", ")}` : "") +
@@ -216,7 +220,7 @@ export function renderHelp(): string {
     `🤖 <b>Koson AI</b> — shunchaki tabiiy tilда yozing, men tushunaman: «uyimga taksi», «osh buyurtma qil», «santexnik kerak», «ertaga 7 da eslat», «bu oy qancha ishlatdim». Dardlashsangiz ham — tinglayman. /ai\n` +
     `🧠 <b>Ma'lumot berish</b> — Koson haqida bilganingizni yozing, AI o'rgansin. /bilim\n\n` +
     `🚖 <b>Taxi</b> — «🚀 Ilova»da xaritadan chaqiring, jonli kuzating, bekor qiling.\n` +
-    `💰 <b>Ikki hamyon</b> — 🚕 cashback (safardan) + 🪙 tanga (bonuslardan). Ilovada bir-biriga o'tkaziladi, so'mga aylantiriladi.\n\n` +
+    `💰 <b>Hamyon</b> — 🪙 tanga (safar cashback'i va bonuslardan), 1 tanga = 1 so'm. Haydovchiga to'lash, bozor va o'yinlarda ishlatiladi.\n\n` +
     `<b>Tanga topish:</b>\n` +
     `• 🔥 Kunlik streak · 🎯 vazifalar · 🎡 g'ildirak · 🎁 quti\n` +
     `• 👥 Do'st taklif: ikkalangizga +tanga\n\n` +
@@ -301,15 +305,6 @@ export function renderReferralWin(reward: number): string {
   );
 }
 
-/** Instant push when a member's cashback/balance grows (the addictive loop). */
-export function renderEarnPush(delta: number, total: number, type: MemberType): string {
-  const head =
-    type === "client"
-      ? `🎉 <b>+${formatNumber(delta)} so'm</b> cashback oldingiz!`
-      : `💵 <b>+${formatNumber(delta)} so'm</b> balansingizga qo'shildi!`;
-  return `${head}\n\n💰 Jami: <b>${formatNumber(total)} so'm</b>\n\nBatafsil: /me`;
-}
-
 // ── moved from bot.ts (T3 G5: centralize user-facing text in render.ts) ──
 
 export function renderCheckIn(r: CheckInResult): string {
@@ -354,7 +349,7 @@ export function renderDriverPanel(
         (kas.balance != null ? `👛 Balans: <b>${formatNumber(kas.balance)} so'm</b>\n` : "") +
         (kas.debt != null && kas.debt > 0 ? `⚠️ Qarz: <b>${formatNumber(kas.debt)} so'm</b> — /qarz\n` : "") +
         (kas.ridesToday != null ? `🚕 Bugun: <b>${formatNumber(kas.ridesToday)}</b> safar · <b>${formatNumber(kas.fareToday ?? 0)} so'm</b>\n` : "")
-      : `\n🔑 <b>Kas hisobingizni ulang</b> — /driver_login bilan safar, daromad va qarzni shu yerda ko'rasiz.\n`;
+      : `\n🔑 <b>Haydovchi hisobingiz topilmadi</b> — davlat raqamingiz taksi tizimida ro'yxatdan o'tganini dispetcherdan so'rang.\n`;
   const txnLines = e.txns
     .slice(0, 6)
     .map((t) => `  ${t.amount > 0 ? "➕" : "➖"} ${formatNumber(Math.abs(t.amount))} — ${esc(t.reason)}`)

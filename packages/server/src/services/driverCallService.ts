@@ -106,8 +106,13 @@ export async function syncDriverCalls(): Promise<{
   });
   const linkedCars = new Set(linked.map((m) => normCar(m.carNumber)).filter(Boolean));
 
-  const existing = await prisma.driverCall.findMany({ select: { kasDriverId: true } });
+  const existing = await prisma.driverCall.findMany({ select: { kasDriverId: true, carNumber: true } });
   const known = new Set(existing.map((e) => e.kasDriverId));
+  // Rows made from the kas1067 roster carry kas driver ids; the taxi core numbers the same drivers
+  // differently. The plate is what both agree on — without it every driver would appear twice and
+  // the operator's call notes would stay on the old row.
+  const knownByCar = new Map<string, number>();
+  for (const e of existing) if (e.carNumber) knownByCar.set(normCar(e.carNumber), e.kasDriverId);
   const now = new Date();
 
   let inBot = 0;
@@ -121,8 +126,9 @@ export async function syncDriverCalls(): Promise<{
     const linkedCar = d.carNumber ? linkedCars.has(normCar(d.carNumber)) : false;
     if (linkedCar) inBot++;
     if (isTaking(d)) taking++;
-    if (known.has(d.kasId)) {
-      uId.push(d.kasId); uName.push(d.fullName); uPhone.push(d.phone); uCar.push(d.carNumber);
+    const rowId = known.has(d.kasId) ? d.kasId : d.carNumber ? knownByCar.get(normCar(d.carNumber)) : undefined;
+    if (rowId !== undefined) {
+      uId.push(rowId); uName.push(d.fullName); uPhone.push(d.phone); uCar.push(d.carNumber);
       uModel.push(d.carModel); uAddr.push(d.address); uBal.push(Math.round(d.balance)); uDebt.push(Math.round(d.debt));
       uTrips.push(d.trips); uRating.push(d.rating); uActive.push(d.active); uInBot.push(linkedCar);
     } else {

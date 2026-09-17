@@ -71,6 +71,15 @@ describe("cutover day — the taxi core starts answering instead of kas1067", ()
       .toEqual({ action: "adopt", id: 4, why: "cutover" });
   });
 
+  it("never lets a passenger record take over a driver's row", () => {
+    // The core lists a driver's own passenger record before the driver record.
+    // Adopting would flip the driver to a client, drop the plate, and leave their
+    // tanga on a row the driver sync then re-creates beside it.
+    const rows = [driver(5, "4812", "901234567")];
+    expect(chooseMemberRow({ type: "client", kasId: "bj_31", phone: "901234567" }, rows))
+      .toEqual({ action: "create", why: "new" });
+  });
+
   it("does NOT merge two rows that both came from us", () => {
     // Two bridge ids sharing a phone is a duplicate in the taxi core, and
     // merging it here would hide a problem that belongs to be fixed there.

@@ -154,7 +154,7 @@ export function DriverView({ me }: { me: MeResponse }) {
         <section className="glass pad"><Spinner /></section>
       ) : account.linked ? (
         <section className="glass pad">
-          <div className="section-title">🚕 Kas hisobi{account.carNumber ? ` · ${account.carNumber}` : ""}</div>
+          <div className="section-title">🚕 Haydovchi hisobi{account.carNumber ? ` · ${account.carNumber}` : ""}</div>
           <div className="drv-grid">
             <div className="drv-stat">
               <div className="drv-stat-top"><span className="drv-stat-ico">🚕</span><span className="drv-stat-lbl">Bugun safar</span></div>
@@ -165,7 +165,7 @@ export function DriverView({ me }: { me: MeResponse }) {
               <div className="drv-stat-val">{formatNumber(account.fareToday ?? 0)} <small>so'm</small></div>
             </div>
             <div className="drv-stat">
-              <div className="drv-stat-top"><span className="drv-stat-ico">👛</span><span className="drv-stat-lbl">Kas balans</span></div>
+              <div className="drv-stat-top"><span className="drv-stat-ico">👛</span><span className="drv-stat-lbl">Balans</span></div>
               <div className="drv-stat-val">{formatNumber(account.balance ?? 0)} <small>so'm</small></div>
             </div>
             <div className={"drv-stat " + (debt > 0 ? "warn" : "ok")}>
@@ -185,7 +185,7 @@ export function DriverView({ me }: { me: MeResponse }) {
               ) : (
                 <>
                   <div className="drv-debt-h">💸 Qarzni tanga bilan to'lang</div>
-                  <div className="drv-debt-sub">1 tanga = 1 so'm · darhol kas hisobingizga o'tadi</div>
+                  <div className="drv-debt-sub">1 tanga = 1 so'm · darhol balansingizga o'tadi</div>
                   <div className="drv-debt-chips">
                     {payOptions.map((amt) => (
                       <button key={amt} className={"drv-debt-chip" + (amt === payable ? " full" : "")} disabled={paying} onClick={() => payDebt(amt)}>

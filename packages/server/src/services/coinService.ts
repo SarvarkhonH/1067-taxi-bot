@@ -1,4 +1,4 @@
-import { MIN_RIDES_FOR_PAID, TOPUP_MIN, WITHDRAW_DAILY_CAP, WITHDRAW_MIN, type WalletResponse, type WithdrawResponse } from "@t1067/shared";
+import { coreDriverIdFromKasId, MIN_RIDES_FOR_PAID, TOPUP_MIN, WITHDRAW_DAILY_CAP, WITHDRAW_MIN, type WalletResponse, type WithdrawResponse } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
 
@@ -37,7 +37,10 @@ export interface CoinResult {
 // `oyin_convert`: mavsum yakunida BIR MARTA to'lanadigan katta summa (max 500). U haftalik
 // reytingga tushsa butun mavsum bo'yi yig'ilgan ball BITTA haftaning hisobiga kirib, o'sha
 // haftaning sovrinini ham yeb ketardi — ya'ni bitta yutuq ikki marta to'lanardi.
-const REYTING_EXCLUDE = new Set(["transfer_in", "tip_in", "weekly", "manual", "topup", "admin_coin", "shop_refund", "oyin_convert"]); // shop_refund: a rejected order's refund is NOT "earned" — must not inflate the weekly board
+// `shop_refund`: a rejected order's refund is NOT "earned" — must not inflate the weekly board.
+// `kas_cashback`: the one-off 2026-09-17 conversion of a passenger's kas1067 cashback into tanga —
+// money they already had, not earned this week.
+const REYTING_EXCLUDE = new Set(["transfer_in", "tip_in", "weekly", "manual", "topup", "admin_coin", "shop_refund", "oyin_convert", "kas_cashback"]);
 
 /** Earn coins (game currency). Idempotent via key; NO caps — coins are internal. */
 export async function grantCoins(
@@ -216,19 +219,25 @@ export async function getWallet(memberId: number): Promise<WalletResponse> {
     withdrawnToday: today,
     withdrawMin: limits.min,
     withdrawDailyCap: limits.dailyCap,
-    canWithdraw: (member?.type === "client" || member?.type === "driver") && coins >= limits.min && today < limits.dailyCap,
-    isClient: member?.type === "client", // ONLY clients convert cashback→tanga (topup); BOTH can withdraw tanga→kas balance
+    // Only DRIVERS turn tanga into so'm (their balance in the taxi core). The passenger so'm wallet
+    // and its cashback → tanga top-up lived in kas1067 and were removed with it on 2026-09-17.
+    canWithdraw: member?.type === "driver" && coins >= limits.min && today < limits.dailyCap,
+    isClient: member?.type === "client",
     topupMin: TOPUP_MIN,
-    canTopup: (member?.points ?? 0) >= TOPUP_MIN,
+    canTopup: false,
     commissionPct,
     txns: txns.map((t) => ({ amount: t.amount, kind: t.kind, reason: t.reason, at: t.createdAt.toISOString() })),
   };
 }
 
 /**
- * Convert coins to REAL so'm: deduct coins (atomic), write to kas1067 bonus
- * (1303). On kas failure the coins are refunded — money never disappears.
- * This is the ONLY point where real money leaves the system.
+ * Convert a DRIVER's tanga to REAL so'm on their balance in the taxi core: deduct tanga
+ * (atomic), pay into the core with an idempotency key. Refused → tanga refunded; no answer →
+ * held for review (the money may have moved). This is the ONLY point where real money leaves
+ * the system.
+ *
+ * Passengers cannot withdraw any more: their so'm wallet lived inside kas1067, and the owner
+ * decided on 2026-09-17 that it goes away with it — tanga stays spendable in-app.
  */
 export async function withdraw(memberId: number, amount: number): Promise<WithdrawResponse> {
   amount = Math.floor(amount);
@@ -240,41 +249,34 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
     coinsLeft: member?.coins ?? 0,
     kasApplied: false,
   });
-  if (!member || !member.phone || (member.type !== "client" && member.type !== "driver")) return fail("not_client");
-  // RIDE-GATE (load-bearing): real money can only leave an account that has generated real revenue.
-  // Without this, a fresh fake account farms coins (referral/box/wheel/streak) and cashes out 1:1 — a
-  // farm of fakes drains the whole daily budget. Owner-raised to MIN_RIDES_FOR_PAID (3) on 2026-07-23:
-  // the welcome sovg'a is a hook to drive REAL taxi use — you must ride ≥3× before cashing anything out
-  // (spending in-app stays open). trips is synced from kas1067. Drivers are exempt: a driver Member
-  // exists only if kas1067 has the driver (vetted identity), and the kas write still requires a client
-  // record for their phone (A1).
-  if (member.type === "client" && (member.trips ?? 0) < MIN_RIDES_FOR_PAID) return fail("no_ride");
+  if (member?.type === "client") return fail("drivers_only");
+  if (!member || member.type !== "driver") return fail("not_client");
+  // A driver Member exists only for a driver the taxi core knows (vetted identity); the plate is
+  // what names their balance there.
+  if (!member.carNumber) return fail("not_client");
   // anomaly hold: freezes ONLY the cash door — coins stay spendable in-app,
   // so a falsely-flagged real user loses nothing while an admin reviews
   if (member.riskFlag) return fail("risk_hold");
   const limits = await withdrawLimits(); // owner-tunable (admin «Naqd fond» knobs)
   if (amount < limits.min) return fail("below_min");
-  // P0 (QA fleet): serialize per member — the cap check + budget + spend + kas + row-create
+  // P0 (QA fleet): serialize per member — the cap check + budget + spend + write + row-create
   // must run atomically per member, else two concurrent withdrawals both read withdrawnToday=0
-  // and both blow past the 50000/day cap (real money out 2x). Same in-process lock as grantRideCoins.
+  // and both blow past the daily cap (real money out 2x). Same in-process lock as grantRideCoins.
   return withMemberLock(memberId, async () => {
     const { consumeWithdrawBudget, releaseWithdrawBudget, alertAdmins } = await import("./economyService");
     const { pendingCreate, pendingResolve } = await import("./appStateUtil");
 
-    // A3 (audit P0): kas has NO idempotency key — if a previous withdraw crashed/timed out AFTER
-    // the kas write went out but BEFORE its outcome was recorded, re-running would pay real money
-    // TWICE. An unresolved "sent" marker therefore blocks this member's cash door until an admin
-    // confirms what kas actually did (boot alert lists the marker; clearPending.ts releases it).
+    // An unresolved "sent" marker = a previous withdraw's outcome is UNKNOWN (no answer came back).
+    // The cash door stays closed for this member until an admin confirms what the core did
+    // (boot alert lists the marker; clearPending.ts releases it).
     const stale = await prisma.appState.findFirst({ where: { key: { startsWith: `pending:wdsent:m${memberId}-` } }, select: { key: true } });
     if (stale) return fail("pending_review");
 
     const today = await withdrawnToday(memberId);
     if (today + amount > limits.dailyCap) return fail("daily_cap");
 
-    // revenue-linked GLOBAL budget: real money out can't outrun real taxi revenue. Distinct reason
-    // (bug fix): this used to return "daily_cap", so a driver with ~5k withdrawn saw «100 000/kun
-    // limit tugadi» when actually the COMPANY fund for today was short. fundLeft lets the UI say
-    // exactly how much can still be withdrawn right now.
+    // revenue-linked GLOBAL budget: real money out can't outrun real taxi revenue. fundLeft lets
+    // the UI say exactly how much can still be withdrawn right now.
     if (!(await consumeWithdrawBudget(amount))) {
       const { getWithdrawBudget } = await import("./economyService");
       const b = await getWithdrawBudget().catch(() => null);
@@ -288,60 +290,44 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
       return fail("insufficient");
     }
 
-    // "sent" guard goes down BEFORE the kas write (driverDebtService pattern): a crash between
-    // here and the outcome leaves a durable marker instead of an invisible maybe-paid write.
+    // "sent" guard goes down BEFORE the write: a crash between here and the outcome leaves a
+    // durable marker instead of an invisible maybe-paid write.
     const reqId = `m${memberId}-${Date.now()}`;
     await pendingCreate("wdsent", reqId, { memberId, amount, note: member.type });
 
-    let kasApplied = false;
-    let kasOutcomeKnown = false;
-    let kasMessage = "";
-    try {
-      // per-phone lock: serialize our concurrent balance writes (kas has no CAS).
-      // DRIVER → their own kas driver balance (drivers/payment); CLIENT → the client bonus.
-      type KasWriteRes = { ok: boolean; status?: number; balance?: number | null; oldBonus?: number; newBonus?: number };
-      const res: KasWriteRes = await withPhoneLock<KasWriteRes>(member.phone!, () =>
-        member.type === "driver"
-          ? getDataSource().addDriverPayment(Number(member.kasId), member.carNumber ?? "", amount, "1067 ilova: tanga → balans")
-          : getDataSource().addClientBonus(member.phone!, amount),
-      );
-      kasOutcomeKnown = true; // kas ANSWERED — ok or a clean reject, either way we know
-      kasApplied = res.ok;
-      kasMessage = !res.ok ? `failed (status ${res.status})` : res.balance != null ? `driver balance: ${res.balance}` : `${res.oldBonus} -> ${res.newBonus}`;
-    } catch (e) {
-      kasMessage = e instanceof Error ? e.message : String(e);
-    }
+    const res = await getDataSource().addDriverPayment(member.carNumber!, amount, `wd:${reqId}`, "1067 ilova: tanga → balans", coreDriverIdFromKasId(member.kasId));
+    const message = res.unknown ? "no answer" : !res.ok ? `failed (status ${res.status})` : `driver balance: ${res.balance}`;
 
-    if (!kasOutcomeKnown) {
-      // UNKNOWN outcome (timeout/socket death mid-write): kas MAY have applied it. The old code
-      // auto-refunded here — a double-pay if the write actually landed. Now: keep the coins held,
-      // keep the "sent" marker (blocks this member's next withdraw), and page the owner.
+    if (res.unknown) {
+      // UNKNOWN outcome: the core MAY have applied it. Refunding would be a double pay. Keep the
+      // tanga held, keep the "sent" marker (blocks this member's next withdraw), page the owner.
+      // A manual retry with the same requestId is applied once by the core.
       await alertAdmins(
-        `⚠️ <b>Withdraw NOANIQ:</b> ${member.fullName ?? memberId} — <b>${amount.toLocaleString("ru-RU")} so'm</b>, kas javob bermadi (${kasMessage.slice(0, 80)}).\n` +
-          `Kas balansini tekshirib: yetib borgan bo'lsa marker'ni yeching, bormagan bo'lsa refund qiling.\n<code>pending:wdsent:${reqId}</code>`,
+        `⚠️ <b>Withdraw NOANIQ:</b> ${member.fullName ?? memberId} — <b>${amount.toLocaleString("ru-RU")} so'm</b>, taksi tizimi javob bermadi.\n` +
+          `Haydovchi balansini tekshirib: yetib borgan bo'lsa marker'ni yeching, bormagan bo'lsa refund qiling.\n<code>pending:wdsent:${reqId}</code>`,
       ).catch(() => undefined);
       return { ok: false, reason: "pending_review", amount, coinsLeft: await getCoins(memberId), kasApplied: false };
     }
     await pendingResolve("wdsent", reqId); // outcome is KNOWN → the crash-guard has done its job
 
-    if (!kasApplied) {
+    if (!res.ok) {
       // T0.5 (AUDIT 3.3): refund is OWED — write the marker FIRST, so a crash or
       // PG drop between here and the grant can never strand the user's coins;
       // the periodic tick retries via the same idempotent key (max 5, then alert).
-      const { pendingCreate, pendingResolve } = await import("./appStateUtil");
-      const reqId = `${memberId}-${Date.now()}`;
-      await pendingCreate("wd", reqId, { memberId, amount, note: kasMessage.slice(0, 80) });
-      const refund = await grantCoins(memberId, amount, "withdraw_refund", "Aylantirish amalga oshmadi — tanga qaytarildi", `wdrefund:${reqId}`);
+      const refundId = `${memberId}-${Date.now()}`;
+      await pendingCreate("wd", refundId, { memberId, amount, note: message.slice(0, 80) });
+      const refund = await grantCoins(memberId, amount, "withdraw_refund", "Aylantirish amalga oshmadi — tanga qaytarildi", `wdrefund:${refundId}`);
       if (refund.ok || refund.skipped === "duplicate") {
         await releaseWithdrawBudget(amount);
-        await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: false, kasMessage } }).catch(() => null);
-        await pendingResolve("wd", reqId);
+        await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: false, kasMessage: message } }).catch(() => null);
+        await pendingResolve("wd", refundId);
       }
       return { ok: false, reason: "kas_failed", amount, coinsLeft: await getCoins(memberId), kasApplied: false };
     }
 
-    await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: true, kasMessage } });
-    await prisma.member.update({ where: { id: memberId }, data: { points: { increment: amount } } });
+    await prisma.withdrawal.create({ data: { memberId, amount, kasApplied: true, kasMessage: message } });
+    // points mirrors the driver's balance in the core; take the figure it answered with
+    if (res.balance != null) await prisma.member.update({ where: { id: memberId }, data: { points: Math.round(res.balance) } }).catch(() => undefined);
     // alert admins on every real-money-out (anomaly visibility)
     await alertAdmins(`💸 Withdraw: <b>${amount.toLocaleString("ru-RU")} so'm</b> — ${member.fullName} (today ${(today + amount).toLocaleString("ru-RU")})`).catch(() => undefined);
     return { ok: true, amount, coinsLeft: await getCoins(memberId), kasApplied: true };
@@ -349,47 +335,14 @@ export async function withdraw(memberId: number, amount: number): Promise<Withdr
 }
 
 /**
- * Reverse direction (user-requested two-way wallet): move the user's OWN kas
- * cashback bonus INTO their game-coin wallet so they can play. Deduct the kas
- * bonus first (per-phone lock); credit coins only if the kas write succeeded.
+ * The passenger's cashback → tanga top-up. It moved so'm out of their kas1067 cashback into
+ * tanga; that wallet went away with kas1067 on 2026-09-17. Whatever a passenger held there was
+ * converted to tanga once, at the cutover (scripts/convertKasCashback.ts), so nothing is left to
+ * move. The route stays so an old Mini App build gets a clear answer instead of a 404.
  */
 export async function topUpFromBonus(memberId: number, amount: number): Promise<WithdrawResponse> {
-  amount = Math.floor(amount);
-  const member = await prisma.member.findUnique({ where: { id: memberId } });
-  const fail = (reason: WithdrawResponse["reason"]): WithdrawResponse => ({
-    ok: false,
-    reason,
-    amount,
-    coinsLeft: member?.coins ?? 0,
-    kasApplied: false,
-  });
-  if (!member || member.type !== "client" || !member.phone) return fail("not_client");
-  if (amount < TOPUP_MIN) return fail("below_min");
-
-  const phone = member.phone;
-  const res = await withPhoneLock(phone, async () => {
-    // re-read the live bonus inside the lock, then deduct
-    const cur = (await getDataSource().fetchByPhone(phone)).find((m) => m.type === "client")?.points ?? null;
-    if (cur === null || cur < amount) return { ok: false as const, reason: "insufficient" as const };
-    const w = await getDataSource().setClientBonus(phone, cur - amount);
-    return w.ok ? { ok: true as const } : { ok: false as const, reason: "kas_failed" as const };
-  });
-
-  if (!res.ok) return fail(res.reason === "insufficient" ? "insufficient" : "kas_failed");
-
-  // T0.5 (AUDIT 3.8): kas bonus is ALREADY debited here — the coin grant is
-  // owed. Marker + idempotent key: a crash before the grant gets retried by
-  // the tick with the SAME key, so the user gets the coins exactly once.
-  const { pendingCreate, pendingResolve } = await import("./appStateUtil");
-  const reqId = `${memberId}-${Date.now()}`;
-  await pendingCreate("tp", reqId, { memberId, amount });
-  const g = await grantCoins(memberId, amount, "topup", `Cashback → tanga: ${amount}`, `topup:${reqId}`);
-  if (g.ok || g.skipped === "duplicate") {
-    // keep the denormalized kas balance roughly in sync
-    await prisma.member.update({ where: { id: memberId }, data: { points: { decrement: amount } } }).catch(() => undefined);
-    await pendingResolve("tp", reqId);
-  }
-  return { ok: true, amount, coinsLeft: g.balance, kasApplied: true };
+  const member = await prisma.member.findUnique({ where: { id: memberId }, select: { coins: true } });
+  return { ok: false, reason: "closed", amount: Math.floor(amount), coinsLeft: member?.coins ?? 0, kasApplied: false };
 }
 
 /** T0.5 (AUDIT 3.3/3.8): periodik tick — osilib qolgan refund/topup markerlari.

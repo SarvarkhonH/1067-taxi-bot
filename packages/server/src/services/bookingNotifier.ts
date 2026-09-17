@@ -7,12 +7,10 @@
 // ETA-guess game.
 import { InlineKeyboard, type Bot } from "grammy";
 import type { Prisma } from "@prisma/client";
-import { formatNumber, haversineKm, inflateOnline } from "@t1067/shared";
+import { formatNumber, haversineKm, inflateOnline, isBridgeId } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource, type RideHistoryItem } from "../kas";
 import { incrementMission } from "./missionService";
-import { kasMapSocket } from "./kasMapSocket";
-import { kasClientSocket } from "./kasClientSocket";
 import { resolveDisplayName } from "./memberService";
 import { markRideActive } from "./tierLoyaltyService";
 // 📵 BLK-1: safar push'lari HAR DOIM `force` bilan ketadi — odam safar buyurtma qilgan, eski yoki
@@ -21,8 +19,10 @@ import { markRideActive } from "./tierLoyaltyService";
 import { pushMessage, pushResult } from "./pushSend";
 
 const CITY_KMH = 24;
-// kas lifecycle: new → take → in_place → delivered. "in_place" is normalized to "started" in the
-// kas client (driver at pickup + meter running = in-trip), so it is NOT searching and NOT cancellable.
+// How many sweep ticks the finish branch waits for the core's final status before falling back.
+const FINISH_WAIT_TICKS = 5;
+// Booking lifecycle in the bot's vocabulary (the core's statuses are translated in
+// @t1067/shared/taxiCore): new/searching → accepted/on_the_way → arrived → started → delivered.
 const SEARCHING = new Set(["new", "searching"]);
 // 0.3 sweep-diet: wait-comp markers already written this process-lifetime (see the create below)
 const waitMarkerSeen = new Set<string>();
@@ -226,9 +226,6 @@ export async function pushBookingUpdates(
   const activeNorms = [...byPhone.keys()].filter(Boolean);
   // one flag read per tick (30s-cached anyway) — every card this tick renders the same share button
   const trackCta = await import("./featureFlags").then((f) => f.featureOn("trackcta")).catch(() => false);
-  // ⚡ instant-status: arm a per-member kas CLIENT socket for live rides so status changes trigger a
-  // scoped re-sweep in ~1-2s instead of waiting for the next poll. Trigger only — never grants money.
-  const instantOn = await import("./featureFlags").then((f) => f.featureOn("instantstatus")).catch(() => false);
   const linked = await prisma.member.findMany({
     where: {
       telegramUser: { isNot: null },
@@ -239,7 +236,542 @@ export async function pushBookingUpdates(
     include: { telegramUser: true },
   });
 
-  for (const m of linked) {
+  // ── ride finished ── one ride's close-out: rewards, finish card, state clear. A closure so it can
+  // run for the PREVIOUS ride when a new one shows up before the old one was closed — otherwise the
+  // new ride overwrote lastBookingId and the old ride's cashback, missions and trip count were lost.
+  const finishRide = async (m: (typeof linked)[number], finishOpts: { noWait?: boolean } = {}): Promise<void> => {
+    const chatId = m.telegramUser!.id;
+    // ── ride finished ──
+    // T4 fix: each quest/score increment is now IDEMPOTENT per ride via its own
+    // rideKey marker (atomic marker+upsert in incrementMission/addScore). No
+    // fragile firstFinish gate — a transient just makes resilient() retry the
+    // atomic tx; a re-entry is a P2002 no-op. Zero double-count, zero silent loss.
+    const bid = m.lastBookingId;
+    if (bid == null) return;
+    const clearRideState = () =>
+      prisma.member.update({
+        where: { id: m.id },
+        data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null, lastBookingBonus: null, rideCardMsgId: null, liveLocMsgId: null, rideStartedAt: null },
+      });
+    // A ride id from kas1067 can never be confirmed by the taxi core (different id space), so it is
+    // closed without rewards. The cutover script clears these too; this is the second line.
+    if (ds.name === "birjoy" && !isBridgeId(bid)) {
+      await clearRideState();
+      return;
+    }
+    // P0 (QA fleet): the kas active list drops a booking on BOTH completion AND cancellation,
+    // so this "finished" branch can't tell them apart — a CANCELLED ride would otherwise pay
+    // out cashback/garage/fund and send a "yakunlandi" card. Guard on a POSITIVE completion
+    // signal: the ride must have reached "started" (passenger in the car) AND its last status
+    // must not be a cancel. Otherwise clear the ride state but fire NO rewards / finish card.
+    // A6 (audit): driver/client-initiated cancels were MISSING — a ride that reached "started"
+    // then got cancelled by the driver in the same poll gap kept lastBookingStatus="started",
+    // passed this guard, and paid cashback/fund/missions on a cancelled trip.
+    const CANCEL_STATUSES = ["cancel_by_operator", "cancel_by_server", "cancel_by_driver", "cancel_by_client", "take_back", "cancel"];
+    // The taxi core keeps the order after it leaves the active list, with its final status and
+    // the same id — so ask it how the ride ended instead of inferring it from the last poll.
+    // Two guesses this replaces: a driver cancelling mid-ride between polls (last seen "started"
+    // → would pay), and a short ride that went accepted → completed between polls ("started"
+    // never seen → would show "bekor qilindi" and pay nothing). Unknown/unreachable → the
+    // inference below stands, exactly as before.
+    let historyReadable = true;
+    const finalRow = await ds
+      .getRideHistory(m.phone!, 6)
+      .then((h) => h.find((r) => r.id === bid))
+      .catch(() => {
+        historyReadable = false;
+        return undefined;
+      });
+    // No final word from the core yet (unreadable, or the order not in history this instant): wait a
+    // few ticks rather than guess — a guess pays a driver-cancelled ride or skips a finished one.
+    // Bounded: after FINISH_WAIT_TICKS the old inference below decides, so a ride can't hang forever.
+    if (ds.name === "birjoy" && !finalRow && !finishOpts.noWait) {
+      const tries = await import("./appStateUtil").then((u) => u.atomicIncrement(`finishwait:${bid}`, 1)).catch(() => FINISH_WAIT_TICKS);
+      if (tries < FINISH_WAIT_TICKS) {
+        if (!historyReadable) console.warn(`[finish] m${m.id} b${bid}: core history unreadable — retry ${tries}/${FINISH_WAIT_TICKS}`);
+        return;
+      }
+      console.warn(`[finish] m${m.id} b${bid}: no final status from the core after ${tries} ticks — deciding from the last status seen`);
+    }
+    const coreSaysCancelled = !!finalRow && CANCEL_STATUSES.includes(finalRow.status);
+    const coreSaysDelivered = finalRow?.status === "delivered";
+    // The car that actually drove THIS ride. lastBookingCar is only what the sweep last saw and can
+    // be the previous ride's car when this one went accepted → completed between two polls — the
+    // driver bonus, quests and the pay-the-fare button must never go to the wrong driver.
+    const rideCar = finalRow?.carNumber || (coreSaysDelivered ? "" : m.lastBookingCar) || "";
+    if (coreSaysCancelled || (!coreSaysDelivered && (!m.rideStartedAt || CANCEL_STATUSES.includes(m.lastBookingStatus ?? "")))) {
+      // 🎁 "topilmadi" vaucheri (feature "waitcomp"): the search DIED while still SEARCHING — no
+      // driver ever accepted (status never left new/searching). The wait must not be for nothing:
+      // record a next-ride voucher worth the same ramp amount + apologize honestly. NOT paid now —
+      // paying cash on a failed search would be an open farm (order→wait→cancel→collect); the
+      // voucher pays only on the next COMPLETED ride, which is also the come-back-next-time hook.
+      if (SEARCHING.has(m.lastBookingStatus ?? "") && bid) {
+        try {
+          const startRow = await prisma.appState.findUnique({ where: { key: `waitstart:${bid}` } });
+          const start = startRow ? Number(startRow.value) : NaN;
+          if (Number.isFinite(start)) {
+            const waitSeconds = Math.floor((Date.now() - start) / 1000);
+            const { noteWaitVoucher } = await import("./cashbackService");
+            const worth = (await resilient("waitvoucher", () => noteWaitVoucher(m.id, bid!, waitSeconds))) ?? 0;
+            if (worth > 0) {
+              await pushMessage(
+                bot,
+                chatId,
+                "ride_nocar",
+                `😔 <b>Uzr — bu safar mashina topib bera olmadik.</b>\n` +
+                  `Kutganingiz bekor ketmaydi: <b>+${formatNumber(worth)} tanga</b> keyingi safaringizda avtomatik qo'shiladi. 🚕`,
+                { memberId: m.id, force: true, extra: { reply_markup: new InlineKeyboard().text("🔁 Qayta chaqirish", "bk:now") } },
+              );
+            }
+          }
+        } catch (e) {
+          console.error("[waitvoucher] note failed:", e);
+        }
+      }
+      if (m.rideCardMsgId) {
+        await bot.api.editMessageText(chatId, m.rideCardMsgId, "❌ <b>Buyurtma bekor qilindi</b>", { parse_mode: "HTML" }).catch(() => undefined);
+      }
+      if (m.liveLocMsgId) {
+        await bot.api.stopMessageLiveLocation(chatId, m.liveLocMsgId).catch(() => undefined);
+      }
+      await prisma.member.update({
+        where: { id: m.id },
+        data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null, lastBookingBonus: null, rideCardMsgId: null, liveLocMsgId: null, rideStartedAt: null },
+      });
+      return;
+    }
+    {
+      await resilient("daily_ride", () => incrementMission(m.id, "daily_ride", 1, `qinc:${m.id}:daily_ride:${bid}`));
+      await resilient("weekly_rides", () => incrementMission(m.id, "weekly_rides", 1, `qinc:${m.id}:weekly_rides:${bid}`));
+      await resilient("addScore", async () => {
+        const w = await import("./weeklyService");
+        await w.addScore(m.id, "ride", `qscore:${m.id}:${bid}`);
+      });
+      // 🏅 a real finished ride is a decay-grace reset (flag-gated, client-only)
+      await markRideActive(m.id, m.type);
+    }
+
+    // 🎰 BARABAN: grant a 5-minute spin token for THIS finished ride + fire an immediate
+    // notification. No coin emission here (the win lands later, on /baraban spin, via
+    // grantCoins OUTSIDE the 350 clamp). Token grant is idempotent per ride (re-entry keeps
+    // the existing token), so the sweep re-running can't reset the clock. Gated by "baraban"
+    // (DEFAULT_OFF → dark until owner QABUL). No new poller — rides on this sweep.
+    try {
+      const { featureOn } = await import("./featureFlags");
+      if (await featureOn("baraban")) {
+        const { grantWheelToken } = await import("./rideWheelService");
+        // only NOTIFY on the FIRST processing of this ride (token grant is idempotent, but the
+        // bot message is not — a fresh token here means we haven't pinged for this ride yet)
+        const before = await prisma.appState.findUnique({ where: { key: `barabantoken:${m.id}` } }).catch(() => null);
+        const firstForRide = (() => {
+          try {
+            return !before || (JSON.parse(before.value) as { bookingId?: number }).bookingId !== bid;
+          } catch {
+            return true;
+          }
+        })();
+        await resilient("baraban_token", () => grantWheelToken(m.id, bid));
+        if (firstForRide) {
+          await pushMessage(bot, chatId, "ride_baraban", "🎰 <b>Safar tugadi!</b> 5 daqiqa ichida barabanni aylantiring — tanga yutib oling! 👇", {
+            memberId: m.id,
+            force: true,
+            extra: { reply_markup: new InlineKeyboard().text("🎰 Aylantirish", "baraban:spin") },
+          });
+        }
+      }
+    } catch (e) {
+      console.error("[baraban] token/notify failed:", e);
+    }
+
+    // freeze the card + stop the pin
+    if (m.rideCardMsgId) {
+      await bot.api
+        .editMessageText(chatId, m.rideCardMsgId, "🏁 <b>Safar yakunlandi</b> — pastda natijangiz 👇", { parse_mode: "HTML" })
+        .catch(() => undefined);
+    }
+    if (m.liveLocMsgId) {
+      await bot.api.stopMessageLiveLocation(chatId, m.liveLocMsgId).catch(() => undefined);
+    }
+
+    // 🎲 variable cashback roll (idempotent per ride)
+    let rollLine = "";
+    try {
+      const { rollRideCashback, renderRideRoll } = await import("./cashbackService");
+      const roll = await resilient("cashback-roll", () => rollRideCashback(m.id, m.lastBookingId!)); // idempotent: RideReward unique
+      {
+        const { fundAddRide } = await import("./featureFlags");
+        await resilient("fund", () => fundAddRide(m.lastBookingId!)); // 🏆 Mashina fondi (idempotent: fundride marker)
+      }
+      if (roll) rollLine = `\n${renderRideRoll(roll)}`;
+    } catch (e) {
+      console.error("[cashback] roll failed:", e);
+    }
+
+    // 🪙 wait compensation (feature "waitcomp"): PASSIVE tanga for the search time before a
+    // driver accepted — the wait itself earns, no game (owner rejected the tap-game). Server-timed
+    // via the waitstart/waitfound markers captured above (never client-reported time). Idempotent
+    // per ride (WaitCompReward unique) + its own daily company budget — see cashbackService.
+    // Also redeems a pending "topilmadi" voucher from a PREVIOUS failed search — this completed
+    // ride is exactly the come-back moment the voucher was minted for.
+    let waitCompLine = "";
+    try {
+      const [startRow, foundRow] = await Promise.all([
+        prisma.appState.findUnique({ where: { key: `waitstart:${bid}` } }),
+        prisma.appState.findUnique({ where: { key: `waitfound:${bid}` } }),
+      ]);
+      const start = startRow ? Number(startRow.value) : NaN;
+      const found = foundRow ? Number(foundRow.value) : NaN;
+      const { awardWaitComp, redeemWaitVoucher } = await import("./cashbackService");
+      if (Number.isFinite(start) && Number.isFinite(found) && found > start) {
+        const waitSeconds = Math.floor((found - start) / 1000);
+        const paid = (await resilient("waitcomp", () => awardWaitComp(m.id, bid!, waitSeconds))) ?? 0;
+        if (paid > 0) waitCompLine = `\n🪙 Kutish kompensatsiyasi: <b>+${formatNumber(paid)} tanga</b>`;
+      }
+      const voucher = (await resilient("waitvoucher-redeem", () => redeemWaitVoucher(m.id))) ?? 0;
+      if (voucher > 0) waitCompLine += `\n🎁 O'tgan safargi uzrimiz: <b>+${formatNumber(voucher)} tanga</b> — qaytganingiz uchun rahmat!`;
+    } catch (e) {
+      console.error("[waitcomp] award failed:", e);
+    }
+
+    // 💎 ride-drop collectibles: founder (first 100 riders) + district badge
+    let questLine = "";
+    try {
+      const { dropDistrictBadge, mintItem } = await import("./itemService");
+      const f = await resilient("founder", () => mintItem(m.id, "founder", { free: true })); // idempotent: one-per-member
+      if (f?.ok) questLine += `
+🌟 <b>Asoschi nishoni</b> — birinchi 100 ichidasiz! (#${f.serial})`;
+      // district from the finished ride's pickup (lastPickupId set at dispatch)
+      // a negative id is a coordinates-only pickup (no catalogue place, so no district)
+      if (m.lastPickupId && m.lastPickupId > 0 && m.lastPickupName) {
+        const d = await resilient("district", () => dropDistrictBadge(m.id, m.lastPickupId!, m.lastPickupName!)); // idempotent: marker
+        if (d) questLine += `
+📍 Yangi tuman ochildi: <b>${d.name}</b> (${d.total}/10)${d.sayyoh ? " · 🗺 SAYYOH +5000!" : ""}`;
+      }
+    } catch (e) {
+      console.error("[items] drop failed:", e);
+    }
+
+    // ⏱ ETA-guess resolution (uses the ride meter)
+    // resolveGuess's grant is idempotent (grantRideCoins key) → retry-safe
+    const guessLine = (await resilient("guess", () => resolveGuess(m.id, m.lastBookingId!, m.rideStartedAt))) ?? "";
+
+    // 🥇 tier-based driver rebate (replaces the flat bonus; weekly tier job
+    // sets driverTier from measured percentiles) + quest progress
+    let driverId: number | null = null;
+    if (rideCar) {
+      const driver = await prisma.member.findFirst({
+        where: { type: "driver", carNumber: rideCar },
+        select: { id: true, driverTier: true },
+      });
+      if (driver && driver.id !== m.id) {
+        driverId = driver.id;
+        // (driver welcome MOVED to JOIN — grantJoinWelcome on link, same as riders)
+        try {
+          const { DRIVER_DAILY_BONUS_CAP, DRIVER_TIER_REBATE } = await import("@t1067/shared");
+          const { getBonusEcon } = await import("./bonusConfig");
+          const econ = await getBonusEcon();
+          const rebateByTier: Record<string, number> = {
+            Bronza: 0,
+            Kumush: econ.tierKumush ?? DRIVER_TIER_REBATE.Kumush ?? 50,
+            Oltin: econ.tierOltin ?? DRIVER_TIER_REBATE.Oltin ?? 100,
+            Olmos: econ.tierOlmos ?? DRIVER_TIER_REBATE.Olmos ?? 200,
+          };
+          const rebate = rebateByTier[driver.driverTier] ?? 0;
+          if (rebate > 0) {
+            const since = new Date(Date.now() - 24 * 3600 * 1000);
+            const today = await prisma.coinTxn.aggregate({
+              where: { memberId: driver.id, kind: "driver_bonus", createdAt: { gte: since } },
+              _sum: { amount: true },
+            });
+            if ((today._sum.amount ?? 0) + rebate <= (econ.driverDailyCap ?? DRIVER_DAILY_BONUS_CAP)) {
+              const { grantCoins } = await import("./coinService");
+              await resilient("driver_bonus", () => grantCoins(driver.id, rebate, "driver_bonus", `Tier-bonus (${driver.driverTier})`, `driver_bonus:${m.id}:${m.lastBookingId}`)); // idempotent key
+            }
+          }
+          // 🔥 Peak-hour bonus: driver earns extra tanga if ride completes in an active window
+          try {
+            const { getActivePeakBonus } = await import("./adminOps");
+            const pkBonus = await getActivePeakBonus(Date.now());
+            if (pkBonus > 0) {
+              const { grantCoins } = await import("./coinService");
+              const pkKey = `peak_bonus:${driver.id}:${m.lastBookingId}`;
+              const existing = await prisma.coinTxn.findUnique({ where: { idempotencyKey: pkKey } }).catch(() => null);
+              if (!existing) {
+                await grantCoins(driver.id, pkBonus, "peak_bonus", `🔥 Pik vaqt bonus`, pkKey);
+                const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id } });
+                if (dtg) await pushMessage(bot, dtg.id, "peak_bonus", `🔥 <b>Pik vaqt bonus!</b>\n💰 <b>+${pkBonus.toLocaleString("ru-RU")} tanga</b> — pik vaqtda buyurtma topshirdingiz!`, { memberId: driver.id, force: true });
+              }
+            }
+          } catch (e) {
+            console.error("[peak bonus] failed:", e);
+          }
+
+          // quest progress: completed-count only (idempotent per ride via rideKey)
+          await resilient("drv_daily_5", () => incrementMission(driver.id, "drv_daily_5", 1, `qinc:${driver.id}:drv_daily_5:${m.lastBookingId}`));
+          await resilient("drv_weekly_25", () => incrementMission(driver.id, "drv_weekly_25", 1, `qinc:${driver.id}:drv_weekly_25:${m.lastBookingId}`));
+          await resilient("drv_weekly_40", () => incrementMission(driver.id, "drv_weekly_40", 1, `qinc:${driver.id}:drv_weekly_40:${m.lastBookingId}`));
+          // 🔧 XIII-1: random car part for the driver's completed ride
+          try {
+            const { dropCarPart } = await import("./itemService");
+            const drop = await dropCarPart(driver.id, bid);
+            if (drop?.fullCar) {
+              const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id } });
+              if (dtg) {
+                await pushMessage(bot, dtg.id, "garaj_full_car", "🚙 <b>TABRIKLAYMIZ!</b> 20 qismni yig'ib TO'LIQ MASHINA yasadingiz!\nYillik katta o'yinda chiptangiz bor. 🏆", { memberId: driver.id, force: true });
+              }
+            }
+          } catch (e) {
+            console.error("[partdrop] failed:", e);
+          }
+          // 🚖 recruit revshare: this rider was recruited by a driver's QR
+          try {
+            const { payRecruitRevshare } = await import("./recruitService");
+            await payRecruitRevshare(m.id, bid);
+          } catch (e) {
+            console.error("[recruit] revshare failed:", e);
+          }
+          // 🚖 driver→driver milestone: the DRIVER who drove this ride may have been recruited by
+          // another driver — count toward 10 rides; pay the recruiter 5000 once (flag drvrecruit, DARK).
+          try {
+            const { payDriverRecruitMilestone } = await import("./recruitService");
+            const r = await payDriverRecruitMilestone(driver.id, m.lastBookingId!);
+            if (r.paid && r.recruiterTelegramId) {
+              await pushMessage(bot, r.recruiterTelegramId, "drv_recruit_reward", `🚖 <b>Tabriklaymiz!</b>\nOlib kelgan haydovchingiz <b>10 ta safar</b> qildi — sizga <b>+${formatNumber(r.amount ?? 0)} tanga</b> tushdi! 🎉`, { force: true });
+            }
+          } catch (e) {
+            console.error("[drvrecruit] milestone failed:", e);
+          }
+        } catch (e) {
+          console.error("[driver_bonus] failed:", e);
+        }
+      }
+    }
+
+    // 👥 deferred referral payout: BOTH sides unlock on the invited friend's
+    // first REAL ride (kills the burner-account referral mint entirely)
+    try {
+      // `orderBy` SHART: `refereeMemberId` UNIQUE EMAS (schema.prisma) — odam Telegram akkauntini
+      // almashtirib qayta ulansa bir a'zoga ikkita qator bo'lishi mumkin. Tartibsiz `findFirst`
+      // tasodifiy qatorni tanlardi (bir tikda birini, boshqasida ikkinchisini). Eng ESKISI =
+      // haqiqiy birinchi taklifchi.
+      const ref = await prisma.referral.findFirst({
+        where: { refereeMemberId: m.id, referrerPaidAt: null },
+        orderBy: { id: "asc" },
+      });
+      if (ref) {
+        const { grantCoins } = await import("./coinService");
+        if (ref.rewardReferee > 0) {
+          const g = await grantCoins(m.id, ref.rewardReferee, "referral", "Do'st taklifi — birinchi safaringiz uchun 🎁", `ref_referee_ride:${ref.id}`);
+          if (g.ok) {
+            await pushMessage(bot, chatId, "referral_gift", `🎁 Taklif sovg'asi ochildi: <b>+${formatNumber(ref.rewardReferee)} tanga</b> — birinchi safaringiz muborak!`, { memberId: m.id, force: true });
+          }
+        }
+        // 🛡 OY-08: sybil-qo'riq (bir taklifchi + bir xil telefon) avval FAQAT tangani to'sardi
+        // (`rewardReferrer = 0`), `referrerPaidAt` esa shartdan TASHQARIDA yozilardi — o'yin balli
+        // esa aynan shundan hisoblanadi (oyinService.computeBallMap: paidAt mavsum ichida bo'lsa
+        // taklifchiga "do'st birinchi safarini qildi" balli). Ya'ni soxta-do'st fabrikasiga
+        // qarshi yagona to'siq ball tomonda ochiq edi. Endi dublikat qator NA tanga oladi,
+        // NA paidAt: qator `referrerPaidAt: null` bo'lib qoladi (= "to'lanmagan" — ustunning
+        // rost ma'nosi), shuning uchun keyingi safarlarda bu blok qayta kiradi, lekin har
+        // grant idempotent kalit bilan himoyalangan, ya'ni ikki marta to'lov YO'Q.
+        const { isDupReferral } = await import("./referralService");
+        const dup = await isDupReferral(ref);
+        const refTg = await prisma.telegramUser.findUnique({ where: { id: ref.referrerId } });
+        if (!dup && refTg?.memberId && ref.rewardReferrer > 0) {
+          const g = await grantCoins(refTg.memberId, ref.rewardReferrer, "referral", `Do'stingiz birinchi safarini qildi 🚕`, `ref_ride:${ref.id}`);
+          if (g.ok) {
+            await pushMessage(bot, refTg.id, "referral_gift", `🎉 Taklif qilgan do'stingiz birinchi safarini qildi!\n👥 Sizga <b>+${formatNumber(ref.rewardReferrer)} tanga</b> tushdi.`, { memberId: refTg.memberId, force: true });
+          }
+        }
+        // T0.5 (AUDIT 3.2): convergence order — grants FIRST (idempotent
+        // per-referral keys block double-pay), paidAt LAST. If this update
+        // dies, the next sweep re-runs: grants skip as duplicates, update
+        // retries. NOTE: keys are deliberately ride-AGNOSTIC — a bookingId
+        // suffix would mint a fresh key on the friend's next ride and pay twice.
+        // OY-08: dublikatda paidAt YOZILMAYDI — u tanga-to'lovi belgisi VA ball manbai.
+        if (!dup) {
+          await prisma.referral.update({ where: { id: ref.id }, data: { referrerPaidAt: new Date() } });
+        } else {
+          console.log(`[referral_ride] m${m.id} ref${ref.id} SYBIL-DUP — tanga ham, ball ham berilmadi`);
+        }
+      }
+    } catch (e) {
+      console.error("[referral_ride] failed:", e);
+      // AUDIT 3.10: anything beyond idempotent-duplicate is money-path noise the owner must see
+      const { alertAdmins } = await import("./economyService");
+      await alertAdmins(`⚠️ Referral payout xatosi (member ${m.id}): ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
+    }
+
+    // 🎮 KOSON O'YINI — do'st-safar push (feature "oyin", DARK — KOSON_OYIN_PLAN.md v9.2 §2.1).
+    // Ball GRANT QILINMAYDI bu yerda (jonli hisoblanadi, oyinService.getBall) — bu FAQAT
+    // taklifchiga bildirishnoma, HAR safar (yuqoridagi referral-payout blokidan farqli, u faqat
+    // BIRINCHI safarda ishlaydi). Yangi DB-yozuv yo'q → bu blok butunlay xato bersa ham safar-
+    // oqimiga (real main loop) ta'sir qilmaydi. `notifyOnce` kaliti do'st-scoped: bir do'st =
+    // kuniga max 1 push (boshqa do'st safar qilsa alohida push — bu ataylab, "bir do'st" degani).
+    try {
+      const { featureOn } = await import("./featureFlags");
+      // ⚠️ Mavsum FAOL bo'lmasa push yuborilmaydi: aks holda bot "+30 ball qo'shildi" deydi,
+      // balans esa 0 turadi (ball faqat mavsum ichida beriladi) — bu eng ishonch buzuvchi xato.
+      const { getSeason } = await import("./oyinSeason");
+      if ((await featureOn("oyin")) && (await getSeason()).phase === "active") {
+        const { referrerOf } = await import("./oyinService");
+        const referrer = await referrerOf(m.id);
+        if (referrer) {
+          const { getBonusEcon } = await import("./bonusConfig");
+          const econ = await getBonusEcon();
+          const gain = econ.oyinReferRideBall ?? 0;
+          if (gain > 0) {
+            const { notifyOnce } = await import("./notifyService");
+            // Matn ATAYLAB bitta safarning ballini "qo'shildi" deb AYTMAYDI: `notifyOnce` kaliti
+            // kunlik (bir do'st = kuniga 1 push), do'st esa o'sha kuni 2-3 safar qilishi mumkin —
+            // eski matn "+10 ball qo'shildi" derdi, balans esa +30 o'sardi (mijoz "xato hisobladi"
+            // deb o'ylardi). Endi qoida aytiladi: HAR safari uchun shuncha — bu har doim rost.
+            await notifyOnce(bot, referrer.telegramId, referrer.memberId, `oyin_ref_ride:${m.id}`, `🤝 Do'stingiz bugun safar qildi — uning <b>har safari</b> sizga <b>+${gain} ball</b> olib keladi! 🎮`);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("[oyin] referral push failed:", e);
+    }
+
+    // 🎁 Welcome bonus MOVED to JOIN — every new user (client OR driver) now gets the 5000 the
+    // moment they link their phone (grantJoinWelcome in memberService.linkByPhone), no ride needed.
+    // Was here on first ride; removed so nobody is double-paid (join-grant + ride-grant).
+
+    // 🔥 streak line for the peak-end card (read-only; safe on transient)
+    const streak = await prisma.streak.findUnique({ where: { memberId: m.id } }).catch(() => null);
+    const streakLine = streak?.current ? `\n🔥 Streak: <b>${streak.current} kun</b> — davom eting!` : "";
+
+    // 🧾 yo'l haqi — the completed ride's FINAL fare from the taxi core, shown at the end next to
+    // the bonus. Read-only (no money path); matched to THIS booking by id and omitted gracefully
+    // if the fare hasn't been posted yet.
+    let fareLine = "";
+    let fareAmount = 0; // raw fare → powers the one-tap "pay the fare with tanga" button below
+    try {
+      const hist = finalRow && finalRow.payment > 0 ? [finalRow] : await resilient("fare", () => ds.getRideHistory(m.phone!, 6));
+      const done = matchFareRow(hist ?? [], bid, rideCar || undefined);
+      if (done && done.payment > 0) {
+        fareAmount = Math.floor(done.payment);
+        const km = done.distance ? ` · 📏 ${(done.distance / 1000).toFixed(1)} km` : ""; // distance is METRES (the bridge converts)
+        const mins = done.time ? ` · ⏱ ${done.time} daq` : "";
+        fareLine = `\n🧾 Yo'l haqi: <b>${formatNumber(done.payment)} so'm</b>${km}${mins}`;
+      }
+    } catch (e) {
+      console.error("[fare] lookup failed:", e instanceof Error ? e.message : e);
+    }
+    // 🧾 SMS-parity: kas often finalizes the fare a few seconds AFTER the booking leaves the active
+    // list, so done.payment can be 0 right here. Log the value seen, and if the fare wasn't ready
+    // mark the ride pending → resolvePendingFares (same sweep, later ticks) sends "Yo'l haqi: …"
+    // the moment kas posts the payment — a separate message, exactly like the kas SMS.
+    console.log(`[fare] m${m.id} b${bid} payment=${fareAmount} ${fareLine ? "shown-in-card" : "PENDING"}`);
+    if (!fareLine) {
+      // carry carNumber + finish time so resolvePendingFares can match the right report row
+      await prisma.appState
+        .create({ data: { key: `farepending:${bid}`, value: `${chatId}|${m.phone}|0|${rideCar}|${Date.now()}` } })
+        .catch(() => undefined); // already pending → idempotent
+    }
+
+    // ── peak-end summary card (message #3 of the ride) ──
+    // P1 (QA fleet): the finish card was RE-SENT on a PG transient (the branch re-entered
+    // before the state-clear below). Gate the card + admin alert on a per-ride marker → sent
+    // at most ONCE. The rewards above stay retry-able (idempotent) so a transient never loses
+    // money — only the duplicate message is suppressed.
+    let cardSent = false;
+    try {
+      await prisma.appState.create({ data: { key: `finishcard:${bid}`, value: "1" } });
+    } catch {
+      cardSent = true; // marker exists → card already sent on a prior (transient) pass
+    }
+    if (!cardSent) {
+      // 🎮 F4 (2026-08-16 audit): o'yin-progress qatori — avval bu yerda UMUMAN yo'q edi
+      // (o'yin ball haqida bir harf ham). ENG TEPADA (DIZAYN_QOIDALARI: eng ko'rinadigan
+      // joy), qolgan qatorlar (pastda) O'CHIRILMAYDI — har biri real pul/ball xabari,
+      // olib tashlash "mijozdan mukofotni yashirish" bo'lib qolishi mumkin.
+      // ⚠️ Kesh: `rideFinishBallLine` → `getBall` 60 soniyalik ball-xaritasi keshidan o'qiydi, u esa
+      // shu safar boshlanishidan OLDIN olingan bo'lishi mumkin — natijada endigina yig'ilgan ball
+      // ko'rinmasdan ESKI raqam chiqardi ("safar uchun ball oldingiz" deyilgan xabardan keyin
+      // hisob o'zgarmasdi). RideReward yuqorida allaqachon yozilgan (rollRideCashback), shuning
+      // uchun keshni shu yerda bekor qilamiz — faqat o'yin YONIQ bo'lganda: o'chiq bo'lsa qator
+      // baribir bo'sh qaytadi va butun populyatsiyani bekorga qayta hisoblash shart emas.
+      const oyinSvc = await import("./oyinService");
+      const oyinLive = await (await import("./featureFlags")).featureOn("oyin").catch(() => false);
+      if (oyinLive) oyinSvc.invalidateBallCacheExternal();
+      const oyinBallLine = await oyinSvc.rideFinishBallLine(m.id).catch(() => "");
+      const tipKb = new InlineKeyboard();
+      // 🪙 one-tap "pay the fare with tanga" → reuses the tip transfer (rider's tanga → driver as tanga).
+      // Only when BOTH the driver member id AND the fare are known (graceful: no button otherwise).
+      const canPayFare = driverId != null && fareAmount > 0;
+      if (canPayFare) tipKb.text(`🪙 Yo'l haqini to'la (${formatNumber(fareAmount)})`, `payfare:${driverId}:${fareAmount}`).row();
+      if (driverId) {
+        tipKb
+          .text("🙏 500", `tip:${driverId}:500`)
+          .text("🙏 1 000", `tip:${driverId}:1000`)
+          .text("🙏 2 000", `tip:${driverId}:2000`)
+          .row();
+      }
+      tipKb.text("🔁 Yana 1067", "bk:now");
+      // 🔎 XIZMATLAR P4 cross-promo: ONE extra button, no new query, no new message text — the
+      // callback (registered in bot.ts) does all the work. Minimal-risk touch to this function
+      // per ARCHITECTURE.md's "add carefully" warning (known-fragile 900+ line sweep).
+      try {
+        const { featureOn: svcFlagOn } = await import("./featureFlags");
+        if (await svcFlagOn("xizmatlar")) tipKb.row().text("🔎 Yaqin xizmatlar", "xizmatlar:promo");
+      } catch (e) {
+        console.error("[xizmatlar-promo] flag check failed:", e);
+      }
+      await pushMessage(
+        bot,
+        chatId,
+        "ride_finish",
+        "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
+          oyinBallLine +
+          fareLine +
+          rollLine +
+          waitCompLine +
+          guessLine +
+          streakLine +
+          questLine +
+          "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
+          (canPayFare ? "\n\n🪙 Yo'l haqini tanga bilan to'lashingiz mumkin 👇" : driverId ? "\n\n🚗 Haydovchiga tanga bilan rahmat aytasizmi?" : ""),
+        { memberId: m.id, force: true, extra: { reply_markup: tipKb } },
+      );
+      const { alertAdmins } = await import("./economyService");
+      await alertAdmins(`🏁 Safar yakunlandi: <b>${resolveDisplayName(m.displayName || m.fullName, m.telegramUser)}</b>${rollLine ? ` ·${rollLine.replace(/<[^>]+>/g, "")}` : ""}`).catch(() => undefined);
+    }
+    // P1 (QA fleet): keep lastBookingCar after a COMPLETED ride so the Mini App rating (which
+    // arrives after this clear) can still attribute stars to the driver's car. lastBookingId is
+    // cleared (finish won't re-trigger); the next ride overwrites lastBookingCar.
+    // The lifetime ride count used to be copied from kas1067 on every sync. The taxi core only
+    // knows the rides it carried, so the count now grows here — in the same write that clears
+    // lastBookingId, which is what makes it once per ride: a re-entry only happens if this
+    // update failed, and then it did not increment either.
+    await prisma.member.update({
+      where: { id: m.id },
+      data: {
+        lastBookingId: null,
+        lastBookingStatus: null,
+        lastBookingBonus: null,
+        rideCardMsgId: null,
+        liveLocMsgId: null,
+        rideStartedAt: null,
+        trips: { increment: 1 },
+        // the Mini App rating arrives after this clear and is attributed by this car — a finished
+        // ride with no known car clears it rather than keep the PREVIOUS ride's driver
+        ...(rideCar || coreSaysDelivered ? { lastBookingCar: rideCar || null } : {}),
+      },
+    });
+    if (driverId) {
+      // The driver's count, once per ride: the marker is created first and only a fresh marker
+      // increments.
+      const fresh = await prisma.appState
+        .create({ data: { key: `drvtrip:${bid}`, value: String(driverId) } })
+        .then(() => true)
+        .catch(() => false);
+      if (fresh) await prisma.member.update({ where: { id: driverId }, data: { trips: { increment: 1 } } }).catch(() => undefined);
+    }
+  };
+
+  for (let m of linked) {
     // T8 hardening: isolate each member — one member's transient (e.g. a Postgres blip on a
     // bare member.update) must NOT skip the rest of this 90s tick for everyone else. Next
     // tick re-runs; every money op below is idempotent/resilient, so no double/lost grants.
@@ -249,9 +781,15 @@ export async function pushBookingUpdates(
     const chatId = m.telegramUser!.id;
 
     if (b) {
-      // ⚡ instant-status FALLBACK arm (the primary arm is at booking creation so the socket is live
-      // before the accept). Fire-and-forget + flag-gated + no-op if already up — never blocks the sweep.
-      if (instantOn && m.phone) void import("./kasClientSocket").then(({ armInstant }) => armInstant(m.id, m.phone)).catch(() => undefined);
+      // A new ride while the previous one was never closed (its final status was still pending, or it
+      // ended and this one began between two polls): close the old one first, from the core's word or
+      // the last status seen, then take the new ride from a fresh row.
+      if (ds.name === "birjoy" && m.lastBookingId !== null && m.lastBookingId !== b.id) {
+        await finishRide(m, { noWait: true });
+        const fresh = await prisma.member.findUnique({ where: { id: m.id }, include: { telegramUser: true } });
+        if (!fresh?.telegramUser) continue;
+        m = fresh;
+      }
       const isNewRide = m.lastBookingId !== b.id;
       const statusChanged = isNewRide || m.lastBookingStatus !== b.status;
       // "new" = the booking is being OFFERED (not accepted) — don't show kas's candidate car as the
@@ -324,14 +862,15 @@ export async function pushBookingUpdates(
         const ph = ctx.driver?.phone ? ` · 📞 ${esc(ctx.driver.phone)}` : "";
         const bonus = b.clientBonus ? `\n💰 +${formatNumber(b.clientBonus)} so'm cashback · narx taksometr bo'yicha` : "\n💰 narx taksometr bo'yicha";
         await pushMessage(bot, chatId, "ride_arrived", `🚖 <b>Haydovchingiz keldi — kutyapti, chiqing!</b>\n🚘 ${esc(ctx.driver?.carModel ?? "Mashina")}${car}${ph}${bonus}`, { memberId: m.id, force: true });
-      } else if (statusChanged && cardId && b.status === "started") {
-        // arrival ping. kas "in_place"→"started" OR the map-socket geofence, whichever the rider
-        // hits FIRST: a wsarrived:<id> marker (idempotent create) makes exactly ONE of them ping.
+      } else if (statusChanged && cardId && b.status === "started" && m.lastBookingStatus !== "arrived") {
+        // The car reached the pickup and the meter started between two polls, so "arrived" was never
+        // seen. The passenger still has to hear that the car is there — once: a wsarrived:<id> marker
+        // (idempotent create) keeps a sweep re-entry from pinging twice.
         let firstArrival = true;
         try {
           await prisma.appState.create({ data: { key: `wsarrived:${b.id}`, value: "1" } });
         } catch {
-          firstArrival = false; // the map socket already pinged this ride
+          firstArrival = false;
         }
         if (firstArrival) {
           const car = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : b.carNumber ? `\n🚘 <b>${esc(b.carNumber)}</b>` : "";
@@ -352,31 +891,12 @@ export async function pushBookingUpdates(
         await pushMessage(bot, chatId, "ride_assigned", `🚖 <b>Haydovchi topildi — yo'lda!</b>${eta}${name}\n🚘 ${esc(driver?.carModel ?? "Mashina")} · <b>${esc(b.carNumber)}</b>${ph}`, { memberId: m.id, force: true });
       }
 
-      // 📡 register the assigned car with the kas map WebSocket → INSTANT "arrived" ping the moment
-      // it reaches the pickup (no 15s wait). The wsarrived:<id> marker coordinates with the
-      // started-ping above so exactly one fires. Re-armed per booking (no unregister needed).
-      if (b.carNumber && b.lat && b.lng) {
-        const bid2 = b.id;
-        const chat2 = chatId;
-        const carLine = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : `\n🚘 <b>${esc(b.carNumber)}</b>`;
-        kasMapSocket.register(b.carNumber, b.id, { lat: b.lat, lng: b.lng }, () => {
-          void (async () => {
-            try {
-              await prisma.appState.create({ data: { key: `wsarrived:${bid2}`, value: "1" } });
-            } catch {
-              return; // started-ping already fired for this ride
-            }
-            await pushMessage(bot, chat2, "ride_arrived", `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${carLine}`, { memberId: m.id, force: true });
-          })();
-        });
-      }
-
       // ── the moving pin ── ONE live-location message per ride, EDITED in place (Telegram slides
-      // the dot). Position comes from the real-time map socket (updates every few seconds) with the
-      // kas API driver position as fallback. We must NEVER send a fresh location each tick.
-      const wsPos = b.carNumber ? kasMapSocket.position(b.carNumber) : null;
-      const pinLat = wsPos?.lat ?? driver?.lat;
-      const pinLng = wsPos?.lng ?? driver?.lng;
+      // the dot). Position is the driver's last GPS fix held by the taxi core; the bridge reports
+      // none (undefined, never 0) when the fix is missing or stale. We must NEVER send a fresh
+      // location each tick.
+      const pinLat = driver?.lat;
+      const pinLng = driver?.lng;
       let pinId = isNewRide ? null : m.liveLocMsgId;
       if (typeof pinLat === "number" && typeof pinLng === "number") {
         if (!pinId) {
@@ -415,475 +935,7 @@ export async function pushBookingUpdates(
         });
       }
     } else if (m.lastBookingId) {
-      // ── ride finished ──
-      // T4 fix: each quest/score increment is now IDEMPOTENT per ride via its own
-      // rideKey marker (atomic marker+upsert in incrementMission/addScore). No
-      // fragile firstFinish gate — a transient just makes resilient() retry the
-      // atomic tx; a re-entry is a P2002 no-op. Zero double-count, zero silent loss.
-      const bid = m.lastBookingId;
-      // P0 (QA fleet): the kas active list drops a booking on BOTH completion AND cancellation,
-      // so this "finished" branch can't tell them apart — a CANCELLED ride would otherwise pay
-      // out cashback/garage/fund and send a "yakunlandi" card. Guard on a POSITIVE completion
-      // signal: the ride must have reached "started" (passenger in the car) AND its last status
-      // must not be a cancel. Otherwise clear the ride state but fire NO rewards / finish card.
-      // A6 (audit): driver/client-initiated cancels were MISSING — a ride that reached "started"
-      // then got cancelled by the driver in the same poll gap kept lastBookingStatus="started",
-      // passed this guard, and paid cashback/fund/missions on a cancelled trip.
-      const CANCEL_STATUSES = ["cancel_by_operator", "cancel_by_server", "cancel_by_driver", "cancel_by_client", "take_back", "cancel"];
-      if (!m.rideStartedAt || CANCEL_STATUSES.includes(m.lastBookingStatus ?? "")) {
-        // 🎁 "topilmadi" vaucheri (feature "waitcomp"): the search DIED while still SEARCHING — no
-        // driver ever accepted (status never left new/searching). The wait must not be for nothing:
-        // record a next-ride voucher worth the same ramp amount + apologize honestly. NOT paid now —
-        // paying cash on a failed search would be an open farm (order→wait→cancel→collect); the
-        // voucher pays only on the next COMPLETED ride, which is also the come-back-next-time hook.
-        if (SEARCHING.has(m.lastBookingStatus ?? "") && bid) {
-          try {
-            const startRow = await prisma.appState.findUnique({ where: { key: `waitstart:${bid}` } });
-            const start = startRow ? Number(startRow.value) : NaN;
-            if (Number.isFinite(start)) {
-              const waitSeconds = Math.floor((Date.now() - start) / 1000);
-              const { noteWaitVoucher } = await import("./cashbackService");
-              const worth = (await resilient("waitvoucher", () => noteWaitVoucher(m.id, bid!, waitSeconds))) ?? 0;
-              if (worth > 0) {
-                await pushMessage(
-                  bot,
-                  chatId,
-                  "ride_nocar",
-                  `😔 <b>Uzr — bu safar mashina topib bera olmadik.</b>\n` +
-                    `Kutganingiz bekor ketmaydi: <b>+${formatNumber(worth)} tanga</b> keyingi safaringizda avtomatik qo'shiladi. 🚕`,
-                  { memberId: m.id, force: true, extra: { reply_markup: new InlineKeyboard().text("🔁 Qayta chaqirish", "bk:now") } },
-                );
-              }
-            }
-          } catch (e) {
-            console.error("[waitvoucher] note failed:", e);
-          }
-        }
-        if (m.rideCardMsgId) {
-          await bot.api.editMessageText(chatId, m.rideCardMsgId, "❌ <b>Buyurtma bekor qilindi</b>", { parse_mode: "HTML" }).catch(() => undefined);
-        }
-        if (m.liveLocMsgId) {
-          await bot.api.stopMessageLiveLocation(chatId, m.liveLocMsgId).catch(() => undefined);
-        }
-        await prisma.member.update({
-          where: { id: m.id },
-          data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null, lastBookingBonus: null, rideCardMsgId: null, liveLocMsgId: null, rideStartedAt: null },
-        });
-        kasClientSocket.unregister(m.id); // ⚡ ride gone → close socket UNCONDITIONALLY (audit P1: never gate a close on the flag)
-        continue;
-      }
-      {
-        await resilient("daily_ride", () => incrementMission(m.id, "daily_ride", 1, `qinc:${m.id}:daily_ride:${bid}`));
-        await resilient("weekly_rides", () => incrementMission(m.id, "weekly_rides", 1, `qinc:${m.id}:weekly_rides:${bid}`));
-        await resilient("addScore", async () => {
-          const w = await import("./weeklyService");
-          await w.addScore(m.id, "ride", `qscore:${m.id}:${bid}`);
-        });
-        // 🏅 a real finished ride is a decay-grace reset (flag-gated, client-only)
-        await markRideActive(m.id, m.type);
-      }
-
-      // 🎰 BARABAN: grant a 5-minute spin token for THIS finished ride + fire an immediate
-      // notification. No coin emission here (the win lands later, on /baraban spin, via
-      // grantCoins OUTSIDE the 350 clamp). Token grant is idempotent per ride (re-entry keeps
-      // the existing token), so the sweep re-running can't reset the clock. Gated by "baraban"
-      // (DEFAULT_OFF → dark until owner QABUL). No new poller — rides on this sweep.
-      try {
-        const { featureOn } = await import("./featureFlags");
-        if (await featureOn("baraban")) {
-          const { grantWheelToken } = await import("./rideWheelService");
-          // only NOTIFY on the FIRST processing of this ride (token grant is idempotent, but the
-          // bot message is not — a fresh token here means we haven't pinged for this ride yet)
-          const before = await prisma.appState.findUnique({ where: { key: `barabantoken:${m.id}` } }).catch(() => null);
-          const firstForRide = (() => {
-            try {
-              return !before || (JSON.parse(before.value) as { bookingId?: number }).bookingId !== bid;
-            } catch {
-              return true;
-            }
-          })();
-          await resilient("baraban_token", () => grantWheelToken(m.id, bid));
-          if (firstForRide) {
-            await pushMessage(bot, chatId, "ride_baraban", "🎰 <b>Safar tugadi!</b> 5 daqiqa ichida barabanni aylantiring — tanga yutib oling! 👇", {
-              memberId: m.id,
-              force: true,
-              extra: { reply_markup: new InlineKeyboard().text("🎰 Aylantirish", "baraban:spin") },
-            });
-          }
-        }
-      } catch (e) {
-        console.error("[baraban] token/notify failed:", e);
-      }
-
-      // freeze the card + stop the pin
-      if (m.rideCardMsgId) {
-        await bot.api
-          .editMessageText(chatId, m.rideCardMsgId, "🏁 <b>Safar yakunlandi</b> — pastda natijangiz 👇", { parse_mode: "HTML" })
-          .catch(() => undefined);
-      }
-      if (m.liveLocMsgId) {
-        await bot.api.stopMessageLiveLocation(chatId, m.liveLocMsgId).catch(() => undefined);
-      }
-
-      // 🎲 variable cashback roll (idempotent per ride)
-      let rollLine = "";
-      try {
-        const { rollRideCashback, renderRideRoll } = await import("./cashbackService");
-        const roll = await resilient("cashback-roll", () => rollRideCashback(m.id, m.lastBookingId!)); // idempotent: RideReward unique
-        {
-          const { fundAddRide } = await import("./featureFlags");
-          await resilient("fund", () => fundAddRide(m.lastBookingId!)); // 🏆 Mashina fondi (idempotent: fundride marker)
-        }
-        if (roll) rollLine = `\n${renderRideRoll(roll)}`;
-      } catch (e) {
-        console.error("[cashback] roll failed:", e);
-      }
-
-      // 🪙 wait compensation (feature "waitcomp"): PASSIVE tanga for the search time before a
-      // driver accepted — the wait itself earns, no game (owner rejected the tap-game). Server-timed
-      // via the waitstart/waitfound markers captured above (never client-reported time). Idempotent
-      // per ride (WaitCompReward unique) + its own daily company budget — see cashbackService.
-      // Also redeems a pending "topilmadi" voucher from a PREVIOUS failed search — this completed
-      // ride is exactly the come-back moment the voucher was minted for.
-      let waitCompLine = "";
-      try {
-        const [startRow, foundRow] = await Promise.all([
-          prisma.appState.findUnique({ where: { key: `waitstart:${bid}` } }),
-          prisma.appState.findUnique({ where: { key: `waitfound:${bid}` } }),
-        ]);
-        const start = startRow ? Number(startRow.value) : NaN;
-        const found = foundRow ? Number(foundRow.value) : NaN;
-        const { awardWaitComp, redeemWaitVoucher } = await import("./cashbackService");
-        if (Number.isFinite(start) && Number.isFinite(found) && found > start) {
-          const waitSeconds = Math.floor((found - start) / 1000);
-          const paid = (await resilient("waitcomp", () => awardWaitComp(m.id, bid!, waitSeconds))) ?? 0;
-          if (paid > 0) waitCompLine = `\n🪙 Kutish kompensatsiyasi: <b>+${formatNumber(paid)} tanga</b>`;
-        }
-        const voucher = (await resilient("waitvoucher-redeem", () => redeemWaitVoucher(m.id))) ?? 0;
-        if (voucher > 0) waitCompLine += `\n🎁 O'tgan safargi uzrimiz: <b>+${formatNumber(voucher)} tanga</b> — qaytganingiz uchun rahmat!`;
-      } catch (e) {
-        console.error("[waitcomp] award failed:", e);
-      }
-
-      // 💎 ride-drop collectibles: founder (first 100 riders) + district badge
-      let questLine = "";
-      try {
-        const { dropDistrictBadge, mintItem } = await import("./itemService");
-        const f = await resilient("founder", () => mintItem(m.id, "founder", { free: true })); // idempotent: one-per-member
-        if (f?.ok) questLine += `
-🌟 <b>Asoschi nishoni</b> — birinchi 100 ichidasiz! (#${f.serial})`;
-        // district from the finished ride's pickup (lastPickupId set at dispatch)
-        if (m.lastPickupId && m.lastPickupName) {
-          const d = await resilient("district", () => dropDistrictBadge(m.id, m.lastPickupId!, m.lastPickupName!)); // idempotent: marker
-          if (d) questLine += `
-📍 Yangi tuman ochildi: <b>${d.name}</b> (${d.total}/10)${d.sayyoh ? " · 🗺 SAYYOH +5000!" : ""}`;
-        }
-      } catch (e) {
-        console.error("[items] drop failed:", e);
-      }
-
-      // ⏱ ETA-guess resolution (uses the ride meter)
-      // resolveGuess's grant is idempotent (grantRideCoins key) → retry-safe
-      const guessLine = (await resilient("guess", () => resolveGuess(m.id, m.lastBookingId!, m.rideStartedAt))) ?? "";
-
-      // 🥇 tier-based driver rebate (replaces the flat bonus; weekly tier job
-      // sets driverTier from measured percentiles) + quest progress
-      let driverId: number | null = null;
-      if (m.lastBookingCar) {
-        const driver = await prisma.member.findFirst({
-          where: { type: "driver", carNumber: m.lastBookingCar },
-          select: { id: true, driverTier: true },
-        });
-        if (driver && driver.id !== m.id) {
-          driverId = driver.id;
-          // (driver welcome MOVED to JOIN — grantJoinWelcome on link, same as riders)
-          try {
-            const { DRIVER_DAILY_BONUS_CAP, DRIVER_TIER_REBATE } = await import("@t1067/shared");
-            const { getBonusEcon } = await import("./bonusConfig");
-            const econ = await getBonusEcon();
-            const rebateByTier: Record<string, number> = {
-              Bronza: 0,
-              Kumush: econ.tierKumush ?? DRIVER_TIER_REBATE.Kumush ?? 50,
-              Oltin: econ.tierOltin ?? DRIVER_TIER_REBATE.Oltin ?? 100,
-              Olmos: econ.tierOlmos ?? DRIVER_TIER_REBATE.Olmos ?? 200,
-            };
-            const rebate = rebateByTier[driver.driverTier] ?? 0;
-            if (rebate > 0) {
-              const since = new Date(Date.now() - 24 * 3600 * 1000);
-              const today = await prisma.coinTxn.aggregate({
-                where: { memberId: driver.id, kind: "driver_bonus", createdAt: { gte: since } },
-                _sum: { amount: true },
-              });
-              if ((today._sum.amount ?? 0) + rebate <= (econ.driverDailyCap ?? DRIVER_DAILY_BONUS_CAP)) {
-                const { grantCoins } = await import("./coinService");
-                await resilient("driver_bonus", () => grantCoins(driver.id, rebate, "driver_bonus", `Tier-bonus (${driver.driverTier})`, `driver_bonus:${m.id}:${m.lastBookingId}`)); // idempotent key
-              }
-            }
-            // 🔥 Peak-hour bonus: driver earns extra tanga if ride completes in an active window
-            try {
-              const { getActivePeakBonus } = await import("./adminOps");
-              const pkBonus = await getActivePeakBonus(Date.now());
-              if (pkBonus > 0) {
-                const { grantCoins } = await import("./coinService");
-                const pkKey = `peak_bonus:${driver.id}:${m.lastBookingId}`;
-                const existing = await prisma.coinTxn.findUnique({ where: { idempotencyKey: pkKey } }).catch(() => null);
-                if (!existing) {
-                  await grantCoins(driver.id, pkBonus, "peak_bonus", `🔥 Pik vaqt bonus`, pkKey);
-                  const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id } });
-                  if (dtg) await pushMessage(bot, dtg.id, "peak_bonus", `🔥 <b>Pik vaqt bonus!</b>\n💰 <b>+${pkBonus.toLocaleString("ru-RU")} tanga</b> — pik vaqtda buyurtma topshirdingiz!`, { memberId: driver.id, force: true });
-                }
-              }
-            } catch (e) {
-              console.error("[peak bonus] failed:", e);
-            }
-
-            // quest progress: completed-count only (idempotent per ride via rideKey)
-            await resilient("drv_daily_5", () => incrementMission(driver.id, "drv_daily_5", 1, `qinc:${driver.id}:drv_daily_5:${m.lastBookingId}`));
-            await resilient("drv_weekly_25", () => incrementMission(driver.id, "drv_weekly_25", 1, `qinc:${driver.id}:drv_weekly_25:${m.lastBookingId}`));
-            await resilient("drv_weekly_40", () => incrementMission(driver.id, "drv_weekly_40", 1, `qinc:${driver.id}:drv_weekly_40:${m.lastBookingId}`));
-            // 🔧 XIII-1: random car part for the driver's completed ride
-            try {
-              const { dropCarPart } = await import("./itemService");
-              const drop = await dropCarPart(driver.id, m.lastBookingId);
-              if (drop?.fullCar) {
-                const dtg = await prisma.telegramUser.findFirst({ where: { memberId: driver.id } });
-                if (dtg) {
-                  await pushMessage(bot, dtg.id, "garaj_full_car", "🚙 <b>TABRIKLAYMIZ!</b> 20 qismni yig'ib TO'LIQ MASHINA yasadingiz!\nYillik katta o'yinda chiptangiz bor. 🏆", { memberId: driver.id, force: true });
-                }
-              }
-            } catch (e) {
-              console.error("[partdrop] failed:", e);
-            }
-            // 🚖 recruit revshare: this rider was recruited by a driver's QR
-            try {
-              const { payRecruitRevshare } = await import("./recruitService");
-              await payRecruitRevshare(m.id, m.lastBookingId);
-            } catch (e) {
-              console.error("[recruit] revshare failed:", e);
-            }
-            // 🚖 driver→driver milestone: the DRIVER who drove this ride may have been recruited by
-            // another driver — count toward 10 rides; pay the recruiter 5000 once (flag drvrecruit, DARK).
-            try {
-              const { payDriverRecruitMilestone } = await import("./recruitService");
-              const r = await payDriverRecruitMilestone(driver.id, m.lastBookingId!);
-              if (r.paid && r.recruiterTelegramId) {
-                await pushMessage(bot, r.recruiterTelegramId, "drv_recruit_reward", `🚖 <b>Tabriklaymiz!</b>\nOlib kelgan haydovchingiz <b>10 ta safar</b> qildi — sizga <b>+${formatNumber(r.amount ?? 0)} tanga</b> tushdi! 🎉`, { force: true });
-              }
-            } catch (e) {
-              console.error("[drvrecruit] milestone failed:", e);
-            }
-          } catch (e) {
-            console.error("[driver_bonus] failed:", e);
-          }
-        }
-      }
-
-      // 👥 deferred referral payout: BOTH sides unlock on the invited friend's
-      // first REAL ride (kills the burner-account referral mint entirely)
-      try {
-        // `orderBy` SHART: `refereeMemberId` UNIQUE EMAS (schema.prisma) — odam Telegram akkauntini
-        // almashtirib qayta ulansa bir a'zoga ikkita qator bo'lishi mumkin. Tartibsiz `findFirst`
-        // tasodifiy qatorni tanlardi (bir tikda birini, boshqasida ikkinchisini). Eng ESKISI =
-        // haqiqiy birinchi taklifchi.
-        const ref = await prisma.referral.findFirst({
-          where: { refereeMemberId: m.id, referrerPaidAt: null },
-          orderBy: { id: "asc" },
-        });
-        if (ref) {
-          const { grantCoins } = await import("./coinService");
-          if (ref.rewardReferee > 0) {
-            const g = await grantCoins(m.id, ref.rewardReferee, "referral", "Do'st taklifi — birinchi safaringiz uchun 🎁", `ref_referee_ride:${ref.id}`);
-            if (g.ok) {
-              await pushMessage(bot, chatId, "referral_gift", `🎁 Taklif sovg'asi ochildi: <b>+${formatNumber(ref.rewardReferee)} tanga</b> — birinchi safaringiz muborak!`, { memberId: m.id, force: true });
-            }
-          }
-          // 🛡 OY-08: sybil-qo'riq (bir taklifchi + bir xil telefon) avval FAQAT tangani to'sardi
-          // (`rewardReferrer = 0`), `referrerPaidAt` esa shartdan TASHQARIDA yozilardi — o'yin balli
-          // esa aynan shundan hisoblanadi (oyinService.computeBallMap: paidAt mavsum ichida bo'lsa
-          // taklifchiga "do'st birinchi safarini qildi" balli). Ya'ni soxta-do'st fabrikasiga
-          // qarshi yagona to'siq ball tomonda ochiq edi. Endi dublikat qator NA tanga oladi,
-          // NA paidAt: qator `referrerPaidAt: null` bo'lib qoladi (= "to'lanmagan" — ustunning
-          // rost ma'nosi), shuning uchun keyingi safarlarda bu blok qayta kiradi, lekin har
-          // grant idempotent kalit bilan himoyalangan, ya'ni ikki marta to'lov YO'Q.
-          const { isDupReferral } = await import("./referralService");
-          const dup = await isDupReferral(ref);
-          const refTg = await prisma.telegramUser.findUnique({ where: { id: ref.referrerId } });
-          if (!dup && refTg?.memberId && ref.rewardReferrer > 0) {
-            const g = await grantCoins(refTg.memberId, ref.rewardReferrer, "referral", `Do'stingiz birinchi safarini qildi 🚕`, `ref_ride:${ref.id}`);
-            if (g.ok) {
-              await pushMessage(bot, refTg.id, "referral_gift", `🎉 Taklif qilgan do'stingiz birinchi safarini qildi!\n👥 Sizga <b>+${formatNumber(ref.rewardReferrer)} tanga</b> tushdi.`, { memberId: refTg.memberId, force: true });
-            }
-          }
-          // T0.5 (AUDIT 3.2): convergence order — grants FIRST (idempotent
-          // per-referral keys block double-pay), paidAt LAST. If this update
-          // dies, the next sweep re-runs: grants skip as duplicates, update
-          // retries. NOTE: keys are deliberately ride-AGNOSTIC — a bookingId
-          // suffix would mint a fresh key on the friend's next ride and pay twice.
-          // OY-08: dublikatda paidAt YOZILMAYDI — u tanga-to'lovi belgisi VA ball manbai.
-          if (!dup) {
-            await prisma.referral.update({ where: { id: ref.id }, data: { referrerPaidAt: new Date() } });
-          } else {
-            console.log(`[referral_ride] m${m.id} ref${ref.id} SYBIL-DUP — tanga ham, ball ham berilmadi`);
-          }
-        }
-      } catch (e) {
-        console.error("[referral_ride] failed:", e);
-        // AUDIT 3.10: anything beyond idempotent-duplicate is money-path noise the owner must see
-        const { alertAdmins } = await import("./economyService");
-        await alertAdmins(`⚠️ Referral payout xatosi (member ${m.id}): ${e instanceof Error ? e.message : String(e)}`).catch(() => undefined);
-      }
-
-      // 🎮 KOSON O'YINI — do'st-safar push (feature "oyin", DARK — KOSON_OYIN_PLAN.md v9.2 §2.1).
-      // Ball GRANT QILINMAYDI bu yerda (jonli hisoblanadi, oyinService.getBall) — bu FAQAT
-      // taklifchiga bildirishnoma, HAR safar (yuqoridagi referral-payout blokidan farqli, u faqat
-      // BIRINCHI safarda ishlaydi). Yangi DB-yozuv yo'q → bu blok butunlay xato bersa ham safar-
-      // oqimiga (real main loop) ta'sir qilmaydi. `notifyOnce` kaliti do'st-scoped: bir do'st =
-      // kuniga max 1 push (boshqa do'st safar qilsa alohida push — bu ataylab, "bir do'st" degani).
-      try {
-        const { featureOn } = await import("./featureFlags");
-        // ⚠️ Mavsum FAOL bo'lmasa push yuborilmaydi: aks holda bot "+30 ball qo'shildi" deydi,
-        // balans esa 0 turadi (ball faqat mavsum ichida beriladi) — bu eng ishonch buzuvchi xato.
-        const { getSeason } = await import("./oyinSeason");
-        if ((await featureOn("oyin")) && (await getSeason()).phase === "active") {
-          const { referrerOf } = await import("./oyinService");
-          const referrer = await referrerOf(m.id);
-          if (referrer) {
-            const { getBonusEcon } = await import("./bonusConfig");
-            const econ = await getBonusEcon();
-            const gain = econ.oyinReferRideBall ?? 0;
-            if (gain > 0) {
-              const { notifyOnce } = await import("./notifyService");
-              // Matn ATAYLAB bitta safarning ballini "qo'shildi" deb AYTMAYDI: `notifyOnce` kaliti
-              // kunlik (bir do'st = kuniga 1 push), do'st esa o'sha kuni 2-3 safar qilishi mumkin —
-              // eski matn "+10 ball qo'shildi" derdi, balans esa +30 o'sardi (mijoz "xato hisobladi"
-              // deb o'ylardi). Endi qoida aytiladi: HAR safari uchun shuncha — bu har doim rost.
-              await notifyOnce(bot, referrer.telegramId, referrer.memberId, `oyin_ref_ride:${m.id}`, `🤝 Do'stingiz bugun safar qildi — uning <b>har safari</b> sizga <b>+${gain} ball</b> olib keladi! 🎮`);
-            }
-          }
-        }
-      } catch (e) {
-        console.error("[oyin] referral push failed:", e);
-      }
-
-      // 🎁 Welcome bonus MOVED to JOIN — every new user (client OR driver) now gets the 5000 the
-      // moment they link their phone (grantJoinWelcome in memberService.linkByPhone), no ride needed.
-      // Was here on first ride; removed so nobody is double-paid (join-grant + ride-grant).
-
-      // 🔥 streak line for the peak-end card (read-only; safe on transient)
-      const streak = await prisma.streak.findUnique({ where: { memberId: m.id } }).catch(() => null);
-      const streakLine = streak?.current ? `\n🔥 Streak: <b>${streak.current} kun</b> — davom eting!` : "";
-
-      // 🧾 yo'l haqi — the completed ride's FINAL fare from kas (like the kas1067 SMS), shown
-      // at the end next to the bonus. Read-only (no money path); matched to THIS booking by id
-      // and omitted gracefully if kas hasn't posted the payment yet.
-      let fareLine = "";
-      let fareAmount = 0; // raw fare → powers the one-tap "pay the fare with tanga" button below
-      try {
-        const hist = await resilient("fare", () => ds.getRideHistory(m.phone!, 6));
-        const done = matchFareRow(hist ?? [], bid, m.lastBookingCar ?? undefined);
-        if (done && done.payment > 0) {
-          fareAmount = Math.floor(done.payment);
-          const km = done.distance ? ` · 📏 ${(done.distance / 1000).toFixed(1)} km` : ""; // kas distance is METRES
-          const mins = done.time ? ` · ⏱ ${done.time} daq` : "";
-          fareLine = `\n🧾 Yo'l haqi: <b>${formatNumber(done.payment)} so'm</b>${km}${mins}`;
-        }
-      } catch (e) {
-        console.error("[fare] lookup failed:", e instanceof Error ? e.message : e);
-      }
-      // 🧾 SMS-parity: kas often finalizes the fare a few seconds AFTER the booking leaves the active
-      // list, so done.payment can be 0 right here. Log the value seen, and if the fare wasn't ready
-      // mark the ride pending → resolvePendingFares (same sweep, later ticks) sends "Yo'l haqi: …"
-      // the moment kas posts the payment — a separate message, exactly like the kas SMS.
-      console.log(`[fare] m${m.id} b${bid} payment=${fareAmount} ${fareLine ? "shown-in-card" : "PENDING"}`);
-      if (!fareLine) {
-        // carry carNumber + finish time so resolvePendingFares can match the right report row
-        await prisma.appState
-          .create({ data: { key: `farepending:${bid}`, value: `${chatId}|${m.phone}|0|${m.lastBookingCar ?? ""}|${Date.now()}` } })
-          .catch(() => undefined); // already pending → idempotent
-      }
-
-      // ── peak-end summary card (message #3 of the ride) ──
-      // P1 (QA fleet): the finish card was RE-SENT on a PG transient (the branch re-entered
-      // before the state-clear below). Gate the card + admin alert on a per-ride marker → sent
-      // at most ONCE. The rewards above stay retry-able (idempotent) so a transient never loses
-      // money — only the duplicate message is suppressed.
-      let cardSent = false;
-      try {
-        await prisma.appState.create({ data: { key: `finishcard:${bid}`, value: "1" } });
-      } catch {
-        cardSent = true; // marker exists → card already sent on a prior (transient) pass
-      }
-      if (!cardSent) {
-        // 🎮 F4 (2026-08-16 audit): o'yin-progress qatori — avval bu yerda UMUMAN yo'q edi
-        // (o'yin ball haqida bir harf ham). ENG TEPADA (DIZAYN_QOIDALARI: eng ko'rinadigan
-        // joy), qolgan qatorlar (pastda) O'CHIRILMAYDI — har biri real pul/ball xabari,
-        // olib tashlash "mijozdan mukofotni yashirish" bo'lib qolishi mumkin.
-        // ⚠️ Kesh: `rideFinishBallLine` → `getBall` 60 soniyalik ball-xaritasi keshidan o'qiydi, u esa
-        // shu safar boshlanishidan OLDIN olingan bo'lishi mumkin — natijada endigina yig'ilgan ball
-        // ko'rinmasdan ESKI raqam chiqardi ("safar uchun ball oldingiz" deyilgan xabardan keyin
-        // hisob o'zgarmasdi). RideReward yuqorida allaqachon yozilgan (rollRideCashback), shuning
-        // uchun keshni shu yerda bekor qilamiz — faqat o'yin YONIQ bo'lganda: o'chiq bo'lsa qator
-        // baribir bo'sh qaytadi va butun populyatsiyani bekorga qayta hisoblash shart emas.
-        const oyinSvc = await import("./oyinService");
-        const oyinLive = await (await import("./featureFlags")).featureOn("oyin").catch(() => false);
-        if (oyinLive) oyinSvc.invalidateBallCacheExternal();
-        const oyinBallLine = await oyinSvc.rideFinishBallLine(m.id).catch(() => "");
-        const tipKb = new InlineKeyboard();
-        // 🪙 one-tap "pay the fare with tanga" → reuses the tip transfer (rider's tanga → driver as tanga).
-        // Only when BOTH the driver member id AND the fare are known (graceful: no button otherwise).
-        const canPayFare = driverId != null && fareAmount > 0;
-        if (canPayFare) tipKb.text(`🪙 Yo'l haqini to'la (${formatNumber(fareAmount)})`, `payfare:${driverId}:${fareAmount}`).row();
-        if (driverId) {
-          tipKb
-            .text("🙏 500", `tip:${driverId}:500`)
-            .text("🙏 1 000", `tip:${driverId}:1000`)
-            .text("🙏 2 000", `tip:${driverId}:2000`)
-            .row();
-        }
-        tipKb.text("🔁 Yana 1067", "bk:now");
-        // 🔎 XIZMATLAR P4 cross-promo: ONE extra button, no new query, no new message text — the
-        // callback (registered in bot.ts) does all the work. Minimal-risk touch to this function
-        // per ARCHITECTURE.md's "add carefully" warning (known-fragile 900+ line sweep).
-        try {
-          const { featureOn: svcFlagOn } = await import("./featureFlags");
-          if (await svcFlagOn("xizmatlar")) tipKb.row().text("🔎 Yaqin xizmatlar", "xizmatlar:promo");
-        } catch (e) {
-          console.error("[xizmatlar-promo] flag check failed:", e);
-        }
-        await pushMessage(
-          bot,
-          chatId,
-          "ride_finish",
-          "🏁 <b>Safaringiz yakunlandi — rahmat!</b>" +
-            oyinBallLine +
-            fareLine +
-            rollLine +
-            waitCompLine +
-            guessLine +
-            streakLine +
-            questLine +
-            "\n🎯 Vazifalaringizni «🎁 Bonuslar»da tekshiring." +
-            (canPayFare ? "\n\n🪙 Yo'l haqini tanga bilan to'lashingiz mumkin 👇" : driverId ? "\n\n🚗 Haydovchiga tanga bilan rahmat aytasizmi?" : ""),
-          { memberId: m.id, force: true, extra: { reply_markup: tipKb } },
-        );
-        const { alertAdmins } = await import("./economyService");
-        await alertAdmins(`🏁 Safar yakunlandi: <b>${resolveDisplayName(m.displayName || m.fullName, m.telegramUser)}</b>${rollLine ? ` ·${rollLine.replace(/<[^>]+>/g, "")}` : ""}`).catch(() => undefined);
-      }
-      // P1 (QA fleet): keep lastBookingCar after a COMPLETED ride so the Mini App rating (which
-      // arrives after this clear) can still attribute stars to the driver's car. lastBookingId is
-      // cleared (finish won't re-trigger); the next ride overwrites lastBookingCar.
-      await prisma.member.update({
-        where: { id: m.id },
-        data: {
-          lastBookingId: null,
-          lastBookingStatus: null,
-          lastBookingBonus: null,
-          rideCardMsgId: null,
-          liveLocMsgId: null,
-          rideStartedAt: null,
-        },
-      });
-      kasClientSocket.unregister(m.id); // ⚡ ride finished → close socket UNCONDITIONALLY (audit P1)
+      await finishRide(m);
     }
     } catch (e) {
       console.error(`[sweep] member ${m.id} skipped this tick:`, e instanceof Error ? e.message.split("\n")[0] : e);
@@ -917,16 +969,6 @@ export async function pushBookingUpdates(
     const b = byPhone.get(m.phone!.replace(/\D/g, "").slice(-9));
     return b ? !b.carNumber : false;
   }).length;
-  // ⚡ instant-socket reaper (audit P1): on a FULL sweep only (a scoped run sees one member), close
-  // any client socket whose member no longer has a live ride — a missed finish-branch unregister
-  // (flag toggle, crash, sweep skip) can't strand a socket + its 3s keepalive past this pass.
-  if (!opts?.memberScope) {
-    try {
-      kasClientSocket.reap(new Set(activeMembers.map((m) => m.id)));
-    } catch (e) {
-      console.error("[clientsocket] reap failed:", e instanceof Error ? e.message : e);
-    }
-  }
   return { active: activeMembers.length, awaitingDriver };
 }
 
@@ -939,7 +981,10 @@ function matchFareRow(hist: RideHistoryItem[], bid: number, carNumber?: string, 
   const norm = (s: string | undefined) => (s ?? "").replace(/\s/g, "").toUpperCase();
   const paid = hist.filter((h) => h.payment > 0);
   const byId = paid.find((h) => h.id === bid);
-  if (byId) return byId; // harmless if a config ever does share ids
+  if (byId) return byId;
+  // The taxi core's history carries the same order id — no guessing by car or recency, which could
+  // show (and offer to pay) another ride's fare.
+  if (isBridgeId(bid)) return undefined;
   if (carNumber) {
     const car = paid.find((h) => norm(h.carNumber) === norm(carNumber));
     if (car) return car;
@@ -975,7 +1020,7 @@ async function resolvePendingFares(bot: Bot, ds: KasDataSource): Promise<void> {
             firstSend = false; // a prior pass already delivered this fare
           }
           if (firstSend) {
-            const km = ride.distance ? ` · 📏 ${(ride.distance / 1000).toFixed(1)} km` : ""; // kas distance is METRES
+            const km = ride.distance ? ` · 📏 ${(ride.distance / 1000).toFixed(1)} km` : ""; // distance is METRES (the bridge converts)
             const mins = ride.time ? ` · ⏱ ${ride.time} daq` : "";
             await pushMessage(bot, chatId!, "ride_fare", `🧾 <b>Yo'l haqi: ${formatNumber(ride.payment)} so'm</b>${km}${mins}`, { force: true });
           }

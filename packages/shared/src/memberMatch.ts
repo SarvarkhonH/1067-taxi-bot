@@ -97,12 +97,16 @@ export function chooseMemberRow(incoming: IncomingMember, rows: MemberRow[]): Me
     .sort((a, b) => a.id - b.id);
 
   if (isBridgeKasId(incoming.kasId)) {
-    // Cutover. Prefer the same type; otherwise take over a row of the other
-    // type — a self-registered "client" who turns out to be our driver is the
-    // same person, and splitting them loses whichever half holds the coins.
+    // Cutover. Prefer the same type. Across types only ONE direction: a driver
+    // may take over a "client" row — a self-registered passenger who turns out
+    // to be our driver is the same person, and splitting them loses whichever
+    // half holds the coins. A passenger must never take over a DRIVER row: the
+    // core lists a driver's own passenger record first, and adopting would flip
+    // the driver to a client, drop their plate and leave their tanga on a row
+    // the next driver sync then re-creates beside it.
     const target =
       samePhone.find((r) => r.type === incoming.type && !isBridgeKasId(r.kasId)) ??
-      samePhone.find((r) => !isBridgeKasId(r.kasId));
+      (incoming.type === "driver" ? samePhone.find((r) => r.type === "client" && !isBridgeKasId(r.kasId)) : undefined);
     if (target) return { action: "adopt", id: target.id, why: "cutover" };
     return { action: "create", why: "new" };
   }

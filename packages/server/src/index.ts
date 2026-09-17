@@ -2,11 +2,10 @@ import { webhookCallback, type Bot } from "grammy";
 import { env } from "./env";
 import { prisma } from "./db";
 import { createApiServer } from "./api/server";
-import { createBot, notifyCashback, notifyNewAchievements, setupBotCommands } from "./bot/bot";
+import { createBot, notifyNewAchievements, setupBotCommands } from "./bot/bot";
 import { notifyOwnerCashout } from "./bot/cashout";
-import { refreshLinkedMembers, runSync } from "./sync/sync";
+import { runSync } from "./sync/sync";
 import { pushBookingUpdates } from "./services/bookingNotifier";
-import { kasMapSocket } from "./services/kasMapSocket";
 import { maybeSurpriseDrop, payWeeklyPrizes } from "./services/weeklyService";
 import { formatNumber } from "@t1067/shared";
 
@@ -51,23 +50,24 @@ async function main(): Promise<void> {
     console.error("[FATAL] ALLOW_DEBUG_AUTH=true in a deployed environment — refusing to start (impersonation risk).");
     process.exit(1);
   }
-  // P0.2 boot guard: weak default secrets in deployed env (Render = WEBHOOK_URL set).
-  // — WEBHOOK_SECRET hard-fails (we own the value; rotation is purely our side).
-  // — KAS_BONUS_SECRET_KEY warns only (it must match what kas1067 expects; rotating
-  //   requires coordination with kas1067 ops — a unilateral hard-fail would crash prod
-  //   the moment Render forgets to set the env. The warning surfaces the leak risk
-  //   without blocking startup).
+  // P0.2 boot guard: weak default secrets in deployed env (WEBHOOK_URL set).
+  // WEBHOOK_SECRET hard-fails (we own the value; rotation is purely our side).
   if (env.WEBHOOK_URL) {
     const WEAK_HOOK = new Set(["", "hook", "default", "secret", "test"]);
     if (WEAK_HOOK.has(env.WEBHOOK_SECRET)) {
       console.error("[FATAL] WEBHOOK_SECRET is default/weak in a deployed env — refusing to start.");
-      console.error("   The webhook path /tg/<secret> becomes guessable. Set Render env WEBHOOK_SECRET=<long random>.");
+      console.error("   The webhook path /tg/<secret> becomes guessable. Set env WEBHOOK_SECRET=<long random>.");
       process.exit(1);
     }
-    const KNOWN_LEAKED_KAS = new Set(["", "1303"]); // "1303" lives in PUBLIC env.ts default — rotate w/ kas1067 ops
-    if (KNOWN_LEAKED_KAS.has(env.KAS_BONUS_SECRET_KEY)) {
-      console.warn("⚠️  [WARN] KAS_BONUS_SECRET_KEY is the public-repo default — kas1067 bonus writes are forgeable.");
-      console.warn("   Coordinate with kas1067 ops to rotate the secret, then set Render env KAS_BONUS_SECRET_KEY=<new>.");
+    // A deployed bot on the mock taxi source would show every passenger invented drivers; one with no
+    // service token would have every call to the core refused while looking up and running.
+    if (env.KAS_MODE !== "birjoy") {
+      console.error("[FATAL] KAS_MODE is not 'birjoy' in a deployed environment — refusing to start on mock taxi data.");
+      process.exit(1);
+    }
+    if (!env.KAS_SERVICE_TOKEN) {
+      console.error("[FATAL] KAS_SERVICE_TOKEN is empty — the taxi core would refuse every call. Set it to the core's SERVICE_TOKEN.");
+      process.exit(1);
     }
   }
   await reapStaleSyncs(60 * 60_000).catch(() => undefined); // boot cleanup (>1h)
@@ -96,23 +96,20 @@ async function main(): Promise<void> {
       console.error("[sync] startup failed:", e instanceof Error ? e.message : e);
     }
   } else {
-    console.log("[sync] live mode — on-demand per-user lookup, no bulk scan on kas1067.");
-    // Warm the kas config caches OFF the request path. cached() is stale-while-revalidate, so it
-    // only ever blocks on a COLD entry — and every deploy restarts with an empty cache, which used
-    // to hand the first rider of each release a multi-second open (6-call fan-out × 600ms queue).
+    console.log("[taxi] source: taxi core (1067-taxi) — members are matched on demand by phone.");
+    // Touch the taxi core once at boot, off the request path, so a wrong URL or token shows up in
+    // the log (and the health monitor) at deploy time instead of on the first passenger's order.
     // Fire-and-forget: failures are irrelevant, the normal read path refetches.
     void (async () => {
       try {
         const { getDataSource } = await import("./kas");
         const ds = getDataSource();
-        await Promise.all([
-          ds.getCompanyInfo().catch(() => undefined),
-          ds.getServiceArea().catch(() => undefined),
-          ds.getBookingAddons().catch(() => undefined),
-        ]);
-        console.log("[kas] config cache warmed");
-      } catch {
-        /* kas unreachable at boot — first real request will fill it */
+        const results = await Promise.allSettled([ds.getCompanyInfo(), ds.getServiceArea(), ds.getBookingAddons()]);
+        const failed = results.filter((r) => r.status === "rejected") as PromiseRejectedResult[];
+        if (failed.length === 0) console.log("[taxi] core reachable at boot");
+        else console.error(`[taxi] core NOT reachable at boot (${failed.length}/3 failed): ${String(failed[0]!.reason).slice(0, 160)}`);
+      } catch (e) {
+        console.error("[taxi] core check at boot failed:", e instanceof Error ? e.message : e);
       }
     })();
   }
@@ -357,19 +354,25 @@ async function main(): Promise<void> {
     if (periodicBusy) return; // skip if the previous tick is still running
     periodicBusy = true;
     try {
-      if (env.KAS_MODE === "live") {
-        // 2026-08-16 audit: these three were UNGUARDED — a transient DB error here jumped straight to
-        // the outer catch and SKIPPED every job below (payWeeklyPrizes, retryPendingMoney real-money
-        // recovery, backups, self-check…). Isolate them so one failure can't abort the whole tick.
+      // Every job in this tick runs whatever the taxi source is. Until 2026-09-17 the whole block
+      // sat behind a kas1067-only mode check, so switching to our own core would have
+      // silently stopped backups, money recovery, weekly prizes and the rest with no error at all.
+      {
+        if (env.KAS_MODE === "mock") {
+          // offline development only: seed/refresh the demo members
+          const s = await runSync().catch((e) => {
+            console.error("[sync] mock failed:", e instanceof Error ? e.message : e);
+            return null;
+          });
+          if (s) console.log(`[sync] mock: ${s.membersSeen} members`);
+        }
+        // 2026-08-16 audit: isolated so one failure can't abort the whole tick.
         try {
-          const { checked, deltas } = await refreshLinkedMembers();
-          if (deltas.length) console.log(`[refresh] ${checked} users → ${deltas.length} cashback updates`);
-          if (bot) {
-            await notifyCashback(bot, deltas);
-            await notifyNewAchievements(bot);
-          }
+          const { evaluateAchievements } = await import("./sync/sync");
+          await evaluateAchievements();
+          if (bot) await notifyNewAchievements(bot);
         } catch (e) {
-          console.error("[refresh/notify] failed:", e instanceof Error ? e.message : e);
+          console.error("[achievements/notify] failed:", e instanceof Error ? e.message : e);
         }
         await payWeeklyPrizes(notifyUser).catch(async (e) => {
           console.error("[weekly] payout failed:", e);
@@ -470,10 +473,6 @@ async function main(): Promise<void> {
           const { reconciliationWatch } = await import("./services/reconciliation");
           await reconciliationWatch().catch((e) => console.error("[reconcile] failed:", e));
         }
-      } else {
-        const s = await runSync();
-        await notifyBadges();
-        console.log(`[sync] mock: ${s.membersSeen} members`);
       }
       periodicFails = 0; // tick completed without throwing — clear the failure streak
     } catch (e) {
@@ -514,13 +513,13 @@ async function main(): Promise<void> {
         bookingBusy = false;
       }
     }
-    // ⚠️ early-warning: ride the frequent booking tick (no new poller) to surface a kas 429/login
-    // spike to the owner in seconds — long before it cascades into failed bookings. Cheap: reads
-    // in-memory counters fed passively by the kas getText chokepoint.
+    // ⚠️ early-warning: ride the frequent booking tick (no new poller) to surface a sick taxi core
+    // to the owner in seconds — long before passengers notice. Cheap: reads in-memory counters fed
+    // passively by the core chokepoint (kas/birjoy.ts request).
     if (bot) {
-      const { maybeAlertKasHealth } = await import("./services/kasHealth");
+      const { maybeAlertCoreHealth } = await import("./services/taxiHealth");
       const { alertAdmins } = await import("./services/economyService");
-      await maybeAlertKasHealth(alertAdmins).catch(() => undefined);
+      await maybeAlertCoreHealth(alertAdmins).catch(() => undefined);
       // 🍽 RESTORAN SLA-sweep 2026-08-15 da olib tashlandi (bizda kutadigan buyurtma yo'q).
       // 🎀 RAVELLA SLA-sweep — bir xil naqsh (yangi poller YO'Q): hamkor javob bermagan
       // buyurtmalar egaga BIR marta eslatiladi (`slaAlertedAt`). Flag OFF → funksiya darhol qaytadi.
@@ -581,17 +580,9 @@ async function main(): Promise<void> {
     const delay = awaitingDriver > 0 ? 5_000 : active > 0 ? 15_000 : 90_000;
     if (!bookingStopped) bookingTimer = setTimeout(() => void tickBooking(), delay);
   };
-  if (env.KAS_MODE === "live") bookingTimer = setTimeout(() => void tickBooking(), 15_000);
-
-  // 📡 kas map WebSocket — real-time driver positions → INSTANT "arrived" pings (no 15s wait)
-  kasMapSocket.start();
-
-  // ⚡ instant-status: give the client-socket the bot so a status-change frame can trigger a scoped
-  // sweep (armed per-ride at booking creation via armInstant; feature "instantstatus").
-  if (bot) {
-    const { kasClientSocket } = await import("./services/kasClientSocket");
-    kasClientSocket.setBot(bot);
-  }
+  // Always: the ride sweep also carries the market/partner SLA checks, tanga refunds for expired
+  // market orders and AI reminders. It used to start only for kas1067 ("live").
+  bookingTimer = setTimeout(() => void tickBooking(), 15_000);
 
   // keep the free-tier instance warm (self-ping) so the Mini App never hits a cold start. Render
   // free spins down after 15 min idle → ping every 5 min so even a single failed ping still beats
@@ -609,7 +600,6 @@ async function main(): Promise<void> {
     clearInterval(timer);
     bookingStopped = true;
     if (bookingTimer) clearTimeout(bookingTimer);
-    kasMapSocket.stop();
     if (keepAlive) clearInterval(keepAlive);
     server.close();
     if (bot && !env.WEBHOOK_URL) await bot.stop();

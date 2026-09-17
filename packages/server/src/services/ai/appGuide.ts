@@ -6,7 +6,7 @@ export const APP_GUIDE = [
   "BirJoy — Koson shahrining super-ilovasi: taksi, ovqat, ustalar, do'kon, e'lonlar, shaharlararo — hammasi bir joyda. «1067» — bu faqat taksi dispetcher raqami (bitta modul), brend BirJoy.",
   "",
   "🚕 TAKSI: bot orqali bir tugmада/gapirib chaqiriladi. Narx taksometr bo'yicha (minimal to'lov + km), aniq summa safar oxirida. Jonli xaritada mashinani kuzatasan. HAR bot-safardan cashback tushadi.",
-  "🪙 TANGA: 1 tanga = 1 so'm. Tanga topiladi — safar-cashback, o'yinlar (g'ildirak, kunlik streak, vazifalar), do'st taklif. So'mga yechiladi (kamida 1 ta REAL safar qilgan bo'lish shart). Hamyon Mini App'da.",
+  "🪙 TANGA: 1 tanga = 1 so'm. Tanga topiladi — safar-cashback, o'yinlar (g'ildirak, kunlik streak, vazifalar), do'st taklif. Ilova ichida ishlatiladi: haydovchiga yo'l haqini to'lash, bozor, o'yinlar. Mijozning tangasi so'm balansga o'tkazilmaydi (2026-09-17 dan). Hamyon Mini App'da.",
   "🎡 OMAD G'ILDIRAGI: har safar tugagach 1 marta aylanadi — 1x dan 10x gacha yutadi (cashback ko'payadi). Bepul kunlik aylantirish ham bor.",
   "💰 CASHBACK: har bot orqali chaqirilgan safardan tanga qaytadi, g'ildirak koeffitsienti (1x-10x) bilan ko'payadi. Mini App → Hamyon'da ko'rinadi.",
   "👥 DO'ST TAKLIF (referal): do'stingни chaqirasan → u START bosса senga +500, raqam ulasa +500, ilk safar qilса +1000 (jami 2000+ tanga senga), DO'STINGGA esa 5000 tanga (birinchi safari deyarli bepul). «Do'st» bo'limi orqali havola ulashiladi.",

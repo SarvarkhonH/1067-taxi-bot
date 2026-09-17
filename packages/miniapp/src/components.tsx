@@ -417,7 +417,7 @@ export function ReferralView({ onClose, story }: { onClose?: () => void; story?:
 
 // ─── 📜 Safarlar tarixi — per-ride: manzil, sana+soat, km, daqiqa, narx, cashback + jami ──────────
 const DONE_STATUS = new Set(["delivered", "completed", "finished", "done"]);
-const CANCEL_STATUS = new Set(["cancel_by_operator", "cancel_by_server", "cancelled", "canceled"]);
+const CANCEL_STATUS = new Set(["cancel_by_operator", "cancel_by_server", "cancel_by_client", "cancel_by_driver", "take_back", "cancelled", "canceled"]);
 
 function rideMinutes(t?: number): number | null {
   if (!t || t <= 0) return null;

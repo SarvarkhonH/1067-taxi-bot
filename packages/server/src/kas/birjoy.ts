@@ -1,5 +1,16 @@
 import type { MemberType } from "@t1067/shared";
-import { toBridgeId, fromBridgeId } from "@t1067/shared";
+import {
+  toBridgeId,
+  fromBridgeId,
+  coreStatusToBooking,
+  coreUzPhone,
+  coreKmToMeters,
+  coreCoord,
+  CoreHttpError,
+  coreOutcomeUnknown,
+  coreRiderMessage,
+} from "@t1067/shared";
+import { recordCore } from "../services/taxiHealth";
 import type {
   ActiveBooking,
   ActiveBookingLite,
@@ -24,27 +35,71 @@ import type {
 } from "./types";
 
 export interface BirJoyConfig {
-  /** Base URL of the 1067-taxi (B) API, e.g. http://localhost:4000/api/v1 */
+  /** Base URL of the 1067-taxi API, e.g. http://127.0.0.1:4000/api/v1 */
   baseUrl: string;
-  /** Shared secret sent as x-service-token (B's ServiceTokenGuard). */
+  /** Shared secret sent as x-service-token (the core's ServiceTokenGuard). */
   serviceToken: string;
   /** Injectable for tests; defaults to global fetch. */
   fetchFn?: typeof fetch;
+  /** Per-call ceiling. Default 8 s — below Telegram's 10 s webhook limit. */
+  timeoutMs?: number;
+}
+
+const DEFAULT_TIMEOUT_MS = 8_000;
+const MAIN_REPORT_TTL_MS = 60_000;
+// "Does this passenger have a ride?" is asked on almost every screen (/api/me, the booking page,
+// every dispatch guard). Three seconds absorbs a burst without letting a real change go unseen for
+// long; creating or cancelling an order clears that phone's entry at once.
+const ACTIVE_TTL_MS = 3_000;
+
+// A status word the table in @t1067/shared/taxiCore has never seen is the exact shape of the
+// failure that would pay nobody for a finished ride. Say it once per word, loudly.
+const seenUnknownStatus = new Set<string>();
+function bookingStatus(raw: unknown): string {
+  const { status, unknown } = coreStatusToBooking(String(raw ?? ""));
+  if (unknown && !seenUnknownStatus.has(status) && seenUnknownStatus.size < 50) {
+    seenUnknownStatus.add(status);
+    console.warn(`[taxi-core] UNKNOWN order status "${status}" — ride rewards for it will not pay`);
+    void import("../services/economyService")
+      .then(({ alertAdmins }) =>
+        alertAdmins(
+          `⚠️ <b>taksi tizimi:</b> notanish safar holati «<code>${status}</code>» keldi. ` +
+            `Bu holatdagi safarlar uchun tanga to'lanmaydi — <code>packages/shared/src/taxiCore.ts</code> ga qo'shing.`,
+        ),
+      )
+      .catch(() => undefined);
+  }
+  return status;
 }
 
 /**
- * Third KasDataSource implementation (F1-bridge). Reads/writes the taxi core (B)
- * over HTTP instead of kas1067. Selected by KAS_MODE=birjoy. Rollback = KAS_MODE=live.
+ * The bot's connection to the taxi dispatch core (1067-taxi) — the only one it has.
  *
- * Slice 5a: the HTTP chokepoint + wiring are live and tested; the 27 methods are
- * filled in 5b (HTTP mappers) and 5c (tanga methods resolve inside A, not B).
- * While KAS_MODE !== "birjoy" this class is never constructed, so the not-yet
- * implemented methods are dormant.
+ * Everything the bot knows about a ride, a driver or a place comes through here
+ * over HTTP on the same machine, authenticated by a shared service token. This
+ * class is also where the core's vocabulary is turned into the bot's: order
+ * statuses, kilometres into metres, a missing position into `undefined` rather
+ * than zero, and every phone into the one format the core stores. Those four
+ * translations are each a way the switch from kas1067 would have gone wrong
+ * silently, so they live in one place and in `@t1067/shared/taxiCore`, where the
+ * CI shield tests them.
  */
 export class BirJoySource implements KasDataSource {
   readonly name = "birjoy" as const;
 
-  constructor(private readonly config: BirJoyConfig) {}
+  private mainReport: { at: number; value: KasMainReport } | null = null;
+  private activeByPhone = new Map<string, { at: number; value: ActiveBooking | null }>();
+  // Bumped whenever an order is created or cancelled: a read that STARTED before the change must not
+  // store its (now stale) answer after it — that cached "no ride" right after a booking.
+  private activeEpoch = 0;
+
+  constructor(private readonly config: BirJoyConfig) {
+    if (!config.serviceToken) {
+      // The core fails closed: with no token every call is a 401, and the bot
+      // would look up and running while no passenger could order anything.
+      throw new Error("BirJoySource: KAS_SERVICE_TOKEN is empty — every call to the taxi core would be refused");
+    }
+  }
 
   // ── single HTTP chokepoint ────────────────────────────────────────────────
   private async request<T>(
@@ -59,53 +114,65 @@ export class BirJoySource implements KasDataSource {
         if (v !== undefined && v !== null) url.searchParams.set(k, String(v));
       }
     }
-    const res = await f(url, {
-      method,
-      headers: {
-        "content-type": "application/json",
-        "x-service-token": this.config.serviceToken,
-      },
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    });
-    if (!res.ok) {
-      throw new Error(`BirJoySource ${method} ${path} → HTTP ${res.status}`);
+    let res: Response;
+    try {
+      res = await f(url, {
+        method,
+        headers: {
+          "content-type": "application/json",
+          "x-service-token": this.config.serviceToken,
+        },
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+        signal: AbortSignal.timeout(this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+      });
+    } catch (e) {
+      const name = e instanceof Error ? e.name : "";
+      recordCore(false, name === "TimeoutError" || name === "AbortError" ? "timeout" : "network");
+      throw e;
     }
-    if (res.status === 204) return undefined as T;
-    return (await res.json()) as T;
+
+    let text: string;
+    try {
+      text = await res.text();
+    } catch (e) {
+      // Headers arrived, the body did not. Not "an empty answer": for a list that would read as
+      // "no active rides" and close every live ride card; for an order it may have been created.
+      recordCore(false, "network");
+      throw e;
+    }
+    if (!res.ok) {
+      // 4xx is the core refusing on purpose (unknown phone, bad address) — healthy. A refused TOKEN is
+      // not: every order would fail while the bot looks fine.
+      const kind = res.status === 429 ? "429" : res.status === 401 || res.status === 403 ? "auth" : res.status >= 500 ? "5xx" : undefined;
+      recordCore(kind === undefined, kind);
+      let detail = "";
+      try {
+        const j = JSON.parse(text) as { message?: unknown };
+        detail = Array.isArray(j?.message) ? j.message.join("; ") : String(j?.message ?? "");
+      } catch {
+        detail = text.slice(0, 120);
+      }
+      throw new CoreHttpError(method, path, res.status, detail);
+    }
+    recordCore(true);
+    // Nest sends an empty body for a `null` result ("no active order").
+    if (!text) return null as T;
+    return JSON.parse(text) as T;
   }
 
-  // Id namespacing lives in @t1067/shared (bridgeIds) so it is covered by the CI
-  // shield — packages/server has no test runner, and this is money logic: B's
-  // order ids collide with historical kas booking ids inside CoinTxn /
+  /** The core's phone format, or null for something that is not a phone. */
+  private phone(p: string): string | null {
+    return coreUzPhone(p);
+  }
+
+  // Id namespacing lives in @t1067/shared (bridgeIds): B's order ids start at 1
+  // and would collide with historical kas booking ids inside CoinTxn and
   // RideReward idempotency keys.
   private toOuterId(id: number): number { return toBridgeId(id); }
-  /** An id from A → B's real order id (kept for the write paths in 5b/5c). */
   private toInnerId(id: number): number { return fromBridgeId(id); }
 
-  /** Placeholder for methods implemented in Slice 5b/5c. Never reached while
-   *  KAS_MODE !== "birjoy". */
-  private notImpl(method: string): Promise<never> {
-    return Promise.reject(new Error(`BirJoySource.${method} not implemented yet (F1-bridge Slice 5b)`));
-  }
+  // ── places ────────────────────────────────────────────────────────────────
 
-  // ── implemented in 5a (proves the chokepoint) ─────────────────────────────
-  async getCarModels(): Promise<CarModel[]> {
-    const rows = await this.request<Array<{ id: number; name: string; category?: number | string; rating?: number | string }>>(
-      "GET",
-      "/car-models",
-    );
-    return rows.map((r) => ({
-      id: r.id,
-      name: r.name,
-      category: String(r.category ?? ""),
-      rating: Number(r.rating ?? 0),
-    }));
-  }
-
-  // ── 5b: HTTP mappers ──────────────────────────────────────────────────────
-
-  /** B addresses row → kas SavedAddress. B stores lat/lng as decimal strings and
-   *  the per-address surcharge as additional_payment_uzs. */
   private static toSavedAddress(r: {
     id: number; name: string;
     lat?: string | number | null; lng?: string | number | null;
@@ -114,8 +181,8 @@ export class BirJoySource implements KasDataSource {
     return {
       id: r.id,
       name: r.name,
-      lat: r.lat != null ? Number(r.lat) : undefined,
-      lng: r.lng != null ? Number(r.lng) : undefined,
+      lat: coreCoord(r.lat),
+      lng: coreCoord(r.lng),
       surcharge: r.additionalPayment ?? r.additionalPaymentUzs ?? 0,
     };
   }
@@ -124,202 +191,176 @@ export class BirJoySource implements KasDataSource {
     const rows = await this.request<Parameters<typeof BirJoySource.toSavedAddress>[0][]>(
       "GET", "/addresses/search", { query: { q: text } },
     );
-    return rows.map(BirJoySource.toSavedAddress);
+    return (rows ?? []).map(BirJoySource.toSavedAddress);
   }
 
   async getAllAddresses(): Promise<SavedAddress[]> {
+    // The core pages at 500 by default. Koson has ~150 named places; ask for the
+    // route's ceiling (1000) so a growing catalogue is never silently cut off.
     const rows = await this.request<Parameters<typeof BirJoySource.toSavedAddress>[0][]>(
-      "GET", "/addresses",
+      "GET", "/addresses", { query: { limit: 1000 } },
     );
-    return rows.map(BirJoySource.toSavedAddress);
+    return (rows ?? []).map(BirJoySource.toSavedAddress);
   }
 
   async getBookingAddons(): Promise<KasAddon[]> {
     const rows = await this.request<Array<{ id: number; name: string; priceUzs?: number; price?: number }>>(
       "GET", "/order-requirements",
     );
-    return rows.map((r) => ({ id: r.id, name: r.name, price: r.priceUzs ?? r.price ?? 0 }));
+    return (rows ?? []).map((r) => ({ id: r.id, name: r.name, price: r.priceUzs ?? r.price ?? 0 }));
   }
 
+  // ── orders ────────────────────────────────────────────────────────────────
+
   async createBooking(req: BookingRequest): Promise<BookingResult> {
-    // B (createServiceOrder) resolves the client by phone and pickup coords from
-    // addressId (catalog) OR raw lat/lng — mirrors the B5 decision. clientName is
-    // unused (B find-or-creates by phone).
+    const phone = this.phone(req.phoneNumber);
+    if (!phone) return { ok: false, message: "Telefon raqami noto'g'ri" };
+    // A positive id is a catalogue place; a passenger's own saved place arrives
+    // negative (see checkClient) and travels by its coordinates only. For a positive id the core
+    // uses its OWN catalogue coordinates, whatever is sent — which is why remembered kas-era ids are
+    // rewritten once at cutover (scripts/cutoverPickupIds.ts) and must never be sent before that.
+    this.forgetActive(phone);
     try {
       await this.request("POST", "/orders", {
         body: {
-          phone:          req.phoneNumber,
-          pickupAddress:  req.addressName,
-          addressId:      req.addressId > 0 ? req.addressId : undefined,
-          pickupLat:      req.addressLatitude,
-          pickupLng:      req.addressLongitude,
+          phone,
+          pickupAddress: req.addressName,
+          addressId: req.addressId > 0 ? req.addressId : undefined,
+          pickupLat: req.addressLatitude,
+          pickupLng: req.addressLongitude,
+          additionalPaymentUzs: req.additionalPayment > 0 ? Math.round(req.additionalPayment) : undefined,
+          requirementIds: req.requirementIds?.length ? req.requirementIds : undefined,
+          clientName: req.clientName || undefined,
         },
       });
+      this.forgetActive(phone); // a read during the POST may have cached "no ride"
       return { ok: true };
     } catch (e) {
-      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+      this.forgetActive(phone);
+      return {
+        ok: false,
+        unknown: coreOutcomeUnknown(e),
+        // what the passenger reads; the raw reason goes to the log
+        message: coreRiderMessage(e),
+        detail: e instanceof Error ? e.message : String(e),
+      };
     }
   }
 
-  // ── 5b (remaining) / 5c: stubbed ──────────────────────────────────────────
-  /** The bulk pull the nightly sync runs on. */
-  async fetchMembers(): Promise<KasMember[]> {
-    return this.fetchMembersFrom();
-  }
-  /**
-   * Members, in the bot's vocabulary.
-   *
-   * Ids come back prefixed `bj_` and that prefix is load-bearing: it is what
-   * tells the member matcher this is CUTOVER rather than a stranger, so an
-   * existing customer's row is taken over instead of duplicated and their tanga
-   * travels with them. Without it, every customer would quietly get a second
-   * account on the day we switch, with the balance left on the first.
-   */
-  private async fetchMembersFrom(query?: Record<string, string | number | undefined>): Promise<KasMember[]> {
-    const rows = await this.request<any[]>("GET", "/public-config/members", { query });
-    return (rows ?? []).map((m) => ({
-      type:      m.type === "driver" ? ("driver" as MemberType) : ("client" as MemberType),
-      kasId:     String(m.kasId ?? ""),
-      fullName:  m.fullName ?? "",
-      phone:     m.phone ?? undefined,
-      carNumber: m.carNumber ?? undefined,
-      points:    Number(m.points ?? 0),
-      trips:     Number(m.trips ?? 0),
-      rating:    Number(m.rating ?? 0),
-    }));
-  }
-  /**
-   * One phone, on demand — the call the bot makes on almost every interaction.
-   *
-   * `only` narrows client-vs-driver at the caller rather than at the source:
-   * one person can be both, and asking B twice to save filtering here would
-   * double the traffic on the hottest path in the system.
-   */
-  async fetchByPhone(phone: string, only?: MemberType): Promise<KasMember[]> {
-    const all = await this.fetchMembersFrom({ phone });
-    return only ? all.filter((m) => m.type === only) : all;
-  }
-  /**
-   * Who is calling — name, the addresses they use, and whether a car is
-   * already on its way.
-   *
-   * `null` for an unknown number rather than an empty record: the operator has
-   * to be able to tell a new caller from a known one with nothing saved, and
-   * those are different first sentences.
-   */
-  async checkClient(phone: string): Promise<ClientBookingInfo | null> {
-    const info = await this.request<any>("GET", "/orders/by-phone/booking-info", { query: { phone } });
-    if (!info) return null;
-    return {
-      clientName:  info.clientName ?? "",
-      phoneNumber: info.phoneNumber ?? phone,
-      addresses:   (info.addresses ?? []).map(BirJoySource.toSavedAddress),
-      activeBooking: info.activeBooking
-        ? {
-            addressName: info.activeBooking.addressName ?? "",
-            createdDate: String(info.activeBooking.createdDate ?? ""),
-          }
-        : null,
-    };
-  }
-  /**
-   * The passenger cancelled from the bot.
-   *
-   * The id arriving here is namespaced (A's ids and kas booking ids share a
-   * space), so it is translated back before it reaches B — the same direction
-   * `toOuterId` sends them out.
-   */
   async cancelBooking(bookingId: number): Promise<BookingResult> {
+    this.forgetActive(); // the id does not name the phone; a cancel is rare, forget all
     try {
       await this.request("PATCH", `/orders/${this.toInnerId(bookingId)}/cancel-service`, {
         body: { reason: "mijoz bekor qildi (bot)" },
       });
+      this.forgetActive();
       return { ok: true };
     } catch (e) {
-      return { ok: false, message: e instanceof Error ? e.message : String(e) };
+      this.forgetActive();
+      return { ok: false, unknown: coreOutcomeUnknown(e), message: e instanceof Error ? e.message : String(e) };
     }
   }
+
   async getActiveBooking(phone: string): Promise<ActiveBooking | null> {
-    const order = await this.request<any>("GET", "/orders/by-phone/active", { query: { phone } });
+    const p = this.phone(phone);
+    if (!p) return null;
+    const hit = this.activeByPhone.get(p);
+    if (hit && Date.now() - hit.at < ACTIVE_TTL_MS) return hit.value;
+    const epoch = this.activeEpoch;
+    const startedAt = Date.now();
+    const value = await this.fetchActiveBooking(p);
+    if (epoch === this.activeEpoch) {
+      if (this.activeByPhone.size > 5000) this.activeByPhone.clear(); // bound memory
+      this.activeByPhone.set(p, { at: startedAt, value }); // aged from when the read began
+    }
+    return value;
+  }
+
+  /** Forget cached "does this phone have a ride" answers — one phone, or all of them. */
+  private forgetActive(phone?: string): void {
+    this.activeEpoch++;
+    if (phone) this.activeByPhone.delete(phone);
+    else this.activeByPhone.clear();
+  }
+
+  private async fetchActiveBooking(p: string): Promise<ActiveBooking | null> {
+    const order = await this.request<any>("GET", "/orders/by-phone/active", { query: { phone: p } });
     if (!order) return null;
     return {
       id: this.toOuterId(order.id),
-      // B vocab (pending/dispatching/accepted/…). A status-vocab adapter
-      // (dispatchToBookingStatus, salvaged per §4) is a follow-up.
-      status: String(order.status ?? ""),
+      status: bookingStatus(order.status),
       addressName: order.pickupAddress ?? "",
-      lat: order.pickupLat != null ? Number(order.pickupLat) : undefined,
-      lng: order.pickupLng != null ? Number(order.pickupLng) : undefined,
-      clientBonus: 0,          // tanga — filled by A's coin ledger in 5c (§5.5)
-      priceTier: "standard",   // B has vehicleClassId; tier-name mapping is a follow-up
+      lat: coreCoord(order.pickupLat),
+      lng: coreCoord(order.pickupLng),
+      // Tanga lives in the bot's own ledger, not on a ride row in the core.
+      clientBonus: 0,
+      priceTier: "standard",
       createdDate: String(order.createdAt ?? ""),
-      driver: order.driver
-        ? {
-            fullName: order.driver.fullName ?? "",
-            phone: order.driver.phone ?? "",
-            carModel: order.driver.carModel ?? "",
-            carNumber: order.driver.carNumber ?? "",
-            rating: Number(order.driver.avgRating ?? 0),
-            lat: 0, lng: 0,    // live position comes from getDriverPins, not this row (§3.3)
-          }
-        : null,
+      additionalPaymentAddress: Number(order.additionalPaymentUzs ?? 0),
+      additionalPaymentClient: 0,
+      additionalPaymentCompany: 0,
+      driver: order.driver ? BirJoySource.toDriver(order.driver) : null,
+    };
+  }
+
+  private static toDriver(d: any, plate?: string): BookingDriver {
+    const bearing = Number(d?.bearing);
+    return {
+      fullName: d?.fullName ?? "",
+      phone: d?.phone ?? "",
+      carModel: d?.carModel ?? "",
+      carNumber: d?.carNumber ?? plate ?? "",
+      rating: Number(d?.avgRating ?? d?.rating ?? 0),
+      lat: coreCoord(d?.lat),
+      lng: coreCoord(d?.lng),
+      bearing: Number.isFinite(bearing) ? bearing : undefined,
     };
   }
 
   /**
-   * Every live booking at once — what the status sweep runs on.
-   *
-   * One call, not one per passenger: the sweep asks what changed about all of
-   * them on a timer, and doing that per phone is how a background job becomes
-   * the reason the bot is slow.
-   *
-   * `clientBonus` is 0 here on purpose. In kas it is the passenger's cashback
-   * balance, which travels with the booking; ours is tanga and lives in A's own
-   * ledger, so the caller reads it from there. Returning a made-up number would
-   * put a wrong balance on a live card.
-   *
-   * The three-way additional payment is one column in B, so it is reported as
-   * the address share and the other two are left at 0 rather than split by
-   * guesswork (KAS_PARITET §3.1).
+   * Every live order at once — what the status sweep runs on. One call, not one
+   * per passenger. `clientBonus` is 0: tanga is read from the bot's ledger.
    */
   async listActiveBookings(): Promise<ActiveBookingLite[]> {
     const rows = await this.request<any[]>("GET", "/orders/active-lite");
-    return (rows ?? []).map((r) => ({
+    // An empty list here closes every live ride card as "finished". Only a real list may say so.
+    if (!Array.isArray(rows)) throw new Error("taxi core active-lite: expected a list");
+    return rows.map((r) => ({
       id:          this.toOuterId(r.id),
-      phoneNorm:   String(r.phoneNorm ?? ""),
-      status:      String(r.status ?? ""),
+      phoneNorm:   String(r.phoneNorm ?? "").replace(/\D/g, "").slice(-9),
+      status:      bookingStatus(r.status),
       carNumber:   r.carNumber ?? "",
       addressName: r.addressName ?? "",
       clientBonus: 0,
-      lat:         r.lat != null ? Number(r.lat) : undefined,
-      lng:         r.lng != null ? Number(r.lng) : undefined,
+      lat:         coreCoord(r.lat),
+      lng:         coreCoord(r.lng),
       additionalPaymentAddress: Number(r.additionalPayment ?? 0),
       additionalPaymentClient:  0,
       additionalPaymentCompany: 0,
     }));
   }
 
-  async getRideHistory(phone: string, size?: number, _page?: number): Promise<RideHistoryItem[]> {
-    const rows = await this.request<any[]>("GET", "/orders/by-phone/history", { query: { phone, limit: size } });
+  async getRideHistory(phone: string, size = 20, page = 0): Promise<RideHistoryItem[]> {
+    const p = this.phone(phone);
+    if (!p) return [];
+    const limit = Math.max(1, Math.min(100, size));
+    const rows = await this.request<any[]>("GET", "/orders/by-phone/history", {
+      query: { phone: p, limit, offset: Math.max(0, page) * limit },
+    });
     return (rows ?? []).map((r) => ({
       id: this.toOuterId(r.id),
       addressName: r.pickupAddress ?? "",
-      status: String(r.status ?? ""),
-      carNumber: "",   // B history has no driver join yet (gap — follow-up)
-      carModel: "",
+      status: bookingStatus(r.status),
+      carNumber: r.carNumber ?? "",
+      carModel: r.carModel ?? "",
       payment: Number(r.finalFareUzs ?? 0),
-      cashback: 0,     // tanga — A adds the per-ride award in 5c (§5.5)
-      distance: r.distanceKm != null ? Number(r.distanceKm) : undefined,
+      cashback: 0,
+      distance: coreKmToMeters(r.distanceKm),
       at: String(r.completedAt ?? r.createdAt ?? ""),
     }));
   }
-  /**
-   * What a plate has been doing — the driver-side history.
-   *
-   * `cashback` is 0: it is tanga, and it lives in A's ledger keyed by member,
-   * not against the ride row in B. The caller adds it; a number invented here
-   * would show a driver a reward that never moved.
-   */
+
+  /** What a plate has been doing — the driver-side history. */
   async getRidesByCar(carNumber: string, size?: number): Promise<RideHistoryItem[]> {
     const rows = await this.request<any[]>(
       "GET", `/drivers/rides-by-car/${encodeURIComponent(carNumber)}`, { query: { limit: size } },
@@ -327,24 +368,23 @@ export class BirJoySource implements KasDataSource {
     return (rows ?? []).map((r) => ({
       id:          this.toOuterId(r.id),
       addressName: r.addressName ?? "",
-      status:      String(r.status ?? ""),
+      status:      bookingStatus(r.status),
       carNumber:   r.carNumber ?? carNumber,
       carModel:    r.carModel ?? "",
       payment:     Number(r.payment ?? 0),
       cashback:    0,
-      distance:    r.distance != null ? Number(r.distance) : undefined,
+      distance:    coreKmToMeters(r.distance),
       at:          String(r.at ?? ""),
       additionalPaymentCompany: Number(r.additionalPaymentCompany ?? 0),
     }));
   }
+
+  // ── drivers ───────────────────────────────────────────────────────────────
+
   /**
-   * Live cars for a passenger's map.
-   *
-   * A point, a heading and busy/free — nothing that identifies a person. This
-   * is the one bridge read whose output reaches a screen belonging to somebody
-   * who is not staff, and a map carrying plates lets any passenger watch a
-   * named driver move around town all day. B strips it at the source; this
-   * takes only those four fields even so.
+   * Live cars for a passenger's map: a point, a heading and busy/free — nothing
+   * that identifies a person. The core strips it at the source; this takes only
+   * those four fields even so.
    */
   async getDriverPins(): Promise<DriverPin[]> {
     const pins = await this.request<any[]>("GET", "/drivers/pins");
@@ -355,52 +395,34 @@ export class BirJoySource implements KasDataSource {
         bearing: Number(p?.bearing ?? 0),
         busy: p?.busy === true,
       }))
-      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
+      .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && p.lat !== 0 && p.lng !== 0);
   }
+
   async getDriverByCar(carNumber: string): Promise<BookingDriver | null> {
     const d = await this.request<any>("GET", `/drivers/by-car/${encodeURIComponent(carNumber)}`);
-    if (!d) return null;
-    return {
-      fullName: d.fullName ?? "",
-      phone: d.phone ?? "",
-      carModel: d.carModel ?? "",
-      carNumber: d.carNumber ?? carNumber,
-      rating: Number(d.avgRating ?? 0),
-      lat: 0, lng: 0,   // by-car carries no live position; getDriverPins does (§3.3)
-    };
+    return d ? BirJoySource.toDriver(d, carNumber) : null;
   }
-  /**
-   * A page of completed rides, newest first — the analytics pull.
-   *
-   * Paged because the caller pages: it walks backwards until it has the window
-   * it wants. Handing it everything would move the memory problem from their
-   * process into ours.
-   */
+
+  /** A page of finished rides, newest first — the analytics pull. */
   async getReportsPage(page: number, size: number): Promise<RideHistoryItem[]> {
     const rows = await this.request<any[]>("GET", "/public-config/reports", { query: { page, size } });
     return (rows ?? []).map((r) => ({
       id:          this.toOuterId(r.id),
       addressName: r.addressName ?? "",
-      status:      String(r.status ?? ""),
+      status:      bookingStatus(r.status),
       carNumber:   r.carNumber ?? "",
       carModel:    r.carModel ?? "",
       payment:     Number(r.payment ?? 0),
-      cashback:    0,   // tanga — A's ledger, not a column on a B ride
-      distance:    r.distance != null ? Number(r.distance) : undefined,
+      cashback:    0,
+      distance:    coreKmToMeters(r.distance),
       at:          String(r.at ?? ""),
       additionalPaymentCompany: Number(r.additionalPaymentCompany ?? 0),
     }));
   }
+
   /**
-   * The whole driver list, for the call panel.
-   *
-   * Two fields are null rather than guessed. `address` is not held in B at all,
-   * and `licenseTerm` lives in driver_documents rather than on the driver row —
-   * a licence expiry invented here would be an expiry somebody schedules a
-   * phone call around.
-   *
-   * `lastRideAt` carries B's last-online time, which is the nearest honest
-   * answer to "is this driver still working" that B can give today.
+   * The whole driver list, for the call panel. `address` and `licenseTerm` are
+   * null rather than guessed; `lastRideAt` carries the core's last-online time.
    */
   async listDriverRoster(): Promise<DriverRosterRow[]> {
     const rows = await this.request<any[]>("GET", "/drivers/roster");
@@ -421,59 +443,40 @@ export class BirJoySource implements KasDataSource {
       licenseTerm: null,
     }));
   }
+
   /**
-   * Give a caller the name the operator learned on the phone.
+   * Money onto a driver's balance — tanga turned into so'm, or a debt repaid.
    *
-   * Never creates a customer: an unknown number is not one yet, and a row
-   * invented here would show up in every count as a passenger who has never
-   * ridden.
-   */
-  async setClientName(phone: string, fullName: string): Promise<{ ok: boolean; status?: number }> {
-    try {
-      const res = await this.request<{ ok: boolean }>("PATCH", "/orders/by-phone/name", {
-        body: { phone, fullName },
-      });
-      return { ok: res?.ok === true, status: res?.ok ? 200 : 404 };
-    } catch {
-      return { ok: false, status: 500 };
-    }
-  }
-  /**
-   * Move a driver's balance — the debt-repaid-with-tanga path.
+   * The plate is the identifier: the bot's member rows still carry kas-era ids
+   * for drivers the cutover has not adopted, and an id from that space would
+   * name a different driver in the core. `requestId` makes a retry safe.
    *
-   * `debt` is accepted for signature compatibility and ignored: in kas it
-   * selects which of two accounts to touch, and B has one. Reading it would
-   * mean pretending to a distinction the schema does not make.
-   *
-   * The plate is sent alongside the id because A's driver ids are namespaced
-   * and B can resolve either — the plate is the identifier a human can check
-   * against a real car if the money ever has to be traced back.
+   * Three outcomes, kept apart: applied · refused (nothing moved, refund is
+   * right) · unknown (no answer — the money may have moved, a refund would pay
+   * twice).
    */
   async addDriverPayment(
-    driverId: number,
     carNumber: string,
     amount: number,
+    requestId: string,
     comment?: string,
-    _debt?: boolean,
-  ): Promise<{ ok: boolean; balance: number | null; status: number }> {
+    coreDriverId?: number,
+  ): Promise<{ ok: boolean; balance: number | null; status: number; unknown?: boolean }> {
+    if (!carNumber) return { ok: false, balance: null, status: 400 };
     try {
       const res = await this.request<{ ok: boolean; balance: number | null; reason?: string }>(
         "POST", "/drivers/payment",
-        { body: { driverId: driverId ? this.toInnerId(driverId) : undefined, carNumber, amountUzs: amount, note: comment } },
+        { body: { carNumber, amountUzs: amount, requestId, note: comment, driverId: coreDriverId } },
       );
+      if (res?.ok !== true) console.warn(`[taxi-core] driver payment refused for ${carNumber}: ${res?.reason ?? "?"}`);
       return { ok: res?.ok === true, balance: res?.balance ?? null, status: res?.ok ? 200 : 400 };
-    } catch {
-      return { ok: false, balance: null, status: 500 };
+    } catch (e) {
+      if (coreOutcomeUnknown(e)) return { ok: false, balance: null, status: 0, unknown: true };
+      return { ok: false, balance: null, status: e instanceof CoreHttpError ? e.status : 400 };
     }
   }
-  /**
-   * A driver's account by plate — what the bot shows before offering to clear
-   * a debt with tanga.
-   *
-   * `debt` is the negative half of the balance, not a field of its own: a
-   * driver owing 12,000 is a balance of -12,000 in B, and a second number for
-   * one fact is two numbers that can disagree.
-   */
+
+  /** A driver's account by plate. `debt` is the negative half of the balance. */
   async getDriverAccount(carNumber: string): Promise<DriverAccount | null> {
     const a = await this.request<any>("GET", `/drivers/account/${encodeURIComponent(carNumber)}`);
     if (!a) return null;
@@ -488,22 +491,96 @@ export class BirJoySource implements KasDataSource {
       active:      a.active === true,
     };
   }
+
+  // ── people ────────────────────────────────────────────────────────────────
+
+  async fetchMembers(): Promise<KasMember[]> {
+    return this.fetchMembersFrom();
+  }
+
   /**
-   * The tariff, as the bot quotes it.
-   *
-   * Straight from the snapshot the fare engine is using this second — not a
-   * second copy. A price list that can disagree with the price charged is the
-   * defect this project spent a day removing from its own admin screen.
-   *
-   * City and region carry the same numbers because that is what we charge: the
-   * village coefficient is a zone multiplier applied on top, not a second price
-   * list. `minimalDistance` is 0 — we have no such rule.
+   * Members, in the bot's vocabulary. Ids come back prefixed `bj_`, and that
+   * prefix is what tells the member matcher this is the same human arriving
+   * from the core — so an existing customer's row is adopted, tanga included,
+   * instead of a second account being made next to it.
    */
+  private async fetchMembersFrom(query?: Record<string, string | number | undefined>): Promise<KasMember[]> {
+    const rows = await this.request<any[]>("GET", "/public-config/members", { query });
+    return (rows ?? []).map((m) => ({
+      type:      m.type === "driver" ? ("driver" as MemberType) : ("client" as MemberType),
+      kasId:     String(m.kasId ?? ""),
+      fullName:  m.fullName ?? "",
+      phone:     m.phone ?? undefined,
+      carNumber: m.carNumber ?? undefined,
+      points:    Number(m.points ?? 0),
+      trips:     Number(m.trips ?? 0),
+      rating:    Number(m.rating ?? 0),
+    }));
+  }
+
+  async fetchByPhone(phone: string, only?: MemberType): Promise<KasMember[]> {
+    const p = this.phone(phone);
+    if (!p) return [];
+    const all = await this.fetchMembersFrom({ phone: p });
+    return only ? all.filter((m) => m.type === only) : all;
+  }
+
+  /**
+   * Who is calling — name, the places they use, and whether a car is already
+   * coming. `null` for an unknown number.
+   *
+   * A passenger's own saved places are NOT catalogue places: their ids come from
+   * a different table in the core. They are handed out negative, so nothing
+   * downstream can send one as a catalogue id — the order travels by the saved
+   * coordinates instead.
+   */
+  async checkClient(phone: string): Promise<ClientBookingInfo | null> {
+    const p = this.phone(phone);
+    if (!p) return null;
+    const info = await this.request<any>("GET", "/orders/by-phone/booking-info", { query: { phone: p } });
+    if (!info) return null;
+    return {
+      clientName:  info.clientName ?? "",
+      phoneNumber: info.phoneNumber ?? p,
+      addresses:   (info.addresses ?? []).map((a: any) => ({
+        ...BirJoySource.toSavedAddress(a),
+        id: -Math.abs(Number(a.id) || 0),
+      })),
+      activeBooking: info.activeBooking
+        ? {
+            addressName: info.activeBooking.addressName ?? "",
+            createdDate: String(info.activeBooking.createdDate ?? ""),
+          }
+        : null,
+    };
+  }
+
+  /** Give a caller the name they chose. Never creates a customer. */
+  async setClientName(phone: string, fullName: string): Promise<{ ok: boolean; status?: number }> {
+    const p = this.phone(phone);
+    if (!p) return { ok: false, status: 400 };
+    try {
+      const res = await this.request<{ ok: boolean }>("PATCH", "/orders/by-phone/name", {
+        body: { phone: p, fullName },
+      });
+      return { ok: res?.ok === true, status: res?.ok ? 200 : 404 };
+    } catch (e) {
+      return { ok: false, status: e instanceof CoreHttpError ? e.status : 0 };
+    }
+  }
+
+  // ── reference data ────────────────────────────────────────────────────────
+
+  /** The tariff straight from the snapshot the fare engine uses this second. */
   async getTariff(): Promise<ClientTariff> {
     const t = await this.request<any>("GET", "/public-config/tariff");
+    // The core charges a base fare on every ride plus distance and time; its separate "minimum
+    // fare" setting is 0 live (checked 2026-09-17). What a passenger pays at the very least is the
+    // larger of the two — quoting the 0 would promise a free first kilometre.
+    const minimalPayment = Math.max(Number(t?.minimalPayment ?? 0), Number(t?.baseFare ?? 0));
     return {
       minimalDistance:               Number(t?.minimalDistance ?? 0),
-      minimalPayment:                Number(t?.minimalPayment ?? 0),
+      minimalPayment,
       firstKilometerPaymentInCity:   Number(t?.firstKilometerPaymentInCity ?? 0),
       secondKilometerPaymentInCity:  Number(t?.secondKilometerPaymentInCity ?? 0),
       distancePaymentInCity:         Number(t?.distancePaymentInCity ?? 0),
@@ -513,7 +590,21 @@ export class BirJoySource implements KasDataSource {
       timePayment:                   Number(t?.timePayment ?? 0),
     };
   }
-  /** Who we are and which number a passenger rings. Editable in B's settings. */
+
+  async getCarModels(): Promise<CarModel[]> {
+    const rows = await this.request<Array<{ id: number; name: string; category?: number | string; rating?: number | string }>>(
+      "GET",
+      "/car-models",
+    );
+    return (rows ?? []).map((r) => ({
+      id: r.id,
+      name: r.name,
+      category: String(r.category ?? ""),
+      rating: Number(r.rating ?? 0),
+    }));
+  }
+
+  /** Who we are and which number a passenger rings. Editable in the core's settings. */
   async getCompanyInfo(): Promise<CompanyInfo> {
     const c = await this.request<any>("GET", "/public-config/company");
     return {
@@ -523,129 +614,40 @@ export class BirJoySource implements KasDataSource {
       lng:              Number(c?.lng ?? 0),
     };
   }
-  /**
-   * The area we serve.
-   *
-   * The widest zone an operator actually drew, and an EMPTY list when none
-   * exists — which is the honest answer. A boundary invented here tells a
-   * passenger outside it that no car can come, or one inside it that one can.
-   */
+
+  /** The widest zone an operator drew — an EMPTY list when none exists. */
   async getServiceArea(): Promise<GeoPoint[]> {
     const ring = await this.request<any[]>("GET", "/public-config/service-area");
     return (ring ?? [])
       .map((p) => ({ lat: Number(p?.lat), lng: Number(p?.lng) }))
       .filter((p) => Number.isFinite(p.lat) && Number.isFinite(p.lng));
   }
+
   /**
-   * Yesterday in five numbers — the morning digest.
+   * Yesterday in five numbers, plus how many cars are on right now.
    *
-   * Yesterday, not today: a day still happening gives a figure that falls every
-   * time somebody reads it early, and a digest whose numbers move is one people
-   * stop believing.
-   *
-   * `onlineDrivers` is the exception and is live — nothing records how many
-   * cars were on at 3pm yesterday, and the caller uses it as a now-number
-   * anyway (bookingNotifier reads it to decide whether anyone is working).
+   * Cached for a minute: the booking sweep asks on every tick — every 5 s while
+   * a passenger waits — and each answer is two aggregate queries in the core.
+   * "How many drivers are online" does not change meaningfully within a minute.
    */
   async getMainReport(): Promise<KasMainReport> {
+    const now = Date.now();
+    if (this.mainReport && now - this.mainReport.at < MAIN_REPORT_TTL_MS) return this.mainReport.value;
     const r = await this.request<any>("GET", "/public-config/main-report");
-    return {
+    const value = {
       completedYesterday: Number(r?.completedYesterday ?? 0),
       bookingsYesterday:  Number(r?.bookingsYesterday ?? 0),
       onlineDrivers:      Number(r?.onlineDrivers ?? 0),
       activeDrivers:      Number(r?.activeDrivers ?? 0),
       serviceCost:        Number(r?.serviceCost ?? 0),
     };
-  }
-
-  // ── 5c: tanga methods — resolve inside A, not over HTTP ───────────────────
-  //
-  // These three are the exception to the whole design of this class. Everything
-  // else here maps a kas call onto the taxi core (B); the passenger's balance
-  // does not live in B and never will. In kas it is cashback in so'm; here it is
-  // tanga, in A's own ledger, which the owner settled on 2026-09-12: "BirJoy'da
-  // bor-ku, ikkalasi bitta deb bil."
-  //
-  // So they resolve against coinService, and the ledger rules hold: no raw
-  // balance write, ever. Every movement is a CoinTxn with a reason, because a
-  // balance that changed with no row behind it is the one thing nobody can
-  // audit afterwards (CLAUDE.md).
-  //
-  // Imported lazily so this file stays inert while KAS_MODE !== "birjoy" — the
-  // same reason the class is never constructed.
-
-  /** Phone → member, the way A matches everywhere else: last 9 digits. */
-  private async memberByPhone(phone: string) {
-    const { prisma } = await import("../db");
-    const last9 = String(phone ?? "").replace(/\D/g, "").slice(-9);
-    if (last9.length !== 9) return null;
-    return prisma.member.findFirst({
-      where: { phone: { endsWith: last9 } },
-      select: { id: true, fullName: true, coins: true },
-    });
+    this.mainReport = { at: now, value };
+    return value;
   }
 
   /**
-   * Set a passenger's balance to an absolute figure.
-   *
-   * kas writes the number straight in. We compute the difference and move it
-   * through the ledger, which has a property worth having: setting the same
-   * figure twice is a no-op, because the second delta is zero. A retry after a
-   * timeout cannot double-credit anybody.
-   */
-  async setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }> {
-    const m = await this.memberByPhone(phone);
-    if (!m) return { ok: false, oldBonus: 0, status: 404 };
-
-    const target = Math.floor(Number(newBonus));
-    if (!Number.isFinite(target) || target < 0) return { ok: false, oldBonus: m.coins, name: m.fullName, status: 400 };
-
-    const delta = target - m.coins;
-    if (delta === 0) return { ok: true, oldBonus: m.coins, name: m.fullName };
-
-    const { grantCoins, spendCoins } = await import("../services/coinService");
-    const res = delta > 0
-      ? await grantCoins(m.id, delta, "bridge_set", `kas setClientBonus → ${target}`)
-      : await spendCoins(m.id, -delta, "bridge_set", `kas setClientBonus → ${target}`);
-
-    return { ok: res.ok, oldBonus: m.coins, name: m.fullName, status: res.ok ? 200 : 409 };
-  }
-
-  /**
-   * Move a passenger's balance by a delta.
-   *
-   * Not idempotent, and kas's is not either: two calls add twice, by design.
-   * The caller owns the retry question.
-   */
-  async addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }> {
-    const m = await this.memberByPhone(phone);
-    if (!m) return { ok: false, oldBonus: 0, newBonus: 0, status: 404 };
-
-    const amount = Math.floor(Number(delta));
-    if (!Number.isFinite(amount) || amount === 0) {
-      return { ok: false, oldBonus: m.coins, newBonus: m.coins, status: 400 };
-    }
-
-    const { grantCoins, spendCoins } = await import("../services/coinService");
-    const res = amount > 0
-      ? await grantCoins(m.id, amount, "bridge_add", "kas addClientBonus")
-      : await spendCoins(m.id, -amount, "bridge_add", "kas addClientBonus");
-
-    return { ok: res.ok, oldBonus: m.coins, newBonus: res.balance, status: res.ok ? 200 : 409 };
-  }
-
-  /**
-   * The cashback rules, in kas's shape, from A's own economy knobs.
-   *
-   * Two fields are answered honestly rather than invented:
-   *
-   *   call vs app — kas pays a different rate for a booking made in the app
-   *     than for one made by phone, and that difference is one of its real
-   *     levers on the 10.6% app share. We do not have it: one rate, both
-   *     channels. Returning two different numbers here would be a number
-   *     nothing in our code honours.
-   *   minimalDistance — kas refuses cashback below a distance. We have no such
-   *     rule, so this is 0, which is what our engine actually does.
+   * The cashback rules, in the old shape, from the bot's own economy knobs.
+   * One rate for both channels — a split nothing honours would be invented.
    */
   async getBonusRules(): Promise<BonusRules> {
     const { getBonusEcon } = await import("../services/bonusConfig");
@@ -654,10 +656,10 @@ export class BirJoySource implements KasDataSource {
     return {
       enabled: perRide > 0,
       clientBonusCall: perRide,
-      clientBonusApp: perRide,          // no channel split exists yet — see above
+      clientBonusApp: perRide,
       clientBonusCallFirstTime: Number(econ.firstRide ?? 0),
       clientBonusAppFirstTime: Number(econ.firstRide ?? 0),
-      clientBonusMinimalDistance: 0,    // no minimum distance rule in our engine
+      clientBonusMinimalDistance: 0,
     };
   }
 }

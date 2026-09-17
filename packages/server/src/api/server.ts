@@ -4444,6 +4444,12 @@ body{font-family:Arial,sans-serif;background:#eee;-webkit-print-color-adjust:exa
 
   app.post("/api/admin/sync", requireAdmin, async (_req, res) => {
     const { runSync } = await import("../sync/sync");
+    // A bulk pull from the taxi core would create a member row for every driver and phone caller
+    // in it (hundreds of accounts nobody opened). Production matches people on demand, by phone.
+    if (env.KAS_MODE === "birjoy") {
+      res.status(409).json({ error: "Bulk sync is off on the taxi core — members are matched on demand by phone." });
+      return;
+    }
     try {
       const summary = await runSync();
       if (opts.afterSync) await opts.afterSync();

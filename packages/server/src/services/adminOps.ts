@@ -15,20 +15,19 @@ import { grantCoins, withPhoneLock } from "./coinService";
 
 // ─── 🚦 system health ───────────────────────────────────────────────────────
 export async function getHealth(): Promise<AdminHealth> {
-  // kas reachability: one light lookup, timed
+  // taxi-core reachability: one light read, timed. (The field is still called `kas` because the
+  // admin panel reads it by that name.)
   const t0 = Date.now();
-  let kasOk = false;
-  let kasMsg = "skipped (mock)";
-  if (env.KAS_MODE === "live") {
+  let kasOk = true;
+  let kasMsg = "mock";
+  if (env.KAS_MODE === "birjoy") {
     try {
       await getDataSource().getCompanyInfo();
-      kasOk = true;
-      kasMsg = "reachable";
+      kasMsg = "taksi tizimi javob beryapti";
     } catch (e) {
-      kasMsg = e instanceof Error ? e.message.slice(0, 80) : "unreachable";
+      kasOk = false;
+      kasMsg = e instanceof Error ? e.message.slice(0, 80) : "javob yo'q";
     }
-  } else {
-    kasOk = true;
   }
   const kasMs = Date.now() - t0;
 
@@ -42,25 +41,16 @@ export async function getHealth(): Promise<AdminHealth> {
   }
   const dbMs = Date.now() - t1;
 
-  // In LIVE mode there is NO bulk runSync (SyncRun row) — members are refreshed per-user each
-  // tick (refreshLinkedMembers), which stamps member.lastSyncAt. So the true "sync is alive"
-  // signal in live mode is the freshest member.lastSyncAt, NOT the (permanently stale) SyncRun.
-  // Using SyncRun in live mode made the health card show a false RED "20 days ago".
+  // "Sync" = the last bulk member pull (mock, or the cutover adopt run). Production matches members
+  // on demand, so this is informational, not a liveness signal.
   let lastSyncInfo: AdminHealth["lastSync"] = null;
-  if (env.KAS_MODE === "live") {
-    const fresh = await prisma.member.findFirst({ where: { lastSyncAt: { not: null } }, orderBy: { lastSyncAt: "desc" }, select: { lastSyncAt: true } });
-    if (fresh?.lastSyncAt) {
-      lastSyncInfo = { at: fresh.lastSyncAt.toISOString(), status: "ok", ageMin: Math.round((Date.now() - fresh.lastSyncAt.getTime()) / 60000) };
-    }
-  } else {
-    const lastSync = await prisma.syncRun.findFirst({ orderBy: { startedAt: "desc" } });
-    if (lastSync) {
-      lastSyncInfo = {
-        at: (lastSync.finishedAt ?? lastSync.startedAt).toISOString(),
-        status: lastSync.status,
-        ageMin: Math.round((Date.now() - (lastSync.finishedAt ?? lastSync.startedAt).getTime()) / 60000),
-      };
-    }
+  const lastSync = await prisma.syncRun.findFirst({ orderBy: { startedAt: "desc" } });
+  if (lastSync) {
+    lastSyncInfo = {
+      at: (lastSync.finishedAt ?? lastSync.startedAt).toISOString(),
+      status: lastSync.status,
+      ageMin: Math.round((Date.now() - (lastSync.finishedAt ?? lastSync.startedAt).getTime()) / 60000),
+    };
   }
   return {
     kas: { ok: kasOk, ms: kasMs, mode: env.KAS_MODE, message: kasMsg },
@@ -188,59 +178,11 @@ export async function getAuditLog(limit = 60): Promise<AdminAuditRow[]> {
 // ─── 💸 grant cashback (admin write) ────────────────────────────────────────
 const ADMIN_GRANT_DAILY_CAP = 500_000; // total positive so'm admins can grant per rolling 24h
 
-export async function adminGrant(target: string, amount: number, reason: string, adminId: string): Promise<AdminActionResult> {
-  const amt = Math.floor(Number(amount));
-  if (!Number.isFinite(amt) || amt === 0 || Math.abs(amt) > 1_000_000) return { ok: false, message: "Noto'g'ri summa (±1..1000000)" };
-
-  // bound a compromised admin: cap total positive grants per rolling 24h
-  if (amt > 0) {
-    const since = new Date(Date.now() - 24 * 3600 * 1000);
-    const agg = await prisma.rewardGrant.aggregate({ where: { kind: "admin", amount: { gt: 0 }, createdAt: { gte: since } }, _sum: { amount: true } });
-    if ((agg._sum.amount ?? 0) + amt > ADMIN_GRANT_DAILY_CAP) {
-      return { ok: false, message: `Kunlik admin-grant limiti (${ADMIN_GRANT_DAILY_CAP.toLocaleString("ru-RU")} so'm) oshib ketadi` };
-    }
-  }
-
-  const norm = target.replace(/\D/g, "").slice(-9);
-
-  let member =
-    (await prisma.member.findMany({ where: { type: "client", phone: { not: null } } })).find(
-      (m) => m.phone!.replace(/\D/g, "").slice(-9) === norm,
-    ) ?? null;
-  if (!member?.phone) {
-    // on-demand pull from kas
-    try {
-      for (const km of await getDataSource().fetchByPhone(target)) {
-        if (km.type === "client") {
-          member = await prisma.member.upsert({
-            where: { type_kasId: { type: "client", kasId: km.kasId } },
-            create: { type: "client", kasId: km.kasId, fullName: km.fullName, phone: km.phone ?? target, points: km.points, trips: km.trips, rating: km.rating },
-            update: { points: km.points },
-          });
-          break;
-        }
-      }
-    } catch {
-      /* lookup failed */
-    }
-  }
-  if (!member?.phone) return { ok: false, message: "Bu raqamli mijoz topilmadi" };
-
-  try {
-    // share the user-facing withdraw/topup lock so an admin grant can't race a
-    // simultaneous withdrawal on the same phone (kas has no compare-and-set)
-    const phone = member.phone;
-    const res = await withPhoneLock(phone, () => getDataSource().addClientBonus(phone, amt));
-    await prisma.rewardGrant.create({
-      data: { memberId: member.id, amount: amt, reason: `Admin: ${reason || "qo'lda"} (by ${adminId.slice(-4)})`, kind: "admin", appliedToKas: res.ok, kasMessage: res.ok ? `${res.oldBonus} -> ${res.newBonus}` : `failed ${res.status}` },
-    });
-    if (res.ok) await prisma.member.update({ where: { id: member.id }, data: { points: { increment: amt } } });
-    return res.ok
-      ? { ok: true, message: `✅ ${member.fullName}: ${amt > 0 ? "+" : ""}${amt} so'm (${res.oldBonus} → ${res.newBonus})` }
-      : { ok: false, message: `kas xato: ${res.status}` };
-  } catch (e) {
-    return { ok: false, message: e instanceof Error ? e.message.slice(0, 100) : "xatolik" };
-  }
+export async function adminGrant(_target: string, _amount: number, _reason: string, _adminId: string): Promise<AdminActionResult> {
+  // This wrote so'm cashback onto a passenger's kas1067 account. That account is gone with kas1067
+  // (owner decision 2026-09-17: no client so'm wallet in the new taxi core). A passenger is given
+  // money as TANGA now — adminGrantCoinsByPhone — which lands in this system's own ledger.
+  return { ok: false, message: "kas1067 cashback endi yo'q. Mijozga tanga bering («Tanga berish»)." };
 }
 
 // 🪙 Grant/deduct TANGA by PHONE — resolves the account the user actually uses (telegram-linked
@@ -290,62 +232,55 @@ export async function adminGrantCoins(memberId: number, amount: number, reason: 
   return { ok: true, message: `✅ ${member.fullName} [${member.type}]: −${ded} tanga (balans ${member.coins - ded})` };
 }
 
-// 💼 Admin: move an account's OWN tanga → their OWN kas balance, with NO daily cap.
+// 💼 Admin: move a DRIVER's OWN tanga → their OWN balance in the taxi core, with NO daily cap.
 // The user-facing withdraw has a 50 000/day per-user cap (anti-farm); the owner legitimately
-// needs to settle a real user's full tanga in one go, so this ADMIN-TRUSTED path bypasses that
-// cap. Money-safe by construction: deduct atomically FIRST (never below 0, audited), then write
-// kas — and if the kas write fails/throws, REFUND the exact amount (audited) so tanga is never lost.
+// needs to settle a driver's full tanga in one go, so this ADMIN-TRUSTED path bypasses that cap.
+// Money-safe by construction: deduct atomically FIRST (never below 0, audited), then pay into the
+// core with an idempotency key — refused → REFUND; no answer → hold (the money may have moved).
+// Passengers have no so'm balance any more (kas1067 removed 2026-09-17), so this is drivers only.
 export async function adminMoveToBalance(memberId: number, amount: number, adminId: string): Promise<AdminActionResult> {
   const amt = Math.floor(Number(amount));
   if (!Number.isFinite(amt) || amt < 1 || amt > 1_000_000) return { ok: false, message: "Noto'g'ri summa (1..1000000)" };
 
   const member = await prisma.member.findUnique({
     where: { id: memberId },
-    select: { id: true, type: true, fullName: true, coins: true, kasId: true, carNumber: true, phone: true },
+    select: { id: true, type: true, fullName: true, coins: true, carNumber: true, kasId: true },
   });
   if (!member) return { ok: false, message: "Akkaunt topilmadi" };
-  if (member.type === "driver" ? member.kasId == null : !member.phone) {
-    return { ok: false, message: member.type === "driver" ? "Haydovchi kas-id yo'q" : "Telefon raqami yo'q" };
-  }
+  if (member.type !== "driver") return { ok: false, message: "Mijozlarda so'm balans yo'q — faqat haydovchi balansiga ko'chiriladi" };
+  if (!member.carNumber) return { ok: false, message: "Haydovchining davlat raqami yo'q" };
   const last4 = adminId.slice(-4);
 
-  // A3 (audit P0): kas has no idempotency key — an unresolved "sent" marker means a previous
-  // move's kas outcome is UNKNOWN (crash/timeout mid-write). Block until it's manually resolved.
+  // An unresolved "sent" marker = a previous move's outcome is UNKNOWN. Block until resolved.
   const { pendingCreate, pendingResolve } = await import("./appStateUtil");
   const stale = await prisma.appState.findFirst({ where: { key: { startsWith: `pending:admmove:m${memberId}-` } }, select: { key: true } });
-  if (stale) return { ok: false, message: `⏳ Oldingi ko'chirish holati NOANIQ (${stale.key}) — kas balansini tekshirib clearPending.ts bilan yeching.` };
+  if (stale) return { ok: false, message: `⏳ Oldingi ko'chirish holati NOANIQ (${stale.key}) — taksi tizimida haydovchi balansini tekshirib clearPending.ts bilan yeching.` };
 
   // ── atomic deduct: never below 0 (the row-level guard is the whole safety) ──
   const dec = await prisma.member.updateMany({ where: { id: memberId, coins: { gte: amt } }, data: { coins: { decrement: amt } } });
   if (dec.count === 0) return { ok: false, message: "Tanga yetarli emas" };
   await prisma.coinTxn.create({ data: { memberId, amount: -amt, kind: "admin_coin", reason: `Admin: balansga ko'chirdi (by ${last4})` } });
 
-  // ── kas write: driver → own driver balance; client → own cashback bonus ──
   const refund = async (): Promise<void> => {
     await prisma.member.update({ where: { id: memberId }, data: { coins: { increment: amt } } });
     await prisma.coinTxn.create({ data: { memberId, amount: amt, kind: "admin_coin", reason: "balansga ko'chirish amalga oshmadi — qaytarildi" } });
   };
-  // "sent" guard BEFORE the kas write (driverDebtService pattern) — a crash mid-write leaves a
-  // durable marker + blocks the next attempt instead of silently double-paying on retry.
+  // "sent" guard BEFORE the write — a crash mid-write leaves a durable marker + blocks the next attempt.
   const reqId = `m${memberId}-${Date.now()}`;
   await pendingCreate("admmove", reqId, { memberId, amount: amt, note: `by ${last4}` });
-  try {
-    const res =
-      member.type === "driver"
-        ? await getDataSource().addDriverPayment(Number(member.kasId), member.carNumber ?? "", amt, "Admin balans")
-        : await getDataSource().addClientBonus(member.phone!, amt);
-    await pendingResolve("admmove", reqId); // kas ANSWERED — outcome known either way
-    if (!res.ok) {
-      await refund();
-      return { ok: false, message: `kas xato: status ${"status" in res ? res.status : "?"}` };
-    }
-    const where = member.type === "driver" ? `balans: ${(res as { balance: number | null }).balance}` : `${(res as { oldBonus: number; newBonus: number }).oldBonus} → ${(res as { oldBonus: number; newBonus: number }).newBonus}`;
-    return { ok: true, message: `✅ ${member.fullName}: ${amt} tanga → balans (${where})` };
-  } catch (e) {
-    // UNKNOWN outcome (throw = timeout/socket death): kas MAY have applied it. No auto-refund
-    // (that's the double-pay); coins stay held, marker stays, admin resolves manually.
-    return { ok: false, message: `⚠️ kas javob bermadi — holat NOANIQ, tanga ushlab turildi. Kas balansini tekshirib pending:admmove:${reqId} ni yeching. (${e instanceof Error ? e.message.slice(0, 60) : "xato"})` };
+  const { coreDriverIdFromKasId } = await import("@t1067/shared");
+  const res = await getDataSource().addDriverPayment(member.carNumber, amt, `admmove:${reqId}`, "Admin balans", coreDriverIdFromKasId(member.kasId));
+  if (res.unknown) {
+    // No answer: the core MAY have applied it. No refund (that's the double pay); tanga stays held,
+    // the marker stays, admin resolves manually. A retry with the same requestId is applied once.
+    return { ok: false, message: `⚠️ Taksi tizimi javob bermadi — holat NOANIQ, tanga ushlab turildi. Haydovchi balansini tekshirib pending:admmove:${reqId} ni yeching.` };
   }
+  await pendingResolve("admmove", reqId); // the core ANSWERED — outcome known either way
+  if (!res.ok) {
+    await refund();
+    return { ok: false, message: `Taksi tizimi rad etdi (status ${res.status}) — tanga qaytarildi` };
+  }
+  return { ok: true, message: `✅ ${member.fullName}: ${amt} tanga → balans (${res.balance ?? "?"} so'm)` };
 }
 
 // ─── 📣 announce / 🎁 segment grant / 😴 wake-up (admin) ─────────────────────

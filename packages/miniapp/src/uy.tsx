@@ -493,7 +493,7 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
             yolg'on tugma (#14/#8): bosadi, hamyonda 0 turadi. Shu holatda tugma o'z nomi
             bilan "Hamyon" bo'ladi — bir xil ekran, halol yozuv. */}
         <button className="gl-wal" onClick={() => go("wallet")}>
-          {me.coins > 0 || me.stats.points > 0 ? "Yechish →" : "Hamyon →"}
+          {me.type === "driver" && (me.coins > 0 || me.stats.points > 0) ? "Yechish →" : "Hamyon →"}
         </button>
       </div>
 

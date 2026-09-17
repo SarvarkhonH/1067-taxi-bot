@@ -38,11 +38,17 @@ export interface BookingRequest {
   // pin when there is no saved addressId (addressId 0). Omitted for normal saved-address orders.
   addressLatitude?: number;
   addressLongitude?: number;
+  /** Paid add-ons the passenger ticked (ids from getBookingAddons). */
+  requirementIds?: number[];
 }
 
 export interface BookingResult {
   ok: boolean;
   message?: string;
+  /** No answer came back — the core may have created the order. Never retry blindly. */
+  unknown?: boolean;
+  /** The raw failure, for the log. `message` is what a passenger may read. */
+  detail?: string;
 }
 
 export interface KasAddon {
@@ -57,8 +63,9 @@ export interface BookingDriver {
   carModel: string;
   carNumber: string;
   rating: number;
-  lat: number;
-  lng: number;
+  /** Live position, only when the core has a fresh one. Never 0 for "unknown". */
+  lat?: number;
+  lng?: number;
   bearing?: number; // C: heading (deg) for the rotating car marker
   meterPayment?: number; // C: live taximeter running fare (so'm)
   meterDistance?: number; // C: live taximeter distance (m)
@@ -114,7 +121,7 @@ export interface RideHistoryItem {
   carModel: string;
   payment: number; // total paid (already includes address + client surcharges)
   cashback: number;
-  distance?: number; // km (kas taximeter — set on a completed ride)
+  distance?: number; // METRES (the core reports km; the bridge converts)
   time?: number; // minutes (kas taximeter — set on a completed ride)
   at: string; // ISO date
   // Surcharge breakdown (see ActiveBooking for the math). The company portion is the kas commission
@@ -207,8 +214,15 @@ export interface DriverRosterRow {
   licenseTerm: string | null; // licenseTerm (ISO)
 }
 
+/**
+ * The taxi dispatch the bot talks to. Since 2026-09-17 that is our own core
+ * (1067-taxi, `birjoy.ts`); `mock` is the offline stand-in for development and
+ * the simulators. The rented kas1067 system and its client are gone — the shape
+ * of this interface is older than that decision and keeps its name so forty
+ * call sites did not have to move in the same commit as the cutover.
+ */
 export interface KasDataSource {
-  readonly name: "mock" | "live" | "birjoy";
+  readonly name: "mock" | "birjoy";
   /** Full pull (mock seed / optional bulk import). */
   fetchMembers(): Promise<KasMember[]>;
   /**
@@ -248,16 +262,26 @@ export interface KasDataSource {
   /** Obzvon: the FULL driver roster (all pages of api/drivers/byFilter) for the call panel. */
   listDriverRoster(): Promise<DriverRosterRow[]>;
 
-  /** Reward: set a client's cashback bonus (writes real money via kas1067, code 1303). */
-  setClientBonus(phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }>;
-  /** Reward: add a delta to a client's cashback bonus. */
-  addClientBonus(phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }>;
-  /** Update a CLIENT's name in kas1067 (PUT api/clients with the full record + bonusSecretKey). */
+  // A passenger's so'm cashback balance existed only inside kas1067. There is no such wallet in the
+  // core, and the owner decided (2026-09-17) that client withdraw/top-up go away with it — so the
+  // two methods that wrote it (setClientBonus / addClientBonus) are gone rather than faked.
+
+  /** Update a CLIENT's name in the core. Never creates a client. */
   setClientName(phone: string, fullName: string): Promise<{ ok: boolean; status?: number }>;
-  /** Top up a DRIVER's kas balance (drivers/payment, online). Driver write — NOT the client bonus.
-   *  `debt=true` flags the payment as a debt settlement (the SPA's debt checkbox) instead of a plain
-   *  balance top-up. */
-  addDriverPayment(driverId: number, carNumber: string, amount: number, comment?: string, debt?: boolean): Promise<{ ok: boolean; balance: number | null; status: number }>;
+  /**
+   * Pay money onto a DRIVER's balance in the core (tanga → so'm, debt repaid).
+   * `requestId` makes it idempotent: a retry with the same id is applied once.
+   * `unknown: true` = no answer came back; the money MAY have moved — do not refund.
+   * `coreDriverId` (when the member is matched in the core) makes the core refuse a payment
+   * whose driver and plate disagree, instead of trusting the plate alone.
+   */
+  addDriverPayment(
+    carNumber: string,
+    amount: number,
+    requestId: string,
+    comment?: string,
+    coreDriverId?: number,
+  ): Promise<{ ok: boolean; balance: number | null; status: number; unknown?: boolean }>;
   /** Bosqich 3: a driver's financial snapshot (balance + debt + kasId) by car number. */
   getDriverAccount(carNumber: string): Promise<DriverAccount | null>;
 

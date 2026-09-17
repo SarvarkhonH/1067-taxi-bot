@@ -43,7 +43,7 @@ async function showDebtCard(ctx: Context): Promise<void> {
         ? "💸 Qarz to'lash hozircha mavjud emas."
         : info.reason === "not_driver"
           ? "Bu bo'lim faqat 1067 haydovchilari uchun 🚗"
-          : "Kas serverdan ma'lumot olinmadi. Birozdan keyin urinib ko'ring.";
+          : "Taksi tizimidan ma'lumot olinmadi. Birozdan keyin urinib ko'ring.";
     await ctx.reply(msg);
     return;
   }

@@ -239,8 +239,8 @@ function body(id: CardId, info: BookingInfoResponse, cashback: number) {
       return (
         <>
           Har safardan <b>{formatNumber(CASHBACK_HEADLINE_MAX)} tangagacha</b> cashback qaytadi —
-          safar uzunligi va darajangizga qarab. <b>1 tanga = 1 so'm</b>: keyingi safarda
-          ishlatasiz yoki so'mga yechib olasiz.
+          safar uzunligi va darajangizga qarab. <b>1 tanga = 1 so'm</b>: haydovchiga to'lash,
+          bozor va o'yinlarda ishlatasiz.
         </>
       );
   }

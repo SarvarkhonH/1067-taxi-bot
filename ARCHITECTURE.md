@@ -6,8 +6,11 @@
 
 ## 1. What this is (one paragraph)
 
-A gamified taxi loyalty layer on top of an EXTERNAL dispatch company, **kas1067**. We do NOT run
-dispatch — kas1067 does. We mirror its rides via scraping-style REST + a WebSocket, and add: a
+A gamified taxi loyalty layer on top of **our own dispatch core, 1067-taxi** (separate repo in
+`1067-taxi/`, running on the same VPS as `systemd taxi1067-api`, port 4000). The bot talks to it over
+HTTP with a service token through ONE adapter, `kas/birjoy.ts` (`KAS_MODE=birjoy`). **kas1067, the
+rented dispatch this project was built on, was removed entirely on 2026-09-17** — client, sockets,
+shadow mode and scripts deleted, no way back (owner decision). We add: a
 Telegram bot, a rider Mini App (React), an admin dashboard (React), and a game/economy of "tanga"
 (1 tanga = 1 so'm, our DB only; cash-out is owner-approved). Money rule #1: **client emission ≤ 350
 tanga per ride** (clamped in `grantRideCoins`), and real money leaves only through the ride-gated,
@@ -17,9 +20,9 @@ budget-capped withdraw door.
 
 | Package | LOC | What | Deploys to |
 |---|---|---|---|
-| `packages/server` | ~29k | Express API + grammY bot + periodic sweeps + kas client — ONE Node process | Render (`kas1067-taxi-fra`) |
-| `packages/miniapp` | ~9.5k | Rider Mini App (React+Vite+Leaflet) | Vercel (`1067taxi-miniapp`) |
-| `packages/admin` | ~3k | Owner dashboard (React) | Vercel (`admin`) |
+| `packages/server` | ~29k | Express API + grammY bot + periodic sweeps + taxi-core adapter — ONE Node process | VPS `systemd bot1067` |
+| `packages/miniapp` | ~9.5k | Rider Mini App (React+Vite+Leaflet) | VPS `/var/www/miniapp` |
+| `packages/admin` | ~3k | Owner dashboard (React) | VPS `/var/www/admin` |
 | `packages/shared` | ~2k | Types + economy constants + tunable-knob defaults shared by all | — |
 
 Monorepo = pnpm workspace. `@t1067/shared` is imported by every package — **economy constants live
@@ -28,15 +31,17 @@ there** (`packages/shared/src/economy.ts`), so a limit change is one edit, all p
 ## 3. The 4 request/event flows (this is 90% of the system)
 
 1. **Rider opens Mini App** → `GET /api/booking/info` → `getBookingInfo` (bookingService.ts) fans out
-   ~6 kas REST calls → renders map + saved addresses + active ride.
-2. **Rider books** → `POST /api/booking/create|now` → `createBookingFor` → writes a real order into
-   kas → kas dispatches a real driver.
-3. **The sweep** (`bookingNotifier.ts::pushBookingUpdates`) runs every 5–90s: pulls kas's active
-   bookings ONCE, then per linked member sends/edits the ONE live ride card, fires arrival pings, and
-   ON RIDE FINISH grants all rewards (cashback roll, missions, etc). **This is the app's real main
-   loop** — see the warning in §5.
-2. **The 15-min periodic tick** (`index.ts` setInterval) runs ~18 background jobs in sequence
-   (cashback mirror, weekly payout, backups, reconciliation…).
+   ~6 taxi-core calls → renders map + saved addresses + active ride.
+2. **Rider books** → `POST /api/booking/create|now` → `createBookingFor` → `POST /orders` on the core
+   → the core dispatches a real driver. No answer from the core = outcome UNKNOWN: the dispatch slot
+   is kept so a second tap cannot send a second car.
+3. **The sweep** (`bookingNotifier.ts::pushBookingUpdates`) runs every 5–90s: pulls the core's active
+   orders ONCE, then per linked member sends/edits the ONE live ride card, fires arrival pings, and
+   ON RIDE FINISH (the core's final status decides completed vs cancelled) grants all rewards
+   (cashback roll, missions, etc). **This is the app's real main loop** — see the warning in §5.
+4. **The 15-min periodic tick** (`index.ts` setInterval) runs ~18 background jobs in sequence
+   (weekly payout, backups, money recovery, reconciliation…). Both loops run in every mode — until
+   2026-09-17 they were gated on `KAS_MODE === "live"` and would have stopped silently on the switch.
 
 Money is ALWAYS granted server-side from the sweep (never the client), through the idempotent coin
 ledger. A re-polled finish grants nothing (unique markers). This discipline is the codebase's
@@ -46,17 +51,22 @@ strongest part — preserve it.
 
 **Server** (`packages/server/src/`)
 - `index.ts` — process entry: boots bot+API+sweeps, the 18-job periodic tick, the adaptive booking
-  sweep loop, kas WebSocket, self-ping.
+  sweep loop, self-ping.
 - `api/server.ts` (1.7k) — every HTTP route. Routes lazily `await import()` their service.
 - `bot/bot.ts` (1.5k) — every Telegram command/callback.
-- `kas/client.ts` (1k) — the kas1067 REST/WS client (login, `getText` chokepoint, `getActiveBooking`,
-  `listActiveBookings`, driver lookups). `kas/mock.ts` = offline stand-in (KAS_MODE=mock).
+- `kas/birjoy.ts` — the ONLY connection to the taxi core: one `request()` chokepoint (8 s timeout,
+  health counters in `services/taxiHealth.ts`), and the translations that would otherwise fail
+  silently — order statuses, km→m, missing position = `undefined` never 0, phones to `+998…` — all in
+  `@t1067/shared/taxiCore.ts` (tested). `kas/types.ts` keeps the old interface name
+  `KasDataSource`. `kas/mock.ts` = offline stand-in (KAS_MODE=mock, dev + sims only; a deployed
+  process refuses to boot on it).
 - `services/` (49 files) — one file per domain. Money core: `coinService.ts` (grant/spend/clamp +
   `withMemberLock`), `cashbackService.ts` (ride roll + wait-comp), `transferService.ts` (P2P),
   `cashoutService.ts` (withdraw). Dispatch: `bookingService.ts` (Mini App views), `bookingNotifier.ts`
   (the sweep), `bookingPlus.ts` (map pins). Config: `featureFlags.ts` (kill switches),
   `bonusConfig.ts` (owner-tunable knobs).
-- `sync/sync.ts` — mirror kas member data into our DB (batched, see refreshLinkedMembers).
+- `sync/sync.ts` — bulk member pull (mock/dev only) + badge evaluation. Production matches people on
+  demand by phone (`linkByPhone` → `upsertKasMember`); the admin bulk sync refuses on the core.
 - `scripts/` (~80 files) — ad-hoc tsx ops/diagnostic scripts (NOT a test suite; see §5).
 - `prisma/schema.prisma` — 73 models (many belong to removed games).
 
@@ -83,8 +93,11 @@ strongest part — preserve it.
   761-line god function — a known debt (see V-NEXT). Add carefully; keep per-member work cheap.
 - **`withMemberLock` / rate-limit buckets are in-memory** → the app is single-instance only. A 2nd
   Render instance would race the money clamp. Horizontal scale needs Postgres advisory locks (not yet).
-- **kas ~1 req/s.** `getText` has NO pacing yet — bursts trigger 429 cascades that break login/bookings
-  (V-NEXT #1). The 15-min member refresh IS paced; API paths are not.
+- **Money to the core is three-state.** `addDriverPayment` returns applied / refused / `unknown`
+  (no answer). Refund ONLY on refused; unknown keeps the tanga held and a `pending:*` marker for an
+  admin, and every payment carries a `requestId` the core de-duplicates. Passengers have NO so'm
+  wallet any more (client withdraw/top-up closed 2026-09-17; their kas cashback became tanga once,
+  `scripts/convertKasCashback.ts`).
 - **AppState is a schemaless KV** with per-ride markers (`waitstart:`,`wsarrived:`,`finishcard:`…) that
   currently accumulate forever — no cleanup job (V-NEXT #3).
 - **Tests are manual tsx scripts against LIVE Postgres.** CI runs typecheck only — money logic has NO
@@ -169,11 +182,12 @@ grant marker) are never in the deletable prefix list (commit 8ece78d). **vitest 
 (`.github/workflows/ci.yml`, commit ecee9c0) — runs on every push/PR, no live DB needed.
 
 Genuinely open:
-1. **KAS_BONUS_SECRET_KEY rotation** — the ONLY remaining #4 piece, and it's an OWNER/OPS task, not
-   code: coordinate a new secret with kas1067 ops, then set Render env `KAS_BONUS_SECRET_KEY=<new>`.
-   Until then bonus writes are forgeable (boot warning fires).
-2. **Split `pushBookingUpdates`** into phase functions (behavior-preserving).
+1. **Split `pushBookingUpdates`** into phase functions (behavior-preserving).
+2. **Push instead of poll** — the core already emits every order change and driver GPS on socket.io;
+   the bot still polls it (blueprint 2026-09-17, "B qism").
 3. Split admin `App.tsx` (2.5k) and `booking3.tsx` (1.5k) last — not urgent.
+
+(`KAS_BONUS_SECRET_KEY` rotation, formerly #1, went away with kas1067.)
 
 ## 9. Rules of engagement (from CLAUDE.md — non-negotiable)
 

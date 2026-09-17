@@ -52,7 +52,7 @@ async function showEarnings(ctx: Context): Promise<void> {
   const lines = [`💰 <b>Bugungi daromad</b>`, `🚗 <code>${esc(r.carNumber ?? "")}</code>`, ``];
   lines.push(`🟢 Bugun ishlab topdingiz: <b>${formatNumber(r.earnedToday ?? 0)} so'm</b>`);
   if ((r.debtPaidToday ?? 0) > 0) lines.push(`💸 Bugun qarz to'ladingiz: <b>${formatNumber(r.debtPaidToday ?? 0)} so'm</b>`);
-  if (r.balance != null) lines.push(`👛 Kas balans: <b>${formatNumber(r.balance)} so'm</b>`);
+  if (r.balance != null) lines.push(`👛 Balans: <b>${formatNumber(r.balance)} so'm</b>`);
   if (r.debt != null && r.debt > 0) lines.push(`⚠️ Qarz: <b>${formatNumber(r.debt)} so'm</b> — /qarz`);
   await ctx.reply(lines.join("\n"), { parse_mode: "HTML" });
 }

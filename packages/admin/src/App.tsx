@@ -402,7 +402,7 @@ function Overview({ health }: { health: AdminHealth | null }) {
         <section className="panel">
           <div className="panel-title">🚦 Tizim salomatligi</div>
           <div className="health-grid">
-            <HealthCell label="kas1067" ok={health.kas.ok} detail={`${health.kas.ms}ms · ${health.kas.mode} · ${health.kas.message}`} />
+            <HealthCell label="Taksi tizimi" ok={health.kas.ok} detail={`${health.kas.ms}ms · ${health.kas.mode} · ${health.kas.message}`} />
             <HealthCell label="Baza" ok={health.db.ok} detail={`${health.db.ms}ms`} />
             <HealthCell label="Bot" ok={health.bot} detail={health.bot ? "ulangan" : "o'chiq"} />
             <HealthCell label="Booking" ok={true} detail={health.bookingLive ? "JONLI" : "test"} warn={health.bookingLive} />
@@ -730,7 +730,7 @@ const FLAG_INFO: Record<string, { risk: FlagRisk; desc: string }> = {
   plus: { risk: "money", desc: "Plus obuna (3x roll)" },
   gap: { risk: "money", desc: "Gap-davra pot" },
   promo: { risk: "money", desc: "Promo kampaniyalar" },
-  qarz: { risk: "money", desc: "Haydovchi qarz to'lash (kas yozuv!)" },
+  qarz: { risk: "money", desc: "Haydovchi qarz to'lash (taksi tizimiga pul yozadi!)" },
   komissiya: { risk: "money", desc: "O'tkazma komissiyasi %" },
   tierloyalty: { risk: "money", desc: "Daraja cashback ko'paytirgich" },
   intercity: { risk: "money", desc: "Shaharlararo safar (real pul)" },
@@ -742,7 +742,7 @@ const FLAG_INFO: Record<string, { risk: FlagRisk; desc: string }> = {
   // 500 mijoz o'yin ichida qolib ketadi — shuning uchun 💰 PUL toifasi.
   oyin: { risk: "money", desc: "🎮 O'yin mavsumi — chipta xaridi + ball→tanga konvertatsiyasi" },
   clientbooking: { risk: "ux", desc: "GPS «new» aniq-pin buyurtma" },
-  instantstatus: { risk: "ux", desc: "Tez holat — kas soket (~1s)" },
+  instantstatus: { risk: "ux", desc: "(ishlamaydi — kas1067 soketi edi, 2026-09-17 olib tashlangan)" },
   trackcta: { risk: "cosmetic", desc: "Kuzatuv-sahifa taklif CTA" },
   drvrank: { risk: "cosmetic", desc: "Haydovchi QR reyting (o'chirilgan)" },
   tolqin: { risk: "cosmetic", desc: "Tolqin o'yin (olib tashlangan)" },
@@ -1270,7 +1270,7 @@ function ActionsView({ onHistory }: { onHistory?: () => void }) {
         <p className="muted" style={{ fontSize: 13, margin: "0 0 12px" }}>
           {currency === "tanga"
             ? "🪙 TANGA yoziladi — ilovada ishlatiladigan pul (hamyon · o'yin · o'tkazma · yo'l haqi). Manfiy ham bo'ladi."
-            : "💸 kas1067 CASHBACK yoziladi (1303) — faqat safar-bonusini tuzatish uchun. Manfiy ham bo'ladi."}
+            : "kas1067 cashback endi yo'q (2026-09-17) — mijozga tanga bering."}
         </p>
         <div className="form-grid">
           <input className="search" placeholder="📱 Telefon (+998…)" value={phone} onChange={(e) => setPhone(e.target.value)} />
@@ -3489,7 +3489,7 @@ function ObzvonView() {
       setSyncMsg(`✅ ${r.total} haydovchi (yangi: ${r.created}, botda: ${r.inBot}, faol: ${r.taking})`);
       await load(true);
     } catch {
-      setSyncMsg("❌ Yangilashda xato — kas bilan aloqa?");
+      setSyncMsg("❌ Yangilashda xato — taksi tizimi bilan aloqa?");
     } finally {
       setSyncing(false);
     }
@@ -3511,12 +3511,12 @@ function ObzvonView() {
   return (
     <section className="card">
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0 }}>📞 Obzvon — kas1067 haydovchilar</h3>
+        <h3 style={{ margin: 0 }}>📞 Obzvon — taksi tizimi haydovchilari</h3>
         <button className="btn" onClick={doSync} disabled={syncing}>{syncing ? "⏳ Yangilanmoqda…" : "🔄 Bazani yangilash"}</button>
         {syncMsg && <span className="muted" style={{ fontSize: 12 }}>{syncMsg}</span>}
       </div>
       <p className="muted" style={{ margin: "6px 0 10px", fontSize: 12 }}>
-        Har haydovchini birma-bir qo'ng'iroq qiling. <b>Botda</b> — bizning botga ulanganmi; <b>🟢 olyapti</b> — kas'da faol (buyurtma oladi). Holat va izoh saqlanadi — sessiya yo'qolmaydi.
+        Har haydovchini birma-bir qo'ng'iroq qiling. <b>Botda</b> — bizning botga ulanganmi; <b>🟢 olyapti</b> — taksi tizimida faol (buyurtma oladi). Holat va izoh saqlanadi — sessiya yo'qolmaydi.
       </p>
 
       {stats && (
@@ -4126,7 +4126,7 @@ function FinanceView() {
         </section>
       )}
       <section className="panel">
-        <div className="panel-title">⚠️ Withdraw navbati — kas'ga yetib bormaganlar ({f.withdrawQueue.length})</div>
+        <div className="panel-title">⚠️ Withdraw navbati — taksi tizimiga yetib bormaganlar ({f.withdrawQueue.length})</div>
         {f.withdrawQueue.length === 0 ? (
           <div className="muted" style={{ padding: 12 }}>✅ Hammasi yetib borgan</div>
         ) : (
@@ -4374,7 +4374,7 @@ function YechishlarView() {
       </div>
       <div className="cards" style={{ marginBottom: 12 }}>
         <Card icon="💸" label="Jami yechildi" value={formatNumber(total)} sub="so'm" accent />
-        <Card icon="✅" label="kas'ga yetdi" value={formatNumber(rows.length - pending)} />
+        <Card icon="✅" label="Balansga yetdi" value={formatNumber(rows.length - pending)} />
         <Card icon="⏳" label="Kutilmoqda" value={formatNumber(pending)} />
       </div>
       <div className="table-wrap">
@@ -4958,7 +4958,7 @@ function QarzlarView() {
       </div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>#</th><th>A'zo ID</th><th>Mashina</th><th className="num">Summa</th><th>Holat</th><th>kas Balans</th><th>Xato</th><th>Vaqt</th></tr></thead>
+          <thead><tr><th>#</th><th>A'zo ID</th><th>Mashina</th><th className="num">Summa</th><th>Holat</th><th>Balans</th><th>Xato</th><th>Vaqt</th></tr></thead>
           <tbody>
             {rows.map((r, i) => (
               <tr key={r.id} className={r.status === "error" ? "row-warn" : ""}>

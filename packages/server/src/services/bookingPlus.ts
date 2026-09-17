@@ -6,7 +6,6 @@
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
 import { recentReports } from "./analyticsService";
-import { kasMapSocket } from "./kasMapSocket";
 
 const DONE = new Set(["delivered", "completed", "finished"]);
 
@@ -38,29 +37,29 @@ export async function predictFare(addressName?: string): Promise<FarePrediction>
 }
 
 let pinCache: { at: number; pins: { lat: number; lng: number; bearing: number; busy: boolean }[] } | null = null;
+// The taxi core reads these from the drivers' own GPS stream (Redis, refreshed every few seconds),
+// and the call never leaves the machine — so the cache only has to absorb a burst of riders opening
+// the map at once, not protect a slow upstream. Ten seconds keeps the cars moving.
+const PIN_TTL_MS = 10_000;
 
 export async function nearbyPins(): Promise<{ pins: { lat: number; lng: number; bearing: number; busy: boolean; id: string }[]; freeDrivers: number }> {
-  // PRIMARY: the live WS fleet (kasMapSocket) — the SAME source the official rider app shows. The
-  // REST drivers/byFilter snapshot carries lat/lng=0 (probed: 50 drivers, 0 with coords), so it was
-  // returning ZERO pins — that's why the bot map had no cars. Use the socket; fall back to REST only
-  // if the socket hasn't filled yet (fresh boot / disconnected).
-  const live = kasMapSocket.livePins();
-  if (live.length) {
-    return { pins: live.slice(0, 40), freeDrivers: live.filter((p) => !p.busy).length };
-  }
-  if (!pinCache || Date.now() - pinCache.at > 45_000) {
-    const pins = await getDataSource().getDriverPins().catch(() => []);
+  if (!pinCache || Date.now() - pinCache.at > PIN_TTL_MS) {
+    const pins = await getDataSource().getDriverPins().catch(() => pinCache?.pins ?? []);
     pinCache = { at: Date.now(), pins };
   }
-  let freeDrivers = 0;
-  try {
-    freeDrivers = (await getDataSource().getMainReport()).onlineDrivers || 0;
-  } catch {
-    /* optional */
+  // Free cars on the map ARE the honest count; the daily report's online figure is the fallback
+  // for a map with no fixes yet (fresh boot, drivers' GPS still connecting).
+  let freeDrivers = pinCache.pins.filter((p) => !p.busy).length;
+  if (!freeDrivers) {
+    try {
+      freeDrivers = (await getDataSource().getMainReport()).onlineDrivers || 0;
+    } catch {
+      /* optional */
+    }
   }
-  // REST-fallback pins carry no car key → synthesize a stable per-position id so the client can still
-  // reconcile markers by id. (index is stable within a 45s cache window; good enough for the glide.)
-  return { pins: pinCache.pins.map((p, i) => ({ ...p, id: `r${i}` })), freeDrivers };
+  // Pins carry no identity (privacy: a passenger must not be able to follow a named driver) → a
+  // per-position id lets the client reconcile markers within one cache window.
+  return { pins: pinCache.pins.slice(0, 40).map((p, i) => ({ ...p, id: `r${i}` })), freeDrivers };
 }
 
 export const RATING_TAGS = ["Toza mashina", "Xushmuomala", "Tez yetib keldi", "Sekin haydadi", "Mashina eski"];

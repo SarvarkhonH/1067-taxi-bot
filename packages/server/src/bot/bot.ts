@@ -21,7 +21,6 @@ import { getBonusEcon } from "../services/bonusConfig";
 import { getWeeklyBoard } from "../services/weeklyService";
 import { getEconomy, getHealth, getLiveBookings } from "../services/adminOps";
 import { getIntegrity } from "../services/reconciliation";
-import type { CashbackDelta } from "../sync/sync";
 import { payDriver, registerBooking } from "./booking";
 import { registerDriverDebt } from "./driverDebt";
 import { registerDriverReports } from "./driverReports";
@@ -39,7 +38,6 @@ import {
   renderCheckIn,
   renderDriverPanel,
   renderDriverRank,
-  renderEarnPush,
   renderLeaderboard,
   renderLinkPrompt,
   renderMissions,
@@ -1489,7 +1487,7 @@ export function createBot(): Bot {
     await ctx.reply(
       `🛡 <b>BirJoy — Operatsion holat</b>\n\n` +
         `🚦 <b>Salomatlik</b>\n` +
-        `  kas1067 ${dot(h.kas.ok)} ${h.kas.ms}ms · baza ${dot(h.db.ok)} · bot ${dot(h.bot)}\n` +
+        `  taksi ${dot(h.kas.ok)} ${h.kas.ms}ms · baza ${dot(h.db.ok)} · bot ${dot(h.bot)}\n` +
         `  Sync: ${h.lastSync ? `${h.lastSync.status} (${h.lastSync.ageMin} daq)` : "—"} · Booking: ${h.bookingLive ? "JONLI" : "test"}\n\n` +
         `💰 <b>Iqtisod (tanga)</b>\n` +
         `  Muomalada: <b>${formatNumber(e.coinsOutstanding)}</b>\n` +
@@ -1875,7 +1873,7 @@ export function createBot(): Bot {
         }
         if (r?.action?.type === "balance") {
           const m = await prisma.member.findUnique({ where: { id: tu.memberId }, select: { coins: true } });
-          const t = `🪙 Balansingiz: <b>${(m?.coins ?? 0).toLocaleString("ru-RU")} tanga</b> (1 tanga = 1 so'm).\nMini App → Hamyon'da to'liq tarix va so'mga yechish bor.`;
+          const t = `🪙 Balansingiz: <b>${(m?.coins ?? 0).toLocaleString("ru-RU")} tanga</b> (1 tanga = 1 so'm).\nMini App → Hamyon'da to'liq tarix bor.`;
           // matn «Mini App → Hamyon» deydi — tugmasiz bu ko'rsatma bajarib bo'lmaydigan edi.
           // IKB nomi bilan: shu blokda `InlineKeyboard` keyinroq lokal e'lon qilingan (TDZ).
           const { InlineKeyboard: IKB } = await import("grammy");
@@ -1908,7 +1906,7 @@ export function createBot(): Bot {
             vazifa: { go: "play", label: "🎁 Bonuslar & vazifalar", msg: "🎁 Bugungi vazifa va bonuslaringiz shu yerda:" },
             reyting: { go: "reyting", label: "🏆 Reyting", msg: "🏆 Koson reytingida qayerda turibsiz — ko'ring:" },
             dost: { go: "invite", label: "👥 Do'st taklif qilish", msg: "👥 Do'st chaqiring — u ilk safar qilsa sizga 2000+ tanga! Havolangiz:" },
-            hamyon: { go: "wallet", label: "💰 Hamyon", msg: "💰 Hamyoningiz — balans, tarix, so'mga yechish:" },
+            hamyon: { go: "wallet", label: "💰 Hamyon", msg: "💰 Hamyoningiz — balans va tarix:" },
             asosiy: { go: "", label: "🚀 BirJoy ilovasi", msg: "🚀 BirJoy ilovasi — hammasi bir joyda:" },
           };
           const s = map[r.action.section] ?? map.asosiy!;
@@ -2224,17 +2222,6 @@ export async function notifyNewAchievements(bot: Bot): Promise<void> {
   }
 }
 
-/** Push "+X so'm" messages for cashback that grew during the last refresh. */
-export async function notifyCashback(bot: Bot, deltas: CashbackDelta[]): Promise<void> {
-  for (const d of deltas) {
-    try {
-      await bot.api.sendMessage(d.telegramId, renderEarnPush(d.delta, d.total, d.type), { parse_mode: "HTML" });
-    } catch (e) {
-      console.error("[bot] cashback notify failed", d.telegramId, e);
-    }
-  }
-}
-
 export async function setupBotCommands(bot: Bot): Promise<void> {
   // ALL of this is best-effort boot cosmetics (command menu + menu button). A transient Telegram
   // network blip during a deploy must NEVER become an unhandledRejection that alerts/crashes.
@@ -2278,7 +2265,7 @@ export async function setupBotCommands(bot: Bot): Promise<void> {
     { command: "daromad", description: "💰 Haydovchi: bugungi daromad" },
     { command: "daraja", description: "🏅 Haydovchi: daraja / reyting" },
     { command: "topshiriq", description: "🎯 Haydovchi topshiriqlari" },
-    { command: "qarz", description: "💸 Kas qarzini tanga bilan to'lash" },
+    { command: "qarz", description: "💸 Qarzni tanga bilan to'lash" },
     { command: "reys", description: "🚐 Shaharlararo reys" },
     // marketplace (BirJoy) — seller-facing.
     { command: "sotuvchi", description: "🏪 Do'kon ochish (sotuvchi bo'lish)" },

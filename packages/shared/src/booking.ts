@@ -35,8 +35,10 @@ export interface BookingDriverView {
   carModel: string;
   carNumber: string;
   rating: number;
-  lat: number;
-  lng: number;
+  // Live position — absent when the taxi core has no fresh GPS fix. Never 0 for "unknown": a car
+  // drawn at (0,0) sat in the ocean and zoomed the rider's map out to the whole planet.
+  lat?: number;
+  lng?: number;
   bearing?: number; // C: heading (deg) for the rotating car marker
   meterPayment?: number; // C: live taximeter running fare (so'm)
   // 📷 driver portrait: server-proxy URL that resolves to the driver's Telegram avatar (or owner-set
@@ -166,6 +168,8 @@ export function bookingStatusLabel(status: string): string {
     take_back: "↩️ Qaytarildi",
     cancel_by_operator: "✖ Bekor qilindi",
     cancel_by_server: "✖ Bekor qilindi",
+    cancel_by_client: "✖ Bekor qilindi",
+    cancel_by_driver: "✖ Haydovchi bekor qildi",
   };
   return map[status] ?? `ℹ️ ${status}`;
 }

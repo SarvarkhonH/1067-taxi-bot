@@ -97,7 +97,8 @@ export function NewProfileView({ me, onNav, onBanner }: { me: MeResponse; onNav:
       <div className="np-stats">
         <div className="np-st"><div className="v">{rides ?? "·"}</div><div className="k">Safar</div></div>
         <div className="np-st"><div className="v g">{num(me.coins)}</div><div className="k">🪙 Tanga</div></div>
-        <div className="np-st"><div className="v">{num(me.stats.points)}</div><div className="k">Cashback</div></div>
+        {/* passenger so'm cashback became tanga at the 2026-09-17 cutover; a driver's balance stays */}
+        {me.type === "driver" && <div className="np-st"><div className="v">{num(me.stats.points)}</div><div className="k">Balans</div></div>}
       </div>
 
       <div className="nh-sh"><div className="t">📦 Mening buyurtmalarim</div><button className="all" onClick={() => go("history")}>Barchasi</button></div>

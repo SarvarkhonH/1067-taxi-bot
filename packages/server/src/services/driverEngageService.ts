@@ -2,8 +2,8 @@
 // Piggybacks the SAME periodic loop as the client push engine (NO new poller) and reuses the SAME
 // dedup (NotifyLog: ≤2 pushes/day, one per trigger, quiet 21:00-08:00, respects notify-off).
 //
-// Cheap by design: ONE listActiveBookings() per tick (shared demand signal) + kasMapSocket.position()
-// (in-memory, free) to know who's offline. The per-driver kas ride lookup runs ONLY in the evening
+// Cheap by design: ONE listActiveBookings() per tick (shared demand signal) + a per-driver position lookup in the taxi core
+// (local call, one per driver) to know who's offline. The per-driver ride lookup runs ONLY in the evening
 // summary window AND only after a NotifyLog pre-check says we haven't sent it yet — so a driver's
 // rides are fetched at most once/day, never on every tick.
 //
@@ -12,7 +12,6 @@ import type { Bot } from "grammy";
 import { formatNumber } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource } from "../kas";
-import { kasMapSocket } from "./kasMapSocket";
 import { featureOn } from "./featureFlags";
 import { notifyOnce, quietHours, tashkentNow, dayKey } from "./notifyService";
 
@@ -91,7 +90,12 @@ export async function driverEngageTick(bot: Bot): Promise<void> {
   for (const d of drivers) {
     const chatId = d.telegramUser!.id;
     const car = d.carNumber!;
-    const online = !!kasMapSocket.position(car); // free, in-memory
+    // Online = the taxi core holds a fresh GPS fix for this car. Unknown (core unreachable) → skip
+    // this driver for the tick: "Ishga chiqing!" to a driver who is already working is worse than silence.
+    const online = await getDataSource().getDriverByCar(car).then((x) => x?.lat != null).catch(() => null);
+    // unreachable core: stop this tick rather than wait out a timeout per driver (backups and money
+    // retries run after this loop)
+    if (online === null) break;
 
     // The evening summary needs this driver's ride count — but a kas lookup per driver per tick is
     // costly. Pre-check NotifyLog: if the EOD push already went today (or it's not the window), skip

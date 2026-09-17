@@ -21,7 +21,7 @@ export const FEATURES = [
   "drvstaged", // 🚖 STAGED driver-QR payout: driver earns drvStart (client START) + drvShare (client links number) + revshareFresh/ride for revshareMonths; recruited client gets 5000 on JOIN. OFF = legacy (500 ride1 + 1000 ride3 + 6mo revshare, client 5000 on 1st ride). DARK until owner QABUL
   "drvrecruit", // 🚖 driver→driver recruit: a driver brings a new DRIVER; when that driver completes 10 rides the recruiter earns 5000; OFF until owner pilot
   "drvpush", // 🔔 driver engagement pushes (ishga chiqing / demand-spike / EOD work summary); read-only, OFF until owner QABUL
-  "clientbooking", // 🎯 GPS orders via the kas CLIENT endpoint (rider's own secretKey, resolved operator-side) → «new» + EXACT pin + «℗» place name, exactly like the official app. OFF until owner pilot
+  "clientbooking", // 🎯 kas1067 client-endpoint GPS orders edi — kas1067 bilan 2026-09-17 olib tashlangan, flag hech narsa qilmaydi
   "cashout", // 💵 real cash-out (tanga → plastik card / cash-to-home): bot records a request + forwards to the owner, who pays manually + approves. No card storage. OFF until owner pilot
   "carupgrade", // 🚗 FAZA2 — model-upgrade ladder (Tiko→Damas→…, #serial saqlanadi) + "buy new car" shop removed. OFF until owner QABUL
   "intercity", // 🚐 Nationwide shaharlararo shared-taxi (o'rindiq sotish, real-pul fare alohida ledger, tanga faqat ≤5000 chegirma). DARK until owner pilot
@@ -33,7 +33,7 @@ export const FEATURES = [
               // safar bepul" banner linking t.me/<bot>?start=reft_<sharer code> (EXISTING referral
               // pipeline pays both sides — no new money mechanic), + the live ride card's share
               // button sends the real live-track link instead of plain text. DARK until owner QABUL
-  "instantstatus", // ⚡ W2 №1: kas CLIENT Netty socket (46.8.176.53:1114) — active-ride mijoz uchun
+  "instantstatus", // ⚡ W2 №1: kas1067 client socket edi — kas1067 bilan 2026-09-17 olib tashlangan, flag hech narsa qilmaydi
               // holat o'zgarishini SONIYALARDA push qiladi → sweep'ni darhol trigger qiladi (90s emas).
               // Soket PUL BERMAYDI/karta chizMAYDI — faqat trigger; sweep yagona renderer/pul-yo'li
               // (idempotent). Soket o'lsa 5-90s sweep zaxira. DARK until owner QABUL

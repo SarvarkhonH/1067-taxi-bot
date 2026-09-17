@@ -3,10 +3,10 @@ import { getDataSource } from "../kas";
 
 const M_PER_KM = 1000;
 
-// kas tariff/bonus/car data changes rarely; cache the assembled config ~5 min.
+// tariff/bonus/car data changes rarely; cache the assembled config ~5 min.
 let cache: { at: number; val: FareConfigResponse } | null = null;
 
-/** Assemble the client-facing fare + cashback + car-type config from kas1067. */
+/** Assemble the client-facing fare + cashback + car-type config from the taxi core. */
 export async function getFareConfig(): Promise<FareConfigResponse> {
   if (cache && Date.now() - cache.at < 300_000) return cache.val;
   const ds = getDataSource();

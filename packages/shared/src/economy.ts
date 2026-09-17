@@ -45,7 +45,9 @@ export interface WithdrawResponse {
   // door stays closed for this member until an admin confirms what kas actually did (no double-pay).
   // fund_low: the GLOBAL revenue-linked daily fund is short — NOT the member's personal 100k cap
   // (they used to be conflated: drivers with ~5k withdrawn were told "100 000 limit tugadi").
-  reason?: "below_min" | "daily_cap" | "insufficient" | "not_client" | "kas_failed" | "no_ride" | "risk_hold" | "pending_review" | "fund_low";
+  // drivers_only: tanga → so'm goes onto a DRIVER balance only; passengers had a so'm wallet only in
+  // kas1067, removed 2026-09-17. closed: the cashback → tanga top-up went away with it.
+  reason?: "below_min" | "daily_cap" | "insufficient" | "not_client" | "kas_failed" | "no_ride" | "risk_hold" | "pending_review" | "fund_low" | "drivers_only" | "closed";
   amount: number;
   coinsLeft: number;
   kasApplied: boolean;

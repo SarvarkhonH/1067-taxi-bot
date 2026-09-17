@@ -7,24 +7,28 @@ import { prisma } from "../db";
 //
 // About 111 named places in Koson. They do not change hourly, and a customer
 // typing an address depends on them: the bot resolves what they typed against
-// kas's narrow by-name list AND this catalog, because — in the words of the
-// code that added it — the narrow list "MISSES many real places".
+// the taxi core's search AND this catalog.
 //
-// Shadow mode caught the catalog arriving EMPTY on 2026-09-14, and chasing it
-// found the real cause: kas1067 rate-limits our login (429), so after a restart
-// the client cannot fetch and its in-memory cache is cold. The bot restarts on
-// every deploy. So for some window after each one, every customer typing an
-// address was searching half a catalogue — silently, because an empty list is
-// not an error.
+// On 2026-09-14 the catalog arrived EMPTY from the old dispatch (kas1067) after
+// a restart, and for a window after each deploy every customer typing an
+// address searched half a catalogue — silently, because an empty list is not an
+// error. So the last good copy is written to the database, and read back when
+// the live one comes up empty.
 //
-// The fix is not to retry harder. It is to stop a list of a hundred and eleven
-// street names from depending on a login at all: the last good copy is written
-// to the database, and read back when the live one comes up empty.
+// The key changed with the switch to our own taxi core (2026-09-17): the old
+// copy carries kas1067's place ids, and the core numbers the same places
+// differently — a stale id would send a car to whichever place owns that number.
 
-const KEY = "kas:addressCatalog";
+const KEY = "taxi:addressCatalog";
 
-/** Per-process copy, so a busy minute of typing is not a hundred DB reads. */
+/** Per-process copy, so a busy minute of typing is not a hundred reads. */
 let memo: SavedAddress[] = [];
+let memoAt = 0;
+let memoSig = "";
+// Places are added by an operator a few times a month. Five minutes is fresh enough and keeps a
+// keystroke — and the Mini App's name-for-a-pin lookup — from asking the core every time.
+const MEMO_TTL_MS = 5 * 60_000;
+const signature = (rows: SavedAddress[]): string => rows.map((r) => `${r.id}:${r.name}`).join("|");
 
 async function persist(rows: SavedAddress[]): Promise<void> {
   await prisma.appState
@@ -54,17 +58,19 @@ async function loadSaved(): Promise<SavedAddress[]> {
  * loses to non-empty at every step (see chooseCatalog), because the whole
  * failure this exists for is an empty answer winning.
  */
-export async function getAddressCatalog(): Promise<SavedAddress[]> {
+export async function getAddressCatalog(opts: { fresh?: boolean } = {}): Promise<SavedAddress[]> {
+  if (!opts.fresh && memo.length > 0 && Date.now() - memoAt < MEMO_TTL_MS) return memo;
   const live = await getDataSource()
     .getAllAddresses()
     .catch(() => [] as SavedAddress[]);
 
   if (live.length > 0) {
-    // Only write when it actually changed — this is asked on every keystroke
-    // that completes an address, and a hundred and eleven names do not need
-    // rewriting all day.
-    if (live.length !== memo.length) void persist(live);
+    // Only write when it actually changed (ids or names, not just the count).
+    const sig = signature(live);
+    if (sig !== memoSig) void persist(live);
     memo = live;
+    memoSig = sig;
+    memoAt = Date.now();
     return live;
   }
 
@@ -75,7 +81,7 @@ export async function getAddressCatalog(): Promise<SavedAddress[]> {
   if (saved.length > 0) {
     memo = saved;
     console.warn(
-      `[addresses] kas gave 0 places — serving ${saved.length} from the last saved copy. ` +
+      `[addresses] the taxi core gave 0 places — serving ${saved.length} from the last saved copy. ` +
       "Typed address search is working, but the catalogue is not being refreshed.",
     );
   }

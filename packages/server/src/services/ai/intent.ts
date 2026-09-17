@@ -28,7 +28,7 @@ const PLACE_RE = /(\p{L}{3,})(?:ga|га|gacha)\b/iu;
 const FAQ: { re: RegExp; a: string }[] = [
   { re: /narx|нарх|qancha\s+tur|tarif/i, a: "🚕 Narx taksometr bo'yicha: minimal to'lov + km. Aniq summa safar oxirida chiqadi — Mini App'da safardan oldin taxminiy narxni ko'rasiz." },
   { re: /cashback|kesh|кешбек|bonus\s+qancha/i, a: "💰 Har bot orqali chaqirilgan safardan cashback tushadi (ruletka 1x-10x!). Mini App → Hamyon'da ko'rinadi." },
-  { re: /tanga|coin|pul\s+yech|so'mga|yechib\s+ol/i, a: "🪙 1 tanga = 1 so'm. Hamyon → «So'mga yechish» — kamida 1 ta real safar qilgan bo'lishingiz kerak." },
+  { re: /tanga|coin|pul\s+yech|so'mga|yechib\s+ol/i, a: "🪙 1 tanga = 1 so'm. Haydovchiga yo'l haqini to'lash, bozor va o'yinlarda ishlatiladi. Naqd pul kerak bo'lsa — Mini App → Hamyon → «💵 Naxt pulga olish»." },
   { re: /g'ildirak|gildirak|ruletka|spin/i, a: "🎡 Omad g'ildiragi SAFAR PAYTIDA aylanadi — har safar 1 spin, har spin yutadi!" },
   { re: /plus|obuna/i, a: "💎 BirJoy Plus: 9 990 tanga/oy — cashback ×1.5. Birinchi oy BEPUL. Mini App → Bonus." },
   { re: /gap\b|davra/i, a: "👬 Gap: 3-6 do'st birga safar maqsadini bajarsa hammaga +500, bir kishiga POT +2000. Mini App → Do'st." },

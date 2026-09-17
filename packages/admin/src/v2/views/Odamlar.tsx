@@ -149,7 +149,7 @@ export function Odamlar() {
             Jami {num(data.total)} · ulangan {num(data.linked)} · bugun qo'shilgan {num(data.newToday)}
           </span>
           <span className="a2-dim-2">
-            · Telegram'siz (faqat kas) mijozlar bu ro'yxatda yo'q — ularni ⌘K orqali telefon bo'yicha toping
+            · Telegram'siz (faqat telefon orqali) mijozlar bu ro'yxatda yo'q — ularni ⌘K orqali telefon bo'yicha toping
           </span>
         </div>
       )}

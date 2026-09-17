@@ -99,7 +99,7 @@ export function Bugun() {
                 joydan qidirilardi. */}
             {(() => {
               const parts = [
-                { k: "kas", ok: health.data!.kas.ok, hint: `${health.data!.kas.ms}ms · ${health.data!.kas.mode}` },
+                { k: "taksi", ok: health.data!.kas.ok, hint: `${health.data!.kas.ms}ms · ${health.data!.kas.mode}` },
                 { k: "baza", ok: health.data!.db.ok, hint: `${health.data!.db.ms}ms` },
                 { k: "bot", ok: health.data!.bot, hint: health.data!.bookingLive ? "jonli" : "TEST rejimi" },
               ];
@@ -133,7 +133,7 @@ export function Bugun() {
           <Badge tone="warn">⚠ {pulse.data.unassigned} haydovchisiz</Badge>
         )}
         {stuck.length > 0 && <Badge tone="bad">⚠ {stuck.length} tiqilib qolgan</Badge>}
-        {pulse.data?.reportsStale && <Badge tone="warn">kas hisobotlari eskirgan — puls to'liq emas</Badge>}
+        {pulse.data?.reportsStale && <Badge tone="warn">taksi hisobotlari eskirgan — puls to'liq emas</Badge>}
       </div>
 
       {alerts.length > 0 && (
@@ -268,7 +268,7 @@ export function Bugun() {
                     </div>
                   ))}
                 {live.data && live.data.length > 0 && (
-                  <div className="a2-dim-2">🚕 kas'da {live.data.length} faol taksi buyurtmasi</div>
+                  <div className="a2-dim-2">🚕 {live.data.length} faol taksi buyurtmasi</div>
                 )}
               </div>
             )}

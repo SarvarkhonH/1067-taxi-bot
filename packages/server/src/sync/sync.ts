@@ -16,7 +16,7 @@ export interface SyncSummary {
   newAchievements: NewAchievement[];
 }
 
-/** Pull the latest data from kas1067 (or mock), upsert members, award badges. */
+/** Pull every member from the taxi source (bulk), upsert them, award badges. Used by mock/dev and by the cutover adopt run — never on a timer in production. */
 export async function runSync(): Promise<SyncSummary> {
   const source = getDataSource();
   const run = await prisma.syncRun.create({ data: { source: source.name, status: "running" } });
@@ -45,86 +45,6 @@ export async function runSync(): Promise<SyncSummary> {
     });
     throw e;
   }
-}
-
-export interface CashbackDelta {
-  memberId: number;
-  telegramId: string;
-  type: MemberType;
-  delta: number;
-  total: number;
-}
-
-/**
- * Light refresh of ONLY the linked (active) members — one phone lookup each.
- * This is what runs periodically in live mode: no bulk scan, scales with bot users.
- * Returns the cashback increases so the bot can push "+X so'm" notifications.
- */
-export async function refreshLinkedMembers(): Promise<{ checked: number; deltas: CashbackDelta[] }> {
-  const source = getDataSource();
-  // SCALE: at ~170 linked members a full scan (1.1s/member pace, see below) finishes in ~3min,
-  // comfortably inside the 15-min tick. At thousands of members it would NOT finish before the next
-  // tick fires (periodicBusy just skips it — no crash, but cashback mirroring + every other 15-min
-  // job queued after this one in the same tick drifts hours late). So we cap each run to a BATCH and
-  // rotate: never-synced members first (new links seen fast), then the stalest-synced fill the rest.
-  // A member who rode this tick gets a fresh lastSyncAt and drops to the back of the queue — active
-  // members naturally stay near the front. Nobody is skipped forever. Ride-finish cashback itself
-  // does NOT depend on this loop (that's the fast booking sweep, rollRideCashback) — this only feeds
-  // the backstop notifyCashback for kas-side point changes our sweep didn't see directly, so a queued
-  // member waiting a few extra ticks is a non-critical delay, not a lost notification.
-  const BATCH = Math.max(1, Number(process.env.REFRESH_BATCH_SIZE) || 300);
-  const where = { telegramUser: { isNot: null }, phone: { not: null } } as const;
-  const neverSynced = await prisma.member.findMany({
-    where: { ...where, lastSyncAt: null },
-    include: { telegramUser: true },
-    take: BATCH,
-  });
-  const linked =
-    neverSynced.length >= BATCH
-      ? neverSynced
-      : neverSynced.concat(
-          await prisma.member.findMany({
-            where: { ...where, lastSyncAt: { not: null } },
-            include: { telegramUser: true },
-            orderBy: { lastSyncAt: "asc" },
-            take: BATCH - neverSynced.length,
-          }),
-        );
-
-  const deltas: CashbackDelta[] = [];
-  for (let idx = 0; idx < linked.length; idx++) {
-    const m = linked[idx]!;
-    // THROTTLE: kas rate-limits its byFilter endpoint HARD — measured live, ~1 req/s is safe but ~7
-    // req/s gets ~70% of calls 429'd, which then breaks login → bookings. So pace one member per
-    // ~1.1s. Combined with the type-aware lookup below (1 kas call per member, not 2), a full refresh
-    // of ~170 members costs ~170 calls over ~3 min — gentle, and well inside the 15-min sync interval.
-    if (idx > 0) await new Promise((r) => setTimeout(r, 1100));
-    try {
-      const matches = await source.fetchByPhone(m.phone!, m.type as MemberType);
-      const fresh = matches.find((f) => f.type === m.type && f.kasId === m.kasId) ?? matches.find((f) => f.type === m.type);
-      if (!fresh) continue;
-      if (fresh.points !== m.points || fresh.trips !== m.trips || fresh.rating !== m.rating) {
-        await prisma.member.update({
-          where: { id: m.id },
-          data: { points: fresh.points, trips: fresh.trips, rating: fresh.rating, fullName: fresh.fullName, lastSyncAt: new Date() },
-        });
-        if (fresh.points > m.points && m.telegramUser) {
-          deltas.push({
-            memberId: m.id,
-            telegramId: m.telegramUser.id,
-            type: m.type as MemberType,
-            delta: fresh.points - m.points,
-            total: fresh.points,
-          });
-        }
-      }
-    } catch (e) {
-      console.error("[refresh] failed for member", m.id, e instanceof Error ? e.message : e);
-    }
-  }
-
-  await evaluateAchievements();
-  return { checked: linked.length, deltas };
 }
 
 /** Award any badges a member now qualifies for. Returns the freshly-earned ones. */

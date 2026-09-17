@@ -160,7 +160,7 @@ function ScheduleBlock({ pickup, onMsg }: { pickup: SavedAddressView; onMsg: (m:
             <button key={sl.iso} className="amt-chip" onClick={async () => {
               haptic();
               const r = await api.bookingSchedule(pickup.id, pickup.name, sl.iso);
-              onMsg(r.ok ? `⏰ Rejalandi: ${sl.label} — ${pickup.name}` : r.reason === "too_many" ? "Ko'pi bilan 3 ta reja" : "Xatolik");
+              onMsg(r.ok ? `⏰ Rejalandi: ${sl.label} — ${pickup.name}` : r.reason === "too_many" ? "Ko'pi bilan 3 ta reja" : r.reason === "bad_place" ? "Rejali safar uchun ro'yxatdagi joylardan birini tanlang" : "Xatolik");
               setShowTimes(false);
               load();
             }}>{sl.label}</button>
@@ -492,7 +492,7 @@ export function BookingView({ onClose }: { onClose: () => void }) {
                 ))}
               </div>
             )}
-            <div className="bk-earn">💰 +{formatNumber(info.cashbackPerRide)} so'm cashback</div>
+            <div className="bk-earn">💰 +{formatNumber(info.cashbackPerRide)} tanga cashback</div>
             <button className="btn-primary" disabled={busy} onClick={book}>{busy ? "…" : "🚕 Chaqirish"}</button>
           </>
         ) : (

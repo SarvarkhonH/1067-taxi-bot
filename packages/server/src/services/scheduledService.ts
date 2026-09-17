@@ -5,7 +5,7 @@
 import type { Bot } from "grammy";
 import { prisma } from "../db";
 import { env } from "../env";
-import { getDataSource } from "../kas";
+import { getDataSource, type BookingResult } from "../kas";
 
 export const FAMILY_MAX = 3;
 const DISPATCH_WINDOW_MS = 10 * 60_000;
@@ -25,6 +25,10 @@ export async function createScheduled(
   if (runAt.getTime() > Date.now() + 7 * 86_400_000) return { ok: false, reason: "too_far" };
   const pending = await prisma.scheduledRide.count({ where: { memberId, status: "pending" } });
   if (pending >= 3) return { ok: false, reason: "too_many" };
+  // A scheduled ride stores only a place id, so only a catalogue place can be dispatched from it later
+  // (a map pin or saved place would reach the core with no coordinates and be refused at run time).
+  const { catalogPlaceById } = await import("./bookingService");
+  if (!(await catalogPlaceById(addressId))) return { ok: false, reason: "bad_place" };
 
   let phone = m.phone;
   if (forPhone) {
@@ -63,10 +67,54 @@ export async function dispatchScheduled(bot: Bot): Promise<number> {
       sent++;
       continue; // dry-run: status flip only (tests)
     }
-    const res = await getDataSource()
-      .createBooking({ clientName: member?.fullName ?? "Mijoz", addressName: r.addressName, addressId: r.addressId, phoneNumber: r.phone, additionalPayment: 0 })
-      .catch(() => ({ ok: false }));
-    if (!res.ok) {
+    // An unanswered order holds the member's dispatches for a few minutes — wait it out, don't add a car.
+    const { isDispatchHeld, catalogPlaceById, claimDispatchSlot, releaseDispatchSlot } = await import("./bookingService");
+    if (await isDispatchHeld(r.memberId)) {
+      await prisma.scheduledRide.update({ where: { id: r.id }, data: { status: "pending" } }).catch(() => null);
+      continue;
+    }
+    const place = await catalogPlaceById(r.addressId);
+    if (!place) {
+      // An EMPTY catalogue means the core could not be read, not that the place is gone: retry.
+      const { getAddressCatalog } = await import("./addressCatalog");
+      if ((await getAddressCatalog().catch(() => [])).length === 0 && Date.now() - r.runAt.getTime() < DISPATCH_WINDOW_MS) {
+        await prisma.scheduledRide.update({ where: { id: r.id }, data: { status: "pending" } }).catch(() => null);
+        continue;
+      }
+    }
+    // For the member's own phone, the same atomic slot as a manual tap: the two can't both send a car.
+    const ownPhone = !!member?.phone && member.phone.replace(/\D/g, "").slice(-9) === r.phone.replace(/\D/g, "").slice(-9);
+    const slot = ownPhone && place ? await claimDispatchSlot(r.memberId) : null;
+    if (slot && !slot.ok) {
+      await prisma.scheduledRide.update({ where: { id: r.id }, data: { status: "pending" } }).catch(() => null);
+      continue;
+    }
+    // Never a second car: that phone already having a ride skips this one; a core that cannot be read
+    // puts the ride back for the next tick instead of guessing "no ride".
+    let already: Awaited<ReturnType<ReturnType<typeof getDataSource>["getActiveBooking"]>>;
+    try {
+      already = await getDataSource().getActiveBooking(r.phone);
+    } catch {
+      if (Date.now() - r.runAt.getTime() < DISPATCH_WINDOW_MS) {
+        await prisma.scheduledRide.update({ where: { id: r.id }, data: { status: "pending" } }).catch(() => null);
+        continue;
+      }
+      already = null; // long overdue — try once rather than leave it pending forever
+    }
+    const res: BookingResult = already
+      ? { ok: false, message: "active" }
+      : !place
+        ? { ok: false, message: "place" }
+        : await getDataSource()
+          .createBooking({ clientName: member?.fullName ?? "Mijoz", addressName: r.addressName, addressId: r.addressId, phoneNumber: r.phone, additionalPayment: 0 })
+          .catch((e) => ({ ok: false, detail: e instanceof Error ? e.message : String(e) }));
+    // No answer = the order may exist: leave it "dispatched", hold the member, and say so — never "send again".
+    if (res.unknown) {
+      const { holdAfterUnknownDispatch } = await import("./bookingService");
+      await holdAfterUnknownDispatch(r.memberId);
+    }
+    if (!res.ok && !res.unknown) {
+      if (slot?.ok) await releaseDispatchSlot(r.memberId, slot.prev);
       await prisma.scheduledRide.update({ where: { id: r.id }, data: { status: "failed" } }).catch(() => null);
     } else {
       sent++;
@@ -76,7 +124,13 @@ export async function dispatchScheduled(bot: Bot): Promise<number> {
       const { pushSend } = await import("./pushSend");
       const html = res.ok
         ? `⏰ Rejali taksingiz chiqarildi! 📍 ${r.addressName}${r.phone !== member.phone ? ` · 📞 ${r.phone} raqamiga` : ""}`
-        : `⚠️ Rejali safar (${r.addressName}) yuborilmadi — qaytadan chaqiring yoki 1067 ga qo'ng'iroq qiling.`;
+        : res.unknown
+          ? `⏰ Rejali safar (${r.addressName}) yuborildi, tizim javobini kutyapmiz — qayta chaqirmang, holati «📍 Buyurtmam»da chiqadi.`
+          : already
+            ? `ℹ️ Rejali safar (${r.addressName}) chiqarilmadi — bu raqamda allaqachon faol buyurtma bor.`
+            : !place
+              ? `⚠️ Rejali safar (${r.addressName}) chiqarilmadi — bu joy endi ro'yxatda yo'q. Qaytadan chaqiring yoki 1067 ga qo'ng'iroq qiling.`
+              : `⚠️ Rejali safar (${r.addressName}) yuborilmadi — qaytadan chaqiring yoki 1067 ga qo'ng'iroq qiling.`;
       await pushSend(member.telegramUser.id, "sched_ride", () => bot.api.sendMessage(member.telegramUser!.id, html), { memberId: member.id, force: true });
     }
   }
@@ -117,9 +171,27 @@ export async function bookForFamily(
   const fam = await prisma.familyMember.findFirst({ where: { id: familyId, memberId } });
   if (!fam) return { ok: false, live: false, message: "Yaqin topilmadi" };
   const me = await prisma.member.findUnique({ where: { id: memberId } });
+  // Only a catalogue place: this path carries no coordinates.
+  const { catalogPlaceById, claimDispatchSlot, releaseDispatchSlot, holdAfterUnknownDispatch, isDispatchHeld } = await import("./bookingService");
+  const place = await catalogPlaceById(pickupId);
+  if (!place) return { ok: false, live: env.bookingLive, message: "Ro'yxatdagi joylardan birini tanlang." };
   if (!env.bookingLive) return { ok: true, live: false, message: "TEST rejimi — haqiqiy taxi chaqirilmadi" };
-  const res = await getDataSource()
-    .createBooking({ clientName: `${fam.name} (${me?.fullName ?? "1067"})`, addressName: pickupName, addressId: pickupId, phoneNumber: fam.phone, additionalPayment: 0 })
-    .catch((e) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
-  return { ok: res.ok, live: true, message: res.ok ? `🚕 ${fam.name}ga taksi chaqirildi!` : ("message" in res ? res.message : "Xatolik") };
+  if (await isDispatchHeld(memberId)) return { ok: false, live: true, message: "Oldingi buyurtma holati aniqlanmoqda — bir necha daqiqadan keyin urinib ko'ring." };
+  // never a second car for that phone; an unreadable core is not "no ride"
+  const already = await getDataSource().getActiveBooking(fam.phone).then((b) => !!b, () => null);
+  if (already === null) return { ok: false, live: true, message: "Taksi tizimi hozir javob bermayapti — 1067 ga qo'ng'iroq qiling." };
+  if (already) return { ok: false, live: true, message: `${fam.name}da allaqachon faol buyurtma bor.` };
+  // the same atomic slot as every other dispatch path: two taps can't both send a car
+  const slot = await claimDispatchSlot(memberId);
+  if (!slot.ok) return { ok: false, live: true, message: "Hozirgina buyurtma yuborilgan — biroz kuting" };
+  const res: BookingResult = await getDataSource()
+    .createBooking({ clientName: `${fam.name} (${me?.fullName ?? "1067"})`, addressName: place.name, addressId: place.id, phoneNumber: fam.phone, additionalPayment: 0 })
+    .catch((e) => ({ ok: false, detail: e instanceof Error ? e.message : String(e) }));
+  if (res.ok) return { ok: true, live: true, message: `🚕 ${fam.name}ga taksi chaqirildi!` };
+  if (res.unknown) {
+    await holdAfterUnknownDispatch(memberId);
+    return { ok: false, live: true, message: "Buyurtma yuborildi, tizim javobini kutyapmiz — qayta bosmang." };
+  }
+  await releaseDispatchSlot(memberId, slot.prev);
+  return { ok: false, live: true, message: res.message ?? "Buyurtma yuborilmadi — 1067 ga qo'ng'iroq qiling." };
 }

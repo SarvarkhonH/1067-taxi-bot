@@ -648,7 +648,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       setMsg(`⏰ Rejali safar saqlandi: ${schedDay === "today" ? "Bugun" : "Ertaga"} ${String(schedHour).padStart(2, "0")}:${String(schedMin).padStart(2, "0")}`);
       setScreen("pinpick");
     } else {
-      setMsg(r?.reason === "too_soon" ? "Kamida 15 daqiqa oldin bo'lishi kerak" : r?.reason === "too_many" ? "Maksimal 3 ta rejali safar" : "Xatolik");
+      setMsg(r?.reason === "too_soon" ? "Kamida 15 daqiqa oldin bo'lishi kerak" : r?.reason === "too_many" ? "Maksimal 3 ta rejali safar" : r?.reason === "bad_place" ? "Rejali safar uchun ro'yxatdagi joylardan birini tanlang" : "Xatolik");
     }
   };
 

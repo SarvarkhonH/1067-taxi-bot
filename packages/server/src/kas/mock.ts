@@ -27,7 +27,7 @@ const MOCK_ADDRESSES = [
   "Navoiy ko'chasi 8",
 ];
 
-// Believable demo data for both member types. Used until KAS_MODE=live.
+// Believable demo data for both member types. Used when KAS_MODE=mock (local development, simulators).
 const DRIVERS: KasMember[] = [
   { type: "driver", kasId: "1001", fullName: "Akmal Karimov", phone: "+998901112233", carNumber: "01A111AA", points: 48200, trips: 1240, rating: 4.9 },
   { type: "driver", kasId: "1002", fullName: "Bekzod To'rayev", phone: "+998902223344", carNumber: "01B222BB", points: 26100, trips: 760, rating: 4.8 },
@@ -119,19 +119,17 @@ export class KasMockSource implements KasDataSource {
     return { ok: true, message: "mock cancel" };
   }
 
-  async setClientBonus(_phone: string, newBonus: number): Promise<{ ok: boolean; oldBonus: number; name?: string; status?: number }> {
-    return { ok: true, oldBonus: 0, name: "mock", status: 200 };
-  }
-
-  async addClientBonus(_phone: string, delta: number): Promise<{ ok: boolean; oldBonus: number; newBonus: number; status?: number }> {
-    return { ok: true, oldBonus: 0, newBonus: delta, status: 200 };
-  }
-
   async setClientName(_phone: string, _fullName: string): Promise<{ ok: boolean; status?: number }> {
     return { ok: true, status: 200 };
   }
 
-  async addDriverPayment(_driverId: number, _carNumber: string, amount: number, _comment = "", _debt = false): Promise<{ ok: boolean; balance: number | null; status: number }> {
+  async addDriverPayment(
+    _carNumber: string,
+    amount: number,
+    _requestId: string,
+    _comment = "",
+    _coreDriverId?: number,
+  ): Promise<{ ok: boolean; balance: number | null; status: number; unknown?: boolean }> {
     return { ok: true, balance: amount, status: 200 };
   }
 

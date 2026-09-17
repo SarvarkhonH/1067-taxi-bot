@@ -16,7 +16,7 @@ import {
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { env } from "../env";
-import { getDataSource, type RideHistoryItem } from "../kas";
+import { getDataSource, type BookingResult, type RideHistoryItem } from "../kas";
 import { getFareConfig } from "./clientInfoService";
 
 export interface RideHistoryFull {
@@ -233,8 +233,8 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
   // T4 (money-shield): server-side double-dispatch guard. The miniapp `busy` flag does NOT
   // survive a reload / second tab / slow double-tap; phantom dispatches waste real drivers
   // (our moat). Mirrors the hardened 1-tap path (callOneTapFor). No coins are minted here.
-  const active = await getActiveBookingFor(memberId);
-  if (active) { console.log(`[dispatch] m${memberId} src=${source} blocked=active-booking (b${active.id ?? "?"})`); return { ok: false, live: env.bookingLive, message: "Sizda faol buyurtma bor" }; }
+  const guard = await dispatchGuard(memberId);
+  if (guard.blocked) { console.log(`[dispatch] m${memberId} src=${source} blocked=${guard.reason}`); return { ok: false, live: env.bookingLive, message: guard.message }; }
   // Throttle window shrinks when the last claim never became a tracked ride (see DEAD_REBOOK_MS).
   const trow = await prisma.member.findUnique({ where: { id: memberId }, select: { lastBookingAt: true, lastBookingId: true } });
   const throttleMs = trow?.lastBookingId == null ? DEAD_REBOOK_MS : ONE_TAP_THROTTLE_MS;
@@ -243,12 +243,10 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
     return { ok: false, live: env.bookingLive, message: "Hozirgina buyurtma yuborilgan — biroz kuting" };
   }
 
-  // add-ons + per-address surcharge → additionalPayment
-  let additionalPayment = 0;
-  if (body.addonIds?.length) {
-    const addons = await getDataSource().getBookingAddons().catch(() => []);
-    additionalPayment += addons.filter((a) => body.addonIds!.includes(a.id)).reduce((s, a) => s + a.price, 0);
-  }
+  // Add-ons travel as ids and the core prices them (attachToOrder). Adding their price here as well
+  // charged the passenger twice. (The core applies no per-place surcharge on its own orders either —
+  // same as an operator order.)
+  const additionalPayment = 0;
 
   // M7 center-pin: raw map point (pickupId 0) → dispatch to the exact pin (addressId 0 +
   // addressLatitude/Longitude), same proven path as a Telegram GPS-location share. Absent for
@@ -258,7 +256,25 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
   // "Shabada"), never "Xaritada belgilangan nuqta" — regardless of what the client sent. The exact
   // lat/lng is still dispatched for precise navigation; this only fixes the human label.
   const pinName = hasPin ? await pinLabel(body.lat!, body.lng!) : body.pickupName;
-  const pinMem = { id: body.pickupId, name: pinName, lat: hasPin ? body.lat! : null, lng: hasPin ? body.lng! : null };
+
+  // Where exactly the car goes, settled BEFORE anything is claimed or sent:
+  //   map pin            → its coordinates
+  //   catalogue place    → must exist in the core's catalogue today (a stale id names another place)
+  //   anything else (≤0) → a saved/remembered place, dispatchable only with coordinates
+  let lat = hasPin ? body.lat : undefined;
+  let lng = hasPin ? body.lng : undefined;
+  if (!hasPin) {
+    if (body.pickupId > 0) {
+      const place = await catalogPlace(body.pickupId);
+      if (!place) return { ok: false, live: env.bookingLive, message: PICKUP_UNKNOWN_MESSAGE };
+    } else {
+      const c = await coordsForNonCatalogPickup(memberId, who.phone, body.pickupId);
+      if (!c) return { ok: false, live: env.bookingLive, message: PICKUP_UNKNOWN_MESSAGE };
+      lat = c.lat;
+      lng = c.lng;
+    }
+  }
+  const pinMem = { id: body.pickupId, name: pinName, lat: lat ?? null, lng: lng ?? null };
 
   if (!env.bookingLive) {
     await rememberPickup(memberId, pinMem, source);
@@ -267,31 +283,117 @@ export async function createBookingFor(memberId: number, body: BookingCreateBody
   // atomic anti-double-dispatch claim (the early throttle check above is only a fast UX reject)
   const slot = await claimDispatchSlot(memberId, throttleMs);
   if (!slot.ok) return { ok: false, live: true, message: "Hozirgina buyurtma yuborilgan — biroz kuting" };
-  const res = await getDataSource()
+  const res: BookingResult = await getDataSource()
     .createBooking({
       clientName: who.name,
       addressName: pinName,
       addressId: body.pickupId,
       phoneNumber: who.phone,
       additionalPayment,
-      ...(hasPin ? { addressLatitude: body.lat, addressLongitude: body.lng } : {}),
+      requirementIds: body.addonIds?.length ? body.addonIds : undefined,
+      ...(lat != null && lng != null ? { addressLatitude: lat, addressLongitude: lng } : {}),
     })
-    .catch((e) => ({ ok: false, message: e instanceof Error ? e.message : String(e) }));
-  // dispatch outcome trace — proves whether kas ACCEPTED the order (ok=true then no driver = the
-  // "created but silently died" bug) vs REJECTED it (ok=false + reason). Read from Render logs.
-  console.log(`[dispatch] m${memberId} src=${source} pin=${hasPin ? "map" : body.pickupId} → ok=${res.ok}${res.ok ? "" : ` msg="${res.message ?? ""}"`}`);
+    .catch((e) => ({ ok: false, message: undefined, detail: e instanceof Error ? e.message : String(e) }));
+  // dispatch outcome trace — proves whether the core ACCEPTED the order (ok=true then no driver)
+  // vs REJECTED it (ok=false + reason) vs never answered (UNKNOWN).
+  console.log(`[dispatch] m${memberId} src=${source} pin=${hasPin ? "map" : body.pickupId} → ok=${res.ok}${res.unknown ? " UNKNOWN" : ""}${res.ok ? "" : ` msg="${res.detail ?? res.message ?? ""}"`}`);
   if (res.ok) {
     await rememberPickup(memberId, pinMem, source);
-    // ⚡ arm the instant-status socket NOW (before the driver accepts) so take_booking lands in ~1-2s
-    void import("./kasClientSocket").then(({ armInstant }) => armInstant(memberId, who.phone)).catch(() => undefined);
     return { ok: true, live: true, message: res.message };
   }
+  // No answer = the order may exist; hold this member's dispatches so a retry can't send a second car.
+  if (res.unknown) { await holdAfterUnknownDispatch(memberId); return { ok: false, live: true, message: UNKNOWN_DISPATCH_MESSAGE }; }
   await releaseDispatchSlot(memberId, slot.prev);
-  // A failure that is ours, not theirs, is said in words a passenger can act
-  // on — with the dispatcher's number — instead of the client's raw error.
-  const { customerFacingKasError } = await import("./kasHealth");
-  const friendly = customerFacingKasError(res.message);
-  return { ok: false, live: true, message: friendly ?? res.message };
+  // res.message is already written for a passenger (the bridge maps the core's errors).
+  return { ok: false, live: true, message: res.message ?? "Buyurtma yuborilmadi. Taksini 1067 raqamiga qo‘ng‘iroq qilib chaqiring." };
+}
+
+/** Shown when the core did not answer an order: it may have been created, so do not re-send. */
+export const UNKNOWN_DISPATCH_MESSAGE =
+  "Buyurtmangiz yuborildi, tizim javobini kutyapmiz. Qayta bosmang — bir daqiqada holati shu yerda chiqadi.";
+
+const PICKUP_UNKNOWN_MESSAGE = "Bu manzil aniqlanmadi — joyni qaytadan tanlang yoki xaritada belgilang.";
+
+/** A catalogue place by the core's id, or null — never trust an id the catalogue does not know. */
+async function catalogPlace(id: number): Promise<{ id: number; name: string; lat?: number; lng?: number } | null> {
+  const { getAddressCatalog } = await import("./addressCatalog");
+  let hit = (await getAddressCatalog().catch(() => [])).find((p) => p.id === id);
+  // Not in the 5-minute copy: the place may have been added a minute ago (the picker reads the core
+  // live). Ask the core once before refusing a passenger.
+  if (!hit) hit = (await getAddressCatalog({ fresh: true }).catch(() => [])).find((p) => p.id === id);
+  return hit ? { id: hit.id, name: hit.name, lat: hit.lat, lng: hit.lng } : null;
+}
+
+/**
+ * Coordinates for a pickup that is NOT a catalogue place (id ≤ 0): a passenger's saved place in the
+ * core (negative id), or a pickup this member remembered with its coordinates (last pickup, recent
+ * chips). Without coordinates the core refuses such an order, so null means "cannot dispatch".
+ */
+async function coordsForNonCatalogPickup(memberId: number, phone: string, id: number): Promise<{ lat: number; lng: number } | null> {
+  if (id < 0) {
+    const saved = await getDataSource().checkClient(phone).then((c) => c?.addresses.find((a) => a.id === id)).catch(() => undefined);
+    if (saved?.lat != null && saved.lng != null) return { lat: saved.lat, lng: saved.lng };
+  }
+  const mem = await prisma.member.findUnique({ where: { id: memberId }, select: { lastPickupId: true, lastPickupLat: true, lastPickupLng: true } }).catch(() => null);
+  if (mem?.lastPickupId === id && mem.lastPickupLat != null && mem.lastPickupLng != null) return { lat: mem.lastPickupLat, lng: mem.lastPickupLng };
+  const recent = (await getRecentPickups(memberId).catch(() => [])).find((r) => r.id === id);
+  if (recent?.lat != null && recent.lng != null) return { lat: recent.lat, lng: recent.lng };
+  return null;
+}
+
+// ── double-dispatch guard ─────────────────────────────────────────────────────
+//
+// Three ways a second real car could be sent to one passenger, all closed here, in one place, for
+// every dispatch path (Mini App, 1-tap, bot wizard):
+//   • a ride is already active                → refuse, show it
+//   • the core cannot be read right now       → refuse (a failed read is NOT "no ride")
+//   • the last order got no answer            → refuse for a few minutes; it may exist and the
+//                                               sweep will adopt it the moment the core lists it
+// The dispatch slot (claimDispatchSlot) stays the atomic last line against a double tap.
+const UNKNOWN_HOLD_MS = 3 * 60_000;
+const holdKey = (memberId: number) => `dispatchhold:${memberId}`;
+
+export async function holdAfterUnknownDispatch(memberId: number): Promise<void> {
+  const value = String(Date.now());
+  await prisma.appState
+    .upsert({ where: { key: holdKey(memberId) }, create: { key: holdKey(memberId), value }, update: { value } })
+    .catch(() => undefined);
+}
+
+/** True while an unanswered order holds this member's dispatches (see holdAfterUnknownDispatch). */
+export async function isDispatchHeld(memberId: number): Promise<boolean> {
+  const hold = await prisma.appState.findUnique({ where: { key: holdKey(memberId) } }).catch(() => null);
+  return !!hold && Date.now() - Number(hold.value) < UNKNOWN_HOLD_MS;
+}
+
+/** A catalogue place by the core's id — exported for the paths that store only an id (scheduled, family). */
+export async function catalogPlaceById(id: number): Promise<{ id: number; name: string } | null> {
+  return id > 0 ? catalogPlace(id) : null;
+}
+
+export async function dispatchGuard(
+  memberId: number,
+): Promise<{ blocked: false } | { blocked: true; reason: string; message: string; booking?: ActiveBookingView }> {
+  let active: ActiveBookingView | null;
+  try {
+    active = await getActiveBookingFor(memberId, { strict: true });
+  } catch {
+    return {
+      blocked: true,
+      reason: "core-unreadable",
+      message: "Taksi tizimi hozir javob bermayapti. Iltimos, taksini 1067 raqamiga qo‘ng‘iroq qilib chaqiring.",
+    };
+  }
+  if (active) return { blocked: true, reason: `active-booking (b${active.id ?? "?"})`, message: "Sizda faol buyurtma bor", booking: active };
+  const hold = await prisma.appState.findUnique({ where: { key: holdKey(memberId) } }).catch(() => null);
+  if (hold && Date.now() - Number(hold.value) < UNKNOWN_HOLD_MS) {
+    return {
+      blocked: true,
+      reason: "unknown-outcome-hold",
+      message: "Oldingi buyurtmangiz holati aniqlanmoqda — «📍 Buyurtmam»ni tekshiring. Bir necha daqiqadan keyin qayta urinib ko‘ring.",
+    };
+  }
+  return { blocked: false };
 }
 
 export async function cancelBookingFor(memberId: number): Promise<BookingCancelResponse> {
@@ -309,10 +411,12 @@ export async function cancelBookingFor(memberId: number): Promise<BookingCancelR
   return { ok: res.ok, reason: res.ok ? undefined : "failed", live: true };
 }
 
-export async function getActiveBookingFor(memberId: number): Promise<ActiveBookingView | null> {
+export async function getActiveBookingFor(memberId: number, opts: { strict?: boolean } = {}): Promise<ActiveBookingView | null> {
   const who = await phoneOf(memberId);
   if (!who) return null;
-  const view = await toView(await getDataSource().getActiveBooking(who.phone).catch(() => null));
+  // strict: a core that cannot be read throws, so a dispatch guard never mistakes "unknown" for "none"
+  const raw = opts.strict ? await getDataSource().getActiveBooking(who.phone) : await getDataSource().getActiveBooking(who.phone).catch(() => null);
+  const view = await toView(raw);
   // T5-E6: once the ride has started, expose rideStartedAt (set by the sweep) so the
   // Mini App can show a live garage counter. Display-only — grants stay in the bot sweep.
   if (view && view.status === "started") {
@@ -427,11 +531,14 @@ export async function rememberPickup(
       },
     })
     .catch(() => undefined);
-  // first remembered pickup becomes the sticky default (kept until user changes it)
-  await prisma.member.updateMany({
-    where: { id: memberId, defaultPickupId: null },
-    data: { defaultPickupId: a.id, defaultPickupName: a.name },
-  });
+  // first remembered CATALOGUE pickup becomes the sticky default (kept until user changes it). The
+  // default stores no coordinates, so a map pin or saved place (id ≤ 0) could never be dispatched from it.
+  if (a.id > 0) {
+    await prisma.member.updateMany({
+      where: { id: memberId, defaultPickupId: null },
+      data: { defaultPickupId: a.id, defaultPickupName: a.name },
+    });
+  }
   await pushRecentPickup(memberId, { id: a.id, name: a.name, lat: a.lat ?? undefined, lng: a.lng ?? undefined });
 }
 
@@ -471,9 +578,9 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
   });
   if (!member?.phone) return { state: "failed", message: "Telefon raqami ulanmagan" };
 
-  // never double-book: an active ride wins
-  const active = await getActiveBookingFor(memberId);
-  if (active) return { state: "active", booking: active };
+  // never double-book: an active ride wins — and an unreadable core or an unanswered order blocks too
+  const guard = await dispatchGuard(memberId);
+  if (guard.blocked) return guard.booking ? { state: "active", booking: guard.booking } : { state: "throttled", message: guard.message };
 
   // double-tap / accidental-repeat guard (real taxis get dispatched here). Window shrinks when the
   // last claim never became a tracked ride (lastBookingId null → it died) so a stuck user can re-book.
@@ -495,10 +602,17 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
   // resolve the pickup down the tier cascade
   let pickup: { id: number; name: string; lat?: number | null; lng?: number | null } | null = null;
   if (body.addressId) {
-    pickup = saved.find((a) => a.id === body.addressId) ?? null;
-    if (!pickup && member.lastPickupId === body.addressId && member.lastPickupName) {
-      pickup = { id: member.lastPickupId, name: member.lastPickupName, lat: member.lastPickupLat, lng: member.lastPickupLng };
+    // An explicit place is the only place: if it cannot be resolved the order is refused — never
+    // quietly replaced by the last or default pickup (that sent a real car somewhere else).
+    if (body.addressId > 0) {
+      pickup = await catalogPlace(body.addressId);
+    } else {
+      pickup = saved.find((a) => a.id === body.addressId) ?? null;
+      if (!pickup && member.lastPickupId === body.addressId && member.lastPickupName) {
+        pickup = { id: member.lastPickupId, name: member.lastPickupName, lat: member.lastPickupLat, lng: member.lastPickupLng };
+      }
     }
+    if (!pickup) return { state: "failed", message: PICKUP_UNKNOWN_MESSAGE };
   }
   if (!pickup && body.lat != null && body.lng != null) {
     const here = { lat: body.lat, lng: body.lng };
@@ -529,6 +643,16 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
   if (!pickup && member.defaultPickupId && member.defaultPickupName) {
     pickup = { id: member.defaultPickupId, name: member.defaultPickupName };
   }
+  // Whatever was chosen must still be dispatchable: a catalogue id the catalogue no longer knows, or
+  // a non-catalogue pickup with no coordinates, never reaches the core.
+  if (pickup && pickup.id > 0) {
+    const place = await catalogPlace(pickup.id);
+    pickup = place ? { ...pickup, lat: pickup.lat ?? place.lat, lng: pickup.lng ?? place.lng } : null;
+  } else if (pickup && (pickup.lat == null || pickup.lng == null)) {
+    const c = await coordsForNonCatalogPickup(memberId, member.phone, pickup.id);
+    pickup = c ? { ...pickup, ...c } : null;
+  }
+  if (!pickup && body.addressId) return { state: "failed", message: PICKUP_UNKNOWN_MESSAGE };
   if (!pickup) {
     return {
       state: "need_pickup",
@@ -544,17 +668,27 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
   // atomic anti-double-dispatch claim (the early throttle check above is only a fast UX reject)
   const slot = await claimDispatchSlot(memberId, throttleMs);
   if (!slot.ok) return { state: "throttled", message: "Hozirgina buyurtma yuborilgan — biroz kuting" };
-  const res = await ds
-    .createBooking({ clientName: member.fullName, addressName: pickup.name, addressId: pickup.id, phoneNumber: member.phone, additionalPayment: 0 })
-    .catch((e) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) }));
-  console.log(`[dispatch] m${memberId} src=${source} 1tap=${pickup.id} → ok=${res.ok}${res.ok ? "" : ` msg="${res.message ?? ""}"`}`);
+  const hasCoords = pickup.lat != null && pickup.lng != null;
+  const res: BookingResult = await ds
+    .createBooking({
+      clientName: member.fullName,
+      addressName: pickup.name,
+      addressId: pickup.id,
+      phoneNumber: member.phone,
+      additionalPayment: 0,
+      // coordinates of a remembered pin; a negative (coordinates-only) id needs them to be dispatched
+      ...(hasCoords ? { addressLatitude: pickup.lat!, addressLongitude: pickup.lng! } : {}),
+    })
+    .catch((e) => ({ ok: false, message: undefined, detail: e instanceof Error ? e.message : String(e) }));
+  console.log(`[dispatch] m${memberId} src=${source} 1tap=${pickup.id} → ok=${res.ok}${res.unknown ? " UNKNOWN" : ""}${res.ok ? "" : ` msg="${res.detail ?? res.message ?? ""}"`}`);
   if (!res.ok) {
+    // No answer from the core = the order may exist: keep the slot so a second tap can't send a
+    // second car. The sweep adopts the order if it was created.
+    if (res.unknown) { await holdAfterUnknownDispatch(memberId); return { state: "throttled", message: UNKNOWN_DISPATCH_MESSAGE }; }
     await releaseDispatchSlot(memberId, slot.prev);
     return { state: "failed", message: res.message };
   }
 
   await rememberPickup(memberId, pickup, source);
-  // ⚡ arm instant-status before the accept (1-tap dispatch path)
-  void import("./kasClientSocket").then(({ armInstant }) => armInstant(memberId, member.phone)).catch(() => undefined);
   return { state: "dispatched", pickupName: pickup.name };
 }

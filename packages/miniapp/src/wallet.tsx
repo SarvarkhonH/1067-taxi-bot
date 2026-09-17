@@ -351,7 +351,7 @@ function WithdrawSheet({
       const r = await api.withdraw(amount);
       if (r.ok) {
         confetti();
-        onDone(`💸 ${formatNumber(r.amount)} so'm cashback hisobingizga o'tdi!`);
+        onDone(`💸 ${formatNumber(r.amount)} so'm haydovchi balansingizga o'tdi!`);
         onClose();
       } else {
         const msgs: Record<string, string> = {
@@ -364,7 +364,8 @@ function WithdrawSheet({
               ? `Bugungi umumiy fond kam qoldi — hozircha ${formatNumber(r.fundLeft ?? 0)} tangagacha yechish mumkin, qolganini ertaga`
               : "Bugungi umumiy fond tugadi — ertaga safarlar bilan yana to'ladi 🚕",
           insufficient: "Tanga yetarli emas",
-          not_client: "Faqat mijoz hisoblari uchun",
+          not_client: "Faqat haydovchi hisoblari uchun",
+          drivers_only: "Balansga o'tkazish faqat haydovchilar uchun. Naqd pul kerak bo'lsa — «💵 Naxt pulga olish»",
           no_ride: "So'mga aylantirish uchun avval taksidan kamida 3 marta foydalaning 🚕",
           risk_hold: "Hisobingiz tekshiruvda — dispetcherga murojaat qiling",
           kas_failed: "Tizim xatosi — tanga qaytarildi, keyinroq urinib ko'ring",
@@ -383,14 +384,9 @@ function WithdrawSheet({
     <div className="sheet-back" onClick={onClose}>
       <div className="sheet" onClick={(e) => e.stopPropagation()}>
         <div className="sheet-grip" />
-        <h3>{wallet.isClient ? "💸 So'mga aylantirish" : "💳 kas1067 balansiga"}</h3>
+        <h3>💳 Haydovchi balansiga</h3>
         <p className="muted sheet-sub">
-          1 tanga = 1 so'm.{" "}
-          {wallet.isClient ? (
-            <>Pul <b>taxi cashback</b> hisobingizga tushadi va safarlarda ishlatiladi.</>
-          ) : (
-            <>Tangangiz <b>kas1067 balansingizga</b> so'm bo'lib o'tadi.</>
-          )}
+          1 tanga = 1 so'm. Tangangiz <b>haydovchi balansingizga</b> so'm bo'lib o'tadi.
         </p>
         {max < wallet.withdrawMin ? (
           <div className="sheet-warn">
@@ -534,6 +530,7 @@ function TopupSheet({ wallet, onClose, onDone }: { wallet: WalletResponse; onClo
           below_min: `Minimal: ${formatNumber(wallet.topupMin)} so'm`,
           insufficient: "Cashback yetarli emas",
           not_client: "Faqat mijoz hisoblari uchun",
+          closed: "Cashback → tanga endi yo'q: cashback'ingiz tangaga bir marta o'tkazib berilgan",
           kas_failed: "Tizim xatosi — keyinroq urinib ko'ring",
         };
         setErr(msgs[r.reason ?? ""] ?? "Xatolik");
@@ -673,23 +670,24 @@ export function WalletView({ me, onBanner, reload, onBook, onNav }: { me: MeResp
             <span className="wh-tier muted">Liga: {me.leagueTier}</span>
           </div>
         </div>
-        <div className="wh-cashback">
-          <span>{me.type === "driver" ? "💼 kas1067 balans (haydovchi)" : "🚕 Taxi cashback (safarlardan)"}</span>
-          <b>{formatNumber(cashback)} so'm</b>
-        </div>
-        {wallet?.isClient && (
-          <div className="wh-actions">
-            <button className="btn-violet wh-cta" onClick={() => { haptic(); convertAll(); }}>🔁 Hammasini tangaga</button>
+        {/* A passenger's so'm cashback lived in kas1067 and was converted to tanga at the 2026-09-17
+            cutover; only a driver still has a so'm balance (in the taxi core). */}
+        {me.type === "driver" && (
+          <div className="wh-cashback">
+            <span>💼 Haydovchi balansi</span>
+            <b>{formatNumber(cashback)} so'm</b>
           </div>
         )}
         <div className="wh-actions">
           <button className="btn-violet wh-cta" onClick={() => { haptic(); setSend(true); }}>👥 Do'stga</button>
           <button className="btn-primary wh-cta" onClick={() => { haptic(); setPayd(true); }}>🚖 Haydovchiga</button>
         </div>
-        <div className="wh-actions">
-          {/* withdraw works for BOTH client + driver (tanga → kas1067 balance). Drivers see it as a deposit. */}
-          <button className="btn-ghost wh-cta" onClick={() => { haptic(); setSheet(true); }}>{wallet?.isClient ? "💸 So'mga yechish" : "💳 kas1067 balansiga"}</button>
-        </div>
+        {me.type === "driver" && (
+          <div className="wh-actions">
+            {/* tanga → the driver's so'm balance in the taxi core */}
+            <button className="btn-ghost wh-cta" onClick={() => { haptic(); setSheet(true); }}>💳 Haydovchi balansiga</button>
+          </div>
+        )}
         {/* 💵 real cash-out (tanga → plastik karta / naxt uyga) — the owner pays out manually */}
         <div className="wh-actions">
           <button className="btn-primary wh-cta" onClick={() => { haptic(); setCash(true); }}>💵 Naxt pulga olish</button>
@@ -839,7 +837,7 @@ export function TierLadder({ me }: { me: MeResponse }) {
 
       {/* ball breakdown — flag ON (shaffoflik) */}
       {tierOn && (
-        <div className="tier-breakdown">Ball: <b>{formatNumber(ball)}</b> o&apos;yin + <b>{formatNumber(fromRides)}</b> safar + <b>{formatNumber(fromCash)}</b> cashback = <b>{formatNumber(me.xp)}</b> jami</div>
+        <div className="tier-breakdown">Ball: <b>{formatNumber(ball)}</b> o&apos;yin + <b>{formatNumber(fromRides)}</b> safar + <b>{formatNumber(fromCash)}</b> {me.type === "driver" ? "balans" : "eski cashback"} = <b>{formatNumber(me.xp)}</b> jami</div>
       )}
 
       {/* 📋 Shartlar — raqamlar jonli knoblardan (single source of truth) */}

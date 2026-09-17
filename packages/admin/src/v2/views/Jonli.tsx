@@ -115,7 +115,7 @@ export function Jonli() {
         <Badge tone={stuckN > 0 ? "bad" : "ok"}>
           {stuckN > 0 ? `⚠ ${stuckN} ta uzoq kutmoqda` : "✓ Tiqilib qolgani yo'q"}
         </Badge>
-        {live && <Badge tone="info">🚕 kas'da {num(live.length)} faol taksi</Badge>}
+        {live && <Badge tone="info">🚕 {num(live.length)} faol taksi</Badge>}
         <span className="a2-dim-2">har 20 soniyada yangilanadi</span>
       </div>
 

@@ -75,20 +75,20 @@ export async function setDisplayName(memberId: number, raw: string): Promise<str
   const name = raw.trim().replace(/\s+/g, " ").slice(0, 40);
   if (name && name.length < 2) return null; // too short (but "" is allowed = clear)
   const m = await prisma.member.update({ where: { id: memberId }, data: { displayName: name || null }, select: { type: true, phone: true } });
-  // Also push the name to kas1067 for CLIENTS (best-effort) so the official record + the dispatcher
-  // view match what the user chose. Drivers have no kas name-update endpoint → local-only. Never
+  // Also push the name to the taxi core for CLIENTS (best-effort) so the operator console + the dispatcher
+  // view match what the user chose. Drivers have no name-update route → local-only. Never
   // blocks/fails the edit: the local displayName already took effect. Only on a real (non-empty)
-  // name and only in live mode.
+  // name and only against the real taxi core.
   if (name && m.type === "client" && m.phone) {
     try {
       const { getDataSource } = await import("../kas");
       const ds = getDataSource();
-      if (ds.name === "live") {
+      if (ds.name === "birjoy") {
         const r = await ds.setClientName(m.phone, name);
-        if (!r.ok) console.error(`[name] kas setClientName failed for member ${memberId} (status ${r.status ?? "?"})`);
+        if (!r.ok) console.error(`[name] taxi-core setClientName failed for member ${memberId} (status ${r.status ?? "?"})`);
       }
     } catch (e) {
-      console.error(`[name] kas push errored for member ${memberId}:`, e instanceof Error ? e.message : e);
+      console.error(`[name] taxi-core push errored for member ${memberId}:`, e instanceof Error ? e.message : e);
     }
   }
   return name;
@@ -276,7 +276,8 @@ export async function upsertKasMember(km: {
   // source with no history must not erase one: the taxi core answers trips: 0
   // for a customer with 1382 kas rides. See mergeBridgeCounters.
   const dataFor = (existing: { trips: number; rating: number } | null) => ({
-    fullName: km.fullName,
+    // The taxi core answers "" for a caller nobody named. A blank must not erase a name we have.
+    ...(km.fullName.trim() ? { fullName: km.fullName } : existing ? {} : { fullName: km.type === "driver" ? "Haydovchi" : "Mijoz" }),
     phone: km.phone ?? null,
     carNumber: km.carNumber ?? null,
     ...(mayOverwritePoints({ type: km.type, kasId: km.kasId, phone: km.phone }) ? { points: km.points } : {}),
@@ -321,6 +322,15 @@ export async function upsertKasMember(km: {
     );
     if (verdict.action === "adopt") {
       const target = nearby.find((m) => m.id === verdict.id) ?? null;
+      if (target && target.type !== km.type) {
+        // Same phone, different role (a customer row taken over by a driver, or back). Legitimate — a
+        // driver who once registered as a passenger — but it changes their screens and their money
+        // rules, so the owner hears about every one.
+        console.warn(`[member] cross-type adopt: m${target.id} ${target.type} → ${km.type} (${km.kasId})`);
+        void import("./economyService")
+          .then(({ alertAdmins }) => alertAdmins(`👤 A'zo turi o'zgardi: m${target.id} <b>${target.type} → ${km.type}</b> (telefon bir xil, ${km.kasId})`))
+          .catch(() => undefined);
+      }
       try {
         const m = await prisma.member.update({
           where: { id: verdict.id },
@@ -335,7 +345,7 @@ export async function upsertKasMember(km: {
     }
   }
   // 3) brand-new kas member
-  const m = await prisma.member.create({ data: { type: km.type, kasId: km.kasId, ...dataFor(null) } });
+  const m = await prisma.member.create({ data: { type: km.type, kasId: km.kasId, fullName: km.type === "driver" ? "Haydovchi" : "Mijoz", ...dataFor(null) } });
   return { id: m.id, type: m.type as MemberType, fullName: m.fullName };
 }
 

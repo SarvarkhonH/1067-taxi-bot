@@ -9,8 +9,8 @@ import { canWebApp, webAppUrl } from "./webAppUrl";
 import { getDataSource, type ActiveBooking, type SavedAddress } from "../kas";
 import { getMe, getMemberId } from "../services/memberService";
 import { getFareConfig } from "../services/clientInfoService";
-import { callOneTapFor, cancelBookingFor, claimDispatchSlot, getActiveBookingFor, getQuickPickup, releaseDispatchSlot, rememberPickup } from "../services/bookingService";
-import { getAddressAliases } from "../services/addressAlias";
+import { callOneTapFor, cancelBookingFor, claimDispatchSlot, dispatchGuard, getActiveBookingFor, getQuickPickup, holdAfterUnknownDispatch, releaseDispatchSlot, rememberPickup } from "../services/bookingService";
+import { getAddressAliases } from "../services/addressAlias";
 import { getAddressCatalog } from "../services/addressCatalog";
 
 interface BookingSession {
@@ -284,7 +284,7 @@ async function confirmText(s: BookingSession): Promise<string> {
       `\n🧮 <b>Narx</b> (taximetr):\n` +
       `  • Eng kam: <b>${formatNumber(cfg.minimalPayment)} so'm</b>\n` +
       `  • Har km: <b>${formatNumber(cfg.perKmCity)} so'm</b>\n` +
-      `  • 💰 Bu safardan: <b>+${formatNumber(cfg.cashback.perAppRide)} so'm cashback</b>\n`;
+      `  • 💰 Bu safardan: <b>+${formatNumber(cfg.cashback.perAppRide)} tanga cashback</b>\n`;
   } catch {
     /* fare optional */
   }
@@ -447,7 +447,7 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
       `━━━━━━━━━━━━\n\n`;
     const lines = rides.slice(0, 10).map((r) => {
       const d = r.at ? new Date(r.at).toLocaleString("ru-RU", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
-      const done = ["delivered", "completed", "finished"].includes(r.status) ? "🏁" : ["cancel_by_operator", "cancel_by_server"].includes(r.status) ? "✖" : "🚖";
+      const done = ["delivered", "completed", "finished"].includes(r.status) ? "🏁" : r.status.startsWith("cancel") || r.status === "take_back" ? "✖" : "🚖";
       const km = r.distance ? `📍${(r.distance / 1000).toFixed(1)}km` : "";
       const mins = r.time ? `⏱${r.time >= 180 ? Math.round(r.time / 60) : Math.round(r.time)}daq` : "";
       const meta = [km, mins, r.carModel ? `🚘${esc(r.carModel)}` : ""].filter(Boolean).join(" · ");
@@ -810,9 +810,14 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
       return;
     }
     await ctx.editMessageText("⏳ Buyurtma yuborilyapti…");
-    const already = await getActiveBookingFor(memberId).catch(() => null);
-    if (already) {
-      await ctx.editMessageText(`ℹ️ Sizda faol buyurtma bor:\n📍 ${esc(already.addressName ?? "")}\n\n«📍 Buyurtmam» — holatini ko'ring.`, { parse_mode: "HTML" });
+    const guard = await dispatchGuard(memberId);
+    if (guard.blocked) {
+      await ctx.editMessageText(
+        guard.booking
+          ? `ℹ️ Sizda faol buyurtma bor:\n📍 ${esc(guard.booking.addressName ?? "")}\n\n«📍 Buyurtmam» — holatini ko'ring.`
+          : `⚠️ ${esc(guard.message)}`,
+        { parse_mode: "HTML" },
+      );
       return;
     }
     const slot = await claimDispatchSlot(memberId);
@@ -825,8 +830,21 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
       .catch((e) => ({ ok: false as const, message: e instanceof Error ? e.message : String(e) }));
     // dispatch outcome trace — this wizard path had NO logging at all, which is exactly why the
     // 25-day rememberPickup/claimDispatchSlot ordering bug went unnoticed (see rememberPickup).
-    console.log(`[dispatch] m${memberId} src=bot wizard=${s.pickup.id || "map"} → ok=${res.ok}${res.ok ? "" : ` msg="${res.message ?? ""}"`}`);
-    if (!res.ok) await releaseDispatchSlot(memberId, slot.prev);
+    const failDetail = res.ok ? "" : ("detail" in res && res.detail) || res.message || "";
+    const unknownOutcome = !res.ok && "unknown" in res && res.unknown === true;
+    console.log(`[dispatch] m${memberId} src=bot wizard=${s.pickup.id || "map"} → ok=${res.ok}${unknownOutcome ? " UNKNOWN" : ""}${res.ok ? "" : ` msg="${failDetail}"`}`);
+    // No answer from the core = the order may exist. Keep the dispatch slot so a second tap cannot
+    // send a second car; the sweep adopts the order if it was created.
+    if (!res.ok && !unknownOutcome) await releaseDispatchSlot(memberId, slot.prev);
+    if (unknownOutcome) {
+      await holdAfterUnknownDispatch(memberId);
+      await ctx.editMessageText(
+        "⏳ <b>Buyurtma yuborildi, lekin tizim javobini kutyapmiz.</b>\n\nQayta bosmang — bir daqiqa ichida «📍 Buyurtmam»da holati chiqadi.",
+        { parse_mode: "HTML" },
+      );
+      await markBotOrderCard(memberId, ctx.callbackQuery.message?.message_id);
+      return;
+    }
     if (res.ok) {
       await ctx.editMessageText(`✅ <b>Buyurtma qabul qilindi!</b>\n📍 ${esc(req.addressName)}\n\n🔍 Haydovchi qidirilyapti — holat shu yerda <b>jonli</b> yangilanadi 👇`, {
         parse_mode: "HTML",
@@ -834,10 +852,9 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
       // hand this card to the live sweep: it EDITS this same message through every status
       // (driver, ETA, moving pin, finish + fare/bonus). No separate card, no manual refresh.
       await markBotOrderCard(memberId, ctx.callbackQuery.message?.message_id);
-      // parity with createBookingFor: arm the instant-status socket at CREATION (take lands ~1-2s)
-      void import("../services/kasClientSocket").then(({ armInstant }) => armInstant(memberId, req.phoneNumber)).catch(() => undefined);
     } else {
-      await ctx.editMessageText(`⚠️ Yuborilmadi: ${esc(res.message ?? "xatolik")}`, { parse_mode: "HTML" });
+      // res.message is already written for a passenger (the bridge maps the core's errors)
+      await ctx.editMessageText(`⚠️ ${esc(res.message ?? "Buyurtma yuborilmadi")}`, { parse_mode: "HTML" });
     }
   });
 

@@ -1,8 +1,8 @@
 // 📊 Phase-4 admin insights — read-only aggregates for the Overview anomaly banner + approval inbox.
 // ISOLATED (new file, no edits to money-core services) so it never collides with the parallel audit.
-// Everything here is a plain SELECT/aggregate over existing tables + the in-memory kas health snapshot.
+// Everything here is a plain SELECT/aggregate over existing tables + the in-memory taxi-core health snapshot.
 import { prisma } from "../db";
-import { kasHealthSnapshot } from "./kasHealth";
+import { coreHealthSnapshot } from "./taxiHealth";
 
 /** Tashkent (UTC+5) midnight `offsetDays` ago, expressed in real UTC — for day-bucketed aggregates. */
 function tashkentMidnightUtc(offsetDays = 0): Date {
@@ -22,7 +22,7 @@ export interface AnomalyReport {
   cashoutToday: number;
 }
 
-/** Owner safety scan: emission/withdraw spikes vs the trailing week + kas health + stuck money
+/** Owner safety scan: emission/withdraw spikes vs the trailing week + taxi-core health + stuck money
  *  markers. Read-only, cheap; surfaced as a banner so the owner SEES trouble without digging. */
 export async function getAnomalies(): Promise<AnomalyReport> {
   const todayStart = tashkentMidnightUtc(0);
@@ -42,8 +42,8 @@ export async function getAnomalies(): Promise<AnomalyReport> {
   const items: AnomalyItem[] = [];
   if (et > 50_000 && et > eAvg * 2.5) items.push({ level: "alert", text: `Emissiya bugun ${et.toLocaleString("ru-RU")} tanga — 7-kun o'rtachasidan (${Math.round(eAvg).toLocaleString("ru-RU")}) keskin yuqori` });
   if (ct > 50_000 && ct > cAvg * 2.5) items.push({ level: "alert", text: `Naxt-to'lov bugun ${ct.toLocaleString("ru-RU")} tanga — o'rtachadan (${Math.round(cAvg).toLocaleString("ru-RU")}) keskin yuqori` });
-  const kas = kasHealthSnapshot();
-  if (kas.degraded || kas.c429 > 5) items.push({ level: "warn", text: `kas ulanishi zaif: ${kas.c429}×429, ${kas.fails}/${kas.total} xato (so'nggi oyna)` });
+  const core = coreHealthSnapshot();
+  if (core.degraded || core.fails > 5) items.push({ level: "warn", text: `Taksi tizimi ulanishi zaif: ${core.fails}/${core.total} so'rov yiqildi (${core.timeout}× kechikdi, ${core.c5xx}× server xatosi) — so'nggi 2 daqiqa` });
   if (stuck > 0) items.push({ level: "warn", text: `${stuck} ta osilib qolgan pul-marker — qo'lda ko'rish kerak (clearPending.ts)` });
 
   const level = items.some((i) => i.level === "alert") ? "alert" : items.length ? "warn" : "ok";

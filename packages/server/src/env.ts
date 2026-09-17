@@ -25,25 +25,23 @@ const schema = z.object({
   // Env-driven now: one place to change if the domain ever moves again.
   ADMIN_PANEL_URL: z.string().default("https://admin.birjoy.online"),
 
-  KAS_BASE_URL: z.string().default("http://46.8.176.53/kas1067"),
-  KAS_MODE: z.enum(["mock", "live", "birjoy"]).default("mock"),
-  KAS_BIRJOY_URL: z.string().optional().default("http://localhost:4000/api/v1"),
+  // The taxi dispatch the bot talks to: "birjoy" = our own core (1067-taxi) over HTTP,
+  // "mock" = offline stand-in for development and the simulators. kas1067 ("live") was removed
+  // on 2026-09-17 — see the refusal below the schema.
+  KAS_MODE: z.enum(["mock", "birjoy"]).default("mock"),
+  KAS_BIRJOY_URL: z.string().optional().default("http://127.0.0.1:4000/api/v1"),
   KAS_SERVICE_TOKEN: z.string().optional().default(""),
   // Shared secret for the 1067-taxi (B) → BirJoy (A) driver-OTP bridge. B sends
   // it in the X-Service-Token header; A's /api/internal/driver-otp route fails
   // CLOSED when this is empty (so the route is inert until the owner sets it on
   // the live env, matching B's SERVICE_TOKEN).
   TAXI_SERVICE_TOKEN: z.string().optional().default(""),
-  KAS_USERNAME: z.string().optional().default(""),
-  KAS_PASSWORD: z.string().optional().default(""),
-  KAS_BONUS_SECRET_KEY: z.string().optional().default("1303"), // kas1067 bonus-edit secret
   // Bosqich 2: AES-256-GCM key (32 bytes / 64 hex chars) for encrypting driver kas secretKeys at
   // rest. Optional in DEV so typecheck/tests pass; driverAuth throws a clear error if used without
   // it in prod. Generate: openssl rand -hex 32. Render secret — NEVER commit a real value.
   DRIVER_KEY_AES: z.string().optional().default(""),
 
-  KAS_DRIVERS_PATH: z.string().optional().default(""),
-  // When "true", the bot actually dispatches taxis via kas1067. Default = dry-run (safe).
+  // When "true", the bot actually dispatches taxis through the core. Default = dry-run (safe).
   BOOKING_LIVE: z.string().optional().default("false"),
   // When "true", the API trusts X-Debug-Telegram-Id even with a bot token (LOCAL admin/miniapp viewing only).
   ALLOW_DEBUG_AUTH: z.string().optional().default("false"),
@@ -61,6 +59,16 @@ const schema = z.object({
   SYNC_INTERVAL_MINUTES: z.coerce.number().default(15),
   DATABASE_URL: z.string().default("file:./dev.db"),
 });
+
+// A leftover KAS_MODE=live would otherwise surface as zod's generic enum error. Say what happened
+// and what to set instead: the process is refusing to start, and whoever reads the log at that
+// moment is in the middle of a deploy.
+if (String(process.env.KAS_MODE ?? "").trim() === "live") {
+  throw new Error(
+    "KAS_MODE=live is no longer supported — kas1067 was removed on 2026-09-17. " +
+      "Set KAS_MODE=birjoy with KAS_BIRJOY_URL and KAS_SERVICE_TOKEN (the taxi core's SERVICE_TOKEN).",
+  );
+}
 
 const parsed = schema.parse(process.env);
 

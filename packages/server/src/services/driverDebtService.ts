@@ -49,7 +49,7 @@ export async function getDriverDebtInfo(memberId: number): Promise<DriverDebtInf
   if (!(await qarzEnabledFor(memberId))) return { ok: false, reason: "feature_off" };
   const carNumber = await driverCar(memberId);
   if (!carNumber) return { ok: false, reason: "not_driver" };
-  const acct = await getDataSource().getDriverAccount(carNumber);
+  const acct = await getDataSource().getDriverAccount(carNumber).catch(() => null);
   if (!acct) return { ok: false, reason: "kas_unreachable", carNumber };
   const coins = await getCoins(memberId);
   return { ok: true, carNumber, debt: acct.debt, balance: acct.balance, coins };
@@ -76,8 +76,8 @@ export async function payDebtWithCoins(memberId: number, amount: number, nonce: 
   const carNumber = await driverCar(memberId);
   if (!carNumber) return { ok: false, message: "Bu hisob haydovchi sifatida ulanmagan." };
 
-  const acct = await getDataSource().getDriverAccount(carNumber);
-  if (!acct) return { ok: false, message: "Kas serverdan ma'lumot olinmadi. Birozdan keyin urinib ko'ring." };
+  const acct = await getDataSource().getDriverAccount(carNumber).catch(() => null);
+  if (!acct) return { ok: false, message: "Taksi tizimidan ma'lumot olinmadi. Birozdan keyin urinib ko'ring." };
   if (acct.debt <= 0) return { ok: false, message: "Qarzingiz yo'q 🎉" };
   if (amt > acct.debt) return { ok: false, message: `Qarzingiz ${acct.debt} so'm — undan ko'p to'lab bo'lmaydi.` };
 
@@ -106,24 +106,31 @@ export async function payDebtWithCoins(memberId: number, amount: number, nonce: 
     update: { status: "sent", amount: amt },
   });
 
-  // ── 3) kas write: settle debt (debt=true). On KNOWN failure, refund tanga. ──
+  // ── 3) pay onto the driver's balance in the taxi core, by PLATE, with the payment's own
+  // idempotency key (a retry is applied once). Three outcomes, kept apart:
+  //   applied → confirmed · refused → refund tanga · NO ANSWER → hold: the money may have moved,
+  //   and a refund here would pay twice. The row stays "sent" for an admin to resolve.
   const refund = async (note: string, code?: number): Promise<void> => {
     await grantCoins(memberId, amt, "debt_refund", `Qarz to'lash amalga oshmadi — qaytarildi (${carNumber})`, `${idempotencyKey}:refund`);
     await prisma.driverDebtPayment.update({ where: { idempotencyKey }, data: { status: "refunded", errorNote: note.slice(0, 200), kasStatusCode: code ?? null } });
   };
-  try {
-    // PAY VIA ПЛАСТИК (debt=FALSE) — kas's online/card method REDUCES the debt by the amount
-    // (proven on 70A111AA: 60000→55000 for a 5000 payment). NEVER debt=TRUE: that's the kas "долг"
-    // method which makes the driver BORROW (debt goes UP) — the original bug the owner caught.
-    const res = await getDataSource().addDriverPayment(acct.kasId, carNumber, amt, "1067 bot — qarz to'lash (plastik)", false);
-    if (!res.ok) {
-      await refund(`kas status ${res.status}`, res.status);
-      return { ok: false, message: `❌ Kas qabul qilmadi (status ${res.status}). Tanga qaytarildi.` };
-    }
-    await prisma.driverDebtPayment.update({ where: { idempotencyKey }, data: { status: "confirmed", kasBalance: res.balance, kasStatusCode: res.status } });
-    return { ok: true, paid: amt, kasBalance: res.balance, newDebtKnown: false, message: `✅ ${amt} so'm qarz to'landi. Rahmat!` };
-  } catch (e) {
-    await refund(e instanceof Error ? e.message : String(e)).catch(() => undefined);
-    return { ok: false, message: "❌ Kas serverda xato. Tanga qaytarildi." };
+  // The driver as THIS member is matched in the core (bj_<id>) — an independent check against the
+  // plate: the core refuses the payment if the two name different drivers.
+  const { coreDriverIdFromKasId } = await import("@t1067/shared");
+  const payer = await prisma.member.findUnique({ where: { id: memberId }, select: { kasId: true } }).catch(() => null);
+  const res = await getDataSource().addDriverPayment(carNumber, amt, `debt:${idempotencyKey}`, "1067 bot — qarz to'lash", coreDriverIdFromKasId(payer?.kasId));
+  if (res.unknown) {
+    const { alertAdmins } = await import("./economyService");
+    await alertAdmins(
+      `⚠️ <b>Qarz to'lash NOANIQ:</b> ${carNumber} — <b>${amt.toLocaleString("ru-RU")} so'm</b>, taksi tizimi javob bermadi.\n` +
+        `Haydovchi balansini tekshiring. Tanga ushlab turildi. <code>${idempotencyKey}</code>`,
+    ).catch(() => undefined);
+    return { ok: false, message: "⏳ Taksi tizimi javob bermadi — to'lov holati tekshirilmoqda. Tanga ushlab turildi, qayta bosmang." };
   }
+  if (!res.ok) {
+    await refund(`core status ${res.status}`, res.status);
+    return { ok: false, message: `❌ To'lov qabul qilinmadi (status ${res.status}). Tanga qaytarildi.` };
+  }
+  await prisma.driverDebtPayment.update({ where: { idempotencyKey }, data: { status: "confirmed", kasBalance: res.balance, kasStatusCode: res.status } });
+  return { ok: true, paid: amt, kasBalance: res.balance, newDebtKnown: false, message: `✅ ${amt} so'm qarz to'landi. Rahmat!` };
 }

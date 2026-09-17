@@ -75,11 +75,17 @@ export async function dispatchAction(
           audit(`manzil-tanlov: ${params.addressQuery}`);
           return { ok: false, message: "Bir nechta manzil topildi — birini tanlang.", extra: { suggestions: matches } };
         }
+        // The operator typed a place and nothing matched (or the search failed). Calling the 1-tap
+        // with no place would send a real car to the passenger's LAST pickup — a place nobody said.
+        if (!addressId) {
+          audit(`manzil-topilmadi: ${params.addressQuery}`);
+          return { ok: false, message: "Manzil topilmadi — boshqacha yozing yoki ro'yxatdan tanlang." };
+        }
       }
       const res = await callOneTapFor(memberId, addressId ? { addressId } : {}, "operator-console");
       audit(`taksi: ${res.state}`);
       if (res.state === "dispatched") {
-        await push(`🚕 <b>Taksi chaqirildi</b> — ${res.pickupName ?? ""}`);
+        await push(`🚕 <b>Taksi chaqirildi</b> — ${(res.pickupName ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}`);
         return { ok: true, message: `✅ Taksi chaqirildi: ${res.pickupName ?? ""}` };
       }
       if (res.state === "need_pickup") return { ok: false, message: "Manzil aniqlanmadi — tanlang.", extra: { suggestions: res.suggestions } };

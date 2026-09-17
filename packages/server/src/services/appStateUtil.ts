@@ -98,7 +98,7 @@ export async function pendingScan(kind: string): Promise<{ retry: PendingRow[]; 
 // CoinTxn.idempotencyKey (a real unique index), never here. trackjoin: is kept LONGER (K-factor
 // metric, below). icbrd:/icdep: are intercity sweep once-markers (audit P2-D).
 const EPHEMERAL_MARKER_PREFIXES = [
-  "qinc:", "qscore:", "ridefin:", "wsarrived:", "waitstart:", "waitfound:", "waitvfail:",
+  "qinc:", "qscore:", "ridefin:", "wsarrived:", "waitstart:", "waitfound:", "waitvfail:", "finishwait:", "dispatchhold:", "drvtrip:",
   "finishcard:", "faredone:", "fundride:", "farepending:", "cancels:", "tracknudge:", "icbrd:", "icdep:",
   "oprpause:", // 🆘 operator-escalation AI-pause marker (operatorPause.ts) — logically expires in 1h, this is just table hygiene
   "staffsummary:", // 👔 JAMOA J4 kechki xulosa once-marker — kaliti sanali, replay oynasi o'sha kechqurunning o'zi
