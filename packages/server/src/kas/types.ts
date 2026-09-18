@@ -255,6 +255,8 @@ export interface KasDataSource {
   cancelBooking(bookingId: number): Promise<BookingResult>;
   /** Booking tracking: the caller's current active booking (status + assigned driver), by phone. */
   getActiveBooking(phone: string): Promise<ActiveBooking | null>;
+  /** B qism P0-2: checkClient + getActiveBooking in one core request. Optional: absent = two calls. */
+  getBookingBootstrap?(phone: string): Promise<{ client: ClientBookingInfo | null; active: ActiveBooking | null }>;
   /** All active bookings (one call) — for the status-push notifier. */
   listActiveBookings(): Promise<ActiveBookingLite[]>;
   /** Ride history for a phone (bookingReports, newest first). */

@@ -1,6 +1,6 @@
 // Pickup-picker helpers (pickup2). Pure — no DB, no network, no React — so the same matching the
 // rider sees can be proven against the real kas catalog from a server-side script.
-import type { SavedAddressView } from "./booking";
+import { haversineKm, type SavedAddressView } from "./booking";
 
 /**
  * What KIND of place this is, read off its own name. Drives both the emoji and the colour of the
@@ -97,4 +97,31 @@ export function fuzzyFilter(q: string, list: SavedAddressView[]): SavedAddressVi
   // Mini App'ga ham ulash: u taxmin qilmaydi, odam yozgan variantlarni bilib turadi.
   // Bu alohida, ongli tiket.
   return blind;
+}
+
+/** Places a driver knows by name (a school, a bazaar…) — preferred over a small shop right next to them. */
+const LANDMARK_KINDS = new Set<PlaceKind>(["school", "bazaar", "mahalla", "gov", "mosque", "transit", "park", "health"]);
+
+/**
+ * The catalog place a map point is named after — the server's nearest-address answer, now also on
+ * the phone (P0-2: the name under the pin appears the moment the map stops, no request).
+ *
+ * ENG YAQIN ≠ ENG FOYDALI: the catalog holds schools and bazaars next to "QAZILI XOTDOG". By
+ * distance alone the hot-dog stand 40 m away beat "5-MAKTAB" at 120 m (the owner saw it live) — and a
+ * driver knows the school. So among places within +150 m of the closest one, a landmark wins; a
+ * noticeably farther place never does.
+ */
+export function nearestPlace(lat: number, lng: number, catalog: SavedAddressView[]): { addr: SavedAddressView; km: number } | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  const near: { a: SavedAddressView; km: number }[] = [];
+  for (const a of catalog) {
+    if (a.lat == null || a.lng == null) continue;
+    near.push({ a: { id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge }, km: haversineKm({ lat, lng }, { lat: a.lat, lng: a.lng }) });
+  }
+  if (near.length === 0) return null;
+  near.sort((x, y) => x.km - y.km);
+  const first = near[0]!;
+  const better = near.find((n) => n.km <= first.km + 0.15 && LANDMARK_KINDS.has(placeKind(n.a.name)));
+  const pick = better ?? first;
+  return { addr: pick.a, km: pick.km };
 }

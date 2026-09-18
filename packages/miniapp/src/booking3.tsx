@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { foldName, formatNumber, fuzzyFilter, glideMs, haversineKm, placeKind, ridePollMs, unwrapBearing, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
+import { foldName, formatNumber, fuzzyFilter, glideMs, haversineKm, nearestPlace, placeKind, ridePollMs, unwrapBearing, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
@@ -40,6 +40,8 @@ import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 import { useIsActive } from "./useIsActive";
 import { useRideStream, type RidePos } from "./rideStream";
+import { readBootCache, readPlacesCache, uxBoot, uxMark, writeBootCache, writePlacesCache } from "./fastOpen";
+import { noteRideLive } from "./rideMark";
 import { TaxiStory, storySeen } from "./taxiStory";
 import "./design/feat/b3.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -302,19 +304,35 @@ async function shareTrip(d: BookingDriverView): Promise<void> {
 }
 
 export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => void }) {
-  const [info, setInfo] = useState<BookingInfoResponse | null>(null);
+  // 🚕 P0-2 (fastopen): the sheet paints from the phone's last answer (never one that had a live ride)
+  // and the network only refreshes it. A ride that turns up in the fresh answer remounts the screen
+  // so it opens on the ride, exactly as without the cache.
+  const fast = !!me.flags?.fastopen;
+  const [info, setInfo] = useState<BookingInfoResponse | null>(() => (fast ? readBootCache() : null));
+  const fromCache = useRef(info !== null);
+  const [rideKey, setRideKey] = useState(0);
   const [errored, setErrored] = useState(false);
   const [flagOff, setFlagOff] = useState(false);
 
   useEffect(() => {
+    if (fast && info) uxMark("sheet", { cache: fromCache.current });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fast, !!info]);
+
+  useEffect(() => {
     let alive = true;
-    api
-      .bookingInfo()
+    const t0 = performance.now();
+    (fast ? api.bookingBoot() : api.bookingInfo())
       .then((r) => {
         if (!alive) return;
+        if (fast) uxBoot(performance.now() - t0);
         if ("error" in r) {
-          setErrored(true);
+          if (!fromCache.current) setErrored(true); // a painted sheet stays; ordering is checked server-side
           return;
+        }
+        if (fast) {
+          writeBootCache(r);
+          if (fromCache.current && r.active) setRideKey((k) => k + 1);
         }
         // preview override: ?b3=1 (browser) or Telegram startapp=b3 lets the owner see the
         // new flow on a real phone while everyone else stays on classic (global flag OFF).
@@ -324,10 +342,11 @@ export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => v
         if (r.booking3 === false && !forceB3) setFlagOff(true); // kill-switch → classic flow
         setInfo(r);
       })
-      .catch(() => alive && setErrored(true));
+      .catch(() => alive && !fromCache.current && setErrored(true));
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Yorug' skinni ekran YUKLANMASDAN OLDIN ham bilamiz: u `me.flags` da, `info` da emas.
@@ -350,7 +369,7 @@ export function Booking3View({ me, onClose }: { me: MeResponse; onClose: () => v
     );
   }
   if (!info) return <MapSkeleton lite={skelLite} />;
-  return <Booking3Inner me={me} info={info} onClose={onClose} />;
+  return <Booking3Inner key={rideKey} me={me} info={info} onClose={onClose} />;
 }
 
 // `lite` — yuklanish ekrani ham ega maketidagi OQ dunyoda bo'lsin. Ega e'tirozi: «yuklanish
@@ -467,6 +486,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const [searching, setSearching] = useState(false);
   // ── pickup2: the rebuilt pickup sheet. OFF → every branch below falls back to today's UI. ──
   const pickup2 = !!me.flags?.pickup2;
+  const fastopen = !!me.flags?.fastopen;
   // 🚕 livecars (B qism P0-3, ega qarori Q1): xaritada REAL bo'sh mashinalar. ON = bezak-mashina va
   // odamlar yo'q, «so'ralmoqda» nuri yo'q, son yadroning haqiqiy soni (11-pol va ×2 yo'q).
   const liveCars = !!me.flags?.livecars;
@@ -474,7 +494,13 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // ☀️ Yorug' varaq (ega maketidagi oq dunyo). Ega ikkala ko'rinishni real telefonda solishtiradi;
   // tanlangani qoladi, ikkinchisining klassi o'sha commit'da o'chiriladi (ikki yo'l qoldirilmaydi).
   const lite = me.flags?.pickup2lt ? " b3-p2-lt" : "";
-  const [allPlaces, setAllPlaces] = useState<SavedAddressView[] | null>(null);
+  // fastopen: the catalog from the phone is there on the FIRST render — the pin's first name (worked
+  // out in an effect that runs before any fetch could land) is already local.
+  const [allPlaces, setAllPlaces] = useState<SavedAddressView[] | null>(() => (fastopen ? readPlacesCache() : null));
+  const placesFromPhone = useRef(allPlaces !== null);
+  // fastopen: the pin's name is worked out from this, inside map handlers that do not re-run on it.
+  const allPlacesRef = useRef<SavedAddressView[] | null>(null);
+  allPlacesRef.current = allPlaces;
   const [showAll, setShowAll] = useState(false); // "Barchasi" — the alphabetical full catalog
   const [p2min, setP2min] = useState(false); // "Xaritadan ko'rsatish" → shrink the sheet, free the map
   const [listening, setListening] = useState(false);
@@ -542,6 +568,22 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup2, active?.id, active?.driver?.carNumber]);
   const activeRef = useRef<ActiveBookingView | null>(info.active ?? null); // E7: detect active→null finish
+  // fastopen: a ride on screen means the next open must not paint the ride-less cached sheet.
+  useEffect(() => { if (fastopen && active) noteRideLive(); }, [fastopen, active?.id]);
+  // fastopen: the sheet may have painted from the phone's last answer; when the fresh one names a
+  // different usual place and the passenger has not picked anything yet, the preselected pickup follows.
+  // A place is its id AND its point: map pins share one id, so the id alone cannot tell two apart.
+  const placeKey = (p: SavedAddressView | null | undefined) => (p ? `${p.id}:${p.lat ?? ""}:${p.lng ?? ""}` : "");
+  const quickSeen = useRef<string>(placeKey(info.quickPickup));
+  useEffect(() => {
+    if (!fastopen) return;
+    const q = info.quickPickup ?? null;
+    const k = placeKey(q);
+    if (k === quickSeen.current) return;
+    setPickup((cur) => (placeKey(cur) === quickSeen.current ? q : cur)); // no usual place now → none preselected
+    quickSeen.current = k;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fastopen, info.quickPickup]);
   // 🚕 B qism P0-4 (corestream): while a ride is on, the server says the moment it changes. The
   // search/ride poll below reads these refs: a nudge asks at once, an open socket slows the poll.
   const wakeRideRef = useRef<(() => void) | null>(null);
@@ -1072,13 +1114,26 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     const m = map.current;
     let alive = true;
     let deb: ReturnType<typeof setTimeout> | undefined;
+    let last: { lat: number; lng: number } | null = null;
     const snap = () => {
       const c = m.getCenter();
+      // fastopen: zooming in or out without moving the centre changes nothing — no new name, no request.
+      if (fastopen && last && haversineKm(last, { lat: c.lat, lng: c.lng }) < 0.003) return;
+      last = { lat: c.lat, lng: c.lng };
       const seq = ++snapSeq.current; // only the NEWEST lookup may label the pin (see below)
       setPinPt({ lat: c.lat, lng: c.lng });
+      // fastopen: the server's own rule (shared nearestPlace) over the catalog on the phone — the name
+      // is there the moment the map stops, and the button never waits for it. The order is checked by
+      // the server anyway.
+      if (fastopen && allPlacesRef.current?.length) {
+        setPinAddr(nearestPlace(c.lat, c.lng, allPlacesRef.current)?.addr ?? null);
+        setPinBusy(false);
+        uxMark("name");
+        return;
+      }
       setPinBusy(true);
       api.bookingNearestAddr(c.lat, c.lng)
-        .then((a) => { if (alive && seq === snapSeq.current) { setPinAddr(a); setPinBusy(false); } })
+        .then((a) => { if (alive && seq === snapSeq.current) { setPinAddr(a); setPinBusy(false); if (fastopen) uxMark("name"); } })
         .catch(() => { if (alive && seq === snapSeq.current) setPinBusy(false); });
     };
     const onMove = () => { setWalking(false); if (deb) clearTimeout(deb); deb = setTimeout(snap, 450); };
@@ -1223,7 +1278,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     if (text.trim().length < 2) return setResults([]);
     // pickup2: once the catalog is in memory the filter is local, so asking kas per keystroke would
     // buy nothing — the upstream results get discarded by `hits` anyway.
-    if (pickup2 && allPlaces?.length) return;
+    if ((pickup2 || fastopen) && allPlaces?.length) return;
     setSearching(true);
     const r = await api.bookingSearch(text).catch(() => []);
     setResults(r);
@@ -1241,13 +1296,26 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
 
   // pickup2: pull the whole catalog once, lazily — kas caches it for 6h upstream, so this costs no
   // extra dispatch-backend call and lets every later keystroke filter locally.
+  // fastopen (P0-2): the catalog lives on the phone with a version — shown at once, replaced only when
+  // the fresh copy differs — and is loaded without pickup2 too: the pin's name comes from it.
   useEffect(() => {
-    if (!pickup2 || allPlaces !== null) return;
+    if (!placesFromPhone.current) return;
+    // The phone's copy is refreshed once per open; a catalog that changed replaces it.
+    void api.bookingPlaces().then((r) => { if (r.length && writePlacesCache(r)) setAllPlaces(r); }).catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (!(pickup2 || fastopen) || allPlaces !== null) return;
     if (screen !== "pinpick" && screen !== "map") return;
     let alive = true;
-    void api.bookingPlaces().then((r) => { if (alive) setAllPlaces(r); }).catch(() => { if (alive) setAllPlaces([]); });
+    void api.bookingPlaces()
+      .then((r) => {
+        if (!alive) return;
+        setAllPlaces(r);
+        if (fastopen && r.length) writePlacesCache(r);
+      })
+      .catch(() => { if (alive) setAllPlaces([]); });
     return () => { alive = false; };
-  }, [pickup2, allPlaces, screen]);
+  }, [pickup2, fastopen, allPlaces, screen]);
 
   // ── 🗺 Katalog joylari XARITADA (ega tanlovi "C": zonalar + belgilar) ─────────────────────
   // Belgini bosish ro'yxat qatorini bosish bilan AYNAN bir xil ishlaydi (`choose`) — ikki xil
@@ -1471,10 +1539,17 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // va odam boshqa joyning nomini ko'radi. GPS nuqtasi — haqiqat, xarita faqat ko'rinish.
       const seq = ++snapSeq.current;
       setPinPt({ lat, lng });
-      setPinBusy(true);
-      api.bookingNearestAddr(lat, lng)
-        .then((a) => { if (seq === snapSeq.current) { setPinAddr(a); setPinBusy(false); } })
-        .catch(() => { if (seq === snapSeq.current) setPinBusy(false); });
+      if (fastopen && allPlacesRef.current?.length) {
+        // fastopen: named on the phone — the GPS fix never leaves the button waiting for a request
+        setPinAddr(nearestPlace(lat, lng, allPlacesRef.current)?.addr ?? null);
+        setPinBusy(false);
+        uxMark("name");
+      } else {
+        setPinBusy(true);
+        api.bookingNearestAddr(lat, lng)
+          .then((a) => { if (seq === snapSeq.current) { setPinAddr(a); setPinBusy(false); } })
+          .catch(() => { if (seq === snapSeq.current) setPinBusy(false); });
+      }
       map.current?.setView([lat, lng], 17, { animate: true });
       flashMsg(accuracy <= GOOD_FIX_M ? null : "📍 Joyni aniqroq belgilang — pinni suring", 6000);
     };

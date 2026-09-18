@@ -286,6 +286,30 @@ export class BirJoySource implements KasDataSource {
 
   private async fetchActiveBooking(p: string): Promise<ActiveBooking | null> {
     const order = await this.request<any>("GET", "/orders/by-phone/active", { query: { phone: p } });
+    return this.toActiveBooking(order);
+  }
+
+  /**
+   * P0-2: the taxi screen's first paint in ONE core request (`/orders/by-phone/bootstrap`) — what
+   * checkClient and getActiveBooking answer, mapped by the very same code. The live-ride answer also
+   * warms getActiveBooking's cache, so the screen's next question does not go to the core again.
+   * A core without the route answers 404 (CoreHttpError): the caller falls back to the two calls.
+   */
+  async getBookingBootstrap(phone: string): Promise<{ client: ClientBookingInfo | null; active: ActiveBooking | null }> {
+    const p = this.phone(phone);
+    if (!p) return { client: null, active: null };
+    const epoch = this.activeEpoch;
+    const startedAt = Date.now();
+    const r = await this.request<any>("GET", "/orders/by-phone/bootstrap", { query: { phone: p } });
+    const active = this.toActiveBooking(r?.active);
+    if (epoch === this.activeEpoch) {
+      if (this.activeByPhone.size > 5000) this.activeByPhone.clear();
+      this.activeByPhone.set(p, { at: startedAt, value: active });
+    }
+    return { client: this.toClientInfo(r?.client, p), active };
+  }
+
+  private toActiveBooking(order: any): ActiveBooking | null {
     if (!order) return null;
     return {
       id: this.toOuterId(order.id),
@@ -556,6 +580,10 @@ export class BirJoySource implements KasDataSource {
     const p = this.phone(phone);
     if (!p) return null;
     const info = await this.request<any>("GET", "/orders/by-phone/booking-info", { query: { phone: p } });
+    return this.toClientInfo(info, p);
+  }
+
+  private toClientInfo(info: any, p: string): ClientBookingInfo | null {
     if (!info) return null;
     return {
       clientName:  info.clientName ?? "",

@@ -52,6 +52,7 @@ import { BirJoyMark } from "./design/birjoy";
 import { Icon } from "./icons";
 import { useCountUp } from "./util";
 import { initTheme, syncThemeFromCloud } from "./theme"; // kichik modul — profile/wallet zanjirini tortmaydi
+import { markTaxiTap } from "./fastOpen";
 
 initTheme(); // 🎨 apply saved / Telegram theme on <html> before first paint (features newhome/newprofile)
 
@@ -207,6 +208,8 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; msg: string } | null>(null);
   const [booking, setBooking] = useState(() => readGo() === "book");
+  // 🚕 P0-2 (D2.6): the taxi screen's clock starts at the tap (sent only under fastopen).
+  useEffect(() => { if (booking) markTaxiTap(); }, [booking]);
   const [invite, setInvite] = useState(() => readGo() === "invite"); // 🎁 invite overlay (one-tap from home / ?go=invite)
   const [history, setHistory] = useState(() => readGo() === "history"); // 📜 ride-history overlay
   const [deepGashtakCode] = useState(() => readDeepGashtakCode()); // 🤝 taklif-havolasi kod

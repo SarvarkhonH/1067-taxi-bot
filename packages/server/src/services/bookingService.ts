@@ -12,11 +12,11 @@ import {
   type FareQuote,
   type GeoPt,
   type SavedAddressView,
-  placeKind,
+  nearestPlace,
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { env } from "../env";
-import { getDataSource, type BookingResult, type RideHistoryItem } from "../kas";
+import { getDataSource, type BookingResult, type KasDataSource, type RideHistoryItem } from "../kas";
 import { getFareConfig } from "./clientInfoService";
 
 export interface RideHistoryFull {
@@ -103,19 +103,80 @@ async function toView(
   };
 }
 
-export async function getBookingInfo(memberId: number): Promise<BookingInfoResponse | { error: string }> {
+/** Server-Timing for the taxi screen's first answer (P0-2): name → milliseconds. */
+export type BootTiming = Record<string, number>;
+
+// 🚕 P0-2 (fastopen): the town's reference data changes when an operator edits it, not per passenger.
+// A 60 s memo spares the core three requests every time a taxi screen opens. Failures are not kept.
+const REF_TTL_MS = 60_000;
+const refMemo = new Map<string, { at: number; value: Promise<unknown> }>();
+export function memoRef<T>(key: string, load: () => Promise<T>, now = Date.now()): Promise<T> {
+  const hit = refMemo.get(key);
+  if (hit && now - hit.at < REF_TTL_MS) return hit.value as Promise<T>;
+  const value = load();
+  const entry = { at: now, value };
+  refMemo.set(key, entry);
+  value.catch(() => { if (refMemo.get(key) === entry) refMemo.delete(key); });
+  return value;
+}
+
+/** A core without /orders/by-phone/bootstrap answers 404 — then use the two calls for 10 min. */
+let bootstrapMissingUntil = 0;
+/** The core gets this long before the log says the first answer was slow (D2.3). Not a cut-off: a
+ *  wrong "no ride" would let the passenger order a second car — the phone's cache covers the wait. */
+export const BOOT_CORE_BUDGET_MS = 800;
+
+/** TEST-ONLY: forget the memo and the "no bootstrap route" note. */
+export function __resetBootCaches(): void {
+  refMemo.clear();
+  bootstrapMissingUntil = 0;
+}
+
+export async function clientAndRide(
+  phone: string,
+  fast: boolean,
+  ds: Pick<KasDataSource, "checkClient" | "getActiveBooking" | "getBookingBootstrap"> = getDataSource(),
+  now = Date.now(),
+) {
+  if (fast && ds.getBookingBootstrap && now >= bootstrapMissingUntil) {
+    try {
+      return await ds.getBookingBootstrap(phone);
+    } catch (e) {
+      if ((e as { status?: number })?.status === 404) bootstrapMissingUntil = now + 10 * 60_000;
+      // anything else: the two calls below, each with its own fallback
+    }
+  }
+  const [client, active] = await Promise.all([
+    ds.checkClient(phone).catch(() => null),
+    ds.getActiveBooking(phone).catch(() => null),
+  ]);
+  return { client, active };
+}
+
+export async function getBookingInfo(
+  memberId: number,
+  opts: { fast?: boolean; timing?: BootTiming } = {},
+): Promise<BookingInfoResponse | { error: string }> {
+  const t0 = Date.now();
   const who = await phoneOf(memberId);
+  if (opts.timing) opts.timing.db = Date.now() - t0;
   if (!who) return { error: "no phone" };
   const ds = getDataSource();
-  const [client, area, company, fare, addons, active, quickPickup] = await Promise.all([
-    ds.checkClient(who.phone).catch(() => null),
-    ds.getServiceArea().catch(() => []),
-    ds.getCompanyInfo().catch(() => ({ companyName: "1067", dispatcherPhones: [], lat: 39.04, lng: 65.57 })),
+  const fast = !!opts.fast;
+  const tCore = Date.now();
+  const ref = <T>(key: string, load: () => Promise<T>) => (fast ? memoRef(key, load) : load());
+  const [ride, area, company, fare, addons, quickPickup] = await Promise.all([
+    clientAndRide(who.phone, fast).then((r) => {
+      if (opts.timing) opts.timing.core = Date.now() - tCore;
+      return r;
+    }),
+    ref("area", () => ds.getServiceArea()).catch(() => []),
+    ref("company", () => ds.getCompanyInfo()).catch(() => ({ companyName: "1067", dispatcherPhones: [], lat: 39.04, lng: 65.57 })),
     getFareConfig().catch(() => null),
-    ds.getBookingAddons().catch(() => []),
-    ds.getActiveBooking(who.phone).catch(() => null),
+    ref("addons", () => ds.getBookingAddons()).catch(() => []),
     getQuickPickup(memberId).catch(() => null),
   ]);
+  const { client, active } = ride;
   const saved: SavedAddressView[] = (client?.addresses ?? []).map((a) => ({ id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge }));
   // T4: the default-pickup branch of getQuickPickup carries no coords (no schema column for it);
   // resolve them from the freshly-fetched saved list so the 1-tap pin-drop + recenter work.
@@ -183,28 +244,8 @@ export async function nearestAddressFor(memberId: number, lat: number, lng: numb
 export async function nearestCatalogAddress(lat: number, lng: number): Promise<{ addr: SavedAddressView; km: number } | null> {
   if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
   const cat = await getDataSource().getAllAddresses().catch(() => [] as SavedAddressView[]);
-  const near: { a: SavedAddressView; km: number }[] = [];
-  for (const a of cat) {
-    if (a.lat == null || a.lng == null) continue;
-    const km = haversineKm({ lat, lng }, { lat: a.lat, lng: a.lng });
-    near.push({ a: { id: a.id, name: a.name, lat: a.lat, lng: a.lng, surcharge: a.surcharge }, km });
-  }
-  if (near.length === 0) return null;
-  near.sort((x, y) => x.km - y.km);
-  const first = near[0]!;
-
-  // 🏷 ENG YAQIN ≠ ENG FOYDALI. Katalogda maktab/bozor/mahalla bilan bir qatorda mayda savdo
-  // nuqtalari ham bor («QAZILI XOTDOG», «KOMIL QASSOB», «ESABOY»). Faqat masofa bo'yicha
-  // tanlaganda 40 m dagi xotdog do'koni 120 m dagi «5-MAKTAB»ni yutardi va mijozga
-  // «sizning manzilingiz: QAZILI XOTDOG» deb ko'rsatardi (ega jonli sinovda ko'rdi).
-  // Haydovchi esa maktabni BILADI, xotdog do'konini bilmasligi mumkin — ya'ni bu nom
-  // dispetcherlik uchun ham yomonroq.
-  // Yechim: eng yaqindan +150 m ichidagi nomzodlar orasidan TANIQLI orientir afzal ko'riladi.
-  // Faqat shu oraliqda — ya'ni sezilarli darajada uzoqroq joy hech qachon tanlanmaydi.
-  const LANDMARK = new Set(["school", "bazaar", "mahalla", "gov", "mosque", "transit", "park", "health"]);
-  const better = near.find((n) => n.km <= first.km + 0.15 && LANDMARK.has(placeKind(n.a.name)));
-  const pick = better ?? first;
-  return { addr: pick.a, km: pick.km };
+  // The rule lives in shared/pickup.nearestPlace so the Mini App names the pin exactly as we do.
+  return nearestPlace(lat, lng, cat);
 }
 
 /** Human label for a map pin: nearest catalog place, with a "yaqini" suffix when the pin is a few

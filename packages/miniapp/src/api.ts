@@ -51,6 +51,7 @@ import type {
   OyinVitrinaResponse,
 } from "@t1067/shared";
 import { tg } from "./telegram";
+import { noteRideLive } from "./rideMark";
 
 // Telegram provides initData via the SDK AND in the URL hash (tgWebAppData). The signed initData
 // stays valid for the whole session — we CACHE it in sessionStorage on first read so subsequent
@@ -108,6 +109,11 @@ function authHeaders(): Record<string, string> {
 
 // Same-origin in dev (Vite proxy); absolute backend URL in production (set VITE_API_URL at build).
 const API_BASE = ((import.meta.env.VITE_API_URL as string) || "").replace(/\/$/, "");
+
+/** 🚕 B qism P0-2 (D2.6): where the taxi screen's timing marks go (sendBeacon). */
+export function uxMarksUrl(): string {
+  return `${API_BASE}/api/ux/marks`;
+}
 
 /** 🚕 B qism P0-4: the ride socket's address — the API's own host, ws(s) scheme. */
 export function rideSocketUrl(): string {
@@ -423,6 +429,8 @@ export const api = {
   gapCreate: (name: string) => request<{ ok: boolean; reason?: string; code?: string }>("POST", "/api/gap/create", { name }, 1),
   gapJoin: (code: string) => request<{ ok: boolean; reason?: string; name?: string }>("POST", "/api/gap/join", { code }, 1),
   bookingInfo: () => get<BookingInfoResponse | { error: string }>("/api/booking/info"),
+  // 🚕 P0-2 (fastopen): the same answer, one core request, reference data memoised, Server-Timing.
+  bookingBoot: () => get<BookingInfoResponse | { error: string }>("/api/booking/boot"),
   home: () => get<HomeResponse>("/api/home"),
   account: () =>
     get<{ name: string; phone: string; joined: string | null; type: string; coins: number; cashback: number; streak: number; trips: number; notifyOff: boolean }>(
@@ -433,8 +441,15 @@ export const api = {
   bookingActive: () => get<ActiveBookingView | null>("/api/booking/active"),
   bookingSearch: (q: string) => request<SavedAddr[]>("POST", "/api/booking/search", { q }, 1),
   bookingNearestAddr: (lat: number, lng: number) => request<SavedAddr | null>("POST", "/api/booking/nearest", { lat, lng }, 1),
-  bookingCreate: (body: BookingCreateBody) => request<BookingCreateResponse>("POST", "/api/booking/create", body, 1),
-  bookingNow: (body: { lat?: number; lng?: number; addressId?: number } = {}) => request<BookingNowResponse>("POST", "/api/booking/now", body, 1),
+  // 🚕 P0-2: an order that went through marks "a ride may be live" — the taxi screen then waits for
+  // the server instead of painting the phone's last (ride-less) answer.
+  bookingCreate: (body: BookingCreateBody) =>
+    request<BookingCreateResponse>("POST", "/api/booking/create", body, 1).then((r) => { if (r.ok) noteRideLive(); return r; }),
+  bookingNow: (body: { lat?: number; lng?: number; addressId?: number } = {}) =>
+    request<BookingNowResponse>("POST", "/api/booking/now", body, 1).then((r) => {
+      if (r.state === "dispatched" || r.state === "active") noteRideLive();
+      return r;
+    }),
   recentPickups: () => request<SavedAddressView[]>("GET", "/api/booking/recent"),
   // pickup2: the whole named-place catalog, fetched once so the picker filters locally
   bookingPlaces: () => request<SavedAddressView[]>("GET", "/api/booking/places"),

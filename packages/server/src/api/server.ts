@@ -36,6 +36,11 @@ import { prisma } from "../db";
 import { getFareConfig } from "../services/clientInfoService";
 import { callOneTapFor, cancelBookingFor, createBookingFor, estimateFare, getActiveBookingFor, getBookingInfo, getRecentPickups, listCatalogPlaces, nearestAddressFor, searchBookingAddress } from "../services/bookingService";
 import type { BookingCreateBody, BookingNowBody, GeoPt, OyinBulkPrizeInput, OyinSeasonPlan } from "@t1067/shared";
+import { LagStats, uxMarksLine } from "@t1067/shared";
+/** P0-2 (D2.7): how long /api/booking/boot takes, server side. */
+const bootLag = new LagStats(200);
+/** P0-2 (D2.6): when each passenger last sent timing marks (one beacon per open; 5 s floor). */
+const uxSeenAt = new Map<string, number>();
 import { validateContactResponse, validateInitData } from "./telegramAuth";
 import { isTgBanned } from "../services/banService";
 import { featureOn } from "../services/featureFlags";
@@ -526,7 +531,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn, livecarsOn, corestreamOn, ridemapOn] = await Promise.all([
+    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn, livecarsOn, corestreamOn, ridemapOn, fastopenOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("intercity"),
@@ -552,6 +557,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("livecars"),
       featureOn("corestream"),
       featureOn("ridemap"),
+      featureOn("fastopen"),
     ]);
     // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
     // katalogni ko'radi, raqam faqat harakat paytida so'raladi. `guest` = Telegram identifikatori
@@ -601,7 +607,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // HALI DARK — jonli mijozga chiqarish uchun `setFeature` bilan ALOHIDA yoqilishi shart.
     // `pickup2b` ATAYLAB preview'ga kirmadi: A tartifi tavsiya qilingan, B faqat solishtirish uchun.
     const taxiPreview = isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On || taxiPreview, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn || taxiPreview, taxistory: taxistoryOn || taxiPreview, livecars: livecarsOn || taxiPreview, corestream: corestreamOn || taxiPreview, ridemap: ridemapOn || taxiPreview, oyin: oyinPreview } });
+    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On || taxiPreview, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn || taxiPreview, taxistory: taxistoryOn || taxiPreview, livecars: livecarsOn || taxiPreview, corestream: corestreamOn || taxiPreview, ridemap: ridemapOn || taxiPreview, fastopen: fastopenOn || taxiPreview, oyin: oyinPreview } });
   });
 
   /**
@@ -2019,6 +2025,45 @@ export function createApiServer(opts: ApiOptions = {}) {
     const previewer = resolveTelegramId(req) === "6506297119";
     return { ...info, booking3: flagOn || previewer };
   }));
+  // 🚕 B qism P0-2 (fastopen): the same answer as /api/booking/info, fast — who + the live ride in one
+  // core request, the town's reference data from a 60 s memo — with a Server-Timing header and a p95
+  // line every 50 answers (D2.3, D2.7). The owner gets the fast path as a preview while the flag is off.
+  app.get("/api/booking/boot", requireUser, withMember(async (id, req, res) => {
+    const { featureOn } = await import("../services/featureFlags");
+    const { BOOT_CORE_BUDGET_MS } = await import("../services/bookingService");
+    const tgId = res.locals.telegramId as string;
+    const fast = (await featureOn("fastopen")) || env.adminIds.includes(tgId);
+    const timing: Record<string, number> = {};
+    const t0 = Date.now();
+    const [info, flagOn] = await Promise.all([getBookingInfo(id, { fast, timing }), featureOn("booking3")]);
+    timing.total = Date.now() - t0;
+    res.setHeader("Server-Timing", Object.entries(timing).map(([k, v]) => `${k};dur=${v}`).join(", "));
+    if ((timing.core ?? 0) > BOOT_CORE_BUDGET_MS) console.warn(`[boot] core took ${timing.core}ms (> ${BOOT_CORE_BUDGET_MS}ms budget)`);
+    bootLag.add(timing.total);
+    if (bootLag.total % 50 === 0) console.log(`[boot] p95=${bootLag.p95()}ms over the last ${bootLag.count} (fast=${fast})`);
+    const previewer = resolveTelegramId(req) === "6506297119";
+    return { ...info, booking3: flagOn || previewer };
+  }));
+  // 🚕 B qism P0-2 (D2.6): the phone's own timing of the taxi screen, sent once with sendBeacon. A beacon
+  // carries no headers, so the signed initData rides in the body, and it is text/plain — the one type a
+  // cross-origin beacon may send without a preflight. One [ux] log line; nothing stored, no identity.
+  // Limited per passenger AFTER the signature check (one open sends one beacon): an IP limit would put
+  // everyone behind the proxy in one bucket and let anyone drain it.
+  app.post("/api/ux/marks", express.text({ type: "text/plain", limit: "4kb" }), (req, res) => {
+    let b: { initData?: unknown; marks?: unknown } | null = null;
+    try { b = JSON.parse(String(req.body ?? "")); } catch { /* not JSON */ }
+    const initData = typeof b?.initData === "string" ? b.initData : "";
+    const check = initData && env.BOT_TOKEN ? validateInitData(initData, env.BOT_TOKEN) : null;
+    if (!check?.ok || !check.user) { res.status(401).end(); return; }
+    const uid = String(check.user.id);
+    const now = Date.now();
+    if (now - (uxSeenAt.get(uid) ?? 0) < 5_000) { res.status(204).end(); return; }
+    if (uxSeenAt.size > 20_000) uxSeenAt.clear();
+    uxSeenAt.set(uid, now);
+    const line = uxMarksLine(b?.marks);
+    if (line) console.log(`[ux] ${line}`);
+    res.status(204).end();
+  });
   // V1 living home aggregate: greeting name, usual ride, live cars, balances.
   app.get("/api/home", requireUser, withMember(async (id) => {
     const { getMeByMemberId } = await import("../services/memberService");
