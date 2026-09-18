@@ -8,7 +8,8 @@ import { runSync } from "./sync/sync";
 import { pushBookingUpdates } from "./services/bookingNotifier";
 import { maybeSurpriseDrop, payWeeklyPrizes } from "./services/weeklyService";
 import { bookingTickDelay, formatNumber, sweepLoop } from "@t1067/shared";
-import { coreStreamHealthy, ensureCoreStream, setCoreStreamRecheck, setCoreStreamWake } from "./services/coreStream";
+import { coreStreamHealthy, ensureCoreStream, onCoreLoc, setCoreStreamRecheck, setCoreStreamWake } from "./services/coreStream";
+import { startLivePin } from "./services/livePin";
 import { attachRideSocket, recheckRideClients } from "./api/rideSocket";
 import { featureOn } from "./services/featureFlags";
 
@@ -638,6 +639,25 @@ async function main(): Promise<void> {
   setCoreStreamWake(bookingSweep.wake);
   // The admin panel's flag switch: connect or close now, and let the sweep pick its new pace at once.
   setCoreStreamRecheck(() => void checkCoreStream().then(() => bookingSweep.wake()));
+  // 🚕 P0-5 (ridemap): the chat's live location follows the car straight from the core's stream —
+  // it only EDITS the pin the sweep sent for that ride, at most every 4 s. Flag off: the owner's rides.
+  if (bot) {
+    const pinBot = bot;
+    startLivePin({
+      enabled: () => featureOn("ridemap"),
+      previewTail: ownerTail,
+      pinFor: async (bookingId, tail9) => {
+        const m = await prisma.member.findFirst({
+          where: { lastBookingId: bookingId, phone: { endsWith: tail9 }, liveLocMsgId: { not: null } },
+          select: { liveLocMsgId: true, telegramUser: { select: { id: true } } },
+        });
+        return m?.liveLocMsgId && m.telegramUser ? { chatId: m.telegramUser.id, messageId: m.liveLocMsgId } : null;
+      },
+      edit: (chatId, messageId, lat, lng, heading) =>
+        pinBot.api.editMessageLiveLocation(chatId, messageId, lat, lng, heading ? { heading } : undefined),
+      onLoc: onCoreLoc,
+    });
+  }
   // Always: the ride sweep also carries the market/partner SLA checks, tanga refunds for expired
   // market orders and AI reminders. It used to start only for kas1067 ("live").
   bookingSweep.start(15_000);

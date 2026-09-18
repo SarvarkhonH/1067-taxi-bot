@@ -268,7 +268,8 @@
 .b3-wchip b { color: var(--accent); font-size: 15px; }
 .b3-wchip-sub { display: block; margin-top: 2px; font-size: 11px; color: var(--text-dim); }
 .b3-voucher { margin: 12px auto 8px; max-width: 320px; text-align: center; border-radius: 12px; background: rgba(255, 179, 0, .12); border: 1px solid rgba(255, 179, 0, .3); padding: 10px 14px; font-size: 14px; }
-.b3-carpin { font-size: 28px; transition: transform .9s linear; }
+/* --b3-glide: ridemap sets it to the time between fixes (0.8–5 s); without it, yesterday's .9s */
+.b3-carpin { font-size: 28px; transition: transform var(--b3-glide, .9s) linear; }
 .b3-carpin-i { display: inline-block; transition: transform .9s linear; filter: drop-shadow(0 0 6px rgba(255,179,0,.6)) drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
 .b3-carpax { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: #f4c89a; box-shadow: 0 0 3px rgba(0,0,0,.55); opacity: 0; transition: opacity .5s ease; }
 .b3-carpin.b3-aboard .b3-carpax { opacity: 1; }

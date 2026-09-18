@@ -8,6 +8,8 @@ import { useEffect, useRef, useState } from "react";
 import { getInitData, rideSocketUrl } from "./api";
 
 export interface RidePos {
+  /** The ride this fix belongs to (the bot's booking id) — a phone can have two orders. */
+  id?: number;
   lat: number;
   lng: number;
   bearing: number;
@@ -53,13 +55,13 @@ export function useRideStream(enabled: boolean, onNudge: () => void, onPos?: (p:
       ws = sock;
       sock.onopen = () => sock.send(JSON.stringify({ t: "auth", initData }));
       sock.onmessage = (ev) => {
-        let m: { t?: string; lat?: unknown; lng?: unknown; bearing?: unknown; at?: unknown };
+        let m: { t?: string; id?: unknown; lat?: unknown; lng?: unknown; bearing?: unknown; at?: unknown };
         try { m = JSON.parse(String(ev.data)); } catch { return; }
         if (m.t === "ready") { attempt = 0; setOpen(true); }
         else if (m.t === "down") { attempt = 0; setOpen(false); } // signed in, but the core's stream is not live
         else if (m.t === "nudge") nudgeRef.current();
         else if (m.t === "pos" && typeof m.lat === "number" && typeof m.lng === "number" && Number.isFinite(m.lat) && Number.isFinite(m.lng)) {
-          posRef.current?.({ lat: m.lat, lng: m.lng, bearing: Number(m.bearing) || 0, at: String(m.at ?? "") });
+          posRef.current?.({ id: typeof m.id === "number" ? m.id : undefined, lat: m.lat, lng: m.lng, bearing: Number(m.bearing) || 0, at: String(m.at ?? "") });
         }
       };
       sock.onclose = (ev) => {

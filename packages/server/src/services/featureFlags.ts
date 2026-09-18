@@ -175,6 +175,13 @@ export const FEATURES = [
               // AYNAN; yadro ruxsat bersa oqim ega-preview rejimida ulanadi (sweep faqat ega safari uchun
               // uyg'onadi, tezligi 5/15 s qoladi). O'chirilsa ulangan mijoz soketlari 4403 bilan uziladi.
               // Yadroda ham `SVC_STREAM_ENABLED=true` bo'lishi shart. Pul yo'q, dispetcherlikka tegmaydi.
+  "ridemap", // 🚕 B qism P0-5: safar xaritasi yadro oqimidan. ON = Mini App'da haydovchi mashinasi fikslar
+              // oralig'ida (0.8–5 s) silliq siljiydi va qisqa yoy bilan buriladi; botdagi jonli joylashuv
+              // `svc:loc` dan ≥4 s oraliqda tahrirlanadi (faqat o'sha safar egasiga). `corestream` oqimi kerak.
+              // OFF = mashina siljishi va burilishi bugungidek (.9s), chatdagi pin faqat sweep'dan. DIQQAT:
+              // `corestream` yoqiq bo'lsa soket fikslari mashinani baribir har ~2 s da suradi (aks holda
+              // 20 s so'rovda qotib qolardi) — soket pozitsiyalarining haqiqiy o'chirgichi `corestream`.
+              // Ega-preview (admin safari) bor. Pul yo'q.
   "livecars", // 🚕 B qism P0-3 (ega qarori Q1, 2026-09-17): taksi xaritasida REAL bo'sh mashinalar —
               // yadroning `/drivers/nearby-free` yo'lidan (250 m katak, 10 daqiqada almashadigan belgi,
               // band mashina hech qachon, 2 tadan kam bo'lsa nuqta yo'q). ON = bezak-mashina/odamlar,
@@ -192,7 +199,7 @@ export type FeatureName = (typeof FEATURES)[number];
 // Off until explicitly enabled (go-live flip = setFeature(name, true) after owner QABUL).
 // booking3 = the new map/trip flow; owner still gets a preview via server.ts owner-branch,
 // but real users stay on the (fixed) classic flow until it's accepted. A missing row → OFF.
-const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "pickup2", "pickup2b", "pickup2lt", "taxistory", "operatorAssist", "jamoa", "oyin", "livecars", "corestream"]);
+const DEFAULT_OFF = new Set<FeatureName>(["booking3", "aibrain", "mahalla", "tolqin", "baraban", "komissiya", "qarz", "welcomebonus", "refstaged", "drvstaged", "drvrecruit", "drvpush", "promo", "clientbooking", "cashout", "carupgrade", "intercity", "tierloyalty", "waitcomp", "trackcta", "drvrank", "instantstatus", "spinreminder", "shop", "xizmatlar", "elonlar", "elontop", "restoran", "bazarcart", "shopcashback", "revtanga", "airemind", "aihisob", "aidost", "aicity", "aibilim", "aineeds", "shopstory", "shopchat", "mktexpire", "mktlife", "ravella", "linkinapp", "homescreen", "storyshare", "autoloc", "pickup2", "pickup2b", "pickup2lt", "taxistory", "operatorAssist", "jamoa", "oyin", "livecars", "corestream", "ridemap"]);
 
 let cache: { at: number; map: Record<string, boolean> } = { at: 0, map: {} };
 

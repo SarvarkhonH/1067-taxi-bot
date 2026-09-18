@@ -100,7 +100,7 @@ async function main() {
   await wait(200);
   ok(hear(a, "pos").length === 1 && hear(b, "pos").length === 0, "passenger 1's car reaches passenger 1 only");
   const pos = hear(a, "pos")[0];
-  ok(!!pos && Object.keys(pos).sort().join(",") === "at,bearing,lat,lng,t", "a position frame carries only t, lat, lng, bearing, at");
+  ok(!!pos && Object.keys(pos).sort().join(",") === "at,bearing,id,lat,lng,t" && pos.id === toBridgeId(5001), "a position frame carries only t, id (their own ride), lat, lng, bearing, at");
 
   locFn!(loc(7777, 1)); // passenger 1's phone, not passenger 1's ride
   await wait(200);

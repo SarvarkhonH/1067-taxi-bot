@@ -5,7 +5,7 @@
 //   {t:"ready"} / {t:"down"}          — the core's stream is live / is not (sent after auth and on
 //                                       every change): only under "ready" may the Mini App slow its poll
 //   {t:"nudge", status}               — something changed; fetch /api/booking/active now
-//   {t:"pos", lat, lng, bearing, at}  — your driver's car, while that driver holds YOUR ride
+//   {t:"pos", id, lat, lng, bearing, at} — your driver's car, while that driver holds YOUR ride (id)
 // The Mini App keeps polling underneath (every 20 s under "ready", 3 s otherwise), so a dead socket
 // or a dead stream costs speed, never correctness.
 //
@@ -212,7 +212,7 @@ export function attachRideSocket(
         refreshedAt.set(c, now);
         await refreshBooking(c);
       }
-      if (locBelongsTo(l, c)) send(c, { t: "pos", lat: l.lat, lng: l.lng, bearing: l.bearing, at: l.at });
+      if (locBelongsTo(l, c)) send(c, { t: "pos", id: c.bookingId, lat: l.lat, lng: l.lng, bearing: l.bearing, at: l.at });
     }
   });
 }

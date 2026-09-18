@@ -68,6 +68,7 @@ export interface MeResponse {
     pickup2lt?: boolean; // ☀️ pickup2 varag'ining YORUG' ko'rinishi (ega maketi); OFF = ilovaning qorong'i uslubi
     taxistory?: boolean; // 📖 taksi o'rgatuvchi story (6 karta); OFF = hech kim ko'rmaydi, "?" tugmasi ham chizilmaydi
     corestream?: boolean; // 🚕 B qism P0-4: /api/ride-ws orqali holat signali va o'z haydovchining joyi
+    ridemap?: boolean; // 🚕 B qism P0-5: haydovchi mashinasi fikslar oralig'ida siljiydi, qisqa yoy bilan buriladi
     livecars?: boolean; // 🚕 B qism P0-3: real bo'sh mashinalar (maxfiylik bilan); ON = bezak-mashinalar va ×2 son yo'q
     oyin?: boolean; // 🎮 Koson O'yini — ball→chipta→tiraj mavsumi (owner-preview: admins see it while DARK)
   };

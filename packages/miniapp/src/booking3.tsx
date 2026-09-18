@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, ridePollMs, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
+import { foldName, formatNumber, fuzzyFilter, glideMs, haversineKm, placeKind, ridePollMs, unwrapBearing, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
@@ -39,7 +39,7 @@ function WaitTicker({ waitComp, startAt, mini }: { waitComp: BookingInfoResponse
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 import { useIsActive } from "./useIsActive";
-import { useRideStream } from "./rideStream";
+import { useRideStream, type RidePos } from "./rideStream";
 import { TaxiStory, storySeen } from "./taxiStory";
 import "./design/feat/b3.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -545,7 +545,17 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // 🚕 B qism P0-4 (corestream): while a ride is on, the server says the moment it changes. The
   // search/ride poll below reads these refs: a nudge asks at once, an open socket slows the poll.
   const wakeRideRef = useRef<(() => void) | null>(null);
-  const rideStreamOpen = useRideStream(!!me.flags?.corestream && screen === "searching", () => wakeRideRef.current?.());
+  // A car position from the socket is the same driver the poll would show, only sooner: under the
+  // socket the poll slows to 20 s, and without this the car on the map would stand still that long.
+  const ridePosRef = useRef<((p: RidePos) => void) | null>(null);
+  // The socket's last fix: newer than a poll answer that comes through the bridge's 3 s cache, so for
+  // 10 s it wins over the poll (no pulling the car back); its own time drives the speed estimate.
+  const lastFixRef = useRef<{ rideId: number; lat: number; lng: number; bearing: number; at: number; got: number } | null>(null);
+  const rideStreamOpen = useRideStream(
+    !!me.flags?.corestream && screen === "searching",
+    () => wakeRideRef.current?.(),
+    (p) => ridePosRef.current?.(p),
+  );
   const streamOpenRef = useRef(false);
   streamOpenRef.current = rideStreamOpen;
   // The socket went away mid-ride: ask now and fall back to the 3 s poll, not after the 20 s net.
@@ -664,6 +674,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const targetMarker = useRef<L.Marker | null>(null); // the car currently being OFFERED the order
   const pingMarker = useRef<L.Marker | null>(null); // streaming "request" packets pickup → offered car
   const driverMarker = useRef<L.Marker | null>(null);
+  // 🚕 P0-5 (ridemap): when the last fix landed and the angle last handed to CSS — the car glides for
+  // as long as fixes are apart and turns the short way (shared/rideMap).
+  const glideRef = useRef<{ at: number | null; rot: number | null; lat: number; lng: number }>({ at: null, rot: null, lat: NaN, lng: NaN });
   const routeLine = useRef<L.Polyline | null>(null);
   // 🚗 liveliness: decoy "ghost" cars + moving ghost rides so a small real fleet never looks empty
   // (owner: "kamdek tuyulmasin", "hamma mashinadan yurgandek"). PURELY VISUAL — real bookings still
@@ -981,22 +994,49 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // ── C: live assigned-driver car marker — glides toward you + rotates by bearing ──
   useEffect(() => {
     const d = active?.driver;
+    const ridemap = !!me.flags?.ridemap;
     if (!map.current || typeof d?.lat !== "number" || typeof d?.lng !== "number") {
       if (driverMarker.current) { driverMarker.current.remove(); driverMarker.current = null; }
+      glideRef.current = { at: null, rot: null, lat: NaN, lng: NaN };
       return;
     }
+    const g = glideRef.current;
+    const moved = d.lat !== g.lat || d.lng !== g.lng;
     if (!driverMarker.current) {
       // className → CSS transition on .b3-carpin glides the marker position between polls
       const icon = L.divIcon({ className: "b3-carpin", html: `<span class="b3-carpin-i">${carSvg("#FFB300", 36)}<i class="b3-carpax"></i></span>`, iconSize: [36, 36], iconAnchor: [18, 18] });
       driverMarker.current = L.marker([d.lat, d.lng], { icon, zIndexOffset: 1000 }).addTo(map.current);
     } else {
+      // ridemap: the glide lasts as long as the fixes are apart (0.8–5 s), so the car arrives as the
+      // next fix does — a CSS variable, so Leaflet's own zoom animation still wins while zooming.
+      if (ridemap && moved) driverMarker.current.getElement()?.style.setProperty("--b3-glide", `${glideMs(g.at, Date.now())}ms`);
       driverMarker.current.setLatLng([d.lat, d.lng]);
     }
+    if (moved) glideRef.current = { ...g, at: Date.now(), lat: d.lat, lng: d.lng };
     const root = driverMarker.current.getElement();
     if (root) root.classList.toggle("b3-aboard", active?.status === "started"); // passenger visibly aboard in-trip
     const inner = root?.querySelector(".b3-carpin-i") as HTMLElement | null;
-    if (inner && typeof d.bearing === "number") inner.style.transform = `rotate(${d.bearing}deg)`;
+    if (inner && typeof d.bearing === "number") {
+      if (ridemap) {
+        const rot = unwrapBearing(glideRef.current.rot, d.bearing); // 350° → 10° turns 20°, not 340° back
+        glideRef.current.rot = rot;
+        inner.style.transform = `rotate(${rot}deg)`;
+      } else inner.style.transform = `rotate(${d.bearing}deg)`;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active?.driver?.lat, active?.driver?.lng, active?.driver?.bearing, active?.status]);
+
+  // The socket's car position → the same place the poll's answer goes (marker, route, camera).
+  ridePosRef.current = (p: RidePos) => {
+    const a = activeRef.current;
+    if (!a?.driver) return; // no driver yet, or the ride is over: nothing to move
+    if (typeof p.id === "number" && p.id !== a.id) return; // another of this phone's orders
+    const fixAt = Date.parse(p.at);
+    lastFixRef.current = { rideId: a.id, lat: p.lat, lng: p.lng, bearing: p.bearing, at: Number.isFinite(fixAt) ? fixAt : Date.now(), got: Date.now() };
+    const next = { ...a, driver: { ...a.driver, lat: p.lat, lng: p.lng, bearing: p.bearing } };
+    activeRef.current = next;
+    setActive(next);
+  };
 
   // ── M5: car → pickup link, only while the driver is en route (not yet started). A straight dashed
   // line, recomputed on each driver-position update; fits bounds once so both ends are seen.
@@ -1096,11 +1136,16 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       const assigned = !!activeRef.current?.driver; // previous tick's state — decides what to fetch
       // livecars: the live-car loop (map centred on the pickup while searching) owns the count, so this
       // tick asks nothing — two sources would make the number jump between two values.
-      const [a, near] = await Promise.all([
+      const [polled, near] = await Promise.all([
         api.bookingActive().catch(() => null),
         assigned || liveCars ? Promise.resolve(null) : api.bookingNearby().catch(() => null),
       ]);
       if (!alive) return;
+      // A socket fix from the last 10 s is newer than this answer: keep the car where the stream put it.
+      const fix = lastFixRef.current;
+      const a = polled?.driver && fix && fix.rideId === polled.id && Date.now() - fix.got < 10_000
+        ? { ...polled, driver: { ...polled.driver, lat: fix.lat, lng: fix.lng, bearing: fix.bearing } }
+        : polled;
       if (near) setFreeDrivers(Math.max(near.freeDrivers, GHOST_FREE + GHOST_RIDES)); // server-inflated; keep ghost floor
       // E7: ride finished — had an active ride last poll, now gone. TWO endings:
       // driver existed → peak-end finish screen; NO driver ever accepted (search died on kas's
@@ -1548,7 +1593,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       if (speedKmh !== 0) setSpeedKmh(0);
       return;
     }
-    const now = Date.now();
+    // The socket's fix carries its own time; a poll answer is "now". Arrival time made a late fix look fast.
+    const fix = lastFixRef.current;
+    const now = fix && fix.lat === d.lat && fix.lng === d.lng ? fix.at : Date.now();
     const p = prevPos.current;
     prevPos.current = { lat: d.lat, lng: d.lng, t: now };
     if (!p) return;

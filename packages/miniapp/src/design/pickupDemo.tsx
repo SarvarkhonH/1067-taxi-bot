@@ -60,6 +60,19 @@ const DRIVER = {
   fullName: "ZAFARBEK", carModel: "Cobalt", carNumber: "70Z878ZZ", rating: 4.9,
   phone: "+998901234567", lat: 39.0472, lng: 65.5836, bearing: 120,
 };
+// 🧭 ridemap: the demo car drives a square (N → E → S → W → N), one fix every 2 s, so the glide and
+// the short-way turn at 270° → 0° can be watched. /api/booking/active answers the same place, as live.
+const CAR = { lat: DRIVER.lat, lng: DRIVER.lng, bearing: 0 };
+const LEG = [0, 90, 180, 270];
+let carStep = 0;
+function driveCar(): void {
+  const heading = LEG[Math.floor(carStep / 5) % 4]!;
+  carStep++;
+  const rad = (heading * Math.PI) / 180;
+  CAR.lat += 0.0003 * Math.cos(rad);
+  CAR.lng += 0.0004 * Math.sin(rad);
+  CAR.bearing = heading;
+}
 const ACTIVE = (r: Ride) => {
   if (r === "none") return null;
   // Qidiruv holati — buyurtma bor, haydovchi HALI YO'Q (kas hali hech kimga bermagan).
@@ -70,7 +83,7 @@ const ACTIVE = (r: Ride) => {
     notifiedCount: 3,
     etaMin: r === "started" || r === "arrived" ? null : 2,
     rideStartedAt: r === "started" ? new Date(Date.now() - 6 * 60_000).toISOString() : null,
-    driver: { ...DRIVER, meterPayment: r === "started" ? 5021 : 0, meterDistance: r === "started" ? 3.4 : 0.4 },
+    driver: { ...DRIVER, ...CAR, meterPayment: r === "started" ? 5021 : 0, meterDistance: r === "started" ? 3.4 : 0.4 },
   };
 };
 let RIDE: Ride = "none"; // patchFetch shundan o'qiydi (modul darajasida, remount'da saqlanadi)
@@ -83,13 +96,13 @@ const RIDE_NEXT: Record<Ride, Ride> = {
 };
 
 type Mode = "a" | "b" | "off";
-const ME = (mode: Mode, lt: boolean, live: boolean, stream: boolean): MeResponse =>
+const ME = (mode: Mode, lt: boolean, live: boolean, stream: boolean, ridemap: boolean): MeResponse =>
   ({
     linked: true,
     type: "client",
     coins: 4820,
     streak: { current: 3 },
-    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true, livecars: live, corestream: stream },
+    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true, livecars: live, corestream: stream, ridemap },
   }) as unknown as MeResponse;
 const LABEL: Record<Mode, string> = { a: "A — javob birinchi", b: "B — ro'yxat birinchi", off: "Eski ko'rinish (flag OFF)" };
 const NEXT: Record<Mode, Mode> = { a: "b", b: "off", off: "a" };
@@ -183,6 +196,12 @@ function patchSocket(): void {
   window.WebSocket = function (url: string | URL, protocols?: string | string[]) {
     return String(url).includes("/api/ride-ws") ? new DemoRideSocket() : new Real(url, protocols);
   } as unknown as typeof WebSocket;
+  // The core's svc:loc: while a driver holds the ride (not while he waits at the door), a fix every 2 s.
+  setInterval(() => {
+    if (RIDE !== "accepted" && RIDE !== "started") return;
+    driveCar();
+    for (const sock of demoSockets) sock.push({ t: "pos", id: 90001, lat: CAR.lat, lng: CAR.lng, bearing: CAR.bearing, at: new Date().toISOString() });
+  }, 2_000);
 }
 
 export function PickupDemoPage() {
@@ -195,6 +214,7 @@ export function PickupDemoPage() {
   const [lt, setLt] = useState(true); // ega maketi YORUG' — demo shundan boshlanadi
   const [live, setLive] = useState(true); // 🚕 livecars: real bo'sh mashinalar (ON) yoki eski bezaklar (OFF)
   const [stream, setStream] = useState(true); // 🔌 corestream: holat soketdan (ON) yoki faqat so'rov (OFF)
+  const [ridemap, setRidemap] = useState(true); // 🧭 ridemap: mashina fikslar oralig'ida siljiydi, qisqa yoy bilan buriladi
   // The ride socket authenticates with initData; outside Telegram there is none. A placeholder, set
   // before the first render (the socket connects in a child's effect, which runs before ours). Only
   // this tab's sessionStorage, only when empty: inside Telegram the real SDK value is read first.
@@ -222,7 +242,7 @@ export function PickupDemoPage() {
   };
   return (
     <div style={{ position: "fixed", inset: 0 }}>
-      <Booking3View key={`${mode}-${lt}-${live}-${stream}-${gen}`} me={ME(mode, lt, live, stream)} onClose={() => undefined} />
+      <Booking3View key={`${mode}-${lt}-${live}-${stream}-${ridemap}-${gen}`} me={ME(mode, lt, live, stream, ridemap)} onClose={() => undefined} />
       <button
         className="d-chip"
         style={{ position: "fixed", top: "calc(6px + var(--safe-top))", right: 10, zIndex: 99 }}
@@ -259,6 +279,13 @@ export function PickupDemoPage() {
         onClick={() => setStream(!stream)}
       >
         {stream ? "🔌 Oqim: jonli" : "🔌 Oqim: yo'q (so'rov)"}
+      </button>
+      <button
+        className="d-chip"
+        style={{ position: "fixed", top: "calc(216px + var(--safe-top))", right: 10, zIndex: 99 }}
+        onClick={() => setRidemap(!ridemap)}
+      >
+        {ridemap ? "🧭 Xarita: silliq" : "🧭 Xarita: eski"}
       </button>
     </div>
   );

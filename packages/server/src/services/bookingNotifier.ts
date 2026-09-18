@@ -7,7 +7,7 @@
 // ETA-guess game.
 import { InlineKeyboard, type Bot } from "grammy";
 import type { Prisma } from "@prisma/client";
-import { formatNumber, haversineKm, inflateOnline, isBridgeId } from "@t1067/shared";
+import { formatNumber, haversineKm, inflateOnline, isBridgeId, telegramHeading } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource, type RideHistoryItem } from "../kas";
 import { incrementMission } from "./missionService";
@@ -114,7 +114,8 @@ function renderRideCard(b: ActiveBookingLite, c: CardCtx): string {
   }
   lines.push(`📍 ${esc(b.addressName)}`);
   if (b.clientBonus) lines.push(`💰 Bu safardan: <b>+${formatNumber(b.clientBonus)} so'm</b> cashback`);
-  if (d?.lat && d?.lng) lines.push("🗺 Pastdagi xaritada mashina jonli — joylashuv ~1.5 daqiqada yangilanadi");
+  // No promise about how often it moves: the sweep edits it every 5–30 s, the core's stream every 4 s.
+  if (d?.lat && d?.lng) lines.push("🗺 Mashina pastdagi xaritada — jonli");
   lines.push("━━━━━━━━━━━━");
   return lines.join("\n");
 }
@@ -234,6 +235,9 @@ export async function pushBookingUpdates(
   const activeNorms = [...byPhone.keys()].filter(Boolean);
   // one flag read per tick (30s-cached anyway) — every card this tick renders the same share button
   const trackCta = await import("./featureFlags").then((f) => f.featureOn("trackcta")).catch(() => false);
+  // ridemap: the core's stream edits the same pin with a heading (services/livePin) — do the same here,
+  // or the arrow on the pin blinks on and off between the two.
+  const ridemap = await import("./featureFlags").then((f) => f.featureOn("ridemap")).catch(() => false);
   const linked = await prisma.member.findMany({
     where: {
       telegramUser: { isNot: null },
@@ -911,12 +915,16 @@ export async function pushBookingUpdates(
           const pin = await pushResult(chatId, "ride_pin", () => bot.api.sendLocation(chatId, pinLat, pinLng, { live_period: 3600, disable_notification: true }), { memberId: m.id, force: true });
           pinId = pin?.message_id ?? null;
         } else {
-          await bot.api.editMessageLiveLocation(chatId, pinId, pinLat, pinLng).catch(async (e) => {
+          const heading = ridemap ? telegramHeading(driver?.bearing) : undefined;
+          await bot.api.editMessageLiveLocation(chatId, pinId, pinLat, pinLng, heading ? { heading } : undefined).catch(async (e) => {
             // "message is not modified" = the car hasn't moved since the last tick → the pin is
             // ALREADY correct, do nothing. (Re-sending a fresh location here was the bug that
             // spammed a new pin every 15 s.) Only a genuinely gone/expired message gets a fresh pin.
             const msg = e instanceof Error ? e.message : String(e);
             if (/not modified/i.test(msg)) return;
+            // A rate limit or a network blip is not "gone": re-sending there put a second pin in the
+            // chat (more likely now that the stream edits the pin too). Only these mean it is gone.
+            if (!/not found|can't be edited|message_id_invalid|message to edit/i.test(msg)) return;
             const pin = await pushResult(chatId, "ride_pin", () => bot.api.sendLocation(chatId, pinLat, pinLng, { live_period: 3600, disable_notification: true }), { memberId: m.id, force: true });
             pinId = pin?.message_id ?? pinId;
           });
