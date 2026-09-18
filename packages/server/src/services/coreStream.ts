@@ -38,6 +38,16 @@ let onWake: (() => void) | null = null;
 let onRecheck: (() => void) | null = null;
 let linkedNow: (tail9: string) => Promise<boolean> = async () => false;
 let lastHealth = false;
+/** When the core last nudged each order — for the card's lag line (chatLive.noteCardLag). Bounded. */
+const nudgeAt = new Map<number, number>();
+
+/** The core's time for the latest nudge about this order, once (then forgotten), or null. */
+export function takeNudgeTime(orderId: number): number | null {
+  const at = nudgeAt.get(orderId);
+  if (at == null) return null;
+  nudgeAt.delete(orderId);
+  return at;
+}
 
 /** Joined and connected: the sweep may slow down to a safety net. */
 export function coreStreamHealthy(): boolean {
@@ -158,6 +168,10 @@ export async function ensureCoreStream(opts: { enabled: boolean; linked: (tail9:
   s.on("svc:order", async (n: CoreNudge) => {
     const at = Date.parse(n?.emittedAt ?? "");
     if (Number.isFinite(at)) {
+      if (Number.isInteger(n?.id)) {
+        if (nudgeAt.size >= 2_000) nudgeAt.clear(); // a restart's worth of orders; never grows past it
+        nudgeAt.set(n.id, at);
+      }
       lag.add(Date.now() - at);
       if (lag.total % 100 === 0) console.log(`[core] lag p95=${lag.p95()}ms over the last ${lag.count}`);
     }

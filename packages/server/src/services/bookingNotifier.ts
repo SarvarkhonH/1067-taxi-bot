@@ -7,7 +7,7 @@
 // ETA-guess game.
 import { InlineKeyboard, type Bot } from "grammy";
 import type { Prisma } from "@prisma/client";
-import { formatNumber, haversineKm, inflateOnline, isBridgeId, telegramHeading } from "@t1067/shared";
+import { formatNumber, fromBridgeId, haversineKm, inflateOnline, isBridgeId, telegramHeading } from "@t1067/shared";
 import { prisma } from "../db";
 import { getDataSource, type ActiveBookingLite, type BookingDriver, type KasDataSource, type RideHistoryItem } from "../kas";
 import { incrementMission } from "./missionService";
@@ -17,6 +17,9 @@ import { markRideActive } from "./tierLoyaltyService";
 // noto'g'ri blok bayrog'i tufayli "haydovchi yetib keldi" YO'QOLMASLIGI kerak. 403 esa baribir
 // yoziladi, shunda "safar xabaridan keyin bloklagan" holati ham ko'rinadi.
 import { pushMessage, pushResult } from "./pushSend";
+import { arrivedPingOnce, chatLiveClose, chatLiveTick, noteCardLag, type ChatLiveDeps } from "./chatLive";
+import { takeNudgeTime } from "./coreStream";
+import { env } from "../env";
 
 const CITY_KMH = 24;
 // How many sweep ticks the finish branch waits for the core's final status before falling back.
@@ -238,6 +241,21 @@ export async function pushBookingUpdates(
   // ridemap: the core's stream edits the same pin with a heading (services/livePin) — do the same here,
   // or the arrow on the pin blinks on and off between the two.
   const ridemap = await import("./featureFlags").then((f) => f.featureOn("ridemap")).catch(() => false);
+  // 🚕 chatlive (P0-7): the card pinned while a driver holds the ride, "~1 minute" and "arrived" once
+  // per order. Flag off: the owner's own chats only (preview). Markers are appState rows (services/
+  // chatLive says which way each one leans when the database cannot answer).
+  const chatliveAll = await import("./featureFlags").then((f) => f.featureOn("chatlive")).catch(() => false);
+  const chatliveFor = (chatId: string): boolean => chatliveAll || env.adminIds.includes(chatId);
+  const chatLive: ChatLiveDeps = {
+    claim: (key, ifUnsure) =>
+      prisma.appState.create({ data: { key, value: "1" } }).then(() => true).catch((e: { code?: string }) => (e?.code === "P2002" ? false : ifUnsure)),
+    peek: (key) => prisma.appState.findUnique({ where: { key }, select: { value: true } }).then((r) => r?.value ?? null),
+    put: (key, value) => prisma.appState.upsert({ where: { key }, update: { value }, create: { key, value } }).then(() => undefined),
+    drop: (key) => prisma.appState.delete({ where: { key } }).then(() => undefined),
+    pin: (chatId, messageId) => bot.api.pinChatMessage(chatId, messageId, { disable_notification: true }),
+    unpin: (chatId, messageId) => bot.api.unpinChatMessage(chatId, messageId),
+    send: (chatId, html) => pushMessage(bot, chatId, "ride_prearrive", html, { force: true }),
+  };
   const linked = await prisma.member.findMany({
     where: {
       telegramUser: { isNot: null },
@@ -260,11 +278,17 @@ export async function pushBookingUpdates(
     // atomic tx; a re-entry is a P2002 no-op. Zero double-count, zero silent loss.
     const bid = m.lastBookingId;
     if (bid == null) return;
-    const clearRideState = () =>
-      prisma.member.update({
+    // chatlive: whatever card of this member is pinned comes down the moment the ride is CLOSED —
+    // at each of the three writes below that clear the card, not before (a ride that only drops out
+    // of the list for a tick keeps its pin), and whatever the flag says now.
+    const unpinCard = () => chatLiveClose({ chatId, memberId: m.id, cardId: m.rideCardMsgId }, chatLive).catch(() => undefined);
+    const clearRideState = async () => {
+      await unpinCard();
+      return prisma.member.update({
         where: { id: m.id },
         data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null, lastBookingBonus: null, rideCardMsgId: null, liveLocMsgId: null, rideStartedAt: null },
       });
+    };
     // A ride id from kas1067 can never be confirmed by the taxi core (different id space), so it is
     // closed without rewards. The cutover script clears these too; this is the second line.
     if (ds.name === "birjoy" && !isBridgeId(bid)) {
@@ -346,6 +370,7 @@ export async function pushBookingUpdates(
       if (m.liveLocMsgId) {
         await bot.api.stopMessageLiveLocation(chatId, m.liveLocMsgId).catch(() => undefined);
       }
+      await unpinCard();
       await prisma.member.update({
         where: { id: m.id },
         data: { lastBookingId: null, lastBookingStatus: null, lastBookingCar: null, lastBookingBonus: null, rideCardMsgId: null, liveLocMsgId: null, rideStartedAt: null },
@@ -757,6 +782,7 @@ export async function pushBookingUpdates(
     // knows the rides it carried, so the count now grows here — in the same write that clears
     // lastBookingId, which is what makes it once per ride: a re-entry only happens if this
     // update failed, and then it did not increment either.
+    await unpinCard();
     await prisma.member.update({
       where: { id: m.id },
       data: {
@@ -865,11 +891,13 @@ export async function pushBookingUpdates(
         // edit in place (statuses + moving ETA); ignore "not modified"
         await pushResult(chatId, "ride_card_edit", () => bot.api.editMessageText(chatId, cardId!, renderRideCard(b, ctx), { parse_mode: "HTML", reply_markup: rideCardKb(b, ctx) }), { memberId: m.id, force: true });
       }
+      // D7.1: how long from the core changing the order to this card showing it (logs a p95).
+      if (statusChanged && cardId && isBridgeId(b.id)) noteCardLag(takeNudgeTime(fromBridgeId(b.id)));
 
       // PING on the key transition — the card EDIT above is SILENT (Telegram edits don't notify),
       // so without this the rider never notices the driver arrived. Fires ONCE per transition
       // (lastBookingStatus gates statusChanged, updated below).
-      if (statusChanged && cardId && b.status === "arrived") {
+      if (statusChanged && cardId && b.status === "arrived" && (await arrivedPingOnce(chatliveFor(chatId), b.id, chatLive))) {
         const car = b.carNumber ? ` · <b>${esc(b.carNumber)}</b>` : "";
         const ph = ctx.driver?.phone ? ` · 📞 ${esc(ctx.driver.phone)}` : "";
         const bonus = b.clientBonus ? `\n💰 +${formatNumber(b.clientBonus)} so'm cashback · narx taksometr bo'yicha` : "\n💰 narx taksometr bo'yicha";
@@ -884,7 +912,9 @@ export async function pushBookingUpdates(
         } catch {
           firstArrival = false;
         }
-        if (firstArrival) {
+        // chatlive: the same once-per-order marker as the plain "arrived" path above — arrived, a
+        // flicker back to en route, then started must not say "arrived" twice.
+        if (firstArrival && (await arrivedPingOnce(chatliveFor(chatId), b.id, chatLive))) {
           const car = driver ? `\n🚘 ${esc(driver.carModel)} · <b>${esc(driver.carNumber)}</b>` : b.carNumber ? `\n🚘 <b>${esc(b.carNumber)}</b>` : "";
           await pushMessage(bot, chatId, "ride_arrived", `🚕 <b>Haydovchingiz YETIB KELDI — chiqing!</b>${car}`, { memberId: m.id, force: true });
         }
@@ -902,6 +932,11 @@ export async function pushBookingUpdates(
         const ph = driver?.phone ? `\n📞 ${esc(driver.phone)}` : "";
         await pushMessage(bot, chatId, "ride_assigned", `🚖 <b>Haydovchi topildi — yo'lda!</b>${eta}${name}\n🚘 ${esc(driver?.carModel ?? "Mashina")} · <b>${esc(b.carNumber)}</b>${ph}`, { memberId: m.id, force: true });
       }
+
+      await chatLiveTick(
+        { enabled: chatliveFor(chatId), chatId, memberId: m.id, bookingId: b.id, cardId, status: b.status, car: driver, pickup: { lat: b.lat, lng: b.lng }, cityKmh: CITY_KMH },
+        chatLive,
+      ).catch((e) => console.error("[chatlive] tick failed:", e));
 
       // ── the moving pin ── ONE live-location message per ride, EDITED in place (Telegram slides
       // the dot). Position is the driver's last GPS fix held by the taxi core; the bridge reports
