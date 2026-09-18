@@ -82,6 +82,8 @@ export interface ActiveBooking {
   createdDate: string;
   driver: BookingDriver | null; // assigned once a driver takes it
   notifiedCount?: number; // drivers notified (carNumberList length) — honest "N haydovchiga yuborildi"
+  /** B qism P0-6: the core's honest wait from now (minutes), or null when it has no honest number. */
+  waitMin?: { lo: number; hi: number } | null;
   // Surcharge breakdown — kas's three stacked extras on top of the meter base. The driver app's
   // ProvideBooking screen displays addressName + (addr + client + company); the rider's `payment`
   // already includes addr+client (taximeter starts at minimalPayment+addr+client), while company is

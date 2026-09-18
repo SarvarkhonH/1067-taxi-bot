@@ -339,7 +339,16 @@ export class BirJoySource implements KasDataSource {
       additionalPaymentClient: 0,
       additionalPaymentCompany: 0,
       driver: order.driver ? BirJoySource.toDriver(order.driver) : null,
+      waitMin: BirJoySource.toWait(order.wait),
     };
+  }
+
+  /** P0-6: two whole minutes, lo < hi, both sane — anything else is "no number". */
+  private static toWait(w: any): { lo: number; hi: number } | null {
+    const lo = Number(w?.lo);
+    const hi = Number(w?.hi);
+    if (!Number.isInteger(lo) || !Number.isInteger(hi) || lo < 1 || hi <= lo || hi > 120) return null;
+    return { lo, hi };
   }
 
   private static toDriver(d: any, plate?: string): BookingDriver {

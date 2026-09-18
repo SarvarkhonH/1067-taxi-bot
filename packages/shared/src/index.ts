@@ -12,6 +12,7 @@ export * from "./rideStream";
 export * from "./rideMap";
 export * from "./uxMarks";
 export * from "./reorder";
+export * from "./honestWait";
 export * from "./taxiCore";
 export * from "./pickupRemap";
 export * from "./format";

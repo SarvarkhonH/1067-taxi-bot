@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { foldName, formatNumber, fuzzyFilter, glideMs, haversineKm, nearestPlace, placeKind, ridePollMs, unwrapBearing, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
+import { foldName, formatNumber, fuzzyFilter, glideMs, haversineKm, nearestPlace, placeKind, ridePollMs, unwrapBearing, waitLabel, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
@@ -488,6 +488,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   const pickup2 = !!me.flags?.pickup2;
   const fastopen = !!me.flags?.fastopen;
   const tapreorder = !!me.flags?.tapreorder;
+  // 🚕 P0-6 (honesteta): the wait shown is Koson's own measured range ("3–7") or nothing at all — the
+  // straight-line "~N" is exactly the guess this replaces, so it is not a fallback. Flag off: "~N".
+  const honesteta = !!me.flags?.honesteta;
+  const etaLabel = (a: ActiveBookingView | null): string | null => waitLabel(a, honesteta);
   // 🚕 livecars (B qism P0-3, ega qarori Q1): xaritada REAL bo'sh mashinalar. ON = bezak-mashina va
   // odamlar yo'q, «so'ralmoqda» nuri yo'q, son yadroning haqiqiy soni (11-pol va ×2 yo'q).
   const liveCars = !!me.flags?.livecars;
@@ -2547,7 +2551,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
               <div className="b3-ride-mini-row">
                 <div className="b3-ride-mini-main">
                   <div className="b3-ride-mini-status">
-                    {active.status === "arrived" ? "🚕 Yetib keldi — chiqing!" : active.status === "started" ? "🚗 Safarda" : `🚖 Mashina yaqinlashmoqda${active.etaMin ? ` · ~${active.etaMin} daq` : ""}`}
+                    {active.status === "arrived" ? "🚕 Yetib keldi — chiqing!" : active.status === "started" ? "🚗 Safarda" : `🚖 Mashina yaqinlashmoqda${etaLabel(active) ? ` · ${etaLabel(active)} daq` : ""}`}
                   </div>
                   <div className="b3-ride-mini-fare"><CountUp value={active.driver.meterPayment || info.tariff?.minimalPayment || 0} /> <span>so'm</span></div>
                 </div>
@@ -2599,10 +2603,10 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                       <div className="v"><CountUp value={active.driver.meterPayment} /><span>so'm</span></div>
                     </div>
                   ) : null}
-                  {(speedKmh > 0 || active.etaMin) && (
+                  {(speedKmh > 0 || etaLabel(active)) && (
                     <div className="b3-p2-stats">
                       {speedKmh > 0 && <div className="b3-p2-stat"><div className="k">Tezlik</div><div className="v">~{speedKmh} km/soat</div></div>}
-                      {active.etaMin ? <div className="b3-p2-stat"><div className="k">Yetib keladi</div><div className="v">~{active.etaMin} daqiqa</div></div> : null}
+                      {etaLabel(active) ? <div className="b3-p2-stat"><div className="k">{honesteta ? "Odatda yetib keladi" : "Yetib keladi"}</div><div className="v">{etaLabel(active)} daqiqa</div></div> : null}
                     </div>
                   )}
                   {/* 🎡 Baraban ATAYLAB YO'Q (ega, 2026-08-10: «bu barabani olib tashla»).
@@ -2633,7 +2637,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                       </div>
                       <div className="dim fs13">🚘 {active.driver.carModel} · <span className="b3-driver-plate">{active.driver.carNumber}</span></div>
                     </div>
-                    {active.etaMin ? <div className="b3-eta"><b>{active.etaMin}</b><span>daq</span></div> : null}
+                    {etaLabel(active) ? <div className="b3-eta"><b>{honesteta ? etaLabel(active) : active.etaMin}</b><span>daq</span></div> : null}
                   </div>
                   {active.driver.meterPayment ? (
                     <div className="b3-fare-row b3-fare-big mt8"><span>🧮 Hisoblagich (jonli)</span><b><CountUp value={active.driver.meterPayment} /> so'm</b></div>
@@ -2657,6 +2661,9 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
             <>
               <div className="b3-radar"><span /><span /><span />🚕</div>
               <div className="b3-search-title">🔍 Haydovchi qidirilyapti…</div>
+              {honesteta && !active?.driver && active?.waitMin && (
+                <div className="dim fs13 tac mt6">⏱ Odatda {active.waitMin.lo}–{active.waitMin.hi} daqiqada mashina keladi</div>
+              )}
               <div className="dim tac fs13">
                 {active?.notifiedCount
                   ? `📨 ${active.notifiedCount} haydovchiga yuborildi · javob kutilmoqda`
@@ -2902,8 +2909,8 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 <span className="b3-dc-verdict-ico">{verdict.ico}</span>
                 <span>{verdict.t}</span>
               </div>
-              {active.etaMin != null && active.etaMin > 0 && (
-                <div className="b3-dc-eta">⏱ Yetib keladi: <b>~{active.etaMin} daq</b></div>
+              {etaLabel(active) && (
+                <div className="b3-dc-eta">⏱ {honesteta ? "Odatda" : "Yetib keladi"}: <b>{etaLabel(active)} daq</b></div>
               )}
               <div className="b3-dc-actions">
                 {d.phone && (

@@ -87,6 +87,7 @@ async function toView(
     etaMin,
     canCancel: bookingCancellable(b.status),
     notifiedCount: b.notifiedCount,
+    waitMin: b.waitMin ?? null,
     driver: drv
       ? {
           fullName: drv.fullName,

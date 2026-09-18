@@ -531,7 +531,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn, livecarsOn, corestreamOn, ridemapOn, fastopenOn, tapreorderOn] = await Promise.all([
+    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn, livecarsOn, corestreamOn, ridemapOn, fastopenOn, tapreorderOn, honestetaOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("intercity"),
@@ -559,6 +559,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("ridemap"),
       featureOn("fastopen"),
       featureOn("tapreorder"),
+      featureOn("honesteta"),
     ]);
     // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
     // katalogni ko'radi, raqam faqat harakat paytida so'raladi. `guest` = Telegram identifikatori
@@ -614,7 +615,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     const usualRide = tapreorder && me?.member?.id
       ? await getQuickPickup(me.member.id).then((q) => (q ? { id: q.id, name: q.name } : null)).catch(() => null)
       : null;
-    res.json({ ...me, usualRide, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On || taxiPreview, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn || taxiPreview, taxistory: taxistoryOn || taxiPreview, livecars: livecarsOn || taxiPreview, corestream: corestreamOn || taxiPreview, ridemap: ridemapOn || taxiPreview, fastopen: fastopenOn || taxiPreview, tapreorder, oyin: oyinPreview } });
+    res.json({ ...me, usualRide, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On || taxiPreview, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn || taxiPreview, taxistory: taxistoryOn || taxiPreview, livecars: livecarsOn || taxiPreview, corestream: corestreamOn || taxiPreview, ridemap: ridemapOn || taxiPreview, fastopen: fastopenOn || taxiPreview, tapreorder, honesteta: honestetaOn || taxiPreview, oyin: oyinPreview } });
   });
 
   /**

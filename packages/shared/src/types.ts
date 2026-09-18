@@ -73,6 +73,7 @@ export interface MeResponse {
     ridemap?: boolean; // 🚕 B qism P0-5: haydovchi mashinasi fikslar oralig'ida siljiydi, qisqa yoy bilan buriladi
     fastopen?: boolean; // 🚕 B qism P0-2: taksi varag'i keshdan darhol, katalog va pin nomi telefonda
     tapreorder?: boolean; // 🚕 B qism P0-8: «🔁 Yana: <joy>» — tasdiqsiz bir bosishda qayta chaqirish
+    honesteta?: boolean; // 🚕 B qism P0-6: «odatda X–Y daq» — Koson safarlaridan, masofasiz
     livecars?: boolean; // 🚕 B qism P0-3: real bo'sh mashinalar (maxfiylik bilan); ON = bezak-mashinalar va ×2 son yo'q
     oyin?: boolean; // 🎮 Koson O'yini — ball→chipta→tiraj mavsumi (owner-preview: admins see it while DARK)
   };

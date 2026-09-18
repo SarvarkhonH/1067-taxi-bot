@@ -65,6 +65,9 @@ jobs:
       - name: Botda yozilgan manzil — faqat yadro ishonchli bo'lsa bitta taklif (soxta yadro, no DB)
         run: pnpm --filter @t1067/server exec tsx src/scripts/testTypedFast.ts
 
+      - name: Halol kutish vaqti — faqat daqiqa oralig'i, masofa hech qachon (soxta yadro, no DB)
+        run: pnpm --filter @t1067/server exec tsx src/scripts/testHonestWait.ts
+
       # 🏗 Frontendlarni SHU YERDA quramiz (gate + relizga artefakt). VPS'da build endi YO'Q.
       # VITE_API_URL public (maxfiy emas) — Caddyfile'dagi bilan bir xil.
       - name: Build frontends (gate + ship to VPS)

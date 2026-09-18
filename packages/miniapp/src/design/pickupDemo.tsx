@@ -77,12 +77,14 @@ function driveCar(): void {
 const ACTIVE = (r: Ride) => {
   if (r === "none") return null;
   // Qidiruv holati — buyurtma bor, haydovchi HALI YO'Q (kas hali hech kimga bermagan).
-  if (r === "searching") return { id: 90001, status: "new", notifiedCount: 3, etaMin: null, rideStartedAt: null, driver: null };
+  if (r === "searching") return { id: 90001, status: "new", notifiedCount: 3, etaMin: null, rideStartedAt: null, driver: null, waitMin: { lo: 5, hi: 11 } };
   return {
     id: 90001,
     status: r === "started" ? "started" : r === "arrived" ? "arrived" : "accepted",
     notifiedCount: 3,
     etaMin: r === "started" || r === "arrived" ? null : 2,
+    // ⏱ honesteta: the core's measured range from now (the demo's own numbers), none once the car is there
+    waitMin: r === "started" || r === "arrived" ? null : { lo: 2, hi: 6 },
     rideStartedAt: r === "started" ? new Date(Date.now() - 6 * 60_000).toISOString() : null,
     driver: { ...DRIVER, ...CAR, meterPayment: r === "started" ? 5021 : 0, meterDistance: r === "started" ? 3.4 : 0.4 },
   };
@@ -97,13 +99,13 @@ const RIDE_NEXT: Record<Ride, Ride> = {
 };
 
 type Mode = "a" | "b" | "off";
-const ME = (mode: Mode, lt: boolean, live: boolean, stream: boolean, ridemap: boolean, fastopen: boolean): MeResponse =>
+const ME = (mode: Mode, lt: boolean, live: boolean, stream: boolean, ridemap: boolean, fastopen: boolean, honesteta: boolean): MeResponse =>
   ({
     linked: true,
     type: "client",
     coins: 4820,
     streak: { current: 3 },
-    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true, livecars: live, corestream: stream, ridemap, fastopen, tapreorder: true },
+    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true, livecars: live, corestream: stream, ridemap, fastopen, tapreorder: true, honesteta },
   }) as unknown as MeResponse;
 const LABEL: Record<Mode, string> = { a: "A — javob birinchi", b: "B — ro'yxat birinchi", off: "Eski ko'rinish (flag OFF)" };
 const NEXT: Record<Mode, Mode> = { a: "b", b: "off", off: "a" };
@@ -249,6 +251,7 @@ export function PickupDemoPage() {
   const [stream, setStream] = useState(true); // 🔌 corestream: holat soketdan (ON) yoki faqat so'rov (OFF)
   const [ridemap, setRidemap] = useState(true); // 🧭 ridemap: mashina fikslar oralig'ida siljiydi, qisqa yoy bilan buriladi
   const [fastopen, setFastopen] = useState(true); // ⚡ fastopen: varaq telefon keshidan, pin nomi telefonda
+  const [honesteta, setHonesteta] = useState(true); // ⏱ honesteta: «odatda X–Y daq» yoki raqamsiz
   // The ride socket authenticates with initData; outside Telegram there is none. A placeholder, set
   // before the first render (the socket connects in a child's effect, which runs before ours). Only
   // this tab's sessionStorage, only when empty: inside Telegram the real SDK value is read first.
@@ -267,7 +270,7 @@ export function PickupDemoPage() {
   // Endi qayta qurish FAQAT yangi qidiruv boshlanganda bo'ladi; qolgan o'tishlarni jonli
   // oqimning O'Z so'rov halqasi ko'radi — ya'ni demo mahsulotdagidek ishlaydi.
   const [gen, setGen] = useState(0);
-  const viewKey = `${mode}-${lt}-${live}-${stream}-${ridemap}-${fastopen}-${gen}`;
+  const viewKey = `${mode}-${lt}-${live}-${stream}-${ridemap}-${fastopen}-${honesteta}-${gen}`;
   // ⚡ each (re)mount is a fresh "tap on Taksi" for the timing marks (App does this in the real app)
   useMemo(() => markTaxiTap(), [viewKey]);
   const nextRide = (): void => {
@@ -279,7 +282,7 @@ export function PickupDemoPage() {
   };
   return (
     <div style={{ position: "fixed", inset: 0 }}>
-      <Booking3View key={viewKey} me={ME(mode, lt, live, stream, ridemap, fastopen)} onClose={() => undefined} />
+      <Booking3View key={viewKey} me={ME(mode, lt, live, stream, ridemap, fastopen, honesteta)} onClose={() => undefined} />
       <button
         className="d-chip"
         style={{ position: "fixed", top: "calc(6px + var(--safe-top))", right: 10, zIndex: 99 }}
@@ -330,6 +333,13 @@ export function PickupDemoPage() {
         onClick={() => setFastopen(!fastopen)}
       >
         {fastopen ? "⚡ Ochilish: tez" : "⚡ Ochilish: eski"}
+      </button>
+      <button
+        className="d-chip"
+        style={{ position: "fixed", top: "calc(300px + var(--safe-top))", right: 10, zIndex: 99 }}
+        onClick={() => setHonesteta(!honesteta)}
+      >
+        {honesteta ? "⏱ Vaqt: halol" : "⏱ Vaqt: eski"}
       </button>
     </div>
   );

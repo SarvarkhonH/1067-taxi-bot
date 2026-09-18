@@ -57,6 +57,8 @@ export interface ActiveBookingView {
   canCancel: boolean; // early status only
   driver: BookingDriverView | null;
   notifiedCount?: number; // T4-B: drivers notified (carNumberList) — honest "N haydovchiga yuborildi" while searching
+  /** 🚕 P0-6 (honesteta): the usual wait from now, in whole minutes, from Koson's own rides — never a distance. */
+  waitMin?: { lo: number; hi: number } | null;
   rideStartedAt?: string | null; // T5-E6: ISO time the ride started (status=started)
 }
 
