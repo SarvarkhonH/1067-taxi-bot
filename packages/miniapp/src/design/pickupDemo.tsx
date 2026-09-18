@@ -8,6 +8,7 @@ import { Booking3View } from "../booking3";
 import type { BookingInfoResponse, MeResponse, SavedAddressView } from "@t1067/shared";
 import { fuzzyFilter } from "@t1067/shared";
 import { STORY_SEEN_KEY } from "../taxiStory";
+import { getInitData } from "../api";
 
 // Real Koson place names (kas1067 katalogining vakil namunasi — jonli katalogda ~150 ta).
 const NAMES = [
@@ -82,13 +83,13 @@ const RIDE_NEXT: Record<Ride, Ride> = {
 };
 
 type Mode = "a" | "b" | "off";
-const ME = (mode: Mode, lt: boolean, live: boolean): MeResponse =>
+const ME = (mode: Mode, lt: boolean, live: boolean, stream: boolean): MeResponse =>
   ({
     linked: true,
     type: "client",
     coins: 4820,
     streak: { current: 3 },
-    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true, livecars: live },
+    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true, livecars: live, corestream: stream },
   }) as unknown as MeResponse;
 const LABEL: Record<Mode, string> = { a: "A — javob birinchi", b: "B — ro'yxat birinchi", off: "Eski ko'rinish (flag OFF)" };
 const NEXT: Record<Mode, Mode> = { a: "b", b: "off", off: "a" };
@@ -120,7 +121,10 @@ function patchFetch(): void {
       });
     }
     if (url.includes("/api/booking/nearby")) return json({ pins: [], freeDrivers: 4 });
-    if (url.includes("/api/booking/active")) return json(ACTIVE(RIDE));
+    if (url.includes("/api/booking/active")) {
+      ACTIVE_CALLS.push(Date.now()); // 🔌 so'rov tezligini tekshirish uchun: window.__demoActiveCalls
+      return json(ACTIVE(RIDE));
+    }
     // ⚠️ Bu yo'l `{ family, scheduled }` OBYEKTI qaytaradi — ilgari bo'sh massiv edi va
     // «Oila uchun» ekrani ochilganda `d.family` undefined bo'lib butun ekran qulardi.
     if (url.includes("/api/booking/scheduled")) return json({ family: [{ id: 1, name: "Dilnoza", phone: "+998901112233" }], scheduled: [] });
@@ -135,14 +139,73 @@ function patchFetch(): void {
   };
 }
 
+// 🔌 corestream: the ride socket (/api/ride-ws) without a server. Says "ready" after the auth frame
+// and "nudge" whenever the demo's ride changes — so the poll's pace (20 s under the socket, 3 s
+// without it), the instant ask on a nudge and the pause in the background can all be watched here.
+const ACTIVE_CALLS: number[] = [];
+(window as unknown as { __demoActiveCalls: number[] }).__demoActiveCalls = ACTIVE_CALLS;
+const demoSockets = new Set<DemoRideSocket>();
+// Console: window.__demoSockets.forEach(s => s.push({ t: "down" })) — the core's stream dropped.
+(window as unknown as { __demoSockets: Set<DemoRideSocket> }).__demoSockets = demoSockets;
+class DemoRideSocket {
+  static readonly OPEN = 1;
+  readonly OPEN = 1;
+  readyState = 0;
+  onopen: (() => void) | null = null;
+  onmessage: ((ev: { data: string }) => void) | null = null;
+  onclose: ((ev: { code: number }) => void) | null = null;
+  onerror: (() => void) | null = null;
+  constructor() {
+    // A socket closed while still connecting never opens — as a real one.
+    setTimeout(() => { if (this.readyState !== 0) return; this.readyState = 1; this.onopen?.(); }, 30);
+  }
+  send(data: string): void {
+    if (this.readyState !== 1) return;
+    try {
+      if (JSON.parse(data).t === "auth") setTimeout(() => { if (this.readyState !== 1) return; demoSockets.add(this); this.push({ t: "ready" }); }, 80);
+    } catch { /* demo only */ }
+  }
+  push(msg: unknown): void {
+    if (this.readyState === 1) this.onmessage?.({ data: JSON.stringify(msg) });
+  }
+  close(): void {
+    if (this.readyState === 3) return;
+    this.readyState = 3;
+    demoSockets.delete(this);
+    setTimeout(() => this.onclose?.({ code: 1000 }), 10);
+  }
+}
+let socketPatched = false;
+function patchSocket(): void {
+  if (socketPatched) return;
+  socketPatched = true;
+  const Real = window.WebSocket;
+  window.WebSocket = function (url: string | URL, protocols?: string | string[]) {
+    return String(url).includes("/api/ride-ws") ? new DemoRideSocket() : new Real(url, protocols);
+  } as unknown as typeof WebSocket;
+}
+
 export function PickupDemoPage() {
   patchFetch();
+  patchSocket();
   // 📖 Demo har ochilganda story QAYTA chiqsin (jonlida u umr bo'yi bir marta ko'rsatiladi).
   // Ega uni takror-takror ko'rib chiqishi kerak — shuning uchun "ko'rilgan" belgisi tozalanadi.
   useState(() => { try { localStorage.removeItem(STORY_SEEN_KEY); } catch { /* private mode */ } });
   const [mode, setMode] = useState<Mode>("a");
   const [lt, setLt] = useState(true); // ega maketi YORUG' — demo shundan boshlanadi
   const [live, setLive] = useState(true); // 🚕 livecars: real bo'sh mashinalar (ON) yoki eski bezaklar (OFF)
+  const [stream, setStream] = useState(true); // 🔌 corestream: holat soketdan (ON) yoki faqat so'rov (OFF)
+  // The ride socket authenticates with initData; outside Telegram there is none. A placeholder, set
+  // before the first render (the socket connects in a child's effect, which runs before ours). Only
+  // this tab's sessionStorage, only when empty: inside Telegram the real SDK value is read first.
+  useState(() => {
+    if (getInitData()) return;
+    try { sessionStorage.setItem("tg:initData", "demo"); } catch { /* private mode */ }
+    // …and gone again the moment this tab leaves the demo, so the real app never sends "demo".
+    const drop = () => { try { if (sessionStorage.getItem("tg:initData") === "demo") sessionStorage.removeItem("tg:initData"); } catch { /* ignore */ } };
+    window.addEventListener("pagehide", drop, { once: true });
+    window.addEventListener("hashchange", () => { if (!location.hash.startsWith("#pickupdemo")) drop(); });
+  });
   const [ride, setRide] = useState<Ride>(RIDE);
   // 🔑 `gen` — safar SEANSI. Ilgari `key` ichida `ride` turardi va har bosishda ekran QAYTA
   // QURILARDI: shu sababli birorta O'TISH ko'rinmasdi — «topildi» quvonchi ham, kelgan mashina
@@ -155,10 +218,11 @@ export function PickupDemoPage() {
     RIDE = n;
     if (n === "searching") setGen((g) => g + 1); // yangi seans → toza qayta qurish
     setRide(n);
+    for (const sock of demoSockets) sock.push({ t: "nudge", status: n }); // 🔌 the core said something changed
   };
   return (
     <div style={{ position: "fixed", inset: 0 }}>
-      <Booking3View key={`${mode}-${lt}-${live}-${gen}`} me={ME(mode, lt, live)} onClose={() => undefined} />
+      <Booking3View key={`${mode}-${lt}-${live}-${stream}-${gen}`} me={ME(mode, lt, live, stream)} onClose={() => undefined} />
       <button
         className="d-chip"
         style={{ position: "fixed", top: "calc(6px + var(--safe-top))", right: 10, zIndex: 99 }}
@@ -188,6 +252,13 @@ export function PickupDemoPage() {
         onClick={() => setLive(!live)}
       >
         {live ? "🚕 Real mashinalar" : "👻 Bezak mashinalar"}
+      </button>
+      <button
+        className="d-chip"
+        style={{ position: "fixed", top: "calc(174px + var(--safe-top))", right: 10, zIndex: 99 }}
+        onClick={() => setStream(!stream)}
+      >
+        {stream ? "🔌 Oqim: jonli" : "🔌 Oqim: yo'q (so'rov)"}
       </button>
     </div>
   );

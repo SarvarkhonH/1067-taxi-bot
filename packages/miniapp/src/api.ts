@@ -109,6 +109,12 @@ function authHeaders(): Record<string, string> {
 // Same-origin in dev (Vite proxy); absolute backend URL in production (set VITE_API_URL at build).
 const API_BASE = ((import.meta.env.VITE_API_URL as string) || "").replace(/\/$/, "");
 
+/** 🚕 B qism P0-4: the ride socket's address — the API's own host, ws(s) scheme. */
+export function rideSocketUrl(): string {
+  const base = API_BASE || location.origin;
+  return base.replace(/^http/, "ws") + "/api/ride-ws";
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** 🚪 Ulanmagan javob. `guest:true` = Telegram identifikatori umuman yo'q; guest:false = Telegram

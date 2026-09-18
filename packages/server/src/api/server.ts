@@ -526,7 +526,7 @@ export function createApiServer(opts: ApiOptions = {}) {
   });
 
   app.get("/api/me", allowGuest, async (_req, res) => {
-    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn, livecarsOn] = await Promise.all([
+    const [me, booking3, intercity, tierloyalty, shopOn, xizmatlarOn, elonlarOn, restoranOn,  bazarcartOn, revtangaOn, shopstoryOn, shopchatOn,  ravellaOn, linkinappOn, homescreenOn, storyshareOn, autolocOn, oyinOn, pickup2On, pickup2bOn, pickup2ltOn, taxistoryOn, livecarsOn, corestreamOn] = await Promise.all([
       getMe(res.locals.telegramId as string),
       featureOn("booking3"),
       featureOn("intercity"),
@@ -550,6 +550,7 @@ export function createApiServer(opts: ApiOptions = {}) {
       featureOn("pickup2lt"),
       featureOn("taxistory"),
       featureOn("livecars"),
+      featureOn("corestream"),
     ]);
     // 🚪 Mehmon (yoki ulanmagan) — 401 EMAS. Bayroqlar baribir yuboriladi: mijoz ilovaga kiradi,
     // katalogni ko'radi, raqam faqat harakat paytida so'raladi. `guest` = Telegram identifikatori
@@ -599,7 +600,7 @@ export function createApiServer(opts: ApiOptions = {}) {
     // HALI DARK — jonli mijozga chiqarish uchun `setFeature` bilan ALOHIDA yoqilishi shart.
     // `pickup2b` ATAYLAB preview'ga kirmadi: A tartifi tavsiya qilingan, B faqat solishtirish uchun.
     const taxiPreview = isAdmin(res.locals.telegramId as string);
-    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On || taxiPreview, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn || taxiPreview, taxistory: taxistoryOn || taxiPreview, livecars: livecarsOn || taxiPreview, oyin: oyinPreview } });
+    res.json({ ...me, flags: { booking3, intercity, tierloyalty: tierPreview, shop: shopPreview, xizmatlar: xizmatlarPreview, elonlar: elonlarPreview, restoran: restoranPreview,  bazarcart: bazarcartPreview, revtanga: revtangaPreview, shopstory: shopstoryPreview, shopchat: shopchatPreview,   ravella: ravellaPreview, linkinapp: linkinappOn || isAdmin(res.locals.telegramId as string), homescreen: homescreenOn || isAdmin(res.locals.telegramId as string), storyshare: storyshareOn || isAdmin(res.locals.telegramId as string), autoloc: autolocOn, pickup2: pickup2On || taxiPreview, pickup2b: pickup2bOn, pickup2lt: pickup2ltOn || taxiPreview, taxistory: taxistoryOn || taxiPreview, livecars: livecarsOn || taxiPreview, corestream: corestreamOn || taxiPreview, oyin: oyinPreview } });
   });
 
   /**
@@ -2325,6 +2326,8 @@ export function createApiServer(opts: ApiOptions = {}) {
       return;
     }
     await setFeature(b.name as never, b.on !== false);
+    // 🚕 corestream: the ride sweep would notice on its next tick (up to 90 s) — the kill switch acts now.
+    if (b.name === "corestream") (await import("../services/coreStream")).recheckCoreStream();
     // Flag-o'zgarish logi (2026-07-17 saboq: welcomebonus jimgina o'chirilgan, hech kim bilmagan).
     // Faqat shu owner-endpoint va setFlag.ts alert beradi — setFeature ichiga qo'yilmaydi,
     // aks holda test-skriptlar har flag-toggle'da adminni spamlaydi.

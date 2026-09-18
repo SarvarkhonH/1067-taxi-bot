@@ -9,7 +9,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
+import { foldName, formatNumber, fuzzyFilter, haversineKm, placeKind, ridePollMs, CASHBACK_HEADLINE_MAX, type ActiveBookingView, type BookingDriverView, type BookingInfoResponse, type MeResponse, type SavedAddressView } from "@t1067/shared";
 import { api } from "./api";
 import { loadErrorText } from "./util";
 import { haptic, hapticSuccess, tg, tgGetLocation, tgHasLocationManager, tgOpenLocationSettings } from "./telegram";
@@ -39,6 +39,7 @@ function WaitTicker({ waitComp, startAt, mini }: { waitComp: BookingInfoResponse
 import { confetti } from "./util";
 import { Button, Sheet, Skeleton } from "./design/components";
 import { useIsActive } from "./useIsActive";
+import { useRideStream } from "./rideStream";
 import { TaxiStory, storySeen } from "./taxiStory";
 import "./design/feat/b3.css"; // bu tab ochilgandagina yuklanadi (kritik yo'lda emas)
 
@@ -541,6 +542,18 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pickup2, active?.id, active?.driver?.carNumber]);
   const activeRef = useRef<ActiveBookingView | null>(info.active ?? null); // E7: detect active→null finish
+  // 🚕 B qism P0-4 (corestream): while a ride is on, the server says the moment it changes. The
+  // search/ride poll below reads these refs: a nudge asks at once, an open socket slows the poll.
+  const wakeRideRef = useRef<(() => void) | null>(null);
+  const rideStreamOpen = useRideStream(!!me.flags?.corestream && screen === "searching", () => wakeRideRef.current?.());
+  const streamOpenRef = useRef(false);
+  streamOpenRef.current = rideStreamOpen;
+  // The socket went away mid-ride: ask now and fall back to the 3 s poll, not after the 20 s net.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasOpenRef.current && !rideStreamOpen) wakeRideRef.current?.();
+    wasOpenRef.current = rideStreamOpen;
+  }, [rideStreamOpen]);
   const [finishedBid, setFinishedBid] = useState<number | null>(null); // E7: the just-finished ride
   // 🪙 Jonli qidiruv: when THIS search began (client-side, display only — the server times the real
   // payout via waitstart markers) + the frozen estimate shown on the "topilmadi" apology screen.
@@ -1058,7 +1071,28 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     if (screen !== "searching") return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let inFlight = false;
+    let again = false;
+    // corestream only (flag off = yesterday exactly): nothing polls in the background.
+    const pauseHidden = !!me.flags?.corestream;
     const tick = async () => {
+      if (!alive) return;
+      // A nudge while a request is out: that answer may predate the change — ask once more after it.
+      if (inFlight) { again = true; return; }
+      if (pauseHidden && document.hidden) return; // coming back to the app asks at once (onVisible)
+      inFlight = true;
+      try { await tickOnce(); } finally { inFlight = false; }
+      if (!alive) return;
+      if (timer) clearTimeout(timer);
+      if (again) { again = false; void tick(); return; }
+      // 🚕 P0-4: under a live ride socket this poll is only a safety net (20 s); alone it stays 3 s.
+      timer = setTimeout(tick, ridePollMs(streamOpenRef.current));
+    };
+    // The socket said something changed: ask now instead of waiting for the next poll.
+    wakeRideRef.current = () => { if (timer) clearTimeout(timer); void tick(); };
+    const onVisible = () => { if (!document.hidden) wakeRideRef.current?.(); };
+    if (pauseHidden) document.addEventListener("visibilitychange", onVisible);
+    const tickOnce = async () => {
       const assigned = !!activeRef.current?.driver; // previous tick's state — decides what to fetch
       // livecars: the live-car loop (map centred on the pickup while searching) owns the count, so this
       // tick asks nothing — two sources would make the number jump between two values.
@@ -1129,11 +1163,12 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       // safar 2 daqiqa, «started» oynasi esa ATIGI 4 SONIYA edi — 5 soniyalik so'rov uni
       // o'tkazib yubordi. Holat o'zgarishlari shu qadar tez ketadiki, sekin so'rov bosqichni
       // butunlay ko'rmay qolishi mumkin. 3s har bosqichni ushlaydi va yuk ham arzimas.
-      if (alive) timer = setTimeout(tick, 3_000);
     };
     tick();
     return () => {
       alive = false;
+      wakeRideRef.current = null;
+      document.removeEventListener("visibilitychange", onVisible);
       if (timer) clearTimeout(timer);
     };
   }, [screen]);

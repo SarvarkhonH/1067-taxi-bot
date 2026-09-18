@@ -7,7 +7,10 @@ import { notifyOwnerCashout } from "./bot/cashout";
 import { runSync } from "./sync/sync";
 import { pushBookingUpdates } from "./services/bookingNotifier";
 import { maybeSurpriseDrop, payWeeklyPrizes } from "./services/weeklyService";
-import { formatNumber } from "@t1067/shared";
+import { bookingTickDelay, formatNumber, sweepLoop } from "@t1067/shared";
+import { coreStreamHealthy, ensureCoreStream, setCoreStreamRecheck, setCoreStreamWake } from "./services/coreStream";
+import { attachRideSocket, recheckRideClients } from "./api/rideSocket";
+import { featureOn } from "./services/featureFlags";
 
 // P0.4: orphaned SyncRun stuck in "running" (crash mid-sync) → mark error.
 async function reapStaleSyncs(maxAgeMs: number): Promise<void> {
@@ -290,6 +293,10 @@ async function main(): Promise<void> {
     }
   });
 
+  // 🚕 B qism P0-4: the passenger's ride socket (/api/ride-ws) on the same HTTP server. Flag
+  // `corestream`, or the owner's preview; a closed flag answers 4403 and the Mini App keeps polling.
+  attachRideSocket(server, async (tgId) => (await featureOn("corestream")) || env.adminIds.includes(tgId));
+
   // 4. periodic refresh (cashback + badges + weekly payout + surprise drops)
   // Haftalik yutuq / kutilmagan sovg'a / cashback xabarlari. BLK-1: 403 yozib olinadi, lekin
   // xato AVVALGIDEK yuqoriga tashlanadi — chaqiruvchilarning xatti-harakati o'zgarmaydi.
@@ -498,11 +505,51 @@ async function main(): Promise<void> {
   // ONE sweep (no new poller); ALWAYS re-schedules so it never stops. pushBookingUpdates
   // returns the count of live rides → drives the next delay.
   let bookingBusy = false;
-  let bookingStopped = false;
-  let bookingTimer: ReturnType<typeof setTimeout> | null = null;
-  const tickBooking = async (): Promise<void> => {
+  // 🚕 corestream has two steps, so the owner accepts it on a real phone before anyone else gets it:
+  //   · preview (flag off): the stream is on wherever the core allows it, but it wakes the sweep only
+  //     for the owner's own rides and the sweep keeps yesterday's 5 s / 15 s — customers see nothing new
+  //   · on (flag on): it wakes the sweep for every linked passenger, and the sweep becomes a safety net
+  let streamEveryone = false;
+  const linkedTail = async (tail9: string): Promise<boolean> =>
+    (await prisma.member.count({ where: { phone: { endsWith: tail9 }, telegramUser: { isNot: null } } })) > 0;
+  // Preview: the owner's phones, read once per 10 min — not a database query on every order in town.
+  let ownerTails: { at: number; set: Set<string> } = { at: 0, set: new Set() };
+  const ownerTail = async (tail9: string): Promise<boolean> => {
+    if (!env.adminIds.length) return false;
+    if (Date.now() - ownerTails.at > 10 * 60_000) {
+      const rows = await prisma.member.findMany({ where: { telegramUser: { is: { id: { in: env.adminIds } } } }, select: { phone: true } });
+      ownerTails = { at: Date.now(), set: new Set(rows.map((r) => (r.phone ?? "").replace(/\D/g, "").slice(-9)).filter((t) => t.length === 9)) };
+    }
+    return ownerTails.set.has(tail9);
+  };
+  const checkCoreStream = (): Promise<void> =>
+    featureOn("corestream")
+      .then(async (on) => {
+        const wasOn = streamEveryone;
+        streamEveryone = on;
+        // Flag off: in preview the stream stays up (the owner keeps testing), so nobody hears "down" —
+        // let every passenger who is no longer allowed go, and their Mini App polls every 3 s again.
+        // First, so a failure connecting the stream can never skip it.
+        if (wasOn && !on) await recheckRideClients().catch((e) => console.error("[ride-ws] recheck failed:", e));
+        await ensureCoreStream({ enabled: on || env.adminIds.length > 0, linked: on ? linkedTail : ownerTail });
+      })
+      .catch((e) => console.error("[core] stream check failed:", e));
+  // One log line whenever the sweep changes pace (D4.7) — the stream's own lines say joined/lost,
+  // but in preview the pace does not follow them.
+  let paceNet: boolean | null = null;
+  const pacedHealthy = (): boolean => {
+    const net = streamEveryone && coreStreamHealthy();
+    if (net !== paceNet) {
+      if (paceNet !== null || net) console.log(net ? "[booking] sweep is a safety net now (20 s / 30 s): the core's stream wakes it" : "[booking] sweep back to 5 s / 15 s");
+      paceNet = net;
+    }
+    return net;
+  };
+  const tickBody = async (): Promise<{ active: number; awaitingDriver: number }> => {
     let active = 0;
     let awaitingDriver = 0;
+    // Connect / disconnect the stream to match its flag. Never awaited into the sweep's timing.
+    void checkCoreStream();
     if (bot && !bookingBusy) {
       bookingBusy = true;
       try {
@@ -574,15 +621,26 @@ async function main(): Promise<void> {
       }).catch((e) => { console.error("[mktlife] failed:", e); return { planned: 0, sent: 0 }; });
       if (life.sent) console.log(`[mktlife] ${life.sent}/${life.planned} push yuborildi`);
     }
-    // 🚖 SMS-parity speed: while a rider is WAITING for a driver, poll every 5s so "Haydovchi
-    // topildi" lands in seconds like the kas SMS. Assigned / in-trip → 15s (arrival is WS-instant).
-    // Idle → 90s. One api/bookings call per tick regardless of ride count — cheap at any scale.
-    const delay = awaitingDriver > 0 ? 5_000 : active > 0 ? 15_000 : 90_000;
-    if (!bookingStopped) bookingTimer = setTimeout(() => void tickBooking(), delay);
+    return { active, awaitingDriver };
   };
+  // 🚖 SMS-parity speed: while a rider is WAITING for a driver, poll every 5s so "Haydovchi
+  // topildi" lands in seconds like the kas SMS. Assigned / in-trip → 15s (arrival is WS-instant).
+  // Idle → 90s. One api/bookings call per tick regardless of ride count — cheap at any scale.
+  // 🚕 B qism P0-4: the core's stream WAKES this same sweep the moment an order changes (no second
+  // sweep, no new poller); with the stream healthy the timer is only a safety net (20 s / 30 s).
+  // sweepLoop keeps it ONE chain: a wake during a tick runs one more tick after it, never alongside.
+  const bookingSweep = sweepLoop({
+    body: tickBody,
+    delay: (r) => bookingTickDelay({ ...r, streamHealthy: pacedHealthy() }),
+    windowMs: 300, // a burst of nudges (accept → en route) is one sweep
+    onError: (e) => console.error("[booking] tick failed:", e),
+  });
+  setCoreStreamWake(bookingSweep.wake);
+  // The admin panel's flag switch: connect or close now, and let the sweep pick its new pace at once.
+  setCoreStreamRecheck(() => void checkCoreStream().then(() => bookingSweep.wake()));
   // Always: the ride sweep also carries the market/partner SLA checks, tanga refunds for expired
   // market orders and AI reminders. It used to start only for kas1067 ("live").
-  bookingTimer = setTimeout(() => void tickBooking(), 15_000);
+  bookingSweep.start(15_000);
 
   // keep the free-tier instance warm (self-ping) so the Mini App never hits a cold start. Render
   // free spins down after 15 min idle → ping every 5 min so even a single failed ping still beats
@@ -598,8 +656,7 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     console.log("\n[server] shutting down…");
     clearInterval(timer);
-    bookingStopped = true;
-    if (bookingTimer) clearTimeout(bookingTimer);
+    bookingSweep.stop();
     if (keepAlive) clearInterval(keepAlive);
     server.close();
     if (bot && !env.WEBHOOK_URL) await bot.stop();

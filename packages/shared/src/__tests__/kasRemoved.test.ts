@@ -74,7 +74,9 @@ describe("nothing waits for 'live' mode", () => {
 
   it("starts the ride sweep unconditionally", () => {
     const index = read(path.join(ROOT, "server", "src", "index.ts"));
-    expect(index).toMatch(/\n\s*bookingTimer = setTimeout\(\(\) => void tickBooking\(\), 15_000\);/);
+    // One scheduler (shared sweepLoop: one chain, never two ticks at once), started at statement level.
+    expect(index).toMatch(/\n\s*const bookingSweep = sweepLoop\(\{/);
+    expect(index).toMatch(/\n\s*bookingSweep\.start\(15_000\);/);
   });
 });
 

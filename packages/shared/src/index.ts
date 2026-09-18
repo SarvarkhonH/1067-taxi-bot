@@ -8,6 +8,7 @@ export * from "./clientinfo";
 export * from "./booking";
 export * from "./pickup";
 export * from "./bridgeIds";
+export * from "./rideStream";
 export * from "./taxiCore";
 export * from "./pickupRemap";
 export * from "./format";
