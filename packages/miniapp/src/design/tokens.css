@@ -2561,6 +2561,16 @@ body { background: var(--gl-page); }
   background: var(--gl-cta-grad); color: var(--gl-cta-ink);
   border: 1px solid var(--gl-gift-bd); box-shadow: var(--gl-cta-shadow); }
 
+/* 🔁 P0-8 (tapreorder): bir bosishda odatdagi joyga — taksi kartasi ostida, undan yengilroq */
+.gl-reorder {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; margin-top: 8px; padding: 10px 14px;
+  border-radius: var(--gl-r-md); border: 1px solid var(--gl-line); background: var(--gl-fill-blue); color: var(--gl-blue);
+  font-size: 14px; font-weight: 650; text-align: left; cursor: pointer; transition: opacity .15s;
+}
+.gl-reorder[disabled] { opacity: .72; cursor: default; }
+.gl-reorder-n { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (prefers-reduced-motion: reduce) { .gl-reorder { transition: none; } }
+
 /* ── Bo'lim sarlavhasi ─────────────────────────────────────────────────────────────────── */
 .gl-sh { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .gl-sh .t { font-size: 16px; font-weight: 700; letter-spacing: -.015em; color: var(--gl-ink); }

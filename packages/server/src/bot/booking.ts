@@ -206,6 +206,27 @@ async function resolveAddresses(query: string): Promise<SavedAddress[]> {
   return out;
 }
 
+/**
+ * 🚕 P0-8 (typedfast): the one place to offer with a "call" button, or null for the list. Only the
+ * core's CONFIDENT answer (a curated alias, or exactly one strict match — /addresses/resolve) may
+ * stand alone; anything else is a guess and stays a list the passenger picks from.
+ */
+/**
+ * A "Chaqirish" under a single offer carries that place's id (`bk:confirm:<id>`): pressed after a
+ * newer message changed the session's place, it must not dispatch the newer one. True = refuse.
+ * The confirm screen's own button carries no id (`bk:confirm`) and keeps yesterday's behaviour.
+ */
+export function staleConfirm(want: string | undefined, pickup: SavedAddress | undefined): boolean {
+  if (want === undefined) return false;
+  return !pickup || String(pickup.id) !== want;
+}
+
+export function typedPick(
+  r: { confident: boolean; address: SavedAddress | null } | null | undefined,
+): SavedAddress | null {
+  return r?.confident && r.address ? r.address : null;
+}
+
 /** Start the pick-an-address booking flow from a free-text query (shared by the direct
  *  typed-address path below and the AI agent's taksi_chaqir action). Returns true when it
  *  handled the message (options shown / active-ride notice) — false when the query resolved
@@ -221,7 +242,23 @@ export async function tryAddressBooking(ctx: Context, query: string): Promise<bo
     await ctx.reply(`ℹ️ Sizda faol buyurtma bor:\n📍 ${esc(info.activeBooking.addressName)}\n\n«📍 Buyurtmam» — holatini ko'ring.`, { parse_mode: "HTML" });
     return true;
   }
-  sessions.set(id, { awaitingText: false, clientName: info?.clientName ?? me.member.fullName, phone: me.member.phone, addresses: results });
+  const clientName = info?.clientName ?? me.member.fullName;
+  // 🚕 P0-8 (typedfast; the owner's own chats as a preview): the core names the place without
+  // guessing → ONE message, [Chaqirish] [Boshqa joy]. Otherwise yesterday's list.
+  const { featureOn } = await import("../services/featureFlags");
+  if ((await featureOn("typedfast").catch(() => false)) || env.adminIds.includes(id)) {
+    const place = typedPick(await getDataSource().resolveAddress?.(addressQuery(query)).catch(() => null));
+    if (place) {
+      const addresses = [place, ...results.filter((a) => a.id !== place.id)].slice(0, 6);
+      sessions.set(id, { awaitingText: false, clientName, phone: me.member.phone, addresses, pickup: place });
+      await ctx.reply(`📍 <b>${esc(place.name)}</b>\nShu yerdan chaqiraymi?`, {
+        parse_mode: "HTML",
+        reply_markup: new InlineKeyboard().text("🚕 Chaqirish", `bk:confirm:${place.id}`).text("📍 Boshqa joy", "bk:list"),
+      });
+      return true;
+    }
+  }
+  sessions.set(id, { awaitingText: false, clientName, phone: me.member.phone, addresses: results });
   await ctx.reply("📍 Manzilni tanlang:", { reply_markup: addressKb(results) });
   return true;
 }
@@ -764,6 +801,15 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
     await showConfirm(ctx, s);
   });
 
+  // P0-8 (typedfast): "📍 Boshqa joy" under a single offered place → the usual list.
+  bot.callbackQuery("bk:list", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const s = sessions.get(String(ctx.from.id));
+    if (!s?.addresses.length) return;
+    s.pickup = undefined;
+    await ctx.editMessageText("📍 Manzilni tanlang:", { reply_markup: addressKb(s.addresses) }).catch(() => undefined);
+  });
+
   bot.callbackQuery("bk:cancel", async (ctx) => {
     sessions.delete(String(ctx.from.id));
     await ctx.answerCallbackQuery("Bekor qilindi");
@@ -773,10 +819,14 @@ export function registerBooking(bot: Bot, mainMenu: (isDriver?: boolean, tgId?: 
     await ctx.reply("✅ Bekor qilindi. Yana biror narsa kerak bo'lsa — shunchaki yozing yoki gapiring 😊", { reply_markup: { remove_keyboard: true } }).catch(() => undefined);
   });
 
-  bot.callbackQuery("bk:confirm", async (ctx) => {
-    await ctx.answerCallbackQuery();
+  bot.callbackQuery(/^bk:confirm(?::(-?\d+))?$/, async (ctx) => {
     const id = String(ctx.from.id);
     const s = sessions.get(id);
+    if (staleConfirm(ctx.match[1], s?.pickup)) {
+      await ctx.answerCallbackQuery({ text: "Bu taklif eskirgan — manzilni qayta yozing" });
+      return;
+    }
+    await ctx.answerCallbackQuery();
     if (!s?.pickup) return;
     // persist the 1-tap memory (survives restarts; next time = one button). stampDispatch=false:
     // claimDispatchSlot below must still see this member as "not just dispatched" — see the

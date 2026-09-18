@@ -409,6 +409,22 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
   const [ustas, setUstas] = useState<ServiceListingCard[] | null>(null);
   const [elons, setElons] = useState<ClassifiedCard[] | null>(null);
   const f = me.flags ?? {};
+  // 🚕 P0-8 (tapreorder, owner Q2): one tap calls the car to the usual place — no confirm screen. The
+  // server keeps the confirm for a first ride and after 4 self-cancels a day (confirm_required → the
+  // taxi screen opens as usual). "Yuborilmoqda…" is set in the tap itself: on screen within a frame.
+  const usual = f.tapreorder ? me.usualRide ?? null : null;
+  const [reorderBusy, setReorderBusy] = useState(false);
+  const reorder = async () => {
+    if (!usual || reorderBusy) return;
+    haptic();
+    setReorderBusy(true);
+    const r = await api.bookingNow({ addressId: usual.id }).catch(() => null);
+    setReorderBusy(false);
+    if (!r) { onBanner?.("📡 Aloqa yo'q — qayta urinib ko'ring"); return; }
+    // Sent, already riding, or the server wants the confirm screen: the taxi screen shows each of them.
+    if (r.state === "dispatched" || r.state === "active" || r.state === "confirm_required" || r.state === "need_pickup") { onBook(); return; }
+    onBanner?.(r.message ?? "Yuborilmadi — qayta urinib ko'ring");
+  };
 
   const loadFeed = () => {
     setFeedErr(false);
@@ -516,6 +532,12 @@ export function NewUyView({ me, onBook, onNav, onBanner }: { me: MeResponse; onB
         </span>
         <span className="gl-taxi-go" aria-hidden="true"><GlIcon n="chev" size={18} /></span>
       </button>
+      {usual && (
+        <button className="gl-reorder" onClick={() => void reorder()} disabled={reorderBusy}>
+          <span aria-hidden="true">🔁</span>
+          <span className="gl-reorder-n">{reorderBusy ? "Yuborilmoqda…" : `Yana: ${usual.name}`}</span>
+        </button>
+      )}
 
       {rail.length > 0 && (
         <>

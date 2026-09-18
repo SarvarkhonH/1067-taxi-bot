@@ -11,6 +11,8 @@ export interface BadgeView {
 }
 
 export interface MeResponse {
+  /** 🚕 P0-8 (tapreorder): the place one tap calls the car to — the same as the taxi screen's usual place. */
+  usualRide?: { id: number; name: string } | null;
   luckyDay?: boolean;
   linked: boolean;
   type: MemberType;
@@ -70,6 +72,7 @@ export interface MeResponse {
     corestream?: boolean; // 🚕 B qism P0-4: /api/ride-ws orqali holat signali va o'z haydovchining joyi
     ridemap?: boolean; // 🚕 B qism P0-5: haydovchi mashinasi fikslar oralig'ida siljiydi, qisqa yoy bilan buriladi
     fastopen?: boolean; // 🚕 B qism P0-2: taksi varag'i keshdan darhol, katalog va pin nomi telefonda
+    tapreorder?: boolean; // 🚕 B qism P0-8: «🔁 Yana: <joy>» — tasdiqsiz bir bosishda qayta chaqirish
     livecars?: boolean; // 🚕 B qism P0-3: real bo'sh mashinalar (maxfiylik bilan); ON = bezak-mashinalar va ×2 son yo'q
     oyin?: boolean; // 🎮 Koson O'yini — ball→chipta→tiraj mavsumi (owner-preview: admins see it while DARK)
   };

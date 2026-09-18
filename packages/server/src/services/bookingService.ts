@@ -13,6 +13,7 @@ import {
   type GeoPt,
   type SavedAddressView,
   nearestPlace,
+  reorderNeedsConfirm,
 } from "@t1067/shared";
 import { prisma } from "../db";
 import { env } from "../env";
@@ -615,6 +616,7 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
       defaultPickupName: true,
       lastBookingAt: true,
       lastBookingId: true,
+      trips: true,
     },
   });
   if (!member?.phone) return { state: "failed", message: "Telefon raqami ulanmagan" };
@@ -633,8 +635,16 @@ export async function callOneTapFor(memberId: number, body: BookingNowBody, sour
 
   // cancel-farm: too many self-cancels today → no more instant dispatch,
   // the full confirm flow protects driver liquidity from phantom orders
-  if ((await cancelsToday(memberId).catch(() => 0)) >= CANCEL_FARM_LIMIT) {
+  const cancels = await cancelsToday(memberId).catch(() => 0);
+  if (cancels >= CANCEL_FARM_LIMIT) {
     return { state: "confirm_required", message: "Bugun ko'p bekor qilindi — manzilni tasdiqlab chaqiring" };
+  }
+  // 🚕 P0-8 (tapreorder, owner Q2): one tap skips the confirm screen — except on a passenger's first
+  // ride, where the place is still a guess (shared/reorder, the Mini App asks the same question).
+  if (await import("./featureFlags").then((f) => f.featureOn("tapreorder")).catch(() => false)) {
+    if (reorderNeedsConfirm({ trips: member.trips, cancelsToday: cancels })) {
+      return { state: "confirm_required", message: "Birinchi safar — manzilni tasdiqlab chaqiring" };
+    }
   }
 
   const ds = getDataSource();

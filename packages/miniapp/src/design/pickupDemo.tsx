@@ -103,7 +103,7 @@ const ME = (mode: Mode, lt: boolean, live: boolean, stream: boolean, ridemap: bo
     type: "client",
     coins: 4820,
     streak: { current: 3 },
-    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true, livecars: live, corestream: stream, ridemap, fastopen },
+    flags: { booking3: true, autoloc: true, pickup2: mode !== "off", pickup2b: mode === "b", pickup2lt: lt, taxistory: true, livecars: live, corestream: stream, ridemap, fastopen, tapreorder: true },
   }) as unknown as MeResponse;
 const LABEL: Record<Mode, string> = { a: "A — javob birinchi", b: "B — ro'yxat birinchi", off: "Eski ko'rinish (flag OFF)" };
 const NEXT: Record<Mode, Mode> = { a: "b", b: "off", off: "a" };
@@ -157,6 +157,13 @@ function patchFetch(): void {
       return json(fuzzyFilter(q, PLACES).slice(0, 6));
     }
     if (url.includes("/api/booking/create")) return json({ ok: false, reason: "demo" });
+    // 🔁 tapreorder: one tap — the demo "dispatches" (a new search starts; nothing real is called)
+    if (url.includes("/api/booking/now")) {
+      NOW_CALLS.push(Date.now());
+      await new Promise((r) => setTimeout(r, 300));
+      RIDE = "searching";
+      return json({ state: "dispatched", pickupName: "demo" });
+    }
     return real(input as RequestInfo, init);
   };
 }
@@ -166,6 +173,8 @@ function patchFetch(): void {
 // without it), the instant ask on a nudge and the pause in the background can all be watched here.
 const ACTIVE_CALLS: number[] = [];
 const NEAREST_CALLS: number[] = [];
+const NOW_CALLS: number[] = [];
+(window as unknown as { __demoNowCalls: number[] }).__demoNowCalls = NOW_CALLS;
 (window as unknown as { __demoNearestCalls: number[] }).__demoNearestCalls = NEAREST_CALLS;
 // ⚡ fastopen timing marks go out with sendBeacon (not fetch) — kept here for the demo to show.
 const BEACONS: unknown[] = [];

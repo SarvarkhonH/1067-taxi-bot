@@ -487,6 +487,7 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
   // ── pickup2: the rebuilt pickup sheet. OFF → every branch below falls back to today's UI. ──
   const pickup2 = !!me.flags?.pickup2;
   const fastopen = !!me.flags?.fastopen;
+  const tapreorder = !!me.flags?.tapreorder;
   // 🚕 livecars (B qism P0-3, ega qarori Q1): xaritada REAL bo'sh mashinalar. ON = bezak-mashina va
   // odamlar yo'q, «so'ralmoqda» nuri yo'q, son yadroning haqiqiy soni (11-pol va ×2 yo'q).
   const liveCars = !!me.flags?.livecars;
@@ -1735,6 +1736,32 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
     if (r?.ok) setRated(true);
     else setMsg("⚠️ Baho yuborilmadi — qayta urinib ko'ring");
   };
+  // 🚕 P0-8 (tapreorder, owner Q2): "Yana <place>dan" on the finish screen — the home button's one tap.
+  // The server keeps the confirm for a first ride / 4 cancels a day (→ the confirm screen here).
+  const [againBusy, setAgainBusy] = useState(false);
+  // A map pin has id 0 — to the one-tap path that means "no place given", and it would pick the
+  // passenger's usual place instead of the pin. So a pin never gets this button (see the JSX too).
+  const canAgain = (p: SavedAddressView | null): p is SavedAddressView => !!p && p.id !== 0;
+  const againHere = async () => {
+    if (!canAgain(pickup) || againBusy) return;
+    haptic();
+    setAgainBusy(true);
+    const r = await api.bookingNow({ addressId: pickup.id }).catch(() => null);
+    setAgainBusy(false);
+    if (r && (r.state === "dispatched" || r.state === "active")) {
+      rebook();
+      waitStartRef.current = Date.now();
+      setScreen("searching");
+      return;
+    }
+    if (r && (r.state === "confirm_required" || r.state === "need_pickup")) {
+      rebook();
+      setScreen("confirm");
+      return;
+    }
+    flashMsg(r?.message ?? "📡 Aloqa yo'q — qayta urinib ko'ring", 5000);
+  };
+
   const rebook = () => {
     setScreen("pinpick");
     setActive(null);
@@ -1860,13 +1887,48 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
       </span>
     );
   };
-  const placeRow = (a: SavedAddressView, tag?: string) => (
-    <button key={`${a.id}-${a.name}`} className="b3-p2-row" onClick={() => choose(a)}>
-      {kindIcon(a.name)}
-      <span className="b3-p2-rname">{a.name}</span>
-      {tag && <span className="b3-p2-tag">{tag}</span>}
-    </button>
-  );
+  // 🚕 P0-8 (tapreorder): a row's own "Chaqirish" — the one tap for that place (a pin, id 0, never).
+  // The row itself still opens the confirm screen, as before. The server keeps the confirm for a first
+  // ride and after 4 cancels a day (→ the confirm screen for this place).
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const callRow = async (a: SavedAddressView) => {
+    if (rowBusy || a.id === 0) return;
+    haptic();
+    const key = `${a.id}-${a.name}`;
+    setRowBusy(key);
+    const r = await api.bookingNow({ addressId: a.id }).catch(() => null);
+    setRowBusy(null);
+    if (r && (r.state === "dispatched" || r.state === "active")) {
+      setPickup(a);
+      waitStartRef.current = Date.now();
+      setScreen("searching");
+      return;
+    }
+    if (r && (r.state === "confirm_required" || r.state === "need_pickup")) {
+      choose(a);
+      return;
+    }
+    flashMsg(r?.message ?? "📡 Aloqa yo'q — qayta urinib ko'ring", 5000);
+  };
+  const placeRow = (a: SavedAddressView, tag?: string) => {
+    const key = `${a.id}-${a.name}`;
+    const row = (
+      <button key={key} className="b3-p2-row" onClick={() => choose(a)}>
+        {kindIcon(a.name)}
+        <span className="b3-p2-rname">{a.name}</span>
+        {tag && <span className="b3-p2-tag">{tag}</span>}
+      </button>
+    );
+    if (!tapreorder || a.id === 0) return row;
+    return (
+      <div key={key} className="b3-p2-rowwrap">
+        {row}
+        <button className="b3-p2-rowcall" disabled={rowBusy !== null} onClick={() => void callRow(a)}>
+          {rowBusy === key ? "Yuborilmoqda…" : "Chaqirish"}
+        </button>
+      </div>
+    );
+  };
   const placeTile = (a: SavedAddressView) => (
     <button key={`${a.id}-${a.name}`} className={`b3-p2-ktile t-${placeKind(a.name)}`} onClick={() => choose(a)}>
       {a.name}
@@ -2670,6 +2732,11 @@ function Booking3Inner({ me, info, onClose }: { me: MeResponse; info: BookingInf
                 </>
               )}
             </>
+          )}
+          {tapreorder && canAgain(pickup) && (
+            pickup2
+              ? <button className="b3-p2-cta" disabled={againBusy} onClick={() => void againHere()}>{againBusy ? "Yuborilmoqda…" : `Yana ${pickup.name}dan`}</button>
+              : <Button disabled={againBusy} onClick={() => void againHere()}>{againBusy ? "Yuborilmoqda…" : `🔁 Yana ${pickup.name}dan`}</Button>
           )}
           {pickup2
             ? <button className="b3-p2-home" onClick={rebook}>Bosh sahifaga</button>

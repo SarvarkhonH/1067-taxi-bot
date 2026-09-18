@@ -309,6 +309,20 @@ export class BirJoySource implements KasDataSource {
     return { client: this.toClientInfo(r?.client, p), active };
   }
 
+  /**
+   * P0-8 (typedfast): what the passenger typed, decided by the core the way an order's own label is
+   * (`/addresses/resolve`: a curated alias or exactly one strict match). Not confident → the list.
+   */
+  async resolveAddress(q: string): Promise<{ confident: boolean; address: SavedAddress | null; suggestions: SavedAddress[] }> {
+    const r = await this.request<any>("GET", "/addresses/resolve", { query: { q } });
+    const address = r?.confident && r?.address ? BirJoySource.toSavedAddress(r.address) : null;
+    return {
+      confident: !!address,
+      address,
+      suggestions: Array.isArray(r?.suggestions) ? r.suggestions.map(BirJoySource.toSavedAddress) : [],
+    };
+  }
+
   private toActiveBooking(order: any): ActiveBooking | null {
     if (!order) return null;
     return {

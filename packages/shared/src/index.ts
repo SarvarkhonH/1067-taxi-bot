@@ -11,6 +11,7 @@ export * from "./bridgeIds";
 export * from "./rideStream";
 export * from "./rideMap";
 export * from "./uxMarks";
+export * from "./reorder";
 export * from "./taxiCore";
 export * from "./pickupRemap";
 export * from "./format";

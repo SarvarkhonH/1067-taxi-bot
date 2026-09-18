@@ -62,6 +62,9 @@ jobs:
       - name: Taksi ekrani tez ochilishi — yadroga bitta so'rov, 404 da eski yo'l, kesh (soxta yadro, no DB)
         run: pnpm --filter @t1067/server exec tsx src/scripts/testBookingBoot.ts
 
+      - name: Botda yozilgan manzil — faqat yadro ishonchli bo'lsa bitta taklif (soxta yadro, no DB)
+        run: pnpm --filter @t1067/server exec tsx src/scripts/testTypedFast.ts
+
       # 🏗 Frontendlarni SHU YERDA quramiz (gate + relizga artefakt). VPS'da build endi YO'Q.
       # VITE_API_URL public (maxfiy emas) — Caddyfile'dagi bilan bir xil.
       - name: Build frontends (gate + ship to VPS)
